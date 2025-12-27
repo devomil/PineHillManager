@@ -206,7 +206,7 @@ export interface GeneratedAssets {
     volume: number;
   };
   images: { sceneId: string; url: string; prompt: string; source: 'ai' | 'uploaded' | 'stock' }[];
-  videos: { sceneId: string; url: string; source: 'pexels' | 'pixabay' | 'generated' | 'runway' }[];
+  videos: { sceneId: string; url: string; source: 'pexels' | 'pixabay' | 'generated' | 'runway' | 'kling' | 'luma' | 'hailuo' | 'hunyuan' | 'veo' }[];
   productImages: ProductImage[];
 }
 
@@ -235,7 +235,7 @@ export interface StepStatus {
 }
 
 export interface ServiceFailure {
-  service: 'fal.ai' | 'elevenlabs' | 'pexels' | 'huggingface' | 'remotion-lambda' | 'chunked-render' | 'runway';
+  service: 'fal.ai' | 'elevenlabs' | 'pexels' | 'huggingface' | 'remotion-lambda' | 'chunked-render' | 'runway' | 'piapi' | 'kling' | 'luma' | 'hailuo' | 'hunyuan' | 'veo';
   timestamp: string;
   error: string;
   fallbackUsed?: string;

@@ -16,7 +16,7 @@ import {
   SCENE_OVERLAY_DEFAULTS,
 } from "../../shared/video-types";
 import { brandAssetService } from "./brand-asset-service";
-import { runwayVideoService } from "./runway-video-service";
+import { aiVideoService } from "./ai-video-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2617,7 +2617,7 @@ Guidelines:
     if (scenesNeedingVideo.length > 0) {
       console.log(`[UniversalVideoService] Processing ${scenesNeedingVideo.length} scenes for video (types: ${videoSceneTypes.join(', ')})...`);
       console.log(`[UniversalVideoService] Target audience for video search: ${project.targetAudience || 'not specified'}`);
-      console.log(`[UniversalVideoService] Runway AI available: ${runwayVideoService.isAvailable()}`);
+      console.log(`[UniversalVideoService] AI Video providers available: ${aiVideoService.getAvailableProviders().join(', ') || 'none'}`);
       let videosGenerated = 0;
       let aiVideosGenerated = 0;
       
@@ -2625,30 +2625,31 @@ Guidelines:
         const isHeroScene = heroSceneTypes.includes(scene.type);
         let videoResult: { url: string; source: string; duration?: number } | null = null;
         
-        // Try AI video generation for hero scenes if Runway is available
-        if (isHeroScene && runwayVideoService.isAvailable()) {
-          console.log(`[Assets] Using Runway AI for ${scene.type} scene ${scene.id}...`);
+        // Try AI video generation for hero scenes if any provider is available
+        if (isHeroScene && aiVideoService.isAvailable()) {
+          console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id}...`);
           
           const visualPrompt = scene.visualDirection || 
                                scene.background?.source || 
                                `Professional wellness video for: ${scene.narration?.substring(0, 100)}`;
           
-          const runwayResult = await runwayVideoService.generateVideo({
+          const aiResult = await aiVideoService.generateVideo({
             prompt: visualPrompt,
             duration: Math.min(scene.duration || 5, 10),
             aspectRatio: (project.outputFormat?.aspectRatio as '16:9' | '9:16' | '1:1') || '16:9',
+            sceneType: scene.type,
           });
           
-          if (runwayResult.success && runwayResult.s3Url) {
+          if (aiResult.success && aiResult.s3Url) {
             videoResult = { 
-              url: runwayResult.s3Url, 
-              source: 'runway',
-              duration: runwayResult.duration,
+              url: aiResult.s3Url, 
+              source: aiResult.provider || 'ai',
+              duration: aiResult.duration,
             };
             aiVideosGenerated++;
-            console.log(`[Assets] Runway AI video ready for scene ${scene.id}: ${runwayResult.s3Url}`);
+            console.log(`[Assets] AI video ready (${aiResult.provider}) for scene ${scene.id}: ${aiResult.s3Url}`);
           } else {
-            console.warn(`[Assets] Runway AI failed for ${scene.type} scene ${scene.id}, falling back to stock: ${runwayResult.error}`);
+            console.warn(`[Assets] AI video failed for ${scene.type} scene ${scene.id}, falling back to stock: ${aiResult.error}`);
           }
         }
         
@@ -2698,7 +2699,7 @@ Guidelines:
             updatedProject.assets.videos.push({
               sceneId: scene.id,
               url: videoResult.url,
-              source: videoResult.source as 'pexels' | 'pixabay' | 'generated' | 'runway',
+              source: videoResult.source as 'pexels' | 'pixabay' | 'generated' | 'runway' | 'kling' | 'luma' | 'hailuo' | 'hunyuan' | 'veo',
             });
             
             if (!updatedProject.scenes[sceneIndex].background) {
