@@ -2831,7 +2831,7 @@ Guidelines:
 
         const soundDesigns = await soundDesignService.generateProjectSoundDesign(scenesForSound);
 
-        for (const [sceneId, design] of soundDesigns) {
+        for (const [sceneId, design] of Array.from(soundDesigns.entries())) {
           const sceneIndex = updatedProject.scenes.findIndex(s => s.id === sceneId);
           if (sceneIndex >= 0) {
             (updatedProject.scenes[sceneIndex] as any).soundDesign = design;

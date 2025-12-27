@@ -18,6 +18,7 @@ import type {
   BrandSettings,
   TextOverlay,
   OutputFormat,
+  SceneSoundDesign,
 } from "../shared/video-types";
 
 export interface UniversalVideoProps {
@@ -1119,6 +1120,77 @@ const AssetValidationSummary: React.FC<{
 };
 
 // ============================================================
+// SOUND EFFECTS COMPONENT
+// ============================================================
+
+const SceneSoundEffects: React.FC<{
+  soundDesign: SceneSoundDesign | undefined;
+  sceneStartFrame: number;
+  sceneDuration: number;
+  fps: number;
+}> = ({ soundDesign, sceneStartFrame, sceneDuration, fps }) => {
+  if (!soundDesign) return null;
+
+  const sceneFrames = Math.ceil(sceneDuration * fps);
+
+  return (
+    <>
+      {/* Transition In Sound */}
+      {soundDesign.transitionIn && isValidHttpUrl(soundDesign.transitionIn.url) && (
+        <Sequence from={sceneStartFrame} durationInFrames={Math.ceil(soundDesign.transitionIn.duration * fps)}>
+          <Audio
+            src={soundDesign.transitionIn.url}
+            volume={soundDesign.transitionIn.volume}
+          />
+        </Sequence>
+      )}
+
+      {/* Ambient Sound (loops through scene) */}
+      {soundDesign.ambience && isValidHttpUrl(soundDesign.ambience.url) && (
+        <Sequence from={sceneStartFrame} durationInFrames={sceneFrames}>
+          <Audio
+            src={soundDesign.ambience.url}
+            volume={soundDesign.ambience.volume}
+            loop
+          />
+        </Sequence>
+      )}
+
+      {/* Transition Out Sound */}
+      {soundDesign.transitionOut && isValidHttpUrl(soundDesign.transitionOut.url) && (
+        <Sequence 
+          from={sceneStartFrame + sceneFrames - Math.ceil(soundDesign.transitionOut.duration * fps)} 
+          durationInFrames={Math.ceil(soundDesign.transitionOut.duration * fps)}
+        >
+          <Audio
+            src={soundDesign.transitionOut.url}
+            volume={soundDesign.transitionOut.volume}
+          />
+        </Sequence>
+      )}
+
+      {/* Emphasis Sounds (sparkles, success chimes, etc.) */}
+      {soundDesign.emphasis?.map((effect, index) => {
+        if (!isValidHttpUrl(effect.url)) return null;
+        const emphasisFrame = sceneStartFrame + Math.floor(sceneDuration * 0.5 * fps);
+        return (
+          <Sequence 
+            key={`emphasis-${index}`}
+            from={emphasisFrame} 
+            durationInFrames={Math.ceil(effect.duration * fps)}
+          >
+            <Audio
+              src={effect.url}
+              volume={effect.volume}
+            />
+          </Sequence>
+        );
+      })}
+    </>
+  );
+};
+
+// ============================================================
 // MAIN COMPOSITION
 // ============================================================
 
@@ -1190,6 +1262,26 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
         volume={1} 
         label="Voiceover"
       />
+
+      {/* Sound Effects (whooshes, ambient, emphasis) */}
+      {(() => {
+        let frameOffset = 0;
+        return scenes.map((scene, index) => {
+          const sceneStartFrame = frameOffset;
+          const sceneDuration = scene.duration || 5;
+          frameOffset += Math.ceil(sceneDuration * fps);
+          
+          return (
+            <SceneSoundEffects
+              key={`sfx-${scene.id || index}`}
+              soundDesign={scene.soundDesign}
+              sceneStartFrame={sceneStartFrame}
+              sceneDuration={sceneDuration}
+              fps={fps}
+            />
+          );
+        });
+      })()}
     </AbsoluteFill>
   );
 };
