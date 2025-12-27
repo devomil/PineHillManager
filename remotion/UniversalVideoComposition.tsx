@@ -201,7 +201,7 @@ const SafeImage: React.FC<{
 };
 
 // ============================================================
-// SAFE AUDIO COMPONENT
+// SAFE AUDIO COMPONENT - SUPPORTS STATIC AND DUCKING VOLUMES
 // ============================================================
 
 const SafeAudio: React.FC<{
@@ -212,10 +212,31 @@ const SafeAudio: React.FC<{
   const status = getAssetStatus(src);
   
   if (status !== 'valid') {
-    // Log the issue but don't crash - just skip audio
     console.warn(`[Remotion] ${label} audio skipped - ${status}: ${src?.substring(0, 50)}`);
     return null;
   }
+  
+  return <Audio src={src!} volume={volume} />;
+};
+
+// Music with ducking during voiceover
+const DuckedMusicAudio: React.FC<{
+  src: string | null | undefined;
+  baseVolume: number;
+  duckedVolume: number;
+  hasVoiceover: boolean;
+  label: string;
+}> = ({ src, baseVolume, duckedVolume, hasVoiceover, label }) => {
+  const status = getAssetStatus(src);
+  
+  if (status !== 'valid') {
+    console.warn(`[Remotion] ${label} audio skipped - ${status}: ${src?.substring(0, 50)}`);
+    return null;
+  }
+  
+  // If voiceover exists, duck the music for the entire duration
+  // Since voiceover plays continuously, use ducked volume
+  const volume = hasVoiceover ? duckedVolume : baseVolume;
   
   return <Audio src={src!} volume={volume} />;
 };
@@ -1249,17 +1270,19 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
       {/* Watermark - only if valid URL */}
       <Watermark brand={brand} />
 
-      {/* Background Music - with validation */}
-      <SafeAudio 
+      {/* Background Music - with ducking during voiceover */}
+      <DuckedMusicAudio 
         src={musicUrl} 
-        volume={musicVolume} 
+        baseVolume={0.18}
+        duckedVolume={0.15}
+        hasVoiceover={!!voiceoverUrl && isValidHttpUrl(voiceoverUrl)}
         label="Background music"
       />
 
-      {/* Voiceover - with validation */}
+      {/* Voiceover - full volume */}
       <SafeAudio 
         src={voiceoverUrl} 
-        volume={1} 
+        volume={1.0} 
         label="Voiceover"
       />
 
