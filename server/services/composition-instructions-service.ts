@@ -36,6 +36,21 @@ export interface ProductOverlayInstruction {
   shadow: boolean;
 }
 
+export interface KenBurnsInstruction {
+  enabled: boolean;
+  startScale: number;
+  endScale: number;
+  startPosition: { x: number; y: number };
+  endPosition: { x: number; y: number };
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+}
+
+export interface TransitionInstruction {
+  type: 'fade' | 'crossfade' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'zoom' | 'slide-left' | 'slide-right' | 'none';
+  duration: number;
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+}
+
 export interface SceneCompositionInstructions {
   sceneId: string;
   textOverlays: TextOverlayInstruction[];
@@ -48,6 +63,9 @@ export interface SceneCompositionInstructions {
       backgroundColor: string;
     };
   };
+  kenBurns: KenBurnsInstruction;
+  transitionIn: TransitionInstruction;
+  transitionOut: TransitionInstruction;
 }
 
 class CompositionInstructionsService {
@@ -60,20 +78,36 @@ class CompositionInstructionsService {
       useProductOverlay?: boolean;
       brandColor?: string;
       defaultTextPosition?: 'top' | 'center' | 'lower-third';
+      sceneType?: string;
+      sceneDuration?: number;
+      isFirstScene?: boolean;
+      isLastScene?: boolean;
+      previousSceneMood?: string;
     } = {}
   ): SceneCompositionInstructions {
     
     const safeAnalysis = analysis || this.getDefaultAnalysis();
+    const sceneDuration = options.sceneDuration || 5;
     
-    const instructions: SceneCompositionInstructions = {
+    const kenBurns = this.calculateKenBurns(safeAnalysis, sceneDuration);
+    const { transitionIn, transitionOut } = this.calculateTransitions(
+      safeAnalysis,
+      options.sceneType || 'explanation',
+      options.isFirstScene || false,
+      options.isLastScene || false,
+      options.previousSceneMood
+    );
+    
+    return {
       sceneId,
       textOverlays: this.positionTextOverlays(textOverlays, safeAnalysis, options),
       productOverlay: options.useProductOverlay 
         ? this.positionProductOverlay(safeAnalysis) 
         : undefined,
+      kenBurns,
+      transitionIn,
+      transitionOut,
     };
-    
-    return instructions;
   }
 
   generateFallbackInstructions(
@@ -103,7 +137,99 @@ class CompositionInstructionsService {
           enterDelay: index * 0.15,
         },
       })),
+      kenBurns: {
+        enabled: true,
+        startScale: 1.0,
+        endScale: 1.08,
+        startPosition: { x: 50, y: 50 },
+        endPosition: { x: 50, y: 50 },
+        easing: 'ease-in-out',
+      },
+      transitionIn: { type: 'fade', duration: 0.5, easing: 'ease-out' },
+      transitionOut: { type: 'fade', duration: 0.5, easing: 'ease-in' },
     };
+  }
+
+  private calculateKenBurns(
+    analysis: SceneAnalysis,
+    sceneDuration: number
+  ): KenBurnsInstruction {
+    const focalPoint = analysis.composition.focalPoint;
+    const hasFaces = analysis.faces.detected;
+    const mood = analysis.mood;
+    
+    let zoomAmount = 0.08;
+    if (mood === 'dramatic') zoomAmount = 0.12;
+    else if (mood === 'positive') zoomAmount = 0.06;
+    else if (analysis.contentType === 'product') zoomAmount = 0.10;
+    
+    const shouldZoomIn = hasFaces || analysis.contentType === 'person';
+    
+    let startScale: number, endScale: number;
+    let startPosition: { x: number; y: number };
+    let endPosition: { x: number; y: number };
+    
+    if (shouldZoomIn) {
+      startScale = 1.0;
+      endScale = 1.0 + zoomAmount;
+      startPosition = { x: 50, y: 50 };
+      endPosition = { x: focalPoint.x, y: focalPoint.y };
+    } else {
+      startScale = 1.0 + zoomAmount;
+      endScale = 1.0;
+      startPosition = { x: focalPoint.x, y: focalPoint.y };
+      endPosition = { x: 50, y: 50 };
+    }
+    
+    if (analysis.faces.count > 1 && analysis.faces.positions.length >= 2) {
+      const first = analysis.faces.positions[0];
+      const last = analysis.faces.positions[analysis.faces.positions.length - 1];
+      startScale = 1.05;
+      endScale = 1.05;
+      startPosition = { x: first.x + first.width / 2, y: first.y + first.height / 2 };
+      endPosition = { x: last.x + last.width / 2, y: last.y + last.height / 2 };
+    }
+    
+    let easing: KenBurnsInstruction['easing'] = 'ease-in-out';
+    if (mood === 'dramatic') easing = 'ease-out';
+    else if (mood === 'positive') easing = 'linear';
+    
+    return { enabled: true, startScale, endScale, startPosition, endPosition, easing };
+  }
+
+  private calculateTransitions(
+    analysis: SceneAnalysis,
+    sceneType: string,
+    isFirstScene: boolean,
+    isLastScene: boolean,
+    previousSceneMood?: string
+  ): { transitionIn: TransitionInstruction; transitionOut: TransitionInstruction } {
+    const mood = analysis.mood;
+    
+    let transitionIn: TransitionInstruction = { type: 'fade', duration: 0.5, easing: 'ease-out' };
+    let transitionOut: TransitionInstruction = { type: 'fade', duration: 0.5, easing: 'ease-in' };
+    
+    if (isFirstScene) {
+      transitionIn = { type: 'fade', duration: 0.8, easing: 'ease-out' };
+    } else if (sceneType === 'hook') {
+      transitionIn = { type: 'fade', duration: 0.3, easing: 'ease-out' };
+    } else if (sceneType === 'cta') {
+      transitionIn = { type: 'zoom', duration: 0.6, easing: 'ease-out' };
+    } else if (mood === 'dramatic') {
+      transitionIn = { type: 'crossfade', duration: 0.8, easing: 'ease-in-out' };
+    } else if (mood === 'positive' && previousSceneMood === 'positive') {
+      transitionIn = { type: 'dissolve', duration: 0.4, easing: 'linear' };
+    } else if (analysis.contentType === 'product') {
+      transitionIn = { type: 'zoom', duration: 0.5, easing: 'ease-out' };
+    }
+    
+    if (isLastScene) {
+      transitionOut = { type: 'fade', duration: 1.0, easing: 'ease-in' };
+    } else if (mood === 'dramatic') {
+      transitionOut = { type: 'crossfade', duration: 0.6, easing: 'ease-in' };
+    }
+    
+    return { transitionIn, transitionOut };
   }
 
   private positionTextOverlays(
