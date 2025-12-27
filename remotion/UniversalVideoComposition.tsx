@@ -831,7 +831,11 @@ const SceneRenderer: React.FC<{
   // Get image/video URLs with fallback chain
   const imageUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl;
   const videoUrl = scene.assets?.videoUrl;
-  const productOverlayUrl = scene.assets?.productOverlayUrl;
+  // Use generated product image if available, fall back to uploaded
+  const productOverlayUrl = scene.assets?.productOverlayImage || 
+                            scene.assets?.generatedProductImage ||
+                            scene.assets?.productOverlayUrl ||
+                            scene.assets?.productImage;
   const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
   const useProductOverlay = scene.assets?.useProductOverlay !== false;
 

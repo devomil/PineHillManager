@@ -2221,4 +2221,73 @@ router.post('/projects/:projectId/preview', isAuthenticated, async (req: Request
   }
 });
 
+// Phase 1E: Generate Product Image
+router.post('/projects/:projectId/generate-product-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { 
+      productName, 
+      productDescription, 
+      imageType = 'overlay',
+      style = 'natural',
+      aspectRatio = '1:1',
+    } = req.body;
+    
+    if (!productName) {
+      return res.status(400).json({ success: false, error: 'Product name is required' });
+    }
+
+    const projectData = await getProjectFromDb(projectId);
+    
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const { productImageService } = await import('../services/product-image-service');
+    
+    const image = await productImageService.generateProductImage({
+      productName,
+      productDescription,
+      imageType,
+      style,
+      aspectRatio,
+    });
+
+    if (!image) {
+      return res.status(500).json({ success: false, error: 'Image generation failed' });
+    }
+
+    (projectData as any).generatedProductImages = (projectData as any).generatedProductImages || {};
+    (projectData as any).generatedProductImages[productName] = (projectData as any).generatedProductImages[productName] || [];
+    (projectData as any).generatedProductImages[productName].push(image);
+
+    await saveProjectToDb(projectData, projectData.ownerId);
+
+    return res.json({
+      success: true,
+      image,
+    });
+
+  } catch (error: any) {
+    console.error('[UniversalVideo] Product image generation error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 1E: Get Product Image Styles
+router.get('/product-image-styles', (req: Request, res: Response) => {
+  res.json({
+    imageTypes: ['product-shot', 'lifestyle', 'hero', 'overlay'],
+    styles: ['studio', 'natural', 'dramatic', 'minimal'],
+    aspectRatios: ['1:1', '16:9', '9:16', '4:3'],
+    backgrounds: ['white', 'gradient', 'natural', 'transparent'],
+    lighting: ['soft', 'dramatic', 'natural', 'studio'],
+  });
+});
+
 export default router;

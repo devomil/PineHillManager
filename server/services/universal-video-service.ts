@@ -19,6 +19,7 @@ import { brandAssetService } from "./brand-asset-service";
 import { aiVideoService } from "./ai-video-service";
 import { soundDesignService, SceneSoundDesign } from "./sound-design-service";
 import { aiMusicService, GeneratedMusic } from "./ai-music-service";
+import { productImageService, GeneratedProductImage } from "./product-image-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2873,11 +2874,119 @@ Guidelines:
     }
     // ========== END SOUND DESIGN ==========
 
+    // ========== PRODUCT IMAGES ==========
+    // Generate AI product images for products that need them
+    const productsNeedingImages = this.identifyProductsNeedingImages(updatedProject);
+    
+    if (productsNeedingImages.length > 0 && productImageService.isAvailable()) {
+      console.log(`[UniversalVideoService] Generating product images for ${productsNeedingImages.length} products...`);
+      
+      try {
+        const productImages = await productImageService.generateProjectImages(
+          productsNeedingImages,
+          'natural'  // Pine Hill Farm brand style
+        );
+
+        (updatedProject as any).generatedProductImages = {};
+        
+        for (const [productName, images] of productImages) {
+          (updatedProject as any).generatedProductImages[productName] = images;
+          
+          // Update scenes that reference this product
+          for (let i = 0; i < updatedProject.scenes.length; i++) {
+            const scene = updatedProject.scenes[i];
+            
+            if (this.sceneUsesProduct(scene, productName)) {
+              const overlayImage = images.find(img => img.type === 'overlay');
+              const heroImage = images.find(img => img.type === 'hero');
+              
+              (updatedProject.scenes[i] as any).assets = (updatedProject.scenes[i] as any).assets || {};
+              
+              if (overlayImage) {
+                (updatedProject.scenes[i] as any).assets.productOverlayImage = overlayImage.s3Url;
+              }
+              if (heroImage && scene.type === 'product') {
+                (updatedProject.scenes[i] as any).assets.productHeroImage = heroImage.s3Url;
+              }
+            }
+          }
+        }
+
+        console.log(`[UniversalVideoService] Product images complete for ${productImages.size} products`);
+
+      } catch (error: any) {
+        console.error(`[UniversalVideoService] Product image generation failed:`, error.message);
+        // Continue without product images - they're an enhancement
+      }
+    } else if (productsNeedingImages.length > 0) {
+      console.log(`[UniversalVideoService] Product images skipped (PiAPI not configured)`);
+    }
+    // ========== END PRODUCT IMAGES ==========
+
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
     updatedProject.updatedAt = new Date().toISOString();
 
     return updatedProject;
+  }
+
+  /**
+   * Identify products that need AI-generated images
+   */
+  private identifyProductsNeedingImages(project: any): Array<{
+    name: string;
+    description?: string;
+    needsOverlay: boolean;
+    needsHero: boolean;
+    needsLifestyle: boolean;
+  }> {
+    const products: Array<any> = [];
+    const seenProducts = new Set<string>();
+
+    // Check project-level products
+    if (project.products) {
+      for (const product of project.products) {
+        if (!seenProducts.has(product.name)) {
+          seenProducts.add(product.name);
+          products.push({
+            name: product.name,
+            description: product.description,
+            needsOverlay: !product.hasUploadedImage,
+            needsHero: product.featured,
+            needsLifestyle: product.showInContext,
+          });
+        }
+      }
+    }
+
+    // Check scenes for product references
+    for (const scene of project.scenes || []) {
+      const productName = scene.productName || scene.assets?.productName;
+      
+      if (productName && !seenProducts.has(productName)) {
+        seenProducts.add(productName);
+        products.push({
+          name: productName,
+          description: scene.productDescription,
+          needsOverlay: true,
+          needsHero: scene.type === 'product',
+          needsLifestyle: scene.type === 'lifestyle',
+        });
+      }
+    }
+
+    return products;
+  }
+
+  /**
+   * Check if a scene uses a specific product
+   */
+  private sceneUsesProduct(scene: any, productName: string): boolean {
+    return (
+      scene.productName === productName ||
+      scene.assets?.productName === productName ||
+      scene.narration?.toLowerCase().includes(productName.toLowerCase())
+    );
   }
 
   async getBackgroundMusic(duration: number, style?: string): Promise<{ url: string; duration: number; source: string } | null> {
