@@ -20,6 +20,7 @@ import { aiVideoService } from "./ai-video-service";
 import { soundDesignService, SceneSoundDesign } from "./sound-design-service";
 import { aiMusicService, GeneratedMusic } from "./ai-music-service";
 import { productImageService, GeneratedProductImage } from "./product-image-service";
+import { sceneAnalysisService, SceneAnalysis } from "./scene-analysis-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2922,6 +2923,61 @@ Guidelines:
       console.log(`[UniversalVideoService] Product images skipped (PiAPI not configured)`);
     }
     // ========== END PRODUCT IMAGES ==========
+
+    // ========== SCENE ANALYSIS ==========
+    // Analyze scenes for optimal text and overlay placement
+    if (sceneAnalysisService.isAvailable()) {
+      console.log(`[UniversalVideoService] Analyzing scenes for optimal composition...`);
+      
+      if (updatedProject.progress?.steps?.assembly) {
+        (updatedProject.progress.steps as any).assembly.status = 'in-progress';
+        (updatedProject.progress.steps as any).assembly.message = 'Analyzing scenes with AI vision...';
+      }
+
+      for (let i = 0; i < updatedProject.scenes.length; i++) {
+        const scene = updatedProject.scenes[i];
+        
+        const assetUrl = (scene as any).assets?.imageUrl || 
+                         (scene as any).assets?.videoUrl || 
+                         (scene as any).assets?.backgroundUrl ||
+                         (scene as any).background?.imageUrl ||
+                         (scene as any).background?.videoUrl;
+        
+        if (!assetUrl) {
+          console.log(`[UniversalVideoService] Scene ${scene.id} has no visual asset to analyze`);
+          continue;
+        }
+        
+        try {
+          const analysis = await sceneAnalysisService.analyzeScene(assetUrl, {
+            sceneType: scene.type,
+            narration: scene.narration || '',
+            hasTextOverlays: ((scene as any).textOverlays?.length || 0) > 0,
+            hasProductOverlay: (scene as any).assets?.useProductOverlay || false,
+          });
+          
+          (updatedProject.scenes[i] as any).analysis = analysis;
+          
+          console.log(`[UniversalVideoService] Scene ${i + 1} analyzed:`, {
+            faces: analysis.faces.count,
+            textPosition: analysis.recommendations.textPosition,
+            productSafe: analysis.recommendations.productOverlaySafe,
+          });
+          
+        } catch (error: any) {
+          console.warn(`[UniversalVideoService] Analysis failed for scene ${scene.id}:`, error.message);
+        }
+        
+        if (updatedProject.progress?.steps?.assembly) {
+          (updatedProject.progress.steps as any).assembly.progress = Math.round(((i + 1) / updatedProject.scenes.length) * 100);
+        }
+      }
+
+      console.log(`[UniversalVideoService] Scene analysis complete`);
+    } else {
+      console.log(`[UniversalVideoService] Scene analysis skipped (Anthropic not configured)`);
+    }
+    // ========== END SCENE ANALYSIS ==========
 
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
