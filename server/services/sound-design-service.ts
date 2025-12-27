@@ -239,7 +239,7 @@ class SoundDesignService {
         type: emphasisType as SoundEffect['type'],
         url: result.url,
         duration: result.duration,
-        volume: 0.5,
+        volume: 0.6,
       };
     }
 
