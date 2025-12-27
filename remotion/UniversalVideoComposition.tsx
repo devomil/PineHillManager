@@ -501,20 +501,26 @@ const IntelligentTextOverlay: React.FC<{
     opacity = 1;
   }
   
-  let transform = '';
-  if (instruction.animation.enter === 'slide-up' && adjustedFrame >= 0 && adjustedFrame < enterFrames) {
-    const progress = adjustedFrame / enterFrames;
-    const translateY = (1 - easeOutCubic(progress)) * 30;
-    transform = `translateY(${translateY}px)`;
-  } else if (instruction.animation.enter === 'zoom' && adjustedFrame >= 0 && adjustedFrame < enterFrames) {
-    const progress = adjustedFrame / enterFrames;
-    const scale = 0.8 + (easeOutCubic(progress) * 0.2);
-    transform = `scale(${scale})`;
-  }
+  const getAnimationTransform = (): string => {
+    const transforms: string[] = [];
+    
+    if (instruction.animation.enter === 'slide-up' && adjustedFrame >= 0 && adjustedFrame < enterFrames) {
+      const progress = adjustedFrame / enterFrames;
+      const translateY = (1 - easeOutCubic(progress)) * 30;
+      transforms.push(`translateY(${translateY}px)`);
+    } else if (instruction.animation.enter === 'zoom' && adjustedFrame >= 0 && adjustedFrame < enterFrames) {
+      const progress = adjustedFrame / enterFrames;
+      const scale = 0.8 + (easeOutCubic(progress) * 0.2);
+      transforms.push(`scale(${scale})`);
+    }
+    
+    return transforms.join(' ');
+  };
   
-  const getPositionStyle = (): React.CSSProperties => {
+  const getPositionStyle = (): { style: React.CSSProperties; anchorTransform: string } => {
     const { x, y, anchor } = instruction.position;
     const style: React.CSSProperties = { position: 'absolute' };
+    const anchorTransforms: string[] = [];
     
     if (anchor.includes('left')) {
       style.left = `${x}%`;
@@ -522,7 +528,7 @@ const IntelligentTextOverlay: React.FC<{
       style.right = `${100 - x}%`;
     } else {
       style.left = `${x}%`;
-      style.transform = (style.transform || '') + ' translateX(-50%)';
+      anchorTransforms.push('translateX(-50%)');
     }
     
     if (anchor.includes('top')) {
@@ -531,20 +537,24 @@ const IntelligentTextOverlay: React.FC<{
       style.bottom = `${100 - y}%`;
     } else {
       style.top = `${y}%`;
-      style.transform = (style.transform || '') + ' translateY(-50%)';
+      anchorTransforms.push('translateY(-50%)');
     }
     
-    return style;
+    return { style, anchorTransform: anchorTransforms.join(' ') };
   };
   
   if (opacity <= 0) return null;
   
+  const { style: positionStyle, anchorTransform } = getPositionStyle();
+  const animationTransform = getAnimationTransform();
+  const combinedTransform = [anchorTransform, animationTransform].filter(Boolean).join(' ') || undefined;
+  
   return (
     <div
       style={{
-        ...getPositionStyle(),
+        ...positionStyle,
         opacity,
-        transform: transform || undefined,
+        transform: combinedTransform,
         fontSize: instruction.style.fontSize,
         fontWeight: instruction.style.fontWeight as any,
         fontFamily: brand.fonts.body,
@@ -594,18 +604,45 @@ const IntelligentProductOverlay: React.FC<{
     scale = instruction.scale * (0.8 + (easeOutCubic(progress) * 0.2));
   }
   
-  const { x, y } = instruction.position;
+  const { x, y, anchor } = instruction.position;
   
   if (opacity <= 0) return null;
+  
+  const getPositionStyle = (): React.CSSProperties => {
+    const style: React.CSSProperties = { position: 'absolute' };
+    
+    if (anchor.includes('left')) {
+      style.left = `${x}%`;
+    } else if (anchor.includes('right')) {
+      style.right = `${100 - x}%`;
+    } else {
+      style.left = `${x}%`;
+      style.transform = 'translateX(-50%)';
+    }
+    
+    if (anchor.includes('top')) {
+      style.top = `${y}%`;
+    } else if (anchor.includes('bottom')) {
+      style.bottom = `${100 - y}%`;
+    } else {
+      style.top = `${y}%`;
+      style.transform = (style.transform || '') + ' translateY(-50%)';
+    }
+    
+    return style;
+  };
+  
+  const positionStyle = getPositionStyle();
+  const existingTransform = positionStyle.transform || '';
+  const scaleTransform = `scale(${scale})`;
+  const combinedTransform = [existingTransform, scaleTransform].filter(Boolean).join(' ');
   
   return (
     <div
       style={{
-        position: 'absolute',
-        right: `${100 - x}%`,
-        bottom: `${100 - y}%`,
+        ...positionStyle,
         opacity,
-        transform: `scale(${scale})`,
+        transform: combinedTransform,
         filter: instruction.shadow ? 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))' : undefined,
       }}
     >
