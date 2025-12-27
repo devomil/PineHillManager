@@ -64,6 +64,22 @@ export interface Scene {
   transitionIn: TransitionConfig;
   transitionOut: TransitionConfig;
   assets?: SceneAssets;
+  soundDesign?: SceneSoundDesign;
+}
+
+export interface SceneSoundDesign {
+  sceneId: string;
+  transitionIn?: SoundEffectConfig;
+  transitionOut?: SoundEffectConfig;
+  ambience?: SoundEffectConfig;
+  emphasis?: SoundEffectConfig[];
+}
+
+export interface SoundEffectConfig {
+  type: 'whoosh' | 'transition' | 'impact' | 'sparkle' | 'ambient' | 'notification' | 'success';
+  url: string;
+  duration: number;
+  volume: number;
 }
 
 export type SceneType =

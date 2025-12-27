@@ -17,6 +17,7 @@ import {
 } from "../../shared/video-types";
 import { brandAssetService } from "./brand-asset-service";
 import { aiVideoService } from "./ai-video-service";
+import { soundDesignService, SceneSoundDesign } from "./sound-design-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2812,6 +2813,41 @@ Guidelines:
     updatedProject.progress.steps.assembly.message = 
       `Cached ${cacheResult.cachedCount} assets to S3`;
     // ========== END S3 CACHING ==========
+
+    // ========== SOUND DESIGN ==========
+    // Generate professional sound effects (whooshes, ambient, emphasis)
+    if (soundDesignService.isAvailable()) {
+      console.log(`[UniversalVideoService] Generating sound design...`);
+      
+      try {
+        const scenesForSound = updatedProject.scenes.map((scene, index) => ({
+          id: scene.id,
+          type: scene.type,
+          duration: scene.duration,
+          mood: (scene as any).analysis?.mood,
+          isFirst: index === 0,
+          isLast: index === updatedProject.scenes.length - 1,
+        }));
+
+        const soundDesigns = await soundDesignService.generateProjectSoundDesign(scenesForSound);
+
+        for (const [sceneId, design] of soundDesigns) {
+          const sceneIndex = updatedProject.scenes.findIndex(s => s.id === sceneId);
+          if (sceneIndex >= 0) {
+            (updatedProject.scenes[sceneIndex] as any).soundDesign = design;
+          }
+        }
+
+        console.log(`[UniversalVideoService] Sound design complete for ${soundDesigns.size} scenes`);
+
+      } catch (error: any) {
+        console.error(`[UniversalVideoService] Sound design failed:`, error.message);
+        // Continue without sound design - it's an enhancement
+      }
+    } else {
+      console.log(`[UniversalVideoService] Sound design skipped (PiAPI not configured)`);
+    }
+    // ========== END SOUND DESIGN ==========
 
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
