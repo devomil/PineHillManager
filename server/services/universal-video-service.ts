@@ -3518,27 +3518,65 @@ Guidelines:
    */
   async regenerateMusic(
     project: VideoProject,
-    style?: string
-  ): Promise<{ success: boolean; musicUrl?: string; duration?: number; error?: string }> {
-    const musicStyle = style || 'professional';
+    style?: string,
+    options?: {
+      mood?: 'uplifting' | 'calm' | 'dramatic' | 'inspirational' | 'energetic' | 'emotional';
+      musicStyle?: 'wellness' | 'corporate' | 'cinematic' | 'ambient' | 'acoustic';
+      customPrompt?: string;
+    }
+  ): Promise<{ success: boolean; musicUrl?: string; duration?: number; source?: string; error?: string }> {
     const duration = project.totalDuration || 60;
+    const mood = options?.mood || 'inspirational';
+    const musicStyle = options?.musicStyle || 'wellness';
 
-    console.log(`[UniversalVideoService] Regenerating music: style=${musicStyle}, duration=${duration}s`);
+    console.log(`[UniversalVideoService] Regenerating music: mood=${mood}, style=${musicStyle}, duration=${duration}s`);
 
     try {
-      const result = await this.generateBackgroundMusic(duration, musicStyle, project.title);
+      let musicUrl: string | null = null;
+      let musicDuration: number = duration;
+      let source: string = 'unknown';
 
-      if (result && result.url) {
+      // Try Udio (PiAPI) first
+      if (aiMusicService.isAvailable()) {
+        console.log('[UniversalVideoService] Trying Udio for music regeneration...');
+        const aiMusic = await aiMusicService.generateMusic({
+          duration: duration + 3,
+          mood,
+          style: musicStyle,
+          customPrompt: options?.customPrompt,
+        });
+
+        if (aiMusic) {
+          musicUrl = aiMusic.s3Url;
+          musicDuration = aiMusic.duration;
+          source = `udio-${aiMusic.mood}-${aiMusic.style}`;
+          console.log(`[UniversalVideoService] Udio music regenerated: ${source}`);
+        }
+      }
+
+      // Fallback to ElevenLabs
+      if (!musicUrl) {
+        console.log('[UniversalVideoService] Falling back to ElevenLabs...');
+        const result = await this.generateBackgroundMusic(duration, style || 'professional', project.title);
+        if (result && result.url) {
+          musicUrl = result.url;
+          musicDuration = result.duration;
+          source = result.source;
+        }
+      }
+
+      if (musicUrl) {
         project.assets.music = {
-          url: result.url,
-          duration: result.duration,
+          url: musicUrl,
+          duration: musicDuration,
           volume: project.assets.music?.volume || 0.18,
         };
 
         return {
           success: true,
-          musicUrl: result.url,
-          duration: result.duration,
+          musicUrl,
+          duration: musicDuration,
+          source,
         };
       }
 

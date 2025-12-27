@@ -1930,12 +1930,12 @@ router.post('/:projectId/regenerate-voiceover', isAuthenticated, async (req: Req
   }
 });
 
-// Phase 2: Regenerate Music
+// Phase 2: Regenerate Music with Udio AI
 router.post('/:projectId/regenerate-music', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
     const { projectId } = req.params;
-    const { style } = req.body;
+    const { style, mood, musicStyle, customPrompt } = req.body;
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -1946,9 +1946,13 @@ router.post('/:projectId/regenerate-music', isAuthenticated, async (req: Request
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    console.log(`[UniversalVideo] Regenerating music for project ${projectId}, style: ${style || 'professional'}`);
+    console.log(`[UniversalVideo] Regenerating music for project ${projectId}, mood: ${mood || 'inspirational'}, style: ${musicStyle || 'wellness'}`);
     
-    const result = await universalVideoService.regenerateMusic(projectData, style);
+    const result = await universalVideoService.regenerateMusic(projectData, style, {
+      mood: mood || 'inspirational',
+      musicStyle: musicStyle || 'wellness',
+      customPrompt,
+    });
     
     if (result.success) {
       await saveProjectToDb(projectData, projectData.ownerId);
@@ -1956,6 +1960,7 @@ router.post('/:projectId/regenerate-music', isAuthenticated, async (req: Request
         success: true, 
         musicUrl: result.musicUrl,
         duration: result.duration,
+        source: result.source,
         project: projectData,
       });
     }
