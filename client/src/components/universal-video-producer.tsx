@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { VoiceSelector } from "./voice-selector";
+import { QualityReport } from "./quality-report";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -3106,6 +3107,13 @@ export default function UniversalVideoProducer() {
                   />
                 </div>
               )}
+              
+              {/* Quality Report - shown for completed videos */}
+              <QualityReport 
+                projectId={project.id}
+                projectStatus={project.status}
+                onRegenerateComplete={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
+              />
               
               {project.status === 'rendering' && (
                 <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">

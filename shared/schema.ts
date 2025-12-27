@@ -5060,6 +5060,9 @@ export const universalVideoProjects = pgTable("universal_video_projects", {
   // Undo/Redo history (Phase 4)
   history: jsonb("history"), // ProjectHistory for undo/redo
   
+  // Quality evaluation (Phase 3)
+  qualityReport: jsonb("quality_report"), // VideoQualityReport from quality evaluation
+  
   // Render metadata
   renderId: varchar("render_id", { length: 100 }),
   bucketName: varchar("bucket_name", { length: 255 }),

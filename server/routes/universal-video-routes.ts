@@ -5,6 +5,8 @@ import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
 import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked-render-service';
+import { qualityEvaluationService, VideoQualityReport } from '../services/quality-evaluation-service';
+import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
 import { universalVideoProjects } from '../../shared/schema';
@@ -60,7 +62,7 @@ const scriptVideoInputSchema = z.object({
   targetDuration: z.number().optional(),
 });
 
-function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null } {
+function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null; qualityReport?: VideoQualityReport } {
   return {
     id: row.projectId,
     type: row.type as 'product' | 'script-based',
@@ -81,10 +83,11 @@ function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; buck
     bucketName: row.bucketName || undefined,
     outputUrl: row.outputUrl || undefined,
     history: row.history || undefined,
+    qualityReport: row.qualityReport || undefined,
   };
 }
 
-async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?: string, bucketName?: string, outputUrl?: string) {
+async function saveProjectToDb(project: VideoProject & { qualityReport?: VideoQualityReport }, ownerId: string, renderId?: string, bucketName?: string, outputUrl?: string) {
   const existingProject = await db.select().from(universalVideoProjects)
     .where(eq(universalVideoProjects.projectId, project.id))
     .limit(1);
@@ -105,6 +108,7 @@ async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?
         progress: project.progress,
         status: project.status,
         history: project.history || null,
+        qualityReport: project.qualityReport ?? existingProject[0].qualityReport,
         renderId: renderId ?? existingProject[0].renderId,
         bucketName: bucketName ?? existingProject[0].bucketName,
         outputUrl: outputUrl ?? existingProject[0].outputUrl,
@@ -128,6 +132,7 @@ async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?
       progress: project.progress,
       status: project.status,
       history: project.history || null,
+      qualityReport: project.qualityReport || null,
       renderId,
       bucketName,
       outputUrl,
@@ -135,7 +140,7 @@ async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?
   }
 }
 
-async function getProjectFromDb(projectId: string): Promise<(VideoProject & { ownerId: string; renderId?: string; bucketName?: string; outputUrl?: string | null }) | null> {
+async function getProjectFromDb(projectId: string): Promise<(VideoProject & { ownerId: string; renderId?: string; bucketName?: string; outputUrl?: string | null; qualityReport?: VideoQualityReport }) | null> {
   const rows = await db.select().from(universalVideoProjects)
     .where(eq(universalVideoProjects.projectId, projectId))
     .limit(1);
@@ -784,6 +789,13 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
               
               await saveProjectToDb(latestProject, ownerId, 'chunked', 'chunked', outputUrl);
               console.log(`[UniversalVideo] Final state saved to DB with output URL`);
+              
+              // Run quality evaluation in background (non-blocking)
+              if (qualityEvaluationService.isAvailable()) {
+                runQualityEvaluation(latestProject, outputUrl, ownerId).catch(err => {
+                  console.warn(`[UniversalVideo] Quality evaluation failed:`, err.message);
+                });
+              }
             } else {
               console.error(`[UniversalVideo] CRITICAL: Could not reload project ${projectId} from DB`);
             }
@@ -2289,5 +2301,262 @@ router.get('/product-image-styles', (req: Request, res: Response) => {
     lighting: ['soft', 'dramatic', 'natural', 'studio'],
   });
 });
+
+// Phase 3: Quality Evaluation Endpoints
+
+// GET quality report for a project
+router.get('/projects/:projectId/quality-report', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const qualityReport = projectData.qualityReport;
+    
+    if (!qualityReport) {
+      return res.status(404).json({ success: false, error: 'No quality report available for this project' });
+    }
+    
+    return res.json({
+      success: true,
+      qualityReport,
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Get quality report error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST trigger quality evaluation manually
+router.post('/projects/:projectId/evaluate-quality', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    if (!projectData.outputUrl) {
+      return res.status(400).json({ success: false, error: 'Project has no rendered video to evaluate' });
+    }
+    
+    if (!qualityEvaluationService.isAvailable()) {
+      return res.status(503).json({ success: false, error: 'Quality evaluation service not available' });
+    }
+    
+    console.log(`[UniversalVideo] Starting manual quality evaluation for ${projectId}`);
+    
+    const qualityReport = await qualityEvaluationService.evaluateVideo(
+      projectData.outputUrl,
+      {
+        projectId: projectData.id,
+        scenes: projectData.scenes.map(s => ({
+          id: s.id,
+          type: s.type,
+          narration: s.narration || '',
+          duration: s.duration,
+          textOverlays: s.textOverlays,
+        })),
+      }
+    );
+    
+    projectData.qualityReport = qualityReport;
+    await saveProjectToDb(projectData, userId);
+    
+    return res.json({
+      success: true,
+      qualityReport,
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Quality evaluation error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST regenerate failed scenes
+router.post('/projects/:projectId/regenerate-scenes', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { sceneIndices } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const qualityReport = projectData.qualityReport as VideoQualityReport | undefined;
+    
+    if (!qualityReport) {
+      return res.status(400).json({ success: false, error: 'No quality report available. Run quality evaluation first.' });
+    }
+    
+    let scenesToRegenerate = qualityReport.sceneScores.filter(s => s.needsRegeneration);
+    
+    if (sceneIndices && Array.isArray(sceneIndices)) {
+      scenesToRegenerate = qualityReport.sceneScores.filter(s => 
+        sceneIndices.includes(s.sceneIndex)
+      );
+    }
+    
+    if (scenesToRegenerate.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No scenes need regeneration',
+        regenerated: [],
+      });
+    }
+    
+    console.log(`[UniversalVideo] Regenerating ${scenesToRegenerate.length} scenes for ${projectId}`);
+    
+    const results = await sceneRegenerationService.regenerateFailedScenes(
+      {
+        id: projectData.id,
+        outputFormat: projectData.outputFormat,
+        scenes: projectData.scenes,
+      },
+      scenesToRegenerate
+    );
+    
+    for (const result of results) {
+      if (result.success && result.newVideoUrl) {
+        const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === result.sceneId);
+        if (sceneIndex >= 0) {
+          projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {} as any;
+          (projectData.scenes[sceneIndex].assets as any).videoUrl = result.newVideoUrl;
+          if (result.newAnalysis) {
+            (projectData.scenes[sceneIndex] as any).analysis = result.newAnalysis;
+          }
+          if (result.newInstructions) {
+            (projectData.scenes[sceneIndex] as any).compositionInstructions = result.newInstructions;
+          }
+        }
+      }
+    }
+    
+    // Mark project for re-render if any scenes were successfully regenerated
+    if (results.some(r => r.success)) {
+      projectData.status = 'ready';
+      projectData.progress.steps.rendering.status = 'pending';
+      projectData.progress.steps.rendering.message = 'Scene(s) regenerated - ready to re-render';
+    }
+    
+    await saveProjectToDb(projectData, userId);
+    
+    return res.json({
+      success: true,
+      regenerated: results,
+      needsRerender: results.some(r => r.success),
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Scene regeneration error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Background quality evaluation function
+async function runQualityEvaluation(project: VideoProject, outputUrl: string, ownerId: string) {
+  console.log(`[QualityEval] Starting background evaluation for ${project.id}`);
+  
+  try {
+    const qualityReport = await qualityEvaluationService.evaluateVideo(
+      outputUrl,
+      {
+        projectId: project.id,
+        scenes: project.scenes.map(s => ({
+          id: s.id,
+          type: s.type,
+          narration: s.narration || '',
+          duration: s.duration,
+          textOverlays: s.textOverlays,
+        })),
+      }
+    );
+    
+    const latestProject = await getProjectFromDb(project.id);
+    if (latestProject) {
+      latestProject.qualityReport = qualityReport;
+      await saveProjectToDb(latestProject, ownerId);
+      
+      console.log(`[QualityEval] Report saved: Score ${qualityReport.overallScore}/100, ${qualityReport.passesQuality ? 'PASSED' : 'NEEDS REVIEW'}`);
+      
+      if (!qualityReport.passesQuality) {
+        console.log(`[QualityEval] Issues detected: ${qualityReport.criticalIssues.length} critical`);
+        console.log(`[QualityEval] Recommendations:`, qualityReport.recommendations);
+        
+        const failedScenes = qualityReport.sceneScores.filter(s => s.needsRegeneration);
+        if (failedScenes.length > 0 && failedScenes.length <= 2) {
+          console.log(`[QualityEval] Auto-regenerating ${failedScenes.length} failed scenes...`);
+          
+          const regenResults = await sceneRegenerationService.regenerateFailedScenes(
+            {
+              id: latestProject.id,
+              outputFormat: latestProject.outputFormat,
+              scenes: latestProject.scenes,
+            },
+            failedScenes
+          );
+          
+          for (const result of regenResults) {
+            if (result.success && result.newVideoUrl) {
+              const sceneIndex = latestProject.scenes.findIndex((s: Scene) => s.id === result.sceneId);
+              if (sceneIndex >= 0) {
+                latestProject.scenes[sceneIndex].assets = latestProject.scenes[sceneIndex].assets || {} as any;
+                (latestProject.scenes[sceneIndex].assets as any).videoUrl = result.newVideoUrl;
+                if (result.newAnalysis) {
+                  (latestProject.scenes[sceneIndex] as any).analysis = result.newAnalysis;
+                }
+                if (result.newInstructions) {
+                  (latestProject.scenes[sceneIndex] as any).compositionInstructions = result.newInstructions;
+                }
+              }
+            }
+          }
+          
+          // Store regeneration results in progress for tracking
+          (latestProject.progress as any).lastRegenerationResults = regenResults;
+          
+          // Mark project for re-render if scenes were regenerated successfully
+          if (regenResults.some(r => r.success)) {
+            latestProject.status = 'ready';
+            latestProject.progress.steps.rendering.status = 'pending';
+            latestProject.progress.steps.rendering.message = 'Scene(s) regenerated - ready to re-render';
+            console.log(`[QualityEval] Project marked for re-render due to regenerated scenes`);
+          }
+          
+          await saveProjectToDb(latestProject, ownerId);
+          
+          console.log(`[QualityEval] Regeneration complete: ${regenResults.filter(r => r.success).length}/${regenResults.length} succeeded`);
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error(`[QualityEval] Background evaluation failed:`, error.message);
+  }
+}
 
 export default router;
