@@ -436,6 +436,192 @@ const TextOverlayComponent: React.FC<{
 };
 
 // ============================================================
+// INTELLIGENT TEXT OVERLAY - AI-POWERED POSITIONING
+// ============================================================
+
+interface TextOverlayInstruction {
+  text: string;
+  position: {
+    x: number;
+    y: number;
+    anchor: string;
+  };
+  style: {
+    fontSize: number;
+    fontWeight: string;
+    color: string;
+    textShadow?: string;
+    backgroundColor?: string;
+    padding?: string;
+  };
+  animation: {
+    enter: string;
+    exit: string;
+    enterDuration: number;
+    exitDuration: number;
+    enterDelay: number;
+  };
+}
+
+interface SceneCompositionInstructions {
+  sceneId: string;
+  textOverlays: TextOverlayInstruction[];
+  productOverlay?: {
+    enabled: boolean;
+    position: { x: number; y: number; anchor: string };
+    scale: number;
+    animation: string;
+    shadow: boolean;
+  };
+}
+
+const IntelligentTextOverlay: React.FC<{
+  instruction: TextOverlayInstruction;
+  sceneDuration: number;
+  fps: number;
+  brand: BrandSettings;
+}> = ({ instruction, sceneDuration, fps, brand }) => {
+  const frame = useCurrentFrame();
+  
+  const enterFrames = instruction.animation.enterDuration * fps;
+  const exitFrames = instruction.animation.exitDuration * fps;
+  const delayFrames = instruction.animation.enterDelay * fps;
+  const totalFrames = sceneDuration * fps;
+  
+  let opacity = 0;
+  const adjustedFrame = frame - delayFrames;
+  
+  if (adjustedFrame < 0) {
+    opacity = 0;
+  } else if (adjustedFrame < enterFrames) {
+    opacity = adjustedFrame / enterFrames;
+  } else if (adjustedFrame > totalFrames - exitFrames) {
+    opacity = Math.max(0, (totalFrames - adjustedFrame) / exitFrames);
+  } else {
+    opacity = 1;
+  }
+  
+  let transform = '';
+  if (instruction.animation.enter === 'slide-up' && adjustedFrame >= 0 && adjustedFrame < enterFrames) {
+    const progress = adjustedFrame / enterFrames;
+    const translateY = (1 - easeOutCubic(progress)) * 30;
+    transform = `translateY(${translateY}px)`;
+  } else if (instruction.animation.enter === 'zoom' && adjustedFrame >= 0 && adjustedFrame < enterFrames) {
+    const progress = adjustedFrame / enterFrames;
+    const scale = 0.8 + (easeOutCubic(progress) * 0.2);
+    transform = `scale(${scale})`;
+  }
+  
+  const getPositionStyle = (): React.CSSProperties => {
+    const { x, y, anchor } = instruction.position;
+    const style: React.CSSProperties = { position: 'absolute' };
+    
+    if (anchor.includes('left')) {
+      style.left = `${x}%`;
+    } else if (anchor.includes('right')) {
+      style.right = `${100 - x}%`;
+    } else {
+      style.left = `${x}%`;
+      style.transform = (style.transform || '') + ' translateX(-50%)';
+    }
+    
+    if (anchor.includes('top')) {
+      style.top = `${y}%`;
+    } else if (anchor.includes('bottom')) {
+      style.bottom = `${100 - y}%`;
+    } else {
+      style.top = `${y}%`;
+      style.transform = (style.transform || '') + ' translateY(-50%)';
+    }
+    
+    return style;
+  };
+  
+  if (opacity <= 0) return null;
+  
+  return (
+    <div
+      style={{
+        ...getPositionStyle(),
+        opacity,
+        transform: transform || undefined,
+        fontSize: instruction.style.fontSize,
+        fontWeight: instruction.style.fontWeight as any,
+        fontFamily: brand.fonts.body,
+        color: instruction.style.color,
+        textShadow: instruction.style.textShadow,
+        backgroundColor: instruction.style.backgroundColor,
+        padding: instruction.style.padding,
+        borderRadius: instruction.style.backgroundColor ? 4 : undefined,
+        maxWidth: '80%',
+        textAlign: 'center',
+        lineHeight: 1.3,
+      }}
+    >
+      {instruction.text}
+    </div>
+  );
+};
+
+const IntelligentProductOverlay: React.FC<{
+  productImage: string;
+  instruction: SceneCompositionInstructions['productOverlay'];
+  sceneDuration: number;
+  fps: number;
+}> = ({ productImage, instruction, sceneDuration, fps }) => {
+  const frame = useCurrentFrame();
+  
+  if (!instruction?.enabled || !productImage) {
+    return null;
+  }
+  
+  const enterFrames = 0.5 * fps;
+  const exitFrames = 0.3 * fps;
+  const totalFrames = sceneDuration * fps;
+  
+  let opacity = 0;
+  if (frame < enterFrames) {
+    opacity = frame / enterFrames;
+  } else if (frame > totalFrames - exitFrames) {
+    opacity = Math.max(0, (totalFrames - frame) / exitFrames);
+  } else {
+    opacity = 1;
+  }
+  
+  let scale = instruction.scale;
+  if (instruction.animation === 'zoom' && frame < enterFrames) {
+    const progress = frame / enterFrames;
+    scale = instruction.scale * (0.8 + (easeOutCubic(progress) * 0.2));
+  }
+  
+  const { x, y } = instruction.position;
+  
+  if (opacity <= 0) return null;
+  
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: `${100 - x}%`,
+        bottom: `${100 - y}%`,
+        opacity,
+        transform: `scale(${scale})`,
+        filter: instruction.shadow ? 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))' : undefined,
+      }}
+    >
+      <Img
+        src={productImage}
+        style={{
+          maxWidth: 200,
+          maxHeight: 200,
+          objectFit: 'contain',
+        }}
+      />
+    </div>
+  );
+};
+
+// ============================================================
 // LOWER THIRD COMPONENT - PROFESSIONAL TV-STYLE SCENE TITLES
 // ============================================================
 
@@ -951,20 +1137,45 @@ const SceneRenderer: React.FC<{
         )
       )}
 
-      {/* Text Overlays - ONLY ONE STYLE per scene to prevent duplicates */}
+      {/* Text Overlays - Use intelligent positioning if available */}
       {(() => {
-        // Determine which style to use based on scene type
+        const instructions = (scene as any).compositionInstructions as SceneCompositionInstructions | undefined;
+        
+        // If we have AI-generated composition instructions, use intelligent overlays
+        if (instructions?.textOverlays && instructions.textOverlays.length > 0) {
+          return (
+            <>
+              {instructions.textOverlays.map((textInstruction, idx) => (
+                <IntelligentTextOverlay
+                  key={`intelligent-text-${scene.id}-${idx}`}
+                  instruction={textInstruction}
+                  sceneDuration={scene.duration}
+                  fps={fps}
+                  brand={brand}
+                />
+              ))}
+              {/* Intelligent product overlay if enabled */}
+              {instructions.productOverlay?.enabled && productOverlayUrl && isValidHttpUrl(productOverlayUrl) && (
+                <IntelligentProductOverlay
+                  productImage={productOverlayUrl}
+                  instruction={instructions.productOverlay}
+                  sceneDuration={scene.duration}
+                  fps={fps}
+                />
+              )}
+            </>
+          );
+        }
+        
+        // Fallback: use traditional overlays
         const useLowerThirdStyle = ['hook', 'benefit', 'feature', 'intro'].includes(scene.type);
         const primaryText = scene.textOverlays?.[0];
         
-        // No text to display
         if (!primaryText?.text) {
           return null;
         }
         
         if (useLowerThirdStyle) {
-          // Use ONLY LowerThird component for content scenes
-          // DO NOT also render TextOverlayComponent - that causes duplicates
           return (
             <LowerThird
               title={primaryText.text.length > 50 ? primaryText.text.substring(0, 47) + '...' : primaryText.text}
@@ -976,7 +1187,6 @@ const SceneRenderer: React.FC<{
           );
         }
         
-        // Use centered TextOverlayComponent ONLY for CTA, outro, and other scene types
         return (
           <>
             {(scene.textOverlays || []).map((overlay) => (

@@ -21,6 +21,7 @@ import { soundDesignService, SceneSoundDesign } from "./sound-design-service";
 import { aiMusicService, GeneratedMusic } from "./ai-music-service";
 import { productImageService, GeneratedProductImage } from "./product-image-service";
 import { sceneAnalysisService, SceneAnalysis } from "./scene-analysis-service";
+import { compositionInstructionsService, SceneCompositionInstructions } from "./composition-instructions-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2978,6 +2979,34 @@ Guidelines:
       console.log(`[UniversalVideoService] Scene analysis skipped (Anthropic not configured)`);
     }
     // ========== END SCENE ANALYSIS ==========
+
+    // ========== COMPOSITION INSTRUCTIONS ==========
+    console.log(`[UniversalVideoService] Generating composition instructions...`);
+
+    for (let i = 0; i < updatedProject.scenes.length; i++) {
+      const scene = updatedProject.scenes[i];
+      
+      const instructions = compositionInstructionsService.generateInstructions(
+        scene.id,
+        (scene as any).textOverlays || [],
+        (scene as any).analysis,
+        {
+          useProductOverlay: (scene as any).assets?.useProductOverlay || false,
+          brandColor: (updatedProject as any).branding?.primaryColor || '#2D5A27',
+        }
+      );
+      
+      (updatedProject.scenes[i] as any).compositionInstructions = instructions;
+      
+      console.log(`[UniversalVideoService] Scene ${i + 1} instructions:`, {
+        textCount: instructions.textOverlays.length,
+        textPosition: instructions.textOverlays[0]?.position,
+        productEnabled: instructions.productOverlay?.enabled,
+      });
+    }
+
+    console.log(`[UniversalVideoService] Composition instructions complete`);
+    // ========== END COMPOSITION INSTRUCTIONS ==========
 
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
