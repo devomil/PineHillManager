@@ -2982,10 +2982,14 @@ Guidelines:
    * Check if a scene uses a specific product
    */
   private sceneUsesProduct(scene: any, productName: string): boolean {
+    const narrationMatch = scene.narration && 
+      typeof scene.narration === 'string' && 
+      scene.narration.toLowerCase().includes(productName.toLowerCase());
+    
     return (
       scene.productName === productName ||
       scene.assets?.productName === productName ||
-      scene.narration?.toLowerCase().includes(productName.toLowerCase())
+      narrationMatch === true
     );
   }
 
