@@ -18,6 +18,7 @@ import {
 import { brandAssetService } from "./brand-asset-service";
 import { aiVideoService } from "./ai-video-service";
 import { soundDesignService, SceneSoundDesign } from "./sound-design-service";
+import { aiMusicService, GeneratedMusic } from "./ai-music-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2738,7 +2739,7 @@ Guidelines:
       console.log('[UniversalVideoService] Videos step skipped - no video scenes');
     }
 
-    // MUSIC STEP - Generate background music with ElevenLabs (with Pixabay fallback)
+    // MUSIC STEP - Generate background music with Udio (with ElevenLabs/Jamendo fallback)
     updatedProject.progress.currentStep = 'music';
     
     if (skipMusic) {
@@ -2747,26 +2748,49 @@ Guidelines:
       console.log('[UniversalVideoService] Music step skipped - disabled by user');
     } else {
       updatedProject.progress.steps.music.status = 'in-progress';
-      updatedProject.progress.steps.music.message = 'Generating background music with ElevenLabs...';
+      updatedProject.progress.steps.music.message = 'Creating custom AI music with Udio...';
       
       // Calculate total video duration
       const totalDuration = project.scenes.reduce((acc, s) => acc + (s.duration || 5), 0);
       
-      // Determine music style from project settings or infer from product type
-      const musicStyle = this.inferMusicStyle(project.title, project.type);
+      // Prepare scene data for AI music generation
+      const scenesForMusic = updatedProject.scenes.map(s => ({
+        type: s.type,
+        mood: (s as any).analysis?.mood,
+        duration: s.duration,
+      }));
       
-      console.log(`[UniversalVideoService] Generating ${totalDuration}s music, style: ${musicStyle}`);
+      console.log(`[UniversalVideoService] Generating ${totalDuration}s music for ${scenesForMusic.length} scenes`);
       
-      // Try ElevenLabs music generation first
-      let musicResult = await this.generateBackgroundMusic(
-        totalDuration,
-        musicStyle,
-        project.title
-      );
+      let musicResult: { url: string; duration: number; source: string } | null = null;
       
-      // Fallback to Pixabay if ElevenLabs fails
+      // Try Udio (PiAPI) music generation first
+      if (aiMusicService.isAvailable()) {
+        console.log('[UniversalVideoService] Trying Udio AI music generation...');
+        const aiMusic = await aiMusicService.generateMusicForVideo(totalDuration, scenesForMusic);
+        
+        if (aiMusic) {
+          musicResult = {
+            url: aiMusic.s3Url,
+            duration: aiMusic.duration,
+            source: `udio-${aiMusic.mood}-${aiMusic.style}`,
+          };
+          console.log(`[UniversalVideoService] Udio music generated: ${aiMusic.mood} ${aiMusic.style}, ${aiMusic.duration}s`);
+        } else {
+          console.log('[UniversalVideoService] Udio music generation failed');
+        }
+      }
+      
+      // Fallback to ElevenLabs if Udio fails
       if (!musicResult) {
-        console.log('[UniversalVideoService] ElevenLabs music failed, trying Pixabay fallback...');
+        console.log('[UniversalVideoService] Trying ElevenLabs music fallback...');
+        const musicStyle = this.inferMusicStyle(project.title, project.type);
+        musicResult = await this.generateBackgroundMusic(totalDuration, musicStyle, project.title);
+      }
+      
+      // Fallback to Jamendo if ElevenLabs fails
+      if (!musicResult) {
+        console.log('[UniversalVideoService] Trying Jamendo music fallback...');
         const style = (project as any).style || 'professional';
         musicResult = await this.getBackgroundMusic(project.totalDuration, style);
       }
@@ -2775,7 +2799,7 @@ Guidelines:
         updatedProject.assets.music = {
           url: musicResult.url,
           duration: musicResult.duration,
-          volume: 0.15, // Background music should be subtle
+          volume: 0.18, // Background music - balanced for voiceover mix
         };
         updatedProject.progress.steps.music.status = 'complete';
         updatedProject.progress.steps.music.progress = 100;
