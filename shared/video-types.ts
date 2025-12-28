@@ -312,8 +312,15 @@ export interface ScriptVideoInput {
   title: string;
   script: string;
   platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'website';
-  style: 'professional' | 'casual' | 'energetic' | 'calm' | 'cinematic' | 'documentary';
+  style: 'professional' | 'casual' | 'energetic' | 'calm' | 'cinematic' | 'documentary' | 'luxury' | 'minimal' | 'instructional' | 'educational' | 'training';
   targetDuration?: number;
+  brandSettings?: {
+    introLogoUrl?: string;
+    watermarkImageUrl?: string;
+    ctaText?: string;
+  };
+  musicEnabled?: boolean;
+  musicMood?: string;
 }
 
 // Pine Hill Farm Official Brand Colors

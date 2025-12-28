@@ -59,8 +59,15 @@ const scriptVideoInputSchema = z.object({
   title: z.string().min(1),
   script: z.string().min(10),
   platform: z.enum(['youtube', 'tiktok', 'instagram', 'facebook', 'website']),
-  style: z.enum(['professional', 'casual', 'energetic', 'calm', 'cinematic', 'documentary']),
+  style: z.enum(['professional', 'casual', 'energetic', 'calm', 'cinematic', 'documentary', 'luxury', 'minimal', 'instructional', 'educational', 'training']),
   targetDuration: z.number().optional(),
+  brandSettings: z.object({
+    introLogoUrl: z.string().optional(),
+    watermarkImageUrl: z.string().optional(),
+    ctaText: z.string().optional(),
+  }).optional(),
+  musicEnabled: z.boolean().optional(),
+  musicMood: z.string().optional(),
 });
 
 function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null; qualityReport?: VideoQualityReport } {
