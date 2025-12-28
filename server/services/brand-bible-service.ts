@@ -130,13 +130,15 @@ class BrandBibleService {
 
       console.log(`[BrandBible] Loaded ${assets.length} active brand assets`);
 
+      // Find logos with flexible mediaType matching (logo, photo, graphic all work)
+      const logoTypes = ['logo', 'photo', 'graphic'];
       const logos = {
-        main: this.findAssetByContext(assets, 'logo', ['main', 'primary']),
-        watermark: this.findAssetByContext(assets, 'watermark', ['watermark', 'overlay']) ||
-                   this.findAssetByContext(assets, 'logo', ['watermark']),
-        intro: this.findAssetByContext(assets, 'logo', ['intro', 'opening']),
-        outro: this.findAssetByContext(assets, 'logo', ['outro', 'closing', 'cta']),
-        favicon: this.findAssetByContext(assets, 'logo', ['favicon', 'icon']),
+        main: this.findAssetByContextFlexible(assets, logoTypes, ['main', 'primary'], ['logo']),
+        watermark: this.findAssetByContextFlexible(assets, ['watermark', ...logoTypes], ['watermark', 'overlay'], ['watermark']) ||
+                   this.findAssetByContextFlexible(assets, logoTypes, ['watermark'], []),
+        intro: this.findAssetByContextFlexible(assets, logoTypes, ['intro', 'opening'], ['logo']),
+        outro: this.findAssetByContextFlexible(assets, logoTypes, ['outro', 'closing', 'cta'], ['logo']),
+        favicon: this.findAssetByContextFlexible(assets, logoTypes, ['favicon', 'icon'], []),
       };
 
       const bible: BrandBible = {
@@ -194,6 +196,62 @@ class BrandBibleService {
     }
 
     if (matches.length > 0) {
+      matches.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+      return matches[0];
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Flexible asset matching that accepts multiple mediaTypes and checks:
+   * 1. usageContexts containing any context keyword
+   * 2. matchKeywords containing any context keyword
+   * 3. name/entityName containing any name keyword
+   * 4. Falls back to isDefault
+   */
+  private findAssetByContextFlexible(
+    assets: BrandAsset[],
+    mediaTypes: string[],
+    contextKeywords: string[],
+    nameKeywords: string[]
+  ): BrandAsset | undefined {
+    // First: Match by usageContexts
+    let matches = assets.filter(a => 
+      mediaTypes.includes(a.mediaType) &&
+      a.usageContexts.some(ctx => 
+        contextKeywords.some(kw => ctx.toLowerCase().includes(kw.toLowerCase()))
+      )
+    );
+
+    // Second: Match by matchKeywords
+    if (matches.length === 0) {
+      matches = assets.filter(a =>
+        mediaTypes.includes(a.mediaType) &&
+        a.matchKeywords.some(kw =>
+          contextKeywords.some(ctx => kw.toLowerCase().includes(ctx.toLowerCase()))
+        )
+      );
+    }
+
+    // Third: Match by name/entityName containing name keywords
+    if (matches.length === 0 && nameKeywords.length > 0) {
+      matches = assets.filter(a =>
+        mediaTypes.includes(a.mediaType) &&
+        nameKeywords.some(nk => 
+          a.name.toLowerCase().includes(nk.toLowerCase()) ||
+          (a.entityName || '').toLowerCase().includes(nk.toLowerCase())
+        )
+      );
+    }
+
+    // Fourth: Fall back to isDefault
+    if (matches.length === 0) {
+      matches = assets.filter(a => mediaTypes.includes(a.mediaType) && a.isDefault);
+    }
+
+    if (matches.length > 0) {
+      // Sort by priority (higher first)
       matches.sort((a, b) => (b.priority || 0) - (a.priority || 0));
       return matches[0];
     }
