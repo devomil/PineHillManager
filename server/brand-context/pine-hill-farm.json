@@ -1,0 +1,293 @@
+{
+  "brand": {
+    "name": "Pine Hill Farm",
+    "legalName": "Pine Hill Farm LLC",
+    "tagline": "Farm-to-Wellness Destination",
+    "website": "pinehillfarm.co",
+    "founded": 1853,
+    "organicCertified": 2017,
+    "ownership": "Women-owned, family-operated (3 sisters)",
+    "locations": [
+      {
+        "name": "Watertown Wellness Center",
+        "city": "Watertown",
+        "state": "Wisconsin",
+        "type": "retail-spa"
+      },
+      {
+        "name": "Lake Geneva Wellness Center",
+        "city": "Lake Geneva",
+        "state": "Wisconsin",
+        "type": "retail-spa",
+        "opened": 2025
+      }
+    ]
+  },
+
+  "identity": {
+    "story": "For generations since 1853, the land has been nurtured and farmed by the family. In 2012, they embarked on a journey toward organic practices, achieving USDA certification in 2017. Three sisters with backgrounds in diverse healthcare settings recognized the need for a more holistic approach to wellness, creating Pine Hill Farm as a place where individuals can access functional health resources and education.",
+    "mission": "To provide holistic, root-cause health solutions that connect health, nature, and community.",
+    "founders": "Three sisters with healthcare backgrounds",
+    "philosophy": "Whole-body health approach that addresses root causes, not just symptoms"
+  },
+
+  "values": [
+    {
+      "value": "Holistic Over Symptomatic",
+      "description": "We treat the whole person, not isolated symptoms"
+    },
+    {
+      "value": "Root Cause Medicine",
+      "description": "We dig deep to find why, not just what"
+    },
+    {
+      "value": "Natural Over Synthetic",
+      "description": "We prefer organic, plant-based solutions"
+    },
+    {
+      "value": "Family Over Corporate",
+      "description": "Personal care, not assembly-line medicine"
+    },
+    {
+      "value": "Education Over Sales",
+      "description": "We empower with knowledge, not pressure"
+    },
+    {
+      "value": "Accessibility",
+      "description": "HSA/FSA accepted, veteran discounts (50% off CBD)"
+    }
+  ],
+
+  "targetAudience": {
+    "primary": {
+      "description": "Health-conscious individuals seeking root-cause solutions",
+      "demographics": "Primarily women 35-65",
+      "psychographics": "Frustrated with conventional medicine, open to holistic approaches"
+    },
+    "conditions": [
+      "Hormone imbalances (menopause, thyroid, adrenal)",
+      "Gut health issues (IBS, SIBO, microbiome)",
+      "Mold and mycotoxin illness",
+      "Chronic fatigue and brain fog",
+      "Autoimmune conditions",
+      "Weight management struggles",
+      "Detoxification needs"
+    ],
+    "specialGroups": [
+      {
+        "group": "Veterans",
+        "benefit": "50% off sublingual hemp extract oil"
+      },
+      {
+        "group": "HSA/FSA holders",
+        "benefit": "Payments accepted for eligible services"
+      }
+    ]
+  },
+
+  "services": [
+    {
+      "name": "MTHFR Gene Test",
+      "category": "genetic-testing",
+      "description": "Detects variations in the MTHFR gene to identify reduced folate metabolism and cardiovascular risk"
+    },
+    {
+      "name": "Saliva Profile Hormone III",
+      "category": "hormone-testing",
+      "description": "Assesses hormones including Cortisol 4x, DHEA, E2, Progesterone, Pg/E2 ratio, Testosterone"
+    },
+    {
+      "name": "Mold Exploration Visit",
+      "category": "mold-assessment",
+      "description": "Mold-literate certified RN assesses mold-toxin exposure and recommends solutions"
+    },
+    {
+      "name": "Supplement/Medication Consultation",
+      "category": "consultation",
+      "description": "Wellness RN helps find best supplements and educates on lifestyle impacts"
+    },
+    {
+      "name": "GI360 Microbiome Profile",
+      "category": "gut-health",
+      "description": "DNA analysis identifying 45+ targeted analytes contributing to dysbiosis"
+    },
+    {
+      "name": "3X4 Genetics Test + Blueprint",
+      "category": "genetic-testing",
+      "description": "36 key insights with personalized recommendations"
+    },
+    {
+      "name": "Weight Management Profile",
+      "category": "hormone-testing",
+      "description": "Identifies hormone imbalances contributing to weight issues"
+    },
+    {
+      "name": "MycoTOX Profile",
+      "category": "mold-assessment",
+      "description": "Screens for 11 mycotoxins from 40 mold species via urine"
+    },
+    {
+      "name": "Mycotoxin Building Profile",
+      "category": "mold-assessment",
+      "description": "Dust swab testing for 16 mycotoxins in living spaces"
+    },
+    {
+      "name": "Essential Thyroid Profile",
+      "category": "hormone-testing",
+      "description": "Baseline assessment detecting overt and subclinical thyroid disease"
+    },
+    {
+      "name": "DUTCH Complete",
+      "category": "hormone-testing",
+      "description": "Comprehensive sex and adrenal hormone assessment with metabolites"
+    },
+    {
+      "name": "Child Gut Health Test",
+      "category": "gut-health",
+      "description": "Microbiome analysis for kids ages 3-18"
+    },
+    {
+      "name": "BioScan SRT",
+      "category": "technology",
+      "description": "Non-invasive technology to identify root cause"
+    },
+    {
+      "name": "Wellness Spa Services",
+      "category": "spa",
+      "description": "Salt therapy, relaxation, holistic treatments"
+    }
+  ],
+
+  "products": {
+    "categories": [
+      {
+        "name": "Proprietary Supplements",
+        "count": "300+",
+        "description": "Organic small batch supplement development and manufacture",
+        "url": "pinehillfarm.co/shop-supplements/"
+      },
+      {
+        "name": "CBD Gummies",
+        "description": "Organic hemp-derived, small batch quality control",
+        "url": "pinehillfarm.co/wellness-products/gummies/"
+      },
+      {
+        "name": "CBD Oils",
+        "description": "Sublingual hemp extract oil, organic certified"
+      },
+      {
+        "name": "CBD Products",
+        "description": "Various organic CBD formulations"
+      },
+      {
+        "name": "Gut Health Supplements",
+        "description": "Probiotics, digestive enzymes, microbiome support"
+      },
+      {
+        "name": "Hormone Support",
+        "description": "Natural hormone balancing supplements"
+      }
+    ],
+    "sourcing": "Grown on certified FDA Organic family farm (bicentennial)",
+    "quality": "Small batch, organic, USDA certified"
+  },
+
+  "terminology": {
+    "useTheseTerms": [
+      "functional health",
+      "root cause",
+      "holistic wellness",
+      "whole-body health",
+      "farm-to-wellness",
+      "organic",
+      "natural solutions",
+      "wellness journey",
+      "health goals",
+      "mold-literate",
+      "microbiome",
+      "hormone balance",
+      "detox",
+      "gut health"
+    ],
+    "avoidTheseTerms": [
+      "cure",
+      "treat disease",
+      "medical diagnosis",
+      "prescription",
+      "clinical trial",
+      "FDA approved treatment",
+      "guaranteed results"
+    ],
+    "brandSpecificPhrases": [
+      "You're in the driver's seat of your health journey",
+      "We leave no stone unturned",
+      "Your care should be as unique as you",
+      "Connecting health, nature, and community",
+      "Farm-to-wellness destination"
+    ]
+  },
+
+  "partnerships": [
+    "American Holistic Nurses Association",
+    "Institute for Functional Medicine",
+    "The Menopause Society",
+    "Salt Therapy Association"
+  ],
+
+  "contentGuidelines": {
+    "tone": [
+      "Warm and welcoming",
+      "Knowledgeable but not preachy",
+      "Empowering, not fear-based",
+      "Personal and caring",
+      "Educational",
+      "Hopeful and positive"
+    ],
+    "messaging": {
+      "emphasize": [
+        "Natural, organic solutions",
+        "Root cause approach",
+        "Personalized care",
+        "Family farm heritage",
+        "Scientific backing (functional medicine)",
+        "Empowerment and education"
+      ],
+      "deemphasize": [
+        "Quick fixes",
+        "Miracle cures",
+        "Fear-based marketing",
+        "Comparison to competitors",
+        "Price as primary value prop"
+      ]
+    }
+  },
+
+  "visualIdentity": {
+    "colors": {
+      "primary": "#2D5A27",
+      "primaryName": "Forest Green",
+      "secondary": "#8B7355",
+      "secondaryName": "Earthy Brown",
+      "accent": "#D4A574",
+      "accentName": "Warm Gold",
+      "background": "#F5F2ED",
+      "backgroundName": "Natural Cream"
+    },
+    "aesthetic": [
+      "Warm, golden lighting",
+      "Natural settings (farm, fields, gardens)",
+      "Organic textures (wood, plants, natural materials)",
+      "Earth tones throughout",
+      "Real people, authentic expressions",
+      "Soft, welcoming atmosphere"
+    ],
+    "avoid": [
+      "Clinical/hospital settings",
+      "Cold, blue lighting",
+      "Sterile/corporate environments",
+      "Overly polished/artificial models",
+      "Harsh contrasts",
+      "Plastic/synthetic textures"
+    ]
+  }
+}
