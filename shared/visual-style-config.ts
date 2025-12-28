@@ -368,6 +368,138 @@ export const VISUAL_STYLES: Record<string, VisualStyleConfig> = {
     stylePromptSuffix: 'minimalist, clean background, negative space, modern design, simple',
     negativePromptAdditions: ['cluttered', 'busy', 'complex', 'messy'],
   },
+
+  instructional: {
+    id: 'instructional',
+    name: 'Instructional',
+    description: 'Clear, step-by-step guidance with focused demonstrations',
+    
+    preferredVideoProviders: ['kling', 'runway', 'hailuo'],
+    preferredImageProviders: ['flux', 'ideogram'],
+    
+    promptModifiers: {
+      mood: 'clear, helpful, guiding, supportive',
+      lighting: 'bright, even lighting, no distracting shadows, well-lit workspace',
+      cameraWork: 'close-up demonstrations, clear framing, steady tripod shots, over-the-shoulder angles',
+      colorGrade: 'natural colors, high clarity, clean whites, good contrast',
+      pacing: 'methodical pacing, pauses for comprehension, clear step progression',
+    },
+    
+    defaultContentTypes: {
+      hook: 'person',
+      problem: 'lifestyle',
+      solution: 'product',
+      benefit: 'lifestyle',
+      cta: 'person',
+    },
+    
+    musicStyle: {
+      genre: 'soft background ambient',
+      mood: 'focused, calm, supportive',
+      tempo: 'slow',
+      energy: 'low',
+    },
+    
+    transitions: {
+      defaultType: 'cut',
+      defaultDuration: 0.3,
+      betweenSceneTypes: {
+        'problem-to-solution': 'dissolve',
+        'solution-to-benefit': 'cut',
+      },
+    },
+    
+    stylePromptSuffix: 'instructional, clear demonstration, step-by-step, easy to follow, helpful guide',
+    negativePromptAdditions: ['confusing', 'cluttered', 'fast motion', 'unclear'],
+  },
+
+  educational: {
+    id: 'educational',
+    name: 'Educational',
+    description: 'Informative teaching style with clear explanations and visual aids',
+    
+    preferredVideoProviders: ['runway', 'kling', 'hailuo'],
+    preferredImageProviders: ['flux', 'ideogram'],
+    
+    promptModifiers: {
+      mood: 'informative, engaging, trustworthy, knowledgeable',
+      lighting: 'professional studio lighting, bright and inviting, warm tones',
+      cameraWork: 'talking head framing, B-roll cutaways, diagram reveals, smooth pans',
+      colorGrade: 'warm natural tones, inviting atmosphere, balanced exposure',
+      pacing: 'conversational pacing, time for absorption, thoughtful transitions',
+    },
+    
+    defaultContentTypes: {
+      hook: 'person',
+      problem: 'person',
+      solution: 'lifestyle',
+      benefit: 'person',
+      cta: 'person',
+    },
+    
+    musicStyle: {
+      genre: 'educational ambient',
+      mood: 'inspiring, thoughtful, engaging',
+      tempo: 'medium',
+      energy: 'medium',
+    },
+    
+    transitions: {
+      defaultType: 'dissolve',
+      defaultDuration: 0.5,
+      betweenSceneTypes: {
+        'hook-to-problem': 'cut',
+        'benefit-to-cta': 'dissolve',
+      },
+    },
+    
+    stylePromptSuffix: 'educational, teaching, informative, clear explanation, visual learning, engaging presentation',
+    negativePromptAdditions: ['boring', 'monotone', 'confusing', 'overwhelming'],
+  },
+
+  training: {
+    id: 'training',
+    name: 'Training',
+    description: 'Practical skill-building with hands-on demonstrations and practice cues',
+    
+    preferredVideoProviders: ['kling', 'hailuo', 'runway'],
+    preferredImageProviders: ['flux', 'ideogram'],
+    
+    promptModifiers: {
+      mood: 'encouraging, practical, motivating, hands-on',
+      lighting: 'natural daylight, gym or wellness studio lighting, bright and energizing',
+      cameraWork: 'multiple angles for technique, wide establishing shots, detail close-ups, movement tracking',
+      colorGrade: 'vibrant but natural, energizing tones, healthy glow',
+      pacing: 'rhythm for practice, repetition moments, building progression',
+    },
+    
+    defaultContentTypes: {
+      hook: 'person',
+      problem: 'lifestyle',
+      solution: 'person',
+      benefit: 'lifestyle',
+      cta: 'person',
+    },
+    
+    musicStyle: {
+      genre: 'motivational wellness',
+      mood: 'encouraging, uplifting, focused',
+      tempo: 'medium',
+      energy: 'medium',
+    },
+    
+    transitions: {
+      defaultType: 'cut',
+      defaultDuration: 0.4,
+      betweenSceneTypes: {
+        'problem-to-solution': 'cut',
+        'solution-to-benefit': 'dissolve',
+      },
+    },
+    
+    stylePromptSuffix: 'training, skill-building, hands-on demonstration, practice, wellness coaching, encouraging',
+    negativePromptAdditions: ['intimidating', 'complex', 'rushed', 'discouraging'],
+  },
 };
 
 export function getVisualStyleConfig(styleId: string): VisualStyleConfig {
