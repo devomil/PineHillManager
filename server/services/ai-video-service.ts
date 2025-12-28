@@ -2,6 +2,7 @@
 
 import { runwayVideoService } from './runway-video-service';
 import { piapiVideoService } from './piapi-video-service';
+import { promptEnhancementService } from './prompt-enhancement-service';
 import { 
   AI_VIDEO_PROVIDERS, 
   selectProvidersForScene, 
@@ -26,6 +27,9 @@ interface AIVideoOptions {
   sceneType: string;
   preferredProvider?: string;
   negativePrompt?: string;
+  narration?: string;
+  mood?: string;
+  contentType?: 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle';
 }
 
 class AIVideoService {
@@ -51,11 +55,32 @@ class AIVideoService {
       return { success: false, error: 'No AI video providers configured' };
     }
 
-    const providerOrder = options.preferredProvider 
-      ? [options.preferredProvider, ...configuredProviders.filter(p => p !== options.preferredProvider)]
-      : selectProvidersForScene(options.sceneType, options.prompt);
+    // ENHANCE PROMPT WITH BRAND CONTEXT AND SAFETY
+    console.log(`[PromptEnhance] Enhancing prompt for ${options.sceneType} scene`);
+    const enhanced = await promptEnhancementService.enhanceVideoPrompt(
+      options.prompt,
+      {
+        sceneType: options.sceneType,
+        narration: options.narration,
+        mood: options.mood,
+        contentType: options.contentType,
+      }
+    );
+    
+    console.log(`[AIVideo] Enhanced prompt for ${options.sceneType} scene`);
+    
+    // Create enhanced options with brand context and negative prompt
+    const enhancedOptions: AIVideoOptions = {
+      ...options,
+      prompt: enhanced.prompt,
+      negativePrompt: enhanced.negativePrompt,
+    };
 
-    console.log(`[AIVideo] Scene: ${options.sceneType}`);
+    const providerOrder = enhancedOptions.preferredProvider 
+      ? [enhancedOptions.preferredProvider, ...configuredProviders.filter(p => p !== enhancedOptions.preferredProvider)]
+      : selectProvidersForScene(enhancedOptions.sceneType, enhanced.prompt);
+
+    console.log(`[AIVideo] Scene: ${enhancedOptions.sceneType}`);
     console.log(`[AIVideo] Provider order: ${providerOrder.join(' → ')}`);
 
     for (const providerKey of providerOrder) {
@@ -66,7 +91,7 @@ class AIVideoService {
       console.log(`[AIVideo] Trying ${provider.name}...`);
       
       try {
-        const result = await this.generateWithProvider(providerKey, provider, options);
+        const result = await this.generateWithProvider(providerKey, provider, enhancedOptions);
         
         if (result.success && result.s3Url) {
           console.log(`[AIVideo] ✓ Success with ${provider.name}`);
@@ -85,7 +110,7 @@ class AIVideoService {
 
     return { 
       success: false, 
-      error: `All providers failed for ${options.sceneType} scene` 
+      error: `All providers failed for ${enhancedOptions.sceneType} scene` 
     };
   }
 
@@ -115,6 +140,7 @@ class AIVideoService {
         prompt: options.prompt,
         duration: options.duration,
         aspectRatio: options.aspectRatio,
+        negativePrompt: options.negativePrompt,
       });
       
       return {

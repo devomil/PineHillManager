@@ -55,6 +55,9 @@ class RunwayVideoService {
     const startTime = Date.now();
     console.log(`[Runway] Starting generation...`);
     console.log(`[Runway] Prompt: ${options.prompt.substring(0, 100)}...`);
+    if (options.negativePrompt) {
+      console.log(`[Runway] Negative prompt applied (${options.negativePrompt.split(',').length} terms)`);
+    }
 
     try {
       const createResponse = await fetch(`${this.provider.endpoint}/generations`, {
@@ -69,6 +72,9 @@ class RunwayVideoService {
           model: 'gen3a_turbo',
           duration: Math.min(options.duration, this.provider.maxDuration),
           ratio: this.formatAspectRatio(options.aspectRatio),
+          ...(options.negativePrompt && { 
+            negativePromptText: options.negativePrompt.substring(0, 500)
+          }),
         }),
       });
 

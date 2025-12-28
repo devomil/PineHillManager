@@ -22,6 +22,8 @@ import { aiMusicService, GeneratedMusic } from "./ai-music-service";
 import { productImageService, GeneratedProductImage } from "./product-image-service";
 import { sceneAnalysisService, SceneAnalysis } from "./scene-analysis-service";
 import { compositionInstructionsService, SceneCompositionInstructions } from "./composition-instructions-service";
+import { brandBibleService } from "./brand-bible-service";
+import { brandInjectionService, VideoBrandInstructions } from "./brand-injection-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2284,6 +2286,16 @@ Guidelines:
     // Reset video tracking for new project
     this.resetUsedVideos();
     
+    // LOAD BRAND BIBLE AT START
+    console.log(`[Assets] Loading brand bible...`);
+    let brandBible;
+    try {
+      brandBible = await brandBibleService.getBrandBible();
+      console.log(`[Assets] Brand loaded: ${brandBible.brandName}, ${brandBible.assets.length} assets`);
+    } catch (error: any) {
+      console.warn(`[Assets] Brand bible load failed: ${error.message} - continuing without brand context`);
+    }
+    
     updatedProject.progress.currentStep = 'voiceover';
     updatedProject.progress.steps.voiceover.status = 'in-progress';
     updatedProject.status = 'generating';
@@ -2643,6 +2655,9 @@ Guidelines:
             duration: Math.min(scene.duration || 5, 10),
             aspectRatio: (project.outputFormat?.aspectRatio as '16:9' | '9:16' | '1:1') || '16:9',
             sceneType: scene.type,
+            narration: scene.narration,
+            mood: (scene as any).analysis?.mood,
+            contentType: (scene as any).analysis?.contentType as 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle' | undefined,
           });
           
           if (aiResult.success && aiResult.s3Url) {
@@ -3018,6 +3033,47 @@ Guidelines:
 
     console.log(`[UniversalVideoService] Composition instructions complete`);
     // ========== END COMPOSITION INSTRUCTIONS ==========
+
+    // ========== BRAND OVERLAY INSTRUCTIONS ==========
+    console.log(`[Assets] Generating brand overlay instructions...`);
+    
+    const scenesForBrand = updatedProject.scenes.map((scene: any, index: number) => ({
+      id: scene.id,
+      type: scene.type,
+      duration: scene.duration || 5,
+      isFirst: index === 0,
+      isLast: index === updatedProject.scenes.length - 1,
+    }));
+    
+    try {
+      const brandInstructions = await brandInjectionService.generateBrandInstructions(scenesForBrand);
+      
+      // Store brand instructions with project
+      (updatedProject as any).brandInstructions = {
+        introAnimation: brandInstructions.introAnimation,
+        watermark: brandInstructions.watermark,
+        outroSequence: brandInstructions.outroSequence,
+        ctaOverlay: brandInstructions.ctaOverlay,
+        colors: brandInstructions.colors,
+        typography: brandInstructions.typography,
+        callToAction: brandInstructions.callToAction,
+      };
+      
+      // Store per-scene brand overlays
+      for (const [sceneId, overlays] of Object.entries(brandInstructions.sceneOverlays)) {
+        const sceneIndex = updatedProject.scenes.findIndex((s: any) => s.id === sceneId);
+        if (sceneIndex >= 0) {
+          (updatedProject.scenes[sceneIndex] as any).brandOverlays = overlays;
+        }
+      }
+      
+      console.log(`[Assets] Brand instructions complete for ${updatedProject.scenes.length} scenes`);
+      
+    } catch (error: any) {
+      console.error(`[Assets] Brand instructions failed:`, error.message);
+      // Continue without brand instructions - video still works
+    }
+    // ========== END BRAND OVERLAY INSTRUCTIONS ==========
 
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
