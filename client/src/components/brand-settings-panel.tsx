@@ -115,12 +115,13 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
   });
 
   const { data: allAssets } = useQuery<BrandAsset[]>({
-    queryKey: ['brand-assets'],
+    queryKey: ['brand-media-library'],
     queryFn: async () => {
-      const response = await fetch('/api/brand-media');
+      const response = await fetch('/api/brand-media-library');
       if (!response.ok) throw new Error('Failed to load brand assets');
-      const data = await response.json();
-      return data.filter((a: BrandAsset) => ['logo', 'photo', 'graphic', 'watermark'].includes(a.mediaType));
+      const result = await response.json();
+      const assets = result.assets || result || [];
+      return assets.filter((a: BrandAsset) => ['logo', 'photo', 'graphic', 'watermark'].includes(a.mediaType));
     },
     staleTime: 5 * 60 * 1000,
   });
