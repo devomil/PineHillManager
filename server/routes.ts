@@ -15,6 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission } from './objectAcl';
 import { createCloverPaymentService, getCloverPaymentService, getCloverPaymentServiceFromDb } from './integrations/clover-payments';
 import { CloverInventoryService } from './services/clover-inventory-service';
+import { brandBibleService } from './services/brand-bible-service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -18020,6 +18021,7 @@ Respond in JSON format:
         uploadedBy: user.id,
       }).returning();
       
+      brandBibleService.clearCache();
       res.json({ success: true, asset });
     } catch (error) {
       console.error('[Brand Media Library] Create error:', error);
@@ -18058,6 +18060,7 @@ Respond in JSON format:
         return res.status(404).json({ error: 'Asset not found' });
       }
       
+      brandBibleService.clearCache();
       res.json({ success: true, asset: updated });
     } catch (error) {
       console.error('[Brand Media Library] Update error:', error);
@@ -18080,6 +18083,7 @@ Respond in JSON format:
         return res.status(404).json({ error: 'Asset not found' });
       }
       
+      brandBibleService.clearCache();
       res.json({ success: true, message: 'Asset deleted' });
     } catch (error) {
       console.error('[Brand Media Library] Delete error:', error);
@@ -18159,10 +18163,35 @@ Respond in JSON format:
         uploadedBy: user.id,
       }).returning();
       
+      brandBibleService.clearCache();
       res.json({ success: true, asset });
     } catch (error) {
       console.error('[Brand Media Library] Upload error:', error);
       res.status(500).json({ error: 'Failed to upload brand media asset' });
+    }
+  });
+
+  // Test Brand Bible Service
+  app.get('/api/test-brand-bible', isAuthenticated, async (req, res) => {
+    try {
+      const bible = await brandBibleService.getBrandBible();
+      res.json({
+        success: true,
+        brandName: bible.brandName,
+        assetCount: bible.assets.length,
+        logos: {
+          main: !!bible.logos.main,
+          watermark: !!bible.logos.watermark,
+          intro: !!bible.logos.intro,
+          outro: !!bible.logos.outro,
+        },
+        negativePromptsCount: bible.negativePrompts.length,
+        promptContext: bible.promptContext,
+        hasMinimumAssets: await brandBibleService.hasMinimumAssets(),
+      });
+    } catch (error: any) {
+      console.error('[Brand Bible] Test error:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
