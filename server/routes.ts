@@ -16,6 +16,7 @@ import { ObjectPermission } from './objectAcl';
 import { createCloverPaymentService, getCloverPaymentService, getCloverPaymentServiceFromDb } from './integrations/clover-payments';
 import { CloverInventoryService } from './services/clover-inventory-service';
 import { brandBibleService } from './services/brand-bible-service';
+import { promptEnhancementService } from './services/prompt-enhancement-service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -18191,6 +18192,34 @@ Respond in JSON format:
       });
     } catch (error: any) {
       console.error('[Brand Bible] Test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Test Prompt Enhancement Service
+  app.post('/api/test-prompt-enhance', isAuthenticated, async (req, res) => {
+    try {
+      const { prompt, sceneType, contentType, mood } = req.body;
+      
+      const enhanced = await promptEnhancementService.enhanceVideoPrompt(
+        prompt || 'person looking at healthy food in kitchen',
+        {
+          sceneType: sceneType || 'lifestyle',
+          contentType: contentType || 'person',
+          mood: mood || 'positive',
+        }
+      );
+      
+      res.json({
+        success: true,
+        original: prompt || 'person looking at healthy food in kitchen',
+        enhanced: enhanced.prompt,
+        negativePrompt: enhanced.negativePrompt,
+        negativePromptCount: enhanced.negativePrompt.split(', ').length,
+        brandContext: enhanced.brandContext,
+      });
+    } catch (error: any) {
+      console.error('[Prompt Enhance] Test error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
