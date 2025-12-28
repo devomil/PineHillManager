@@ -18,6 +18,7 @@ import { CloverInventoryService } from './services/clover-inventory-service';
 import { brandBibleService } from './services/brand-bible-service';
 import { promptEnhancementService } from './services/prompt-enhancement-service';
 import { brandInjectionService } from './services/brand-injection-service';
+import { brandContextService } from './services/brand-context-service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -18303,6 +18304,88 @@ Respond in JSON format:
     } catch (error: any) {
       console.error('[Brand Injection] Test error:', error);
       res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ================================
+  // BRAND CONTEXT SERVICE ENDPOINTS (Phase 6A)
+  // ================================
+
+  // GET /api/brand-context - Get brand context summary for debugging/admin
+  app.get('/api/brand-context', isAuthenticated, async (req, res) => {
+    try {
+      const data = await brandContextService.getBrandData();
+      res.json({
+        brand: data.brand.name,
+        tagline: data.brand.tagline,
+        servicesCount: data.services.length,
+        productsCount: data.products.categories.length,
+        terminology: data.terminology.useTheseTerms,
+        values: data.values.map(v => v.value),
+        visualAesthetic: data.visualIdentity.aesthetic,
+      });
+    } catch (error: any) {
+      console.error('[BrandContext] Error fetching brand context:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/brand-context/match - Match script text to brand services/products
+  app.post('/api/brand-context/match', isAuthenticated, async (req, res) => {
+    try {
+      const { script } = req.body;
+      if (!script || typeof script !== 'string') {
+        return res.status(400).json({ error: 'Script text is required' });
+      }
+      const matches = await brandContextService.matchScriptToServices(script);
+      res.json(matches);
+    } catch (error: any) {
+      console.error('[BrandContext] Error matching script:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/brand-context/script-parsing - Get context for script parsing AI
+  app.get('/api/brand-context/script-parsing', isAuthenticated, async (req, res) => {
+    try {
+      const context = await brandContextService.getScriptParsingContext();
+      res.json({ context });
+    } catch (error: any) {
+      console.error('[BrandContext] Error getting script parsing context:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/brand-context/visual-analysis - Get context for visual analysis AI
+  app.get('/api/brand-context/visual-analysis', isAuthenticated, async (req, res) => {
+    try {
+      const context = await brandContextService.getVisualAnalysisContext();
+      res.json({ context });
+    } catch (error: any) {
+      console.error('[BrandContext] Error getting visual analysis context:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/brand-context/quality-evaluation - Get context for quality evaluation AI
+  app.get('/api/brand-context/quality-evaluation', isAuthenticated, async (req, res) => {
+    try {
+      const context = await brandContextService.getQualityEvaluationContext();
+      res.json({ context });
+    } catch (error: any) {
+      console.error('[BrandContext] Error getting quality evaluation context:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/brand-context/prompt-enhancement - Get context for prompt enhancement
+  app.get('/api/brand-context/prompt-enhancement', isAuthenticated, async (req, res) => {
+    try {
+      const context = await brandContextService.getPromptEnhancementContext();
+      res.json({ context });
+    } catch (error: any) {
+      console.error('[BrandContext] Error getting prompt enhancement context:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 
