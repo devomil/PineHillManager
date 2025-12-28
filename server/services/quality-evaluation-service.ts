@@ -2,11 +2,22 @@ import Anthropic from '@anthropic-ai/sdk';
 import { videoFrameExtractor } from './video-frame-extractor';
 
 export interface QualityIssue {
-  type: 'text-overlap' | 'face-blocked' | 'poor-visibility' | 'bad-composition' | 'technical' | 'content-mismatch';
+  type: 
+    | 'text-overlap' 
+    | 'face-blocked' 
+    | 'poor-visibility' 
+    | 'bad-composition' 
+    | 'technical' 
+    | 'content-mismatch'
+    | 'ai-text-detected'      // Garbled AI text (Phase 4F)
+    | 'ai-ui-detected'        // Fake UI elements (Phase 4F)
+    | 'off-brand-content'     // Content doesn't match brand (Phase 4F)
+    | 'missing-brand-element'; // Expected brand element missing (Phase 4F)
   severity: 'critical' | 'major' | 'minor';
   description: string;
   timestamp?: number;
   sceneIndex?: number;
+  examples?: string[];  // Specific examples found (Phase 4F)
 }
 
 export interface SceneQualityScore {
@@ -404,6 +415,390 @@ Return ONLY the JSON.`,
     } catch (error) {
       return { passes: true, issues: [] };
     }
+  }
+
+  // ============================================================
+  // PHASE 4F: BRAND COMPLIANCE EVALUATION
+  // ============================================================
+
+  /**
+   * Evaluate brand compliance and detect AI hallucinations
+   */
+  async evaluateBrandCompliance(
+    frameBase64: string,
+    sceneContext: {
+      sceneType: string;
+      expectedContent: string;
+      isFirstScene: boolean;
+      isLastScene: boolean;
+      shouldHaveWatermark: boolean;
+    }
+  ): Promise<{
+    score: number;
+    issues: QualityIssue[];
+  }> {
+    console.log(`[QualityEval] Checking brand compliance...`);
+    
+    if (!this.anthropic) {
+      console.warn(`[QualityEval] Anthropic not configured, skipping brand compliance check`);
+      return { score: 70, issues: [] };
+    }
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: frameBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: this.buildBrandCompliancePrompt(sceneContext),
+              },
+            ],
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type');
+      }
+
+      return this.parseBrandComplianceResponse(content.text);
+
+    } catch (error: any) {
+      console.error(`[QualityEval] Brand compliance check failed:`, error.message);
+      return { score: 70, issues: [] };
+    }
+  }
+
+  /**
+   * Build the prompt for brand compliance checking
+   */
+  private buildBrandCompliancePrompt(sceneContext: {
+    sceneType: string;
+    expectedContent: string;
+    isFirstScene: boolean;
+    isLastScene: boolean;
+    shouldHaveWatermark: boolean;
+  }): string {
+    return `Analyze this video frame for brand compliance and AI generation artifacts.
+
+SCENE CONTEXT:
+- Scene type: ${sceneContext.sceneType}
+- Expected content: ${sceneContext.expectedContent}
+- First scene (should have logo intro): ${sceneContext.isFirstScene}
+- Last scene (should have CTA): ${sceneContext.isLastScene}
+- Should have watermark: ${sceneContext.shouldHaveWatermark}
+
+CHECK FOR THESE SPECIFIC ISSUES:
+
+1. AI-GENERATED TEXT (CRITICAL)
+   Look for ANY text that appears garbled, misspelled, or nonsensical.
+   Examples of AI text hallucination:
+   - "peocineate" instead of real words
+   - "weth meal" instead of "with meal"  
+   - "Noney", "Fioliday", "Decumeds"
+   - Any gibberish that looks like attempted text
+   - Partial words or character soup
+
+2. AI-GENERATED UI ELEMENTS (MAJOR)
+   Look for fake interface elements that don't belong:
+   - Fake calendars with nonsense labels
+   - Mock spreadsheets or charts
+   - Fake app interfaces
+   - Random numbers that look like data (e.g., "1102", "5idups")
+   - Dashboard-like elements in non-dashboard content
+
+3. OFF-BRAND CONTENT (MAJOR)
+   Content that doesn't match wellness/health brand:
+   - Finance/business graphics in wellness video
+   - Unrelated stock imagery
+   - Content that doesn't match the expected scene type
+
+4. MISSING BRAND ELEMENTS (MINOR)
+   Expected elements that are missing:
+   - Logo/watermark if expected
+   - Brand colors not present
+   - CTA elements on last scene
+
+Return a JSON object with this EXACT structure:
+{
+  "aiTextDetected": {
+    "found": true/false,
+    "examples": ["list", "of", "garbled", "text"],
+    "severity": "critical"
+  },
+  "aiUIDetected": {
+    "found": true/false,
+    "description": "what was found",
+    "severity": "major"
+  },
+  "offBrandContent": {
+    "found": true/false,
+    "description": "what doesn't match",
+    "severity": "major"
+  },
+  "missingBrandElements": {
+    "found": true/false,
+    "description": "what's missing",
+    "severity": "minor"
+  },
+  "brandComplianceScore": 0-100,
+  "overallAssessment": "brief summary"
+}
+
+SCORING GUIDE:
+- AI text detected: -40 points (critical issue)
+- AI UI detected: -25 points (major issue)
+- Off-brand content: -20 points (major issue)
+- Missing brand elements: -10 points (minor issue)
+- Start at 100, subtract for issues found
+
+Return ONLY the JSON object, no other text.`;
+  }
+
+  /**
+   * Parse the brand compliance response
+   */
+  private parseBrandComplianceResponse(text: string): {
+    score: number;
+    issues: QualityIssue[];
+  } {
+    const issues: QualityIssue[] = [];
+    let score = 100;
+
+    try {
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('[QualityEval] No JSON found in brand compliance response');
+        return { score: 70, issues: [] };
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Process AI text detection
+      if (parsed.aiTextDetected?.found) {
+        issues.push({
+          type: 'ai-text-detected',
+          severity: 'critical',
+          description: `AI-generated garbled text detected in video frame`,
+          examples: parsed.aiTextDetected.examples || [],
+        });
+        score -= 40;
+        console.log(`[QualityEval] AI text detected: ${parsed.aiTextDetected.examples?.join(', ')}`);
+      }
+
+      // Process AI UI detection
+      if (parsed.aiUIDetected?.found) {
+        issues.push({
+          type: 'ai-ui-detected',
+          severity: 'major',
+          description: `AI-generated UI elements detected: ${parsed.aiUIDetected.description}`,
+        });
+        score -= 25;
+        console.log(`[QualityEval] AI UI detected: ${parsed.aiUIDetected.description}`);
+      }
+
+      // Process off-brand content
+      if (parsed.offBrandContent?.found) {
+        issues.push({
+          type: 'off-brand-content',
+          severity: 'major',
+          description: `Off-brand content: ${parsed.offBrandContent.description}`,
+        });
+        score -= 20;
+        console.log(`[QualityEval] Off-brand content: ${parsed.offBrandContent.description}`);
+      }
+
+      // Process missing brand elements
+      if (parsed.missingBrandElements?.found) {
+        issues.push({
+          type: 'missing-brand-element',
+          severity: 'minor',
+          description: `Missing brand element: ${parsed.missingBrandElements.description}`,
+        });
+        score -= 10;
+      }
+
+      // Use parsed score if available, otherwise use calculated
+      const finalScore = parsed.brandComplianceScore ?? Math.max(0, score);
+      
+      console.log(`[QualityEval] Brand compliance score: ${finalScore}/100`);
+      if (issues.length > 0) {
+        console.log(`[QualityEval] Issues: ${issues.map(i => `${i.type} (${i.severity})`).join(', ')}`);
+      }
+
+      return {
+        score: finalScore,
+        issues,
+      };
+
+    } catch (parseError: any) {
+      console.error('[QualityEval] Failed to parse brand compliance response:', parseError.message);
+      return { score: 70, issues: [] };
+    }
+  }
+
+  /**
+   * Complete scene evaluation including brand compliance
+   */
+  async evaluateSceneComplete(
+    frameBase64: string,
+    sceneData: {
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+      totalScenes: number;
+      hasTextOverlay: boolean;
+    }
+  ): Promise<{
+    overallScore: number;
+    compositionScore: number;
+    brandComplianceScore: number;
+    issues: QualityIssue[];
+    recommendation: 'pass' | 'regenerate' | 'adjust';
+  }> {
+    console.log(`[QualityEval] Starting complete evaluation for scene ${sceneData.sceneIndex + 1}...`);
+
+    // Run composition evaluation (existing Phase 3 logic)
+    const compositionResult = await this.evaluateFrame(
+      frameBase64,
+      {
+        id: `scene-${sceneData.sceneIndex}`,
+        type: sceneData.sceneType,
+        narration: sceneData.narration,
+        textOverlays: sceneData.hasTextOverlay ? [{ text: 'overlay' }] : [],
+      },
+      sceneData.sceneIndex
+    );
+
+    // Run brand compliance evaluation (Phase 4F logic)
+    const brandResult = await this.evaluateBrandCompliance(frameBase64, {
+      sceneType: sceneData.sceneType,
+      expectedContent: sceneData.narration,
+      isFirstScene: sceneData.sceneIndex === 0,
+      isLastScene: sceneData.sceneIndex === sceneData.totalScenes - 1,
+      shouldHaveWatermark: sceneData.sceneIndex > 0 && sceneData.sceneIndex < sceneData.totalScenes - 1,
+    });
+
+    // Combine issues
+    const allIssues = [...compositionResult.issues, ...brandResult.issues];
+
+    // Calculate weighted overall score
+    // Brand compliance is weighted more heavily for AI text issues
+    const hasCriticalBrandIssue = brandResult.issues.some(i => i.severity === 'critical');
+    
+    let overallScore: number;
+    if (hasCriticalBrandIssue) {
+      // Critical brand issues (AI text) heavily penalize the score
+      overallScore = Math.min(compositionResult.overallScore * 0.3 + brandResult.score * 0.7, 50);
+    } else {
+      // Normal weighting: 60% composition, 40% brand
+      overallScore = compositionResult.overallScore * 0.6 + brandResult.score * 0.4;
+    }
+
+    // Determine recommendation
+    let recommendation: 'pass' | 'regenerate' | 'adjust';
+    if (overallScore >= 70 && !hasCriticalBrandIssue) {
+      recommendation = 'pass';
+    } else if (hasCriticalBrandIssue || overallScore < 50) {
+      recommendation = 'regenerate';  // AI text = must regenerate
+    } else {
+      recommendation = 'adjust';
+    }
+
+    console.log(`[QualityEval] Complete - Overall: ${Math.round(overallScore)}, Recommendation: ${recommendation}`);
+
+    return {
+      overallScore: Math.round(overallScore),
+      compositionScore: compositionResult.overallScore,
+      brandComplianceScore: brandResult.score,
+      issues: allIssues,
+      recommendation,
+    };
+  }
+
+  /**
+   * Evaluate all scenes in a video for brand compliance
+   */
+  async evaluateVideoBrandCompliance(
+    scenes: Array<{
+      frameBase64: string;
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+    }>
+  ): Promise<{
+    overallBrandScore: number;
+    sceneScores: Array<{ sceneIndex: number; score: number; issues: QualityIssue[] }>;
+    criticalIssues: QualityIssue[];
+    recommendation: 'approved' | 'needs-regeneration' | 'needs-review';
+  }> {
+    console.log(`[QualityEval] Starting brand compliance check for ${scenes.length} scenes...`);
+
+    const sceneScores: Array<{ sceneIndex: number; score: number; issues: QualityIssue[] }> = [];
+    const criticalIssues: QualityIssue[] = [];
+
+    for (const scene of scenes) {
+      const result = await this.evaluateBrandCompliance(scene.frameBase64, {
+        sceneType: scene.sceneType,
+        expectedContent: scene.narration,
+        isFirstScene: scene.sceneIndex === 0,
+        isLastScene: scene.sceneIndex === scenes.length - 1,
+        shouldHaveWatermark: scene.sceneIndex > 0 && scene.sceneIndex < scenes.length - 1,
+      });
+
+      sceneScores.push({
+        sceneIndex: scene.sceneIndex,
+        score: result.score,
+        issues: result.issues,
+      });
+
+      // Collect critical issues
+      const critical = result.issues.filter(i => i.severity === 'critical');
+      critical.forEach(issue => {
+        criticalIssues.push({
+          ...issue,
+          sceneIndex: scene.sceneIndex,
+        });
+      });
+    }
+
+    // Calculate overall brand score (average of all scenes)
+    const overallBrandScore = sceneScores.length > 0
+      ? Math.round(sceneScores.reduce((sum, s) => sum + s.score, 0) / sceneScores.length)
+      : 70;
+
+    // Determine recommendation
+    let recommendation: 'approved' | 'needs-regeneration' | 'needs-review';
+    if (criticalIssues.length > 0) {
+      recommendation = 'needs-regeneration';
+    } else if (overallBrandScore < 70) {
+      recommendation = 'needs-review';
+    } else {
+      recommendation = 'approved';
+    }
+
+    console.log(`[QualityEval] Brand check complete - Score: ${overallBrandScore}, Critical issues: ${criticalIssues.length}`);
+
+    return {
+      overallBrandScore,
+      sceneScores,
+      criticalIssues,
+      recommendation,
+    };
   }
 }
 

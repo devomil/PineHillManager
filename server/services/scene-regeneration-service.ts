@@ -186,6 +186,26 @@ class SceneRegenerationService {
           additions.push('Ensure sharp focus and high video quality.');
           additions.push('No artifacts, glitches, or distortions.');
           break;
+
+        // Phase 4F: Brand-related issue handling
+        case 'ai-text-detected':
+          additions.push('CRITICAL: Generate only visual content with absolutely no text.');
+          additions.push('Pure visual imagery only, no words or letters.');
+          break;
+
+        case 'ai-ui-detected':
+          additions.push('No user interfaces, no calendars, no charts, no data displays.');
+          additions.push('Natural scene only, no digital elements.');
+          break;
+
+        case 'off-brand-content':
+          additions.push('Wellness and health focused content.');
+          additions.push('Warm natural aesthetic, no corporate or finance imagery.');
+          break;
+
+        case 'missing-brand-element':
+          // Missing elements are handled by overlay system, not regeneration
+          break;
       }
     }
     
@@ -214,9 +234,100 @@ class SceneRegenerationService {
       if (issue.type === 'technical') {
         negatives.push('pixelated', 'noise', 'artifacts', 'compression');
       }
+      // Phase 4F: Brand-related negative prompts
+      if (issue.type === 'ai-text-detected') {
+        negatives.push(
+          'text', 'words', 'letters', 'writing', 'captions', 'labels',
+          'signage', 'typography', 'font', 'readable text', 'gibberish text'
+        );
+      }
+      if (issue.type === 'ai-ui-detected') {
+        negatives.push(
+          'user interface', 'UI elements', 'calendar', 'chart', 'graph',
+          'spreadsheet', 'dashboard', 'app screen', 'digital display'
+        );
+      }
+      if (issue.type === 'off-brand-content') {
+        negatives.push(
+          'corporate', 'finance', 'business graphics', 'office setting',
+          'cold colors', 'sterile', 'industrial'
+        );
+      }
     }
     
     return [...new Set(negatives)].join(', ');
+  }
+
+  // ============================================================
+  // PHASE 4F: REGENERATION STRATEGY
+  // ============================================================
+
+  /**
+   * Determine regeneration strategy based on issue type
+   */
+  getRegenerationStrategy(issues: QualityIssue[]): {
+    shouldRegenerate: boolean;
+    strategy: string;
+    promptModifications: string[];
+  } {
+    const promptModifications: string[] = [];
+    let shouldRegenerate = false;
+    let strategy = 'none';
+
+    // Check for AI text - ALWAYS regenerate with stronger negative prompt
+    const hasAIText = issues.some(i => i.type === 'ai-text-detected');
+    if (hasAIText) {
+      shouldRegenerate = true;
+      strategy = 'regenerate-with-enhanced-negative-prompt';
+      promptModifications.push(
+        'CRITICAL: Generate only visual content with absolutely no text',
+        'no words, no letters, no writing, no captions of any kind',
+        'pure visual imagery only'
+      );
+    }
+
+    // Check for AI UI elements - regenerate with content restrictions
+    const hasAIUI = issues.some(i => i.type === 'ai-ui-detected');
+    if (hasAIUI) {
+      shouldRegenerate = true;
+      strategy = hasAIText ? strategy : 'regenerate-with-content-restrictions';
+      promptModifications.push(
+        'no user interfaces, no calendars, no charts, no data displays',
+        'natural scene only, no digital elements'
+      );
+    }
+
+    // Check for off-brand content - regenerate with brand guidance
+    const hasOffBrand = issues.some(i => i.type === 'off-brand-content');
+    if (hasOffBrand) {
+      shouldRegenerate = true;
+      strategy = (hasAIText || hasAIUI) ? strategy : 'regenerate-with-brand-guidance';
+      promptModifications.push(
+        'wellness and health focused content',
+        'warm natural aesthetic',
+        'no corporate or finance imagery'
+      );
+    }
+
+    // Check for critical composition issues
+    const hasCriticalComposition = issues.some(
+      i => i.severity === 'critical' && ['text-overlap', 'face-blocked', 'content-mismatch'].includes(i.type)
+    );
+    if (hasCriticalComposition && !shouldRegenerate) {
+      shouldRegenerate = true;
+      strategy = 'regenerate-with-composition-fixes';
+    }
+
+    console.log(`[Regen] Strategy: ${strategy}, Should regenerate: ${shouldRegenerate}`);
+    if (promptModifications.length > 0) {
+      console.log(`[Regen] Prompt modifications: ${promptModifications.length} additions`);
+    }
+
+    return {
+      shouldRegenerate,
+      strategy,
+      promptModifications,
+    };
   }
 
   getScenesNeedingRegeneration(
