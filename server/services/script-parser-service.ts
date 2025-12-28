@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { brandContextService } from "./brand-context-service";
+import { projectInstructionsService } from "./project-instructions-service";
 
 export interface ParsedScene {
   id: string;
@@ -67,12 +68,13 @@ class ScriptParserService {
 
     const brandContext = await brandContextService.getScriptParsingContext();
     const serviceMatches = await brandContextService.matchScriptToServices(script);
+    const roleContext = await projectInstructionsService.getCondensedRoleContext();
 
     console.log(
       `[ScriptParser] Brand matches - Services: ${serviceMatches.services.length}, Products: ${serviceMatches.products.length}, Conditions: ${serviceMatches.conditions.length}`
     );
 
-    const systemPrompt = this.buildBrandAwareSystemPrompt(brandContext);
+    const systemPrompt = this.buildBrandAwareSystemPrompt(brandContext, roleContext);
     const userPrompt = this.buildParsingPrompt(script, options, serviceMatches);
 
     try {
@@ -100,8 +102,10 @@ class ScriptParserService {
     }
   }
 
-  private buildBrandAwareSystemPrompt(brandContext: string): string {
-    return `You are an expert video script parser for Pine Hill Farm, a farm-to-wellness brand.
+  private buildBrandAwareSystemPrompt(brandContext: string, roleContext: string): string {
+    return `${roleContext}
+
+You are an expert video script parser for Pine Hill Farm, a farm-to-wellness brand.
 
 ${brandContext}
 

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { brandContextService } from './brand-context-service';
+import { projectInstructionsService } from './project-instructions-service';
 
 export interface FaceDetection {
   x: number;
@@ -233,6 +234,7 @@ class SceneAnalysisService {
       }
 
       const visualContext = await brandContextService.getVisualAnalysisContextFull();
+      const roleContext = await projectInstructionsService.getCondensedRoleContext();
 
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -251,7 +253,7 @@ class SceneAnalysisService {
               },
               {
                 type: 'text',
-                text: this.buildBrandAwareAnalysisPrompt(context, visualContext),
+                text: this.buildBrandAwareAnalysisPrompt(context, visualContext, roleContext),
               },
             ],
           },
@@ -298,9 +300,12 @@ class SceneAnalysisService {
       sceneIndex: number;
       expectedContentType: string;
     },
-    visualContext: string
+    visualContext: string,
+    roleContext: string
   ): string {
-    return `Analyze this video frame for Pine Hill Farm brand alignment.
+    return `${roleContext}
+
+Analyze this video frame for Pine Hill Farm brand alignment.
 
 ${visualContext}
 

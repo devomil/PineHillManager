@@ -19,6 +19,7 @@ import { brandBibleService } from './services/brand-bible-service';
 import { promptEnhancementService } from './services/prompt-enhancement-service';
 import { brandInjectionService } from './services/brand-injection-service';
 import { brandContextService } from './services/brand-context-service';
+import { projectInstructionsService } from './services/project-instructions-service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -18385,6 +18386,84 @@ Respond in JSON format:
       res.json({ context });
     } catch (error: any) {
       console.error('[BrandContext] Error getting prompt enhancement context:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================
+  // PROJECT INSTRUCTIONS ROUTES (Phase 6E)
+  // ============================================================
+
+  // GET /api/project-instructions - View current role instructions
+  app.get('/api/project-instructions', isAuthenticated, async (req, res) => {
+    try {
+      const roleInstructions = await projectInstructionsService.loadRoleInstructions();
+      const condensedContext = await projectInstructionsService.getCondensedRoleContext();
+      const fullInstructions = await projectInstructionsService.getFullInstructions();
+
+      res.json({
+        roleInstructionsLength: roleInstructions.length,
+        condensedContext,
+        sections: fullInstructions,
+        loadedFrom: 'ai-role-instructions.md',
+      });
+    } catch (error: any) {
+      console.error('[ProjectInstructions] Error getting instructions:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/project-instructions/script-parsing - Get system prompt for script parsing
+  app.get('/api/project-instructions/script-parsing', isAuthenticated, async (req, res) => {
+    try {
+      const systemPrompt = await projectInstructionsService.getScriptParsingSystemPrompt();
+      res.json({ systemPrompt, length: systemPrompt.length });
+    } catch (error: any) {
+      console.error('[ProjectInstructions] Error getting script parsing prompt:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/project-instructions/visual-direction - Get system prompt for visual direction
+  app.get('/api/project-instructions/visual-direction', isAuthenticated, async (req, res) => {
+    try {
+      const systemPrompt = await projectInstructionsService.getVisualDirectionSystemPrompt();
+      res.json({ systemPrompt, length: systemPrompt.length });
+    } catch (error: any) {
+      console.error('[ProjectInstructions] Error getting visual direction prompt:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/project-instructions/quality-evaluation - Get system prompt for quality evaluation
+  app.get('/api/project-instructions/quality-evaluation', isAuthenticated, async (req, res) => {
+    try {
+      const systemPrompt = await projectInstructionsService.getQualityEvaluationSystemPrompt();
+      res.json({ systemPrompt, length: systemPrompt.length });
+    } catch (error: any) {
+      console.error('[ProjectInstructions] Error getting quality evaluation prompt:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/project-instructions/condensed - Get condensed role context
+  app.get('/api/project-instructions/condensed', isAuthenticated, async (req, res) => {
+    try {
+      const condensedContext = await projectInstructionsService.getCondensedRoleContext();
+      res.json({ context: condensedContext, length: condensedContext.length });
+    } catch (error: any) {
+      console.error('[ProjectInstructions] Error getting condensed context:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/project-instructions/clear-cache - Clear instruction cache
+  app.post('/api/project-instructions/clear-cache', isAuthenticated, async (req, res) => {
+    try {
+      projectInstructionsService.clearCache();
+      res.json({ success: true, message: 'Instructions cache cleared' });
+    } catch (error: any) {
+      console.error('[ProjectInstructions] Error clearing cache:', error);
       res.status(500).json({ error: error.message });
     }
   });

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { videoFrameExtractor } from './video-frame-extractor';
 import { brandContextService } from './brand-context-service';
+import { projectInstructionsService } from './project-instructions-service';
 
 export interface QualityIssue {
   type: 
@@ -856,6 +857,7 @@ Return ONLY the JSON object, no other text.`;
     try {
       const brandEvalContext = await brandContextService.getQualityEvaluationContext();
       const visualGuidelines = await brandContextService.getVisualAnalysisContextFull();
+      const roleContext = await projectInstructionsService.getCondensedRoleContext();
 
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -873,7 +875,7 @@ Return ONLY the JSON object, no other text.`;
             },
             { 
               type: 'text', 
-              text: this.buildComprehensiveEvalPrompt(sceneContext, brandEvalContext, visualGuidelines) 
+              text: this.buildComprehensiveEvalPrompt(sceneContext, brandEvalContext, visualGuidelines, roleContext) 
             }
           ]
         }]
@@ -904,9 +906,12 @@ Return ONLY the JSON object, no other text.`;
       expectedContentType: string;
     },
     brandEvalContext: string,
-    visualGuidelines: string
+    visualGuidelines: string,
+    roleContext: string
   ): string {
-    return `Evaluate this video frame for comprehensive quality including Pine Hill Farm brand compliance.
+    return `${roleContext}
+
+Evaluate this video frame for comprehensive quality including Pine Hill Farm brand compliance.
 
 ${brandEvalContext}
 
