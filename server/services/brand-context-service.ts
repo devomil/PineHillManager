@@ -78,6 +78,7 @@ export interface BrandContextData {
 class BrandContextService {
   private brandData: BrandContextData | null = null;
   private loadedAt: number = 0;
+  private visualGuidelines: string | null = null;
 
   async loadBrandContext(): Promise<BrandContextData> {
     if (this.brandData && Date.now() - this.loadedAt < 3600000) {
@@ -169,6 +170,67 @@ ${data.visualIdentity.avoid.map(a => `- ${a}`).join('\n')}
 - Women-owned (3 sisters)
 - Organic, natural, holistic
 - Farm-to-wellness concept
+`;
+  }
+
+  /**
+   * Load visual guidelines markdown file
+   */
+  async loadVisualGuidelines(): Promise<string> {
+    if (this.visualGuidelines) {
+      return this.visualGuidelines;
+    }
+
+    try {
+      const guidelinesPath = path.join(__dirname, '../brand-context/visual-guidelines.md');
+      this.visualGuidelines = fs.readFileSync(guidelinesPath, 'utf-8');
+      console.log('[BrandContext] Visual guidelines loaded');
+      return this.visualGuidelines;
+    } catch (error: any) {
+      console.error('[BrandContext] Failed to load visual guidelines:', error.message);
+      return this.getCondensedVisualGuidelines();
+    }
+  }
+
+  /**
+   * Get condensed visual guidelines for prompts when full guidelines unavailable
+   */
+  private getCondensedVisualGuidelines(): string {
+    return `
+## Pine Hill Farm Visual Guidelines (Condensed)
+
+LIGHTING: Warm, golden (NOT cold/clinical)
+COLORS: Earth tones - greens, browns, warm golds (NOT blue/gray/sterile)
+SETTINGS: Farm, garden, natural home, spa (NOT hospital/office/clinical)
+PEOPLE: Real, authentic, women 35-65 (NOT stock-photo perfect)
+TEXTURES: Natural wood, plants, organic (NOT plastic/chrome/synthetic)
+MOOD: Warm, hopeful, inviting (NOT fear-based/corporate)
+
+Score 85+ = On brand | 70-84 = Minor fixes | Below 70 = Regenerate
+`;
+  }
+
+  /**
+   * Get full visual analysis context for Claude Vision
+   */
+  async getVisualAnalysisContextFull(): Promise<string> {
+    const guidelines = await this.loadVisualGuidelines();
+    const brandData = await this.loadBrandContext();
+
+    return `
+# Brand Visual Analysis Context
+
+You are evaluating visual content for ${brandData.brand.name}, a ${brandData.brand.tagline}.
+
+${guidelines}
+
+## Evaluation Instructions
+
+1. Score each visual element (Lighting, Colors, Setting, Authenticity) out of 25 points
+2. Calculate total Brand Alignment Score out of 100
+3. Identify specific issues that don't match PHF aesthetic
+4. Provide actionable recommendations for improvement
+5. Determine if content should pass, be adjusted, or regenerated
 `;
   }
 
