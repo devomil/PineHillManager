@@ -465,6 +465,13 @@ IMPORTANT RULES:
 
       const overallScore = this.calculateOverallScore(parsed, brandAlignment);
 
+      const computedRecommendation = this.computeRecommendation(brandAlignment.totalScore);
+      const modelRecommendation = parsed.recommendation;
+      
+      if (modelRecommendation && modelRecommendation !== computedRecommendation) {
+        console.log(`[SceneAnalysis] Overriding model recommendation "${modelRecommendation}" with computed "${computedRecommendation}" based on brand score ${brandAlignment.totalScore}`);
+      }
+
       return {
         faces: {
           detected: parsed.faces?.detected || false,
@@ -508,7 +515,7 @@ IMPORTANT RULES:
           appropriate: parsed.sceneTypeMatch?.appropriate ?? true,
           notes: parsed.sceneTypeMatch?.notes || '',
         },
-        recommendation: parsed.recommendation || 'adjust',
+        recommendation: computedRecommendation,
         suggestedImprovements: parsed.suggestedImprovements || [],
         overallScore,
       };
@@ -533,6 +540,16 @@ IMPORTANT RULES:
       compositionScore * compositionWeight +
       brandScore * brandWeight
     );
+  }
+
+  private computeRecommendation(brandScore: number): 'pass' | 'adjust' | 'regenerate' {
+    if (brandScore >= 85) {
+      return 'pass';
+    } else if (brandScore >= 70) {
+      return 'adjust';
+    } else {
+      return 'regenerate';
+    }
   }
 
   private getDefaultBrandAwareAnalysis(): BrandAwareSceneAnalysis {
