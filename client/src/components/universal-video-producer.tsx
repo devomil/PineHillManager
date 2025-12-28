@@ -23,6 +23,7 @@ import { QualityReport } from "./quality-report";
 import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-settings-panel";
 import { MusicStyleSelector } from "./music-style-selector";
 import { getAvailableStyles } from "@shared/visual-style-config";
+import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -1638,11 +1639,14 @@ function ScenePreview({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="text-xs capitalize">
+                  <Badge variant="outline" className="text-xs capitalize" data-testid={`badge-scene-type-${scene.id}`}>
                     {scene.type}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground" data-testid={`scene-duration-${scene.id}`}>
                     {scene.duration}s
+                  </span>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid={`content-type-icon-${scene.id}`}>
+                    {getContentTypeIcon((scene as any).contentType || 'lifestyle')}
                   </span>
                   {hasBrollVideo && (
                     <Badge className="text-xs bg-blue-500">

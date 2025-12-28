@@ -2478,6 +2478,100 @@ router.post('/projects/:projectId/regenerate-scenes', isAuthenticated, async (re
   }
 });
 
+// PATCH /projects/:projectId/scenes/:sceneId - Update individual scene (Phase 5C)
+router.patch('/projects/:projectId/scenes/:sceneId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const updates = req.body;
+    
+    console.log(`[UniversalVideo] Updating scene ${sceneId} in project ${projectId}`);
+    
+    const project = await getProjectFromDb(projectId);
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const scenes = project.scenes || [];
+    const sceneIndex = scenes.findIndex((s: Scene) => s.id === sceneId);
+    
+    if (sceneIndex === -1) {
+      return res.status(404).json({ error: 'Scene not found' });
+    }
+    
+    scenes[sceneIndex] = {
+      ...scenes[sceneIndex],
+      ...updates,
+    };
+    
+    project.scenes = scenes;
+    project.updatedAt = new Date().toISOString();
+    
+    const userId = (req.user as any)?.id || 'unknown';
+    await saveProjectToDb(project, userId);
+    
+    console.log(`[UniversalVideo] Scene ${sceneId} updated successfully`);
+    
+    res.json({ 
+      success: true, 
+      scene: scenes[sceneIndex] 
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Update scene failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /ai/suggest-visual-direction - AI suggestion for visual direction (Phase 5C)
+router.post('/ai/suggest-visual-direction', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { narration, sceneType, currentDirection } = req.body;
+    
+    if (!narration) {
+      return res.status(400).json({ error: 'Narration is required' });
+    }
+    
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropic = new Anthropic();
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate a concise visual direction for a video scene.
+
+Scene type: ${sceneType || 'general'}
+Narration: "${narration}"
+${currentDirection ? `Current direction (improve this): ${currentDirection}` : ''}
+
+Write 1-2 sentences describing:
+- Camera angle/movement
+- Lighting style
+- Key visual elements
+- Mood/atmosphere
+
+Keep it brief and actionable for AI video generation. No preamble, just the direction.`,
+        },
+      ],
+    });
+    
+    const suggestion = response.content[0].type === 'text' 
+      ? response.content[0].text 
+      : '';
+    
+    console.log(`[UniversalVideo] Generated visual direction for ${sceneType} scene`);
+    
+    res.json({ suggestion });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Visual direction suggestion failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Background quality evaluation function
 async function runQualityEvaluation(project: VideoProject, outputUrl: string, ownerId: string) {
   console.log(`[QualityEval] Starting background evaluation for ${project.id}`);
