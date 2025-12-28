@@ -21,6 +21,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { VoiceSelector } from "./voice-selector";
 import { QualityReport } from "./quality-report";
 import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-settings-panel";
+import { MusicStyleSelector } from "./music-style-selector";
+import { getAvailableStyles } from "@shared/visual-style-config";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -560,6 +562,11 @@ function ScriptVideoForm({
     watermarkOpacity: 0.7,
   });
 
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicMood, setMusicMood] = useState<string>('');
+  
+  const visualStyles = getAvailableStyles();
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -610,26 +617,40 @@ function ScriptVideoForm({
           </Select>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 col-span-2">
           <Label>Visual Style</Label>
-          <Select
-            value={formData.style}
-            onValueChange={(val) => setFormData(prev => ({ ...prev, style: val as any }))}
-          >
-            <SelectTrigger data-testid="select-script-style">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="professional">Professional</SelectItem>
-              <SelectItem value="casual">Casual</SelectItem>
-              <SelectItem value="energetic">Energetic</SelectItem>
-              <SelectItem value="calm">Calm</SelectItem>
-              <SelectItem value="cinematic">Cinematic</SelectItem>
-              <SelectItem value="documentary">Documentary</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {visualStyles.map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, style: style.id as any }))}
+                className={`
+                  p-3 rounded-lg border text-left transition-all
+                  ${formData.style === style.id 
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                    : 'border-gray-200 hover:border-gray-300'}
+                `}
+                data-testid={`button-style-${style.id}`}
+              >
+                <p className="font-medium text-sm">{style.name}</p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  {style.description}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Music Style Selector (Phase 5B) */}
+      <MusicStyleSelector
+        enabled={musicEnabled}
+        onEnabledChange={setMusicEnabled}
+        visualStyle={formData.style}
+        customMood={musicMood}
+        onMoodChange={setMusicMood}
+      />
 
       {/* Brand Settings Panel (Phase 5A) */}
       <BrandSettingsPanel
@@ -640,7 +661,7 @@ function ScriptVideoForm({
 
       <Button 
         className="w-full" 
-        onClick={() => onSubmit({ ...formData, brandSettings })}
+        onClick={() => onSubmit({ ...formData, brandSettings, musicEnabled, musicMood } as any)}
         disabled={isLoading || !formData.title || formData.script.length < 50}
         data-testid="button-parse-script"
       >

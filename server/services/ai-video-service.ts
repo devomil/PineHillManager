@@ -8,6 +8,7 @@ import {
   selectProvidersForScene, 
   getConfiguredProviders 
 } from '../config/ai-video-providers';
+import { getVisualStyleConfig, VisualStyleConfig } from '@shared/visual-style-config';
 
 interface AIVideoResult {
   success: boolean;
@@ -30,6 +31,7 @@ interface AIVideoOptions {
   narration?: string;
   mood?: string;
   contentType?: 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle';
+  visualStyle?: string;
 }
 
 class AIVideoService {
@@ -55,15 +57,29 @@ class AIVideoService {
       return { success: false, error: 'No AI video providers configured' };
     }
 
+    // Get visual style configuration (Phase 5B)
+    const styleConfig = getVisualStyleConfig(options.visualStyle || 'professional');
+    
+    // Determine content type from style config if not provided
+    const contentType = options.contentType || 
+      styleConfig.defaultContentTypes[options.sceneType as keyof typeof styleConfig.defaultContentTypes] ||
+      'lifestyle';
+    
+    // Build enhanced prompt with style modifiers
+    const styleEnhancedPrompt = this.applyStyleToPrompt(options.prompt, styleConfig);
+    
+    console.log(`[AIVideo] Using style: ${styleConfig.name}`);
+
     // ENHANCE PROMPT WITH BRAND CONTEXT AND SAFETY
     console.log(`[PromptEnhance] Enhancing prompt for ${options.sceneType} scene`);
     const enhanced = await promptEnhancementService.enhanceVideoPrompt(
-      options.prompt,
+      styleEnhancedPrompt,
       {
         sceneType: options.sceneType,
         narration: options.narration,
-        mood: options.mood,
-        contentType: options.contentType,
+        mood: options.mood || styleConfig.promptModifiers.mood,
+        contentType,
+        excludeElements: styleConfig.negativePromptAdditions,
       }
     );
     
@@ -74,11 +90,13 @@ class AIVideoService {
       ...options,
       prompt: enhanced.prompt,
       negativePrompt: enhanced.negativePrompt,
+      contentType,
     };
 
+    // Select providers based on style preferences (Phase 5B)
     const providerOrder = enhancedOptions.preferredProvider 
       ? [enhancedOptions.preferredProvider, ...configuredProviders.filter(p => p !== enhancedOptions.preferredProvider)]
-      : selectProvidersForScene(enhancedOptions.sceneType, enhanced.prompt);
+      : this.selectProvidersForStyle(styleConfig.preferredVideoProviders, enhancedOptions.sceneType, contentType, configuredProviders);
 
     console.log(`[AIVideo] Scene: ${enhancedOptions.sceneType}`);
     console.log(`[AIVideo] Provider order: ${providerOrder.join(' → ')}`);
@@ -182,6 +200,66 @@ class AIVideoService {
       error: result.error,
       generationTimeMs: result.generationTimeMs,
     };
+  }
+
+  /**
+   * Apply visual style modifiers to the prompt (Phase 5B)
+   */
+  private applyStyleToPrompt(prompt: string, style: VisualStyleConfig): string {
+    const modifiers = style.promptModifiers;
+    const parts = [
+      prompt,
+      modifiers.mood,
+      modifiers.lighting,
+      modifiers.cameraWork,
+      modifiers.colorGrade,
+      style.stylePromptSuffix,
+    ];
+    return parts.filter(p => p).join(', ');
+  }
+
+  /**
+   * Select providers based on style preferences and scene requirements (Phase 5B)
+   */
+  private selectProvidersForStyle(
+    preferredProviders: string[],
+    sceneType: string,
+    contentType: string,
+    configuredProviders: string[]
+  ): string[] {
+    // Start with style-preferred providers, filtered by what's configured
+    const providers = preferredProviders.filter(p => configuredProviders.includes(p));
+    
+    // Add any configured providers not in preferred list as fallbacks
+    for (const p of configuredProviders) {
+      if (!providers.includes(p)) {
+        providers.push(p);
+      }
+    }
+    
+    // Adjust for specific scene/content needs
+    if (contentType === 'person') {
+      // Runway and Kling handle people well
+      const personProviders = ['runway', 'kling'];
+      personProviders.forEach(p => {
+        const idx = providers.indexOf(p);
+        if (idx > 0) {
+          providers.splice(idx, 1);
+          providers.unshift(p);
+        }
+      });
+    }
+    
+    // For CTA scenes, prioritize most reliable provider
+    if (sceneType === 'cta') {
+      const runwayIdx = providers.indexOf('runway');
+      if (runwayIdx > 0) {
+        providers.splice(runwayIdx, 1);
+        providers.unshift('runway');
+      }
+    }
+    
+    return providers;
   }
 
   estimateCost(duration: number, providerKey?: string): number {
