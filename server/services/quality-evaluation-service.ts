@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { videoFrameExtractor } from './video-frame-extractor';
+import { brandContextService } from './brand-context-service';
 
 export interface QualityIssue {
   type: 
@@ -44,6 +45,32 @@ export interface VideoQualityReport {
   criticalIssues: QualityIssue[];
   recommendations: string[];
   evaluatedAt: string;
+}
+
+export interface ComprehensiveQualityResult {
+  overallScore: number;
+  scores: {
+    technical: number;
+    composition: number;
+    aiArtifacts: number;
+    brand: {
+      total: number;
+      lighting: number;
+      colors: number;
+      setting: number;
+      authenticity: number;
+    };
+  };
+  issues: QualityIssue[];
+  recommendation: 'pass' | 'adjust' | 'regenerate';
+  brandAssessment: {
+    overallAssessment: 'on-brand' | 'needs-adjustment' | 'off-brand';
+    lightingAssessment: 'warm' | 'neutral' | 'cold';
+    colorAssessment: 'earth tones' | 'neutral' | 'cold tones';
+    settingAssessment: 'natural' | 'neutral' | 'clinical';
+    authenticityAssessment: 'authentic' | 'generic' | 'artificial';
+  };
+  suggestedImprovements: string[];
 }
 
 class QualityEvaluationService {
@@ -798,6 +825,366 @@ Return ONLY the JSON object, no other text.`;
       sceneScores,
       criticalIssues,
       recommendation,
+    };
+  }
+
+  // ============================================================
+  // PHASE 6D: COMPREHENSIVE BRAND-AWARE QUALITY EVALUATION
+  // ============================================================
+
+  /**
+   * Comprehensive scene evaluation with Pine Hill Farm brand compliance
+   * Weights: Technical 20%, Composition 15%, AI Artifacts 15%, Brand 50%
+   */
+  async evaluateSceneComprehensive(
+    frameBase64: string,
+    sceneContext: {
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+      totalScenes: number;
+      expectedContentType: string;
+    }
+  ): Promise<ComprehensiveQualityResult> {
+    console.log(`[QualityEval] Starting comprehensive evaluation for scene ${sceneContext.sceneIndex + 1}...`);
+
+    if (!this.anthropic) {
+      console.warn(`[QualityEval] Anthropic not configured, using default comprehensive result`);
+      return this.getDefaultComprehensiveResult();
+    }
+
+    try {
+      const brandEvalContext = await brandContextService.getQualityEvaluationContext();
+      const visualGuidelines = await brandContextService.getVisualAnalysisContextFull();
+
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3000,
+        messages: [{
+          role: 'user',
+          content: [
+            { 
+              type: 'image', 
+              source: { 
+                type: 'base64', 
+                media_type: 'image/jpeg', 
+                data: frameBase64 
+              }
+            },
+            { 
+              type: 'text', 
+              text: this.buildComprehensiveEvalPrompt(sceneContext, brandEvalContext, visualGuidelines) 
+            }
+          ]
+        }]
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type');
+      }
+
+      return this.parseComprehensiveEvalResponse(content.text, sceneContext);
+
+    } catch (error: any) {
+      console.error(`[QualityEval] Comprehensive evaluation failed:`, error.message);
+      return this.getDefaultComprehensiveResult();
+    }
+  }
+
+  /**
+   * Build comprehensive evaluation prompt with brand context
+   */
+  private buildComprehensiveEvalPrompt(
+    sceneContext: {
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+      totalScenes: number;
+      expectedContentType: string;
+    },
+    brandEvalContext: string,
+    visualGuidelines: string
+  ): string {
+    return `Evaluate this video frame for comprehensive quality including Pine Hill Farm brand compliance.
+
+${brandEvalContext}
+
+${visualGuidelines}
+
+SCENE CONTEXT:
+- Scene ${sceneContext.sceneIndex + 1} of ${sceneContext.totalScenes}
+- Scene Type: ${sceneContext.sceneType}
+- Expected Content: ${sceneContext.expectedContentType}
+- Narration: "${sceneContext.narration.substring(0, 200)}..."
+
+EVALUATE FOUR CATEGORIES:
+
+## 1. TECHNICAL QUALITY (20% of total)
+Score 0-100:
+- Resolution and sharpness
+- Exposure (not over/under exposed)
+- Focus accuracy
+- Compression artifacts
+
+## 2. COMPOSITION (15% of total)
+Score 0-100:
+- Framing and rule of thirds
+- Visual balance
+- Subject placement
+- No awkward cropping
+
+## 3. AI ARTIFACTS (15% of total)
+Score 0-100 (deduct heavily for issues):
+- Garbled or misspelled text (e.g., "peocineate", "weth meal")
+- Fake UI elements (calendars, spreadsheets)
+- Distorted faces or hands
+- Unnatural lighting/shadows
+Score 100 if none found, 0 if critical artifacts present.
+
+## 4. BRAND COMPLIANCE (50% of total) - MOST IMPORTANT
+Score each 0-25:
+
+### Lighting (12.5%):
+- Warm/golden = 25 points
+- Neutral = 15 points  
+- Cold/clinical = 0-10 points
+
+### Colors (12.5%):
+- Earth tones (green, brown, gold) = 25 points
+- Neutral palette = 15 points
+- Cold blues/grays/sterile = 0-10 points
+
+### Setting (12.5%):
+- Natural/farm/home/wellness = 25 points
+- Neutral = 15 points
+- Clinical/corporate = 0-10 points
+
+### Authenticity (12.5%):
+- Real/warm/relatable = 25 points
+- Generic = 15 points
+- Stock-photo/artificial = 0-10 points
+
+Return JSON:
+{
+  "technicalScore": 0-100,
+  "compositionScore": 0-100,
+  "aiArtifactsScore": 0-100,
+  "aiArtifacts": {
+    "textDetected": true/false,
+    "textExamples": ["garbled text if found"],
+    "uiDetected": true/false,
+    "distortionsFound": true/false
+  },
+  "brandScores": {
+    "lighting": { "score": 0-25, "assessment": "warm|neutral|cold" },
+    "colors": { "score": 0-25, "assessment": "earth tones|neutral|cold tones" },
+    "setting": { "score": 0-25, "assessment": "natural|neutral|clinical" },
+    "authenticity": { "score": 0-25, "assessment": "authentic|generic|artificial" }
+  },
+  "brandTotal": 0-100,
+  "issues": [
+    { "type": "issue-type", "severity": "critical|major|minor", "description": "..." }
+  ],
+  "suggestedImprovements": ["specific actionable improvement"],
+  "overallAssessment": "brief summary"
+}
+
+IMPORTANT:
+- AI artifacts (garbled text, fake UI) = CRITICAL, forces regeneration
+- Brand score < 50 = forces regeneration
+- Brand score 50-69 = needs adjustment
+- Overall 70+ with no critical issues = pass`;
+  }
+
+  /**
+   * Parse comprehensive evaluation response
+   */
+  private parseComprehensiveEvalResponse(
+    text: string,
+    sceneContext: {
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+      totalScenes: number;
+      expectedContentType: string;
+    }
+  ): ComprehensiveQualityResult {
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      const technicalScore = parsed.technicalScore || 70;
+      const compositionScore = parsed.compositionScore || 70;
+      const aiArtifactsScore = parsed.aiArtifactsScore || 100;
+      
+      const brandScores = {
+        lighting: parsed.brandScores?.lighting?.score || 15,
+        colors: parsed.brandScores?.colors?.score || 15,
+        setting: parsed.brandScores?.setting?.score || 15,
+        authenticity: parsed.brandScores?.authenticity?.score || 15,
+      };
+      const brandTotal = parsed.brandTotal || 
+        (brandScores.lighting + brandScores.colors + brandScores.setting + brandScores.authenticity);
+
+      const weightedScore = Math.round(
+        technicalScore * 0.20 +
+        compositionScore * 0.15 +
+        aiArtifactsScore * 0.15 +
+        brandTotal * 0.50
+      );
+
+      const aiArtifacts = parsed.aiArtifacts || {};
+      const hasAiText = aiArtifacts.textDetected === true;
+      const hasAiUI = aiArtifacts.uiDetected === true;
+
+      const recommendation = this.computeComprehensiveRecommendation(
+        weightedScore, 
+        brandTotal, 
+        hasAiText, 
+        hasAiUI
+      );
+
+      const issues: QualityIssue[] = (parsed.issues || []).map((issue: any) => ({
+        type: issue.type || 'technical',
+        severity: issue.severity || 'minor',
+        description: issue.description || 'Unknown issue',
+        sceneIndex: sceneContext.sceneIndex,
+      }));
+
+      if (hasAiText) {
+        issues.push({
+          type: 'ai-text-detected',
+          severity: 'critical',
+          description: `AI-generated garbled text: ${aiArtifacts.textExamples?.join(', ') || 'detected'}`,
+          sceneIndex: sceneContext.sceneIndex,
+          examples: aiArtifacts.textExamples,
+        });
+      }
+
+      if (hasAiUI) {
+        issues.push({
+          type: 'ai-ui-detected',
+          severity: 'major',
+          description: 'AI-generated fake UI elements detected',
+          sceneIndex: sceneContext.sceneIndex,
+        });
+      }
+
+      console.log(`[QualityEval] Comprehensive scores - Technical: ${technicalScore}, Composition: ${compositionScore}, AI: ${aiArtifactsScore}, Brand: ${brandTotal}`);
+      console.log(`[QualityEval] Weighted overall: ${weightedScore}, Recommendation: ${recommendation}`);
+
+      if (brandTotal < 70) {
+        console.log(`[QualityEval] Brand issues:`);
+        if (brandScores.lighting < 20) {
+          console.log(`  - Lighting: ${parsed.brandScores?.lighting?.assessment} (${brandScores.lighting}/25)`);
+        }
+        if (brandScores.colors < 20) {
+          console.log(`  - Colors: ${parsed.brandScores?.colors?.assessment} (${brandScores.colors}/25)`);
+        }
+        if (brandScores.setting < 20) {
+          console.log(`  - Setting: ${parsed.brandScores?.setting?.assessment} (${brandScores.setting}/25)`);
+        }
+        if (brandScores.authenticity < 20) {
+          console.log(`  - Authenticity: ${parsed.brandScores?.authenticity?.assessment} (${brandScores.authenticity}/25)`);
+        }
+      }
+
+      return {
+        overallScore: weightedScore,
+        scores: {
+          technical: technicalScore,
+          composition: compositionScore,
+          aiArtifacts: aiArtifactsScore,
+          brand: {
+            total: brandTotal,
+            lighting: brandScores.lighting,
+            colors: brandScores.colors,
+            setting: brandScores.setting,
+            authenticity: brandScores.authenticity,
+          },
+        },
+        issues,
+        recommendation,
+        brandAssessment: {
+          overallAssessment: brandTotal >= 70 ? 'on-brand' : brandTotal >= 50 ? 'needs-adjustment' : 'off-brand',
+          lightingAssessment: parsed.brandScores?.lighting?.assessment || 'neutral',
+          colorAssessment: parsed.brandScores?.colors?.assessment || 'neutral',
+          settingAssessment: parsed.brandScores?.setting?.assessment || 'neutral',
+          authenticityAssessment: parsed.brandScores?.authenticity?.assessment || 'generic',
+        },
+        suggestedImprovements: parsed.suggestedImprovements || [],
+      };
+
+    } catch (error: any) {
+      console.error(`[QualityEval] Parse comprehensive response error:`, error.message);
+      return this.getDefaultComprehensiveResult();
+    }
+  }
+
+  /**
+   * Compute recommendation based on Phase 6D thresholds
+   */
+  private computeComprehensiveRecommendation(
+    weightedScore: number,
+    brandScore: number,
+    hasAiText: boolean,
+    hasAiUI: boolean
+  ): 'pass' | 'adjust' | 'regenerate' {
+    if (hasAiText || hasAiUI) {
+      console.log(`[QualityEval] AI artifacts found - forcing regeneration`);
+      return 'regenerate';
+    }
+    
+    if (brandScore < 50) {
+      console.log(`[QualityEval] Brand score ${brandScore} < 50 - forcing regeneration`);
+      return 'regenerate';
+    }
+    
+    if (brandScore < 70 || weightedScore < 70) {
+      console.log(`[QualityEval] Brand ${brandScore} or weighted ${weightedScore} < 70 - needs adjustment`);
+      return 'adjust';
+    }
+    
+    return 'pass';
+  }
+
+  /**
+   * Default comprehensive result when evaluation fails
+   */
+  private getDefaultComprehensiveResult(): ComprehensiveQualityResult {
+    return {
+      overallScore: 75,
+      scores: {
+        technical: 75,
+        composition: 75,
+        aiArtifacts: 100,
+        brand: {
+          total: 75,
+          lighting: 19,
+          colors: 19,
+          setting: 19,
+          authenticity: 18,
+        },
+      },
+      issues: [{
+        type: 'technical',
+        severity: 'minor',
+        description: 'Could not perform comprehensive evaluation - using defaults',
+      }],
+      recommendation: 'adjust',
+      brandAssessment: {
+        overallAssessment: 'needs-adjustment',
+        lightingAssessment: 'neutral',
+        colorAssessment: 'neutral',
+        settingAssessment: 'neutral',
+        authenticityAssessment: 'generic',
+      },
+      suggestedImprovements: ['Manual review recommended - automated evaluation unavailable'],
     };
   }
 }
