@@ -17,6 +17,7 @@ import { createCloverPaymentService, getCloverPaymentService, getCloverPaymentSe
 import { CloverInventoryService } from './services/clover-inventory-service';
 import { brandBibleService } from './services/brand-bible-service';
 import { promptEnhancementService } from './services/prompt-enhancement-service';
+import { brandInjectionService } from './services/brand-injection-service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -18220,6 +18221,41 @@ Respond in JSON format:
       });
     } catch (error: any) {
       console.error('[Prompt Enhance] Test error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Test Brand Injection Service
+  app.post('/api/test-brand-injection', isAuthenticated, async (req, res) => {
+    try {
+      const testScenes = [
+        { id: 'scene-1', type: 'hook', duration: 5, isFirst: true, isLast: false },
+        { id: 'scene-2', type: 'problem', duration: 6, isFirst: false, isLast: false },
+        { id: 'scene-3', type: 'solution', duration: 5, isFirst: false, isLast: false },
+        { id: 'scene-4', type: 'cta', duration: 5, isFirst: false, isLast: true },
+      ];
+      
+      const instructions = await brandInjectionService.generateBrandInstructions(testScenes);
+      
+      res.json({
+        success: true,
+        hasIntro: !!instructions.introAnimation,
+        introAsset: instructions.introAnimation?.assetUrl,
+        introAnimation: instructions.introAnimation?.animation,
+        hasWatermark: !!instructions.watermark,
+        watermarkPosition: instructions.watermark?.position,
+        watermarkOpacity: instructions.watermark?.opacity,
+        hasOutro: !!(instructions.outroSequence && instructions.outroSequence.length > 0),
+        outroCount: instructions.outroSequence?.length || 0,
+        hasCTAOverlay: !!instructions.ctaOverlay,
+        ctaOverlay: instructions.ctaOverlay,
+        colors: instructions.colors,
+        cta: instructions.callToAction,
+        sceneCount: Object.keys(instructions.sceneOverlays).length,
+        sceneOverlays: instructions.sceneOverlays,
+      });
+    } catch (error: any) {
+      console.error('[Brand Injection] Test error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
