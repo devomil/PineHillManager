@@ -2653,4 +2653,172 @@ async function runQualityEvaluation(project: VideoProject, outputUrl: string, ow
   }
 }
 
+// GET /projects/:projectId/generation-estimate - Estimate generation cost/time (Phase 5D)
+router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    
+    const project = await getProjectFromDb(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const scenes = project.scenes || [];
+    const visualStyle = project.visualStyle || 'professional';
+    // Use actual project brand settings, don't override with defaults
+    const brandSettings = project.brandSettings || {};
+    const musicEnabled = (project as any).musicEnabled !== false;
+    
+    // Provider cost rates per second
+    const PROVIDER_COSTS: Record<string, number> = {
+      runway: 0.05,
+      kling: 0.03,
+      hailuo: 0.02,
+      luma: 0.04,
+      piapi_kling: 0.03,
+    };
+    
+    // Style to provider mapping
+    const STYLE_PROVIDERS: Record<string, string[]> = {
+      professional: ['runway', 'kling'],
+      cinematic: ['runway', 'kling'],
+      energetic: ['kling', 'hailuo'],
+      calm: ['luma', 'runway'],
+      casual: ['kling', 'hailuo'],
+      documentary: ['runway', 'luma'],
+      luxury: ['runway', 'kling'],
+      minimal: ['luma', 'kling'],
+    };
+    
+    const preferredProviders = STYLE_PROVIDERS[visualStyle] || ['kling', 'runway'];
+    
+    // Calculate provider assignments per scene
+    const sceneProviders = scenes.map((scene: Scene, index: number) => {
+      const contentType = (scene as any).contentType || 'lifestyle';
+      
+      // Determine primary provider based on content type
+      let primaryProvider = preferredProviders[0];
+      if (contentType === 'person') {
+        primaryProvider = 'runway'; // Best for people
+      } else if (contentType === 'abstract') {
+        primaryProvider = preferredProviders.includes('kling') ? 'kling' : primaryProvider;
+      }
+      
+      return {
+        sceneIndex: index,
+        sceneType: scene.type,
+        contentType,
+        duration: scene.duration || 5,
+        provider: primaryProvider,
+        fallbackProvider: preferredProviders[1] || 'kling',
+      };
+    });
+    
+    // Calculate video generation cost
+    const VIDEO_COST = sceneProviders.reduce((sum: number, s: any) => {
+      const costPerSec = PROVIDER_COSTS[s.provider] || 0.03;
+      return sum + (s.duration * costPerSec);
+    }, 0);
+    
+    const totalDuration = scenes.reduce((sum: number, s: Scene) => sum + (s.duration || 5), 0);
+    
+    // Calculate other costs
+    const VOICEOVER_COST = 0.015 * totalDuration; // ElevenLabs
+    const MUSIC_COST = musicEnabled ? 0.10 : 0; // Udio flat rate - only if music enabled
+    const SOUND_FX_COST = 0.05; // Sound effects
+    const BRAND_CHECK_COST = scenes.length * 0.02; // Quality checks
+    
+    const totalCost = VIDEO_COST + VOICEOVER_COST + MUSIC_COST + SOUND_FX_COST + BRAND_CHECK_COST;
+    
+    // Estimate time
+    const avgSceneGenTime = 45; // seconds per scene
+    const parallelFactor = 0.6;
+    const estimatedTimeMin = Math.ceil((scenes.length * avgSceneGenTime * parallelFactor) / 60);
+    const estimatedTimeMax = Math.ceil((scenes.length * avgSceneGenTime) / 60);
+    
+    // Count provider usage
+    const providerCounts: Record<string, number> = {};
+    sceneProviders.forEach((s: any) => {
+      providerCounts[s.provider] = (providerCounts[s.provider] || 0) + 1;
+    });
+    
+    // Brand elements summary - only add if actually enabled in project settings
+    const brandElements: Array<{ type: string; name: string; description: string; scene: string }> = [];
+    if (brandSettings.includeIntroLogo === true) {
+      brandElements.push({
+        type: 'intro',
+        name: 'Intro Logo Animation',
+        description: '3 second logo with zoom effect',
+        scene: 'Scene 1',
+      });
+    }
+    if (brandSettings.includeWatermark === true) {
+      brandElements.push({
+        type: 'watermark',
+        name: 'Corner Watermark',
+        description: `${Math.round((brandSettings.watermarkOpacity || 0.7) * 100)}% opacity, ${brandSettings.watermarkPosition || 'bottom-right'}`,
+        scene: `Scenes 2-${Math.max(2, scenes.length - 1)}`,
+      });
+    }
+    if (brandSettings.includeCTAOutro === true) {
+      brandElements.push({
+        type: 'cta',
+        name: 'CTA Outro',
+        description: 'Call-to-action with brand URL',
+        scene: `Scene ${scenes.length}`,
+      });
+    }
+    
+    // Generate warnings
+    const warnings: string[] = [];
+    const longScenes = scenes.filter((s: Scene) => (s.duration || 5) > 10);
+    if (longScenes.length > 0) {
+      warnings.push(`${longScenes.length} scene(s) are over 10 seconds - may require multiple video segments`);
+    }
+    if (scenes.length > 10) {
+      warnings.push('Large number of scenes may increase generation time significantly');
+    }
+    const missingContentType = scenes.filter((s: Scene) => !(s as any).contentType);
+    if (missingContentType.length > 0) {
+      warnings.push(`${missingContentType.length} scene(s) will use default content type based on style`);
+    }
+    
+    res.json({
+      project: {
+        title: project.title,
+        sceneCount: scenes.length,
+        totalDuration,
+        visualStyle,
+      },
+      providers: {
+        video: providerCounts,
+        voiceover: 'ElevenLabs',
+        music: musicEnabled ? 'Udio AI (via PiAPI)' : 'Disabled',
+        soundFx: 'Runway Sound',
+      },
+      musicEnabled,
+      sceneBreakdown: sceneProviders,
+      costs: {
+        video: VIDEO_COST.toFixed(2),
+        voiceover: VOICEOVER_COST.toFixed(2),
+        music: MUSIC_COST.toFixed(2),
+        soundFx: SOUND_FX_COST.toFixed(2),
+        qualityChecks: BRAND_CHECK_COST.toFixed(2),
+        total: totalCost.toFixed(2),
+      },
+      time: {
+        estimatedMinutes: `${estimatedTimeMin}-${estimatedTimeMax}`,
+        perScene: avgSceneGenTime,
+      },
+      brandElements,
+      brandName: 'Pine Hill Farm',
+      warnings,
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Generation estimate failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

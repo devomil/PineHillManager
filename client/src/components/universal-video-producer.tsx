@@ -24,6 +24,7 @@ import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-se
 import { MusicStyleSelector } from "./music-style-selector";
 import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
+import { GenerationPreviewPanel } from "./generation-preview-panel";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -2618,6 +2619,7 @@ export default function UniversalVideoProducer() {
   const [previewSceneIndex, setPreviewSceneIndex] = useState(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [showGenerationPreview, setShowGenerationPreview] = useState(false);
   const previewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const createProductMutation = useMutation({
@@ -3037,6 +3039,19 @@ export default function UniversalVideoProducer() {
             <div className="space-y-6">
               <ServiceFailureAlert failures={project.progress.serviceFailures} />
               
+              {/* Generation Preview Panel - Phase 5D */}
+              {showGenerationPreview && project.status === 'draft' && (
+                <GenerationPreviewPanel
+                  projectId={project.id}
+                  onGenerate={() => {
+                    setShowGenerationPreview(false);
+                    generateAssetsMutation.mutate();
+                  }}
+                  onCancel={() => setShowGenerationPreview(false)}
+                  isGenerating={generateAssetsMutation.isPending}
+                />
+              )}
+              
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">{project.title}</h3>
@@ -3047,7 +3062,7 @@ export default function UniversalVideoProducer() {
                 </div>
                 
                 <div className="flex gap-2 items-center">
-                  {project.status === 'draft' && (
+                  {project.status === 'draft' && !showGenerationPreview && (
                     <>
                       <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
                         <Music className="w-4 h-4 text-muted-foreground" />
@@ -3060,7 +3075,7 @@ export default function UniversalVideoProducer() {
                         />
                       </div>
                       <Button 
-                        onClick={() => generateAssetsMutation.mutate()}
+                        onClick={() => setShowGenerationPreview(true)}
                         disabled={generateAssetsMutation.isPending}
                         data-testid="button-generate-assets"
                       >
