@@ -7,6 +7,7 @@ import { remotionLambdaService } from '../services/remotion-lambda-service';
 import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked-render-service';
 import { qualityEvaluationService, VideoQualityReport } from '../services/quality-evaluation-service';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
+import { brandContextService } from '../services/brand-context-service';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
 import { universalVideoProjects } from '../../shared/schema';
@@ -387,6 +388,42 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
         details: error.errors 
       });
     }
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to parse script' 
+    });
+  }
+});
+
+router.post('/parse-script', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { script, platform, visualStyle, targetDuration } = req.body;
+
+    if (!script || typeof script !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Script text is required' 
+      });
+    }
+
+    console.log('[UniversalVideo] Parsing script with brand context...');
+
+    const parsedResult = await universalVideoService.parseScriptWithBrandMatches({
+      title: 'Parsed Script',
+      script,
+      targetDuration: targetDuration || 60,
+      platform: platform || 'youtube',
+      style: 'professional',
+    });
+
+    res.json({
+      success: true,
+      scenes: parsedResult.scenes,
+      brandMatches: parsedResult.brandMatches,
+      summary: parsedResult.summary,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Script parsing with brand context failed:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to parse script' 

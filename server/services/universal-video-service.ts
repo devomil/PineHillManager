@@ -24,6 +24,8 @@ import { sceneAnalysisService, SceneAnalysis } from "./scene-analysis-service";
 import { compositionInstructionsService, SceneCompositionInstructions } from "./composition-instructions-service";
 import { brandBibleService } from "./brand-bible-service";
 import { brandInjectionService, VideoBrandInstructions } from "./brand-injection-service";
+import { scriptParserService, ParsedScript } from "./script-parser-service";
+import { brandContextService } from "./brand-context-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -512,74 +514,77 @@ Total: 90 seconds` : ''}
   }
 
   async parseScript(input: ScriptVideoInput): Promise<Scene[]> {
-    if (!this.anthropic) {
-      throw new Error("Anthropic API not configured");
-    }
-
-    const prompt = `Parse this video script into structured scenes:
-
-"""
-${input.script}
-"""
-
-Return JSON with this exact structure (no markdown, just pure JSON):
-{
-  "scenes": [
-    {
-      "type": "hook|intro|explanation|process|brand|cta|benefit|feature",
-      "narration": "exact voiceover text for this scene",
-      "visualDirection": "specific description for AI image generation",
-      "searchQuery": "3-5 word stock video search query optimized for Pexels/stock APIs",
-      "fallbackQuery": "alternative 3-5 word search if primary fails",
-      "estimatedDuration": number (based on ~2.5 words per second speaking rate),
-      "keyPoints": ["main point for text overlay"]
-    }
-  ]
-}
-
-Guidelines:
-- Identify natural scene breaks (topic changes, new sections)
-- "Opening Scene" or "Hook" patterns → type: "hook"
-- "Scene X: TITLE" patterns indicate new scenes
-- Closing/CTA content → type: "cta"
-- Process/steps content → type: "process"
-- Brand mentions → type: "brand"
-- Calculate duration: ~2.5 words per second for narration
-- Visual directions should be specific and descriptive for AI generation
-- searchQuery should be 3-5 concise words for stock video search (e.g., "woman stepping bathroom scale weight")
-- fallbackQuery should be an alternative search approach (e.g., "weight loss morning routine disappointed")`;
-
+    console.log("[UniversalVideoService] Starting brand-aware script parsing...");
+    
     try {
-      const response = await this.anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8000,
-        messages: [{ role: "user", content: prompt }],
+      const parsed = await scriptParserService.parseScript(input.script, {
+        platform: input.platform || "youtube",
+        visualStyle: "warm",
+        targetDuration: input.targetDuration,
       });
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
-
-      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("No JSON found in response");
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      const rawScenes = parsed.scenes || [];
-
-      return rawScenes.map((s: any, index: number) => this.createSceneFromRaw({
+      return parsed.scenes.map((s, index: number) => this.createSceneFromRaw({
         ...s,
-        duration: s.estimatedDuration || Math.ceil((s.narration?.split(' ').length || 0) / 2.5),
+        duration: s.duration || Math.ceil((s.narration?.split(' ').length || 0) / 2.5),
         textOverlays: s.keyPoints ? s.keyPoints.map((kp: string, i: number) => ({
           text: kp,
           style: i === 0 ? 'title' : 'subtitle',
           timing: { startAt: i * 3, duration: 4 }
         })) : [],
+        serviceMatch: s.serviceMatch,
+        productMatch: s.productMatch,
+        conditionMatch: s.conditionMatch,
+        audienceResonance: s.audienceResonance,
+        brandOpportunity: s.brandOpportunity,
       }, index));
     } catch (error: any) {
       console.error("[UniversalVideoService] Script parsing failed:", error);
+      throw error;
+    }
+  }
+
+  async parseScriptWithBrandMatches(input: ScriptVideoInput): Promise<{
+    scenes: Scene[];
+    brandMatches: { services: string[]; products: string[]; conditions: string[] };
+    summary: {
+      totalDuration: number;
+      sceneCount: number;
+      primaryService?: string | null;
+      targetConditions?: string[];
+      brandAlignment?: string;
+    };
+  }> {
+    console.log("[UniversalVideoService] Parsing script with full brand context...");
+    
+    try {
+      const parsed = await scriptParserService.parseScript(input.script, {
+        platform: input.platform || "youtube",
+        visualStyle: "warm",
+        targetDuration: input.targetDuration,
+      });
+
+      const scenes = parsed.scenes.map((s, index: number) => this.createSceneFromRaw({
+        ...s,
+        duration: s.duration || Math.ceil((s.narration?.split(' ').length || 0) / 2.5),
+        textOverlays: s.keyPoints ? s.keyPoints.map((kp: string, i: number) => ({
+          text: kp,
+          style: i === 0 ? 'title' : 'subtitle',
+          timing: { startAt: i * 3, duration: 4 }
+        })) : [],
+        serviceMatch: s.serviceMatch,
+        productMatch: s.productMatch,
+        conditionMatch: s.conditionMatch,
+        audienceResonance: s.audienceResonance,
+        brandOpportunity: s.brandOpportunity,
+      }, index));
+
+      return {
+        scenes,
+        brandMatches: parsed.brandMatches,
+        summary: parsed.summary,
+      };
+    } catch (error: any) {
+      console.error("[UniversalVideoService] Script parsing with brand matches failed:", error);
       throw error;
     }
   }
@@ -668,6 +673,11 @@ Guidelines:
         duration: 0.5,
         easing: 'ease-in-out',
       },
+      serviceMatch: raw.serviceMatch || null,
+      productMatch: raw.productMatch || null,
+      conditionMatch: raw.conditionMatch || null,
+      audienceResonance: raw.audienceResonance || null,
+      brandOpportunity: raw.brandOpportunity || null,
     };
   }
 

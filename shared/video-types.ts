@@ -69,6 +69,11 @@ export interface Scene {
   transitionOut: TransitionConfig;
   assets?: SceneAssets;
   soundDesign?: SceneSoundDesign;
+  serviceMatch?: string | null;
+  productMatch?: string | null;
+  conditionMatch?: string | null;
+  audienceResonance?: string | null;
+  brandOpportunity?: string | null;
 }
 
 export interface SceneSoundDesign {
@@ -97,6 +102,11 @@ export type SceneType =
   | 'social_proof'
   | 'story'
   | 'problem'
+  | 'agitation'
+  | 'solution'
+  | 'proof'
+  | 'product'
+  | 'broll'
   | 'brand'
   | 'cta'
   | 'outro';
