@@ -2326,9 +2326,58 @@ router.get('/projects/:projectId/quality-report', isAuthenticated, async (req: R
       return res.status(404).json({ success: false, error: 'No quality report available for this project' });
     }
     
+    // Phase 5E: Add recommendation status and summary
+    const criticalCount = qualityReport.criticalIssues?.length || 0;
+    const majorCount = qualityReport.sceneScores?.reduce((sum: number, s: any) => 
+      sum + (s.issues?.filter((i: any) => i.severity === 'major')?.length || 0), 0) || 0;
+    const overallScore = qualityReport.overallScore;
+    
+    let recommendation: 'approved' | 'needs-fixes' | 'needs-review' | 'pending' = 'pending';
+    if (qualityReport.sceneScores?.length > 0) {
+      if (criticalCount > 0) {
+        recommendation = 'needs-fixes';
+      } else if (majorCount > 2 || overallScore < 70) {
+        recommendation = 'needs-review';
+      } else {
+        recommendation = 'approved';
+      }
+    }
+    
+    const generateSummary = () => {
+      if (overallScore === null || overallScore === undefined) {
+        return 'Quality evaluation pending. Generate assets to see results.';
+      }
+      if (criticalCount > 0) {
+        const aiTextIssues = qualityReport.criticalIssues?.filter((i: any) => i.type === 'ai-text-detected')?.length || 0;
+        if (aiTextIssues > 0) {
+          return `${aiTextIssues} scene(s) contain AI-generated text artifacts. Regeneration recommended.`;
+        }
+        return `${criticalCount} critical issue(s) detected. Review and regenerate affected scenes.`;
+      }
+      if (overallScore >= 85) {
+        return 'Excellent quality! Your video is ready for rendering.';
+      }
+      if (overallScore >= 70) {
+        return 'Good quality with minor issues. Review before rendering.';
+      }
+      return 'Several issues detected. Consider regenerating problematic scenes.';
+    };
+    
     return res.json({
       success: true,
-      qualityReport,
+      qualityReport: {
+        ...qualityReport,
+        recommendation,
+        summary: generateSummary(),
+        issues: {
+          total: (qualityReport.criticalIssues?.length || 0) + 
+                 (qualityReport.sceneScores?.reduce((sum: number, s: any) => sum + (s.issues?.length || 0), 0) || 0),
+          critical: criticalCount,
+          major: majorCount,
+          minor: qualityReport.sceneScores?.reduce((sum: number, s: any) => 
+            sum + (s.issues?.filter((i: any) => i.severity === 'minor')?.length || 0), 0) || 0,
+        },
+      },
     });
     
   } catch (error: any) {
@@ -2664,9 +2713,9 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     }
     
     const scenes = project.scenes || [];
-    const visualStyle = project.visualStyle || 'professional';
+    const visualStyle = (project as any).visualStyle || 'professional';
     // Use actual project brand settings, don't override with defaults
-    const brandSettings = project.brandSettings || {};
+    const brandSettings = (project as any).brandSettings || {};
     const musicEnabled = (project as any).musicEnabled !== false;
     
     // Provider cost rates per second

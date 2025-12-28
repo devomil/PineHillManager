@@ -57,13 +57,41 @@ interface VideoQualityReport {
   criticalIssues: QualityIssue[];
   recommendations: string[];
   evaluatedAt: string;
+  recommendation?: 'approved' | 'needs-fixes' | 'needs-review' | 'pending';
+  summary?: string;
+  issues?: {
+    total: number;
+    critical: number;
+    major: number;
+    minor: number;
+  };
 }
 
 interface QualityReportProps {
   projectId: string;
   projectStatus: string;
   onRegenerateComplete?: () => void;
+  onApproveAndRender?: () => void;
 }
+
+const RECOMMENDATION_CONFIG = {
+  approved: {
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    label: 'Ready to Render',
+  },
+  'needs-fixes': {
+    color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    label: 'Needs Fixes',
+  },
+  'needs-review': {
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    label: 'Needs Review',
+  },
+  pending: {
+    color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
+    label: 'Pending',
+  },
+};
 
 function getScoreColor(score: number): string {
   if (score >= 80) return 'text-green-600 dark:text-green-400';
@@ -105,7 +133,7 @@ function ScoreBar({ label, score, icon }: { label: string; score: number; icon: 
   );
 }
 
-export function QualityReport({ projectId, projectStatus, onRegenerateComplete }: QualityReportProps) {
+export function QualityReport({ projectId, projectStatus, onRegenerateComplete, onApproveAndRender }: QualityReportProps) {
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set());
   const { toast } = useToast();
 
@@ -186,7 +214,15 @@ export function QualityReport({ projectId, projectStatus, onRegenerateComplete }
               AI-powered quality evaluation of your rendered video
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {report?.recommendation && (
+              <Badge 
+                className={RECOMMENDATION_CONFIG[report.recommendation].color}
+                data-testid="badge-recommendation"
+              >
+                {RECOMMENDATION_CONFIG[report.recommendation].label}
+              </Badge>
+            )}
             <Button 
               variant="outline" 
               size="sm"
@@ -385,6 +421,50 @@ export function QualityReport({ projectId, projectStatus, onRegenerateComplete }
                 </div>
               </ScrollArea>
             </div>
+            
+            {/* Phase 5E: Summary and Approve Button */}
+            {report.summary && (
+              <div className="bg-muted/50 rounded-lg p-3 mt-4" data-testid="section-summary">
+                <p className="text-sm text-muted-foreground">{report.summary}</p>
+              </div>
+            )}
+            
+            {/* Issue Count Summary */}
+            {report.issues && report.issues.total > 0 && (
+              <div className="flex items-center gap-2 mt-2" data-testid="section-issue-counts">
+                <span className="text-sm text-muted-foreground">Issues:</span>
+                {report.issues.critical > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {report.issues.critical} Critical
+                  </Badge>
+                )}
+                {report.issues.major > 0 && (
+                  <Badge className="bg-orange-500 hover:bg-orange-600 text-xs">
+                    {report.issues.major} Major
+                  </Badge>
+                )}
+                {report.issues.minor > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {report.issues.minor} Minor
+                  </Badge>
+                )}
+              </div>
+            )}
+            
+            {/* Approve and Render Button */}
+            {onApproveAndRender && (
+              <div className="flex items-center justify-end pt-4 border-t mt-4" data-testid="section-actions">
+                <Button
+                  onClick={onApproveAndRender}
+                  disabled={report.recommendation === 'pending' || (report.issues?.critical ?? 0) > 0}
+                  data-testid="button-approve-render"
+                >
+                  {report.recommendation === 'approved' 
+                    ? 'Approve & Finalize' 
+                    : 'Render Anyway'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
