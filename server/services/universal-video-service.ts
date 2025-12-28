@@ -3037,41 +3037,78 @@ Guidelines:
     // ========== BRAND OVERLAY INSTRUCTIONS ==========
     console.log(`[Assets] Generating brand overlay instructions...`);
     
-    const scenesForBrand = updatedProject.scenes.map((scene: any, index: number) => ({
-      id: scene.id,
-      type: scene.type,
-      duration: scene.duration || 5,
-      isFirst: index === 0,
-      isLast: index === updatedProject.scenes.length - 1,
-    }));
+    // Get project brand settings (Phase 5A)
+    const projectBrandSettings = {
+      includeIntroLogo: updatedProject.brand?.includeIntroLogo ?? true,
+      includeWatermark: updatedProject.brand?.includeWatermark ?? true,
+      includeCTAOutro: updatedProject.brand?.includeCTAOutro ?? true,
+      watermarkPosition: updatedProject.brand?.watermarkPosition ?? 'bottom-right',
+      watermarkOpacity: updatedProject.brand?.watermarkOpacity ?? 0.7,
+    };
     
-    try {
-      const brandInstructions = await brandInjectionService.generateBrandInstructions(scenesForBrand);
+    console.log(`[Assets] Brand settings:`, projectBrandSettings);
+    
+    // Only generate brand instructions if at least one element is enabled
+    if (projectBrandSettings.includeIntroLogo || 
+        projectBrandSettings.includeWatermark || 
+        projectBrandSettings.includeCTAOutro) {
       
-      // Store brand instructions with project
-      (updatedProject as any).brandInstructions = {
-        introAnimation: brandInstructions.introAnimation,
-        watermark: brandInstructions.watermark,
-        outroSequence: brandInstructions.outroSequence,
-        ctaOverlay: brandInstructions.ctaOverlay,
-        colors: brandInstructions.colors,
-        typography: brandInstructions.typography,
-        callToAction: brandInstructions.callToAction,
-      };
+      const scenesForBrand = updatedProject.scenes.map((scene: any, index: number) => ({
+        id: scene.id,
+        type: scene.type,
+        duration: scene.duration || 5,
+        isFirst: index === 0,
+        isLast: index === updatedProject.scenes.length - 1,
+      }));
       
-      // Store per-scene brand overlays
-      for (const [sceneId, overlays] of Object.entries(brandInstructions.sceneOverlays)) {
-        const sceneIndex = updatedProject.scenes.findIndex((s: any) => s.id === sceneId);
-        if (sceneIndex >= 0) {
-          (updatedProject.scenes[sceneIndex] as any).brandOverlays = overlays;
+      try {
+        const brandInstructions = await brandInjectionService.generateBrandInstructions(scenesForBrand);
+        
+        // Apply brand settings filters (Phase 5A)
+        if (!projectBrandSettings.includeIntroLogo) {
+          brandInstructions.introAnimation = undefined as any;
         }
+        if (!projectBrandSettings.includeWatermark) {
+          brandInstructions.watermark = undefined as any;
+        }
+        if (!projectBrandSettings.includeCTAOutro) {
+          brandInstructions.outroSequence = undefined as any;
+          brandInstructions.ctaOverlay = undefined as any;
+        }
+        
+        // Update watermark position/opacity if watermark is included
+        if (brandInstructions.watermark && projectBrandSettings.includeWatermark) {
+          brandInstructions.watermark.position.anchor = projectBrandSettings.watermarkPosition as any;
+          brandInstructions.watermark.opacity = projectBrandSettings.watermarkOpacity;
+        }
+        
+        // Store brand instructions with project
+        (updatedProject as any).brandInstructions = {
+          introAnimation: brandInstructions.introAnimation,
+          watermark: brandInstructions.watermark,
+          outroSequence: brandInstructions.outroSequence,
+          ctaOverlay: brandInstructions.ctaOverlay,
+          colors: brandInstructions.colors,
+          typography: brandInstructions.typography,
+          callToAction: brandInstructions.callToAction,
+        };
+        
+        // Store per-scene brand overlays
+        for (const [sceneId, overlays] of Object.entries(brandInstructions.sceneOverlays)) {
+          const sceneIndex = updatedProject.scenes.findIndex((s: any) => s.id === sceneId);
+          if (sceneIndex >= 0) {
+            (updatedProject.scenes[sceneIndex] as any).brandOverlays = overlays;
+          }
+        }
+        
+        console.log(`[Assets] Brand instructions complete for ${updatedProject.scenes.length} scenes`);
+        
+      } catch (error: any) {
+        console.error(`[Assets] Brand instructions failed:`, error.message);
+        // Continue without brand instructions - video still works
       }
-      
-      console.log(`[Assets] Brand instructions complete for ${updatedProject.scenes.length} scenes`);
-      
-    } catch (error: any) {
-      console.error(`[Assets] Brand instructions failed:`, error.message);
-      // Continue without brand instructions - video still works
+    } else {
+      console.log(`[Assets] All brand elements disabled, skipping brand instructions`);
     }
     // ========== END BRAND OVERLAY INSTRUCTIONS ==========
 

@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { VoiceSelector } from "./voice-selector";
 import { QualityReport } from "./quality-report";
+import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-settings-panel";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -72,6 +73,7 @@ interface ScriptFormData {
   script: string;
   platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
   style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
+  brandSettings?: UIBrandSettings;
 }
 
 const STEP_ICONS: Record<string, any> = {
@@ -550,6 +552,14 @@ function ScriptVideoForm({
     style: "professional",
   });
 
+  const [brandSettings, setBrandSettings] = useState<UIBrandSettings>({
+    includeIntroLogo: true,
+    includeWatermark: true,
+    includeCTAOutro: true,
+    watermarkPosition: 'bottom-right',
+    watermarkOpacity: 0.7,
+  });
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -621,9 +631,16 @@ function ScriptVideoForm({
         </div>
       </div>
 
+      {/* Brand Settings Panel (Phase 5A) */}
+      <BrandSettingsPanel
+        settings={brandSettings}
+        onSettingsChange={setBrandSettings}
+        defaultExpanded={false}
+      />
+
       <Button 
         className="w-full" 
-        onClick={() => onSubmit(formData)}
+        onClick={() => onSubmit({ ...formData, brandSettings })}
         disabled={isLoading || !formData.title || formData.script.length < 50}
         data-testid="button-parse-script"
       >

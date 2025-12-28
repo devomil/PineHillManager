@@ -18173,6 +18173,52 @@ Respond in JSON format:
     }
   });
 
+  // GET /api/brand-bible/preview - Get brand preview data for UI (Phase 5A)
+  app.get('/api/brand-bible/preview', isAuthenticated, async (req, res) => {
+    try {
+      const bible = await brandBibleService.getBrandBible();
+      
+      // Return UI-friendly preview data
+      res.json({
+        brandName: bible.brandName,
+        tagline: bible.tagline,
+        website: bible.website,
+        colors: bible.colors,
+        logos: {
+          main: bible.logos.main ? {
+            id: bible.logos.main.id,
+            name: bible.logos.main.name,
+            url: bible.logos.main.url,
+            thumbnailUrl: bible.logos.main.thumbnailUrl || bible.logos.main.url,
+          } : null,
+          watermark: bible.logos.watermark ? {
+            id: bible.logos.watermark.id,
+            name: bible.logos.watermark.name,
+            url: bible.logos.watermark.url,
+            thumbnailUrl: bible.logos.watermark.thumbnailUrl || bible.logos.watermark.url,
+          } : null,
+          intro: bible.logos.intro ? {
+            id: bible.logos.intro.id,
+            name: bible.logos.intro.name,
+            url: bible.logos.intro.url,
+            thumbnailUrl: bible.logos.intro.thumbnailUrl || bible.logos.intro.url,
+          } : null,
+          outro: bible.logos.outro ? {
+            id: bible.logos.outro.id,
+            name: bible.logos.outro.name,
+            url: bible.logos.outro.url,
+            thumbnailUrl: bible.logos.outro.thumbnailUrl || bible.logos.outro.url,
+          } : null,
+        },
+        callToAction: bible.callToAction,
+        hasMinimumAssets: await brandBibleService.hasMinimumAssets(),
+      });
+    } catch (error: any) {
+      console.error('[API] Brand preview failed:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Test Brand Bible Service
   app.get('/api/test-brand-bible', isAuthenticated, async (req, res) => {
     try {

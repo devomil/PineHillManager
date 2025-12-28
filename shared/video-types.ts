@@ -48,6 +48,10 @@ export interface BrandSettings {
       body: 400 | 500;
     };
   };
+  // Phase 5A: UI-configurable brand element toggles
+  includeIntroLogo?: boolean;
+  includeWatermark?: boolean;
+  includeCTAOutro?: boolean;
 }
 
 export interface Scene {
