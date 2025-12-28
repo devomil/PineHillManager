@@ -45,12 +45,18 @@ export interface BrandCTA {
   url: string;
 }
 
+export interface BrandColorPaletteItem {
+  hex: string;
+  name: string;
+}
+
 export interface BrandBible {
   brandName: string;
   tagline?: string;
   website?: string;
   industry: string;
   colors: BrandColors;
+  colorPalette?: BrandColorPaletteItem[];
   typography: BrandTypography;
   logos: {
     main?: BrandAsset;
@@ -65,18 +71,33 @@ export interface BrandBible {
   negativePrompts: string[];
 }
 
+const BRAND_COLOR_PALETTE = [
+  { hex: '#5e637a', name: 'Slate Blue' },
+  { hex: '#607e66', name: 'Sage Green' },
+  { hex: '#5b7c99', name: 'Steel Blue' },
+  { hex: '#8c93ad', name: 'Lavender Gray' },
+  { hex: '#a9a9a9', name: 'Silver' },
+  { hex: '#6c97ab', name: 'Teal' },
+  { hex: '#ffffff', name: 'White' },
+  { hex: '#f8f8f3', name: 'Cream' },
+  { hex: '#2d5a27', name: 'Forest Green' },
+  { hex: '#c9a227', name: 'Gold' },
+  { hex: '#f5f0e8', name: 'Warm Beige' },
+];
+
 const DEFAULT_BRAND_SETTINGS = {
   brandName: 'Pine Hill Farm',
   tagline: 'Natural Wellness, Naturally You',
   website: 'PineHillFarm.com',
   industry: 'wellness and natural health supplements',
   colors: {
-    primary: '#2D5A27',
-    secondary: '#8B7355',
-    accent: '#D4A574',
-    text: '#FFFFFF',
-    background: '#1A1A1A',
+    primary: '#2d5a27',
+    secondary: '#607e66',
+    accent: '#c9a227',
+    text: '#ffffff',
+    background: '#f5f0e8',
   },
+  colorPalette: BRAND_COLOR_PALETTE,
   typography: {
     headingFont: 'Montserrat',
     bodyFont: 'Open Sans',

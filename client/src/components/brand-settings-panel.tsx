@@ -1,10 +1,23 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Image, Check, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Image, Check, AlertCircle, Edit2, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface BrandAsset {
+  id: number;
+  name: string;
+  url: string;
+  thumbnailUrl?: string;
+  mediaType: string;
+  usageContexts: string[];
+}
 
 interface BrandLogo {
   id: number;
@@ -36,6 +49,7 @@ interface BrandPreview {
     url: string;
   };
   hasMinimumAssets: boolean;
+  availableAssets?: BrandAsset[];
 }
 
 export interface BrandSettings {
@@ -44,6 +58,10 @@ export interface BrandSettings {
   includeCTAOutro: boolean;
   watermarkPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   watermarkOpacity: number;
+  selectedIntroLogoId?: number;
+  selectedWatermarkId?: number;
+  ctaText?: string;
+  ctaSubtext?: string;
 }
 
 interface BrandSettingsPanelProps {
@@ -60,12 +78,31 @@ const defaultSettings: BrandSettings = {
   watermarkOpacity: 0.7,
 };
 
+const BRAND_COLORS = [
+  { hex: '#5e637a', name: 'Slate Blue' },
+  { hex: '#607e66', name: 'Sage Green' },
+  { hex: '#5b7c99', name: 'Steel Blue' },
+  { hex: '#8c93ad', name: 'Lavender Gray' },
+  { hex: '#a9a9a9', name: 'Silver' },
+  { hex: '#6c97ab', name: 'Teal' },
+  { hex: '#ffffff', name: 'White' },
+  { hex: '#f8f8f3', name: 'Cream' },
+  { hex: '#2d5a27', name: 'Forest Green' },
+  { hex: '#c9a227', name: 'Gold' },
+  { hex: '#f5f0e8', name: 'Warm Beige' },
+];
+
 export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
   settings = defaultSettings,
   onSettingsChange,
   defaultExpanded = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [showIntroSelector, setShowIntroSelector] = useState(false);
+  const [showWatermarkSelector, setShowWatermarkSelector] = useState(false);
+  const [isEditingCta, setIsEditingCta] = useState(false);
+  const [ctaTextEdit, setCtaTextEdit] = useState('');
+  const [ctaSubtextEdit, setCtaSubtextEdit] = useState('');
 
   const { data: brandPreview, isLoading, error } = useQuery<BrandPreview>({
     queryKey: ['brand-preview'],
@@ -73,6 +110,17 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
       const response = await fetch('/api/brand-bible/preview');
       if (!response.ok) throw new Error('Failed to load brand preview');
       return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: allAssets } = useQuery<BrandAsset[]>({
+    queryKey: ['brand-assets'],
+    queryFn: async () => {
+      const response = await fetch('/api/brand-media');
+      if (!response.ok) throw new Error('Failed to load brand assets');
+      const data = await response.json();
+      return data.filter((a: BrandAsset) => ['logo', 'photo', 'graphic', 'watermark'].includes(a.mediaType));
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -89,6 +137,64 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
       ...settings,
       watermarkPosition: position,
     });
+  };
+
+  const handleSelectIntroLogo = (asset: BrandAsset) => {
+    onSettingsChange({
+      ...settings,
+      selectedIntroLogoId: asset.id,
+    });
+    setShowIntroSelector(false);
+  };
+
+  const handleSelectWatermark = (asset: BrandAsset) => {
+    onSettingsChange({
+      ...settings,
+      selectedWatermarkId: asset.id,
+    });
+    setShowWatermarkSelector(false);
+  };
+
+  const handleStartEditCta = () => {
+    setCtaTextEdit(settings.ctaText || brandPreview?.callToAction.text || '');
+    setCtaSubtextEdit(settings.ctaSubtext || brandPreview?.callToAction.url || '');
+    setIsEditingCta(true);
+  };
+
+  const handleSaveCta = () => {
+    onSettingsChange({
+      ...settings,
+      ctaText: ctaTextEdit,
+      ctaSubtext: ctaSubtextEdit,
+    });
+    setIsEditingCta(false);
+  };
+
+  const handleCancelCtaEdit = () => {
+    setIsEditingCta(false);
+  };
+
+  const getSelectedIntroLogo = (): BrandLogo | BrandAsset | null => {
+    if (settings.selectedIntroLogoId && allAssets) {
+      const found = allAssets.find(a => a.id === settings.selectedIntroLogoId);
+      if (found) return found;
+    }
+    return brandPreview?.logos.intro || brandPreview?.logos.main || null;
+  };
+
+  const getSelectedWatermark = (): BrandLogo | BrandAsset | null => {
+    if (settings.selectedWatermarkId && allAssets) {
+      const found = allAssets.find(a => a.id === settings.selectedWatermarkId);
+      if (found) return found;
+    }
+    return brandPreview?.logos.watermark || brandPreview?.logos.main || null;
+  };
+
+  const getDisplayCta = () => {
+    return {
+      text: settings.ctaText || brandPreview?.callToAction.text || 'Start Your Wellness Journey Today',
+      subtext: settings.ctaSubtext || brandPreview?.callToAction.url || 'PineHillFarm.com',
+    };
   };
 
   if (isLoading) {
@@ -143,6 +249,10 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
     );
   }
 
+  const selectedIntro = getSelectedIntroLogo();
+  const selectedWatermark = getSelectedWatermark();
+  const displayCta = getDisplayCta();
+
   return (
     <TooltipProvider>
       <Card className="mb-4" data-testid="card-brand-settings">
@@ -185,53 +295,78 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
                 )}
               </div>
               <div className="ml-auto flex gap-1">
-                <Tooltip>
-                  <TooltipTrigger>
-                    <div 
-                      className="w-5 h-5 rounded-full border border-gray-200"
-                      style={{ backgroundColor: brandPreview.colors.primary }}
-                      data-testid="color-primary"
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>Primary: {brandPreview.colors.primary}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <div 
-                      className="w-5 h-5 rounded-full border border-gray-200"
-                      style={{ backgroundColor: brandPreview.colors.secondary }}
-                      data-testid="color-secondary"
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>Secondary: {brandPreview.colors.secondary}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <div 
-                      className="w-5 h-5 rounded-full border border-gray-200"
-                      style={{ backgroundColor: brandPreview.colors.accent }}
-                      data-testid="color-accent"
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>Accent: {brandPreview.colors.accent}</TooltipContent>
-                </Tooltip>
+                {BRAND_COLORS.slice(0, 3).map((color, idx) => (
+                  <Tooltip key={color.hex}>
+                    <TooltipTrigger>
+                      <div 
+                        className="w-5 h-5 rounded-full border border-gray-200"
+                        style={{ backgroundColor: color.hex }}
+                        data-testid={`color-${idx}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>{color.name}: {color.hex}</TooltipContent>
+                  </Tooltip>
+                ))}
               </div>
             </div>
 
             <div className="space-y-3">
+              {/* Intro Logo Animation */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {brandPreview.logos.intro || brandPreview.logos.main ? (
-                    <img
-                      src={(brandPreview.logos.intro || brandPreview.logos.main)!.thumbnailUrl}
-                      alt="Intro logo"
-                      className="h-8 w-8 object-contain bg-gray-100 rounded p-1"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
-                      <Image className="h-4 w-4 text-gray-400" />
-                    </div>
-                  )}
+                <div className="flex items-center gap-3 flex-1">
+                  <Dialog open={showIntroSelector} onOpenChange={setShowIntroSelector}>
+                    <DialogTrigger asChild>
+                      <button 
+                        className="relative h-12 w-12 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200 transition-colors group"
+                        data-testid="button-select-intro-logo"
+                      >
+                        {selectedIntro ? (
+                          <img
+                            src={(selectedIntro as any).thumbnailUrl || (selectedIntro as any).url}
+                            alt="Intro logo"
+                            className="h-10 w-10 object-contain p-1"
+                          />
+                        ) : (
+                          <Image className="h-5 w-5 text-gray-400" />
+                        )}
+                        <div className="absolute inset-0 bg-black/50 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Edit2 className="h-4 w-4 text-white" />
+                        </div>
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Select Intro Logo</DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="max-h-[400px]">
+                        <div className="grid grid-cols-3 gap-3 p-1">
+                          {allAssets?.map((asset) => (
+                            <button
+                              key={asset.id}
+                              onClick={() => handleSelectIntroLogo(asset)}
+                              className={`
+                                relative p-2 border rounded-lg hover:border-primary transition-colors
+                                ${settings.selectedIntroLogoId === asset.id ? 'border-primary bg-primary/5' : 'border-gray-200'}
+                              `}
+                              data-testid={`button-intro-asset-${asset.id}`}
+                            >
+                              <img
+                                src={asset.thumbnailUrl || asset.url}
+                                alt={asset.name}
+                                className="w-full h-16 object-contain"
+                              />
+                              <p className="text-xs text-center mt-1 truncate">{asset.name}</p>
+                              {settings.selectedIntroLogoId === asset.id && (
+                                <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
+                                  <Check className="h-3 w-3 text-white" />
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
                   <div>
                     <p className="text-sm font-medium">Intro Logo Animation</p>
                     <p className="text-xs text-gray-500">Appears in first scene (3 seconds)</p>
@@ -244,19 +379,62 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
                 />
               </div>
 
+              {/* Corner Watermark */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {brandPreview.logos.watermark || brandPreview.logos.main ? (
-                    <img
-                      src={(brandPreview.logos.watermark || brandPreview.logos.main)!.thumbnailUrl}
-                      alt="Watermark"
-                      className="h-8 w-8 object-contain bg-gray-100 rounded p-1 opacity-70"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
-                      <Image className="h-4 w-4 text-gray-400" />
-                    </div>
-                  )}
+                <div className="flex items-center gap-3 flex-1">
+                  <Dialog open={showWatermarkSelector} onOpenChange={setShowWatermarkSelector}>
+                    <DialogTrigger asChild>
+                      <button 
+                        className="relative h-12 w-12 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200 transition-colors group"
+                        data-testid="button-select-watermark"
+                      >
+                        {selectedWatermark ? (
+                          <img
+                            src={(selectedWatermark as any).thumbnailUrl || (selectedWatermark as any).url}
+                            alt="Watermark"
+                            className="h-10 w-10 object-contain p-1 opacity-70"
+                          />
+                        ) : (
+                          <Image className="h-5 w-5 text-gray-400" />
+                        )}
+                        <div className="absolute inset-0 bg-black/50 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Edit2 className="h-4 w-4 text-white" />
+                        </div>
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Select Watermark Image</DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="max-h-[400px]">
+                        <div className="grid grid-cols-3 gap-3 p-1">
+                          {allAssets?.map((asset) => (
+                            <button
+                              key={asset.id}
+                              onClick={() => handleSelectWatermark(asset)}
+                              className={`
+                                relative p-2 border rounded-lg hover:border-primary transition-colors
+                                ${settings.selectedWatermarkId === asset.id ? 'border-primary bg-primary/5' : 'border-gray-200'}
+                              `}
+                              data-testid={`button-watermark-asset-${asset.id}`}
+                            >
+                              <img
+                                src={asset.thumbnailUrl || asset.url}
+                                alt={asset.name}
+                                className="w-full h-16 object-contain opacity-70"
+                              />
+                              <p className="text-xs text-center mt-1 truncate">{asset.name}</p>
+                              {settings.selectedWatermarkId === asset.id && (
+                                <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
+                                  <Check className="h-3 w-3 text-white" />
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
                   <div>
                     <p className="text-sm font-medium">Corner Watermark</p>
                     <p className="text-xs text-gray-500">Appears in middle scenes (70% opacity)</p>
@@ -304,24 +482,89 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
                 </div>
               )}
 
+              {/* CTA Outro */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center text-xs font-medium"
-                       style={{ backgroundColor: brandPreview.colors.primary, color: brandPreview.colors.text }}>
+                <div className="flex items-center gap-3 flex-1">
+                  <button
+                    onClick={handleStartEditCta}
+                    className="relative h-12 w-12 bg-gray-100 rounded flex items-center justify-center text-xs font-medium hover:bg-gray-200 transition-colors group"
+                    style={{ backgroundColor: brandPreview.colors.primary || '#2d5a27', color: '#ffffff' }}
+                    data-testid="button-edit-cta"
+                  >
                     CTA
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">CTA Outro</p>
-                    <p className="text-xs text-gray-500">
-                      "{brandPreview.callToAction.text}" + {brandPreview.callToAction.url}
-                    </p>
+                    <div className="absolute inset-0 bg-black/50 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Edit2 className="h-4 w-4 text-white" />
+                    </div>
+                  </button>
+                  <div className="flex-1">
+                    {isEditingCta ? (
+                      <div className="space-y-2">
+                        <Input
+                          value={ctaTextEdit}
+                          onChange={(e) => setCtaTextEdit(e.target.value)}
+                          placeholder="CTA headline text"
+                          className="h-8 text-sm"
+                          data-testid="input-cta-text"
+                        />
+                        <Input
+                          value={ctaSubtextEdit}
+                          onChange={(e) => setCtaSubtextEdit(e.target.value)}
+                          placeholder="Website or subtext"
+                          className="h-8 text-sm"
+                          data-testid="input-cta-subtext"
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleSaveCta} data-testid="button-save-cta">
+                            <Check className="h-3 w-3 mr-1" />
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={handleCancelCtaEdit} data-testid="button-cancel-cta">
+                            <X className="h-3 w-3 mr-1" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm font-medium">CTA Outro</p>
+                        <p className="text-xs text-gray-500">
+                          "{displayCta.text}" + {displayCta.subtext}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <Switch
-                  checked={settings.includeCTAOutro}
-                  onCheckedChange={() => handleToggle('includeCTAOutro')}
-                  data-testid="switch-cta-outro"
-                />
+                {!isEditingCta && (
+                  <Switch
+                    checked={settings.includeCTAOutro}
+                    onCheckedChange={() => handleToggle('includeCTAOutro')}
+                    data-testid="switch-cta-outro"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Brand Color Palette */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-2">Brand Color Palette</p>
+              <div className="flex flex-wrap gap-1">
+                {BRAND_COLORS.map((color) => (
+                  <Tooltip key={color.hex}>
+                    <TooltipTrigger>
+                      <div 
+                        className="w-6 h-6 rounded-full border border-gray-200 cursor-pointer hover:scale-110 transition-transform"
+                        style={{ backgroundColor: color.hex }}
+                        data-testid={`color-swatch-${color.name.toLowerCase().replace(' ', '-')}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <div className="text-center">
+                        <p className="font-medium">{color.name}</p>
+                        <p className="text-xs opacity-75">{color.hex}</p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
               </div>
             </div>
 
