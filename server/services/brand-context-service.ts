@@ -77,6 +77,19 @@ export interface BrandContextData {
     aesthetic: string[];
     avoid: string[];
   };
+  visualDirectionRules?: {
+    explicitBrandingScenes: string[];
+    noBrandingScenes: string[];
+    aestheticDescriptors: {
+      lighting: string[];
+      settings: string[];
+      textures: string[];
+      colors: string[];
+      subjects: string[];
+    };
+    forbiddenPhrases: string[];
+    allowedBrandPhrases: string[];
+  };
 }
 
 class BrandContextService {
@@ -352,6 +365,63 @@ ${data.values.map(v => `- ${v.value}: ${v.description}`).join('\n')}
   async getBrandSummary(): Promise<string> {
     const data = await this.loadBrandContext();
     return `${data.brand.name} - ${data.brand.tagline}. ${data.identity.mission}`;
+  }
+
+  /**
+   * Get aesthetic-only context for visual directions (no brand location forcing)
+   * Use this for non-CTA scenes to apply PHF aesthetic without mentioning Pine Hill Farm
+   */
+  async getAestheticOnlyContext(): Promise<string> {
+    const data = await this.loadBrandContext();
+    const rules = data.visualDirectionRules;
+    
+    return `
+VISUAL AESTHETIC GUIDELINES (Apply style, NOT location):
+
+LIGHTING: ${rules?.aestheticDescriptors?.lighting?.join(', ') || 'warm golden light, soft natural light, golden hour lighting'}
+
+SETTINGS: ${rules?.aestheticDescriptors?.settings?.join(', ') || 'sunlit home kitchen, cozy living room, peaceful garden, warm wellness space'}
+
+TEXTURES: ${rules?.aestheticDescriptors?.textures?.join(', ') || 'natural wood surfaces, organic materials, fresh plants'}
+
+COLORS: ${rules?.aestheticDescriptors?.colors?.join(', ') || 'earth tones, warm browns and greens, golden accents'}
+
+SUBJECTS: ${rules?.aestheticDescriptors?.subjects?.join(', ') || 'authentic woman in her 40s, relatable person, real expression'}
+
+CRITICAL RULE: Do NOT write "Pine Hill Farm [location]" in visual directions.
+Write generic settings that MATCH the aesthetic instead.
+
+FORBIDDEN PHRASES:
+${rules?.forbiddenPhrases?.map(p => `- "${p}"`).join('\n') || '- "Pine Hill Farm kitchen"\n- "Pine Hill Farm consultation room"'}
+
+WRONG: "Pine Hill Farm kitchen"
+RIGHT: "Warm, sunlit home kitchen with natural wood counters"
+
+Only mention "Pine Hill Farm" explicitly in CTA or product scenes.
+`;
+  }
+
+  /**
+   * Check if scene type should have explicit branding (can mention Pine Hill Farm)
+   */
+  shouldIncludeExplicitBranding(sceneType: string): boolean {
+    const explicitBrandingScenes = ['cta', 'outro', 'product', 'testimonial'];
+    return explicitBrandingScenes.includes(sceneType.toLowerCase());
+  }
+
+  /**
+   * Get forbidden phrases that should never appear in visual directions
+   */
+  async getForbiddenPhrases(): Promise<string[]> {
+    const data = await this.loadBrandContext();
+    return data.visualDirectionRules?.forbiddenPhrases || [
+      'Pine Hill Farm kitchen',
+      'Pine Hill Farm living room',
+      'Pine Hill Farm garden',
+      'Pine Hill Farm consultation room',
+      'Pine Hill Farm office',
+      'at Pine Hill Farm'
+    ];
   }
 
   clearCache(): void {

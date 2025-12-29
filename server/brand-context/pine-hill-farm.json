@@ -289,5 +289,78 @@
       "Harsh contrasts",
       "Plastic/synthetic textures"
     ]
+  },
+
+  "visualDirectionRules": {
+    "explicitBrandingScenes": [
+      "cta",
+      "outro",
+      "product",
+      "testimonial"
+    ],
+    "noBrandingScenes": [
+      "hook",
+      "problem",
+      "agitation",
+      "solution",
+      "benefit",
+      "explanation",
+      "process",
+      "intro",
+      "brand"
+    ],
+    "aestheticDescriptors": {
+      "lighting": [
+        "warm golden light",
+        "soft natural light",
+        "golden hour lighting",
+        "warm morning light",
+        "cozy ambient lighting"
+      ],
+      "settings": [
+        "sunlit home kitchen",
+        "cozy living room",
+        "peaceful garden",
+        "warm wellness space",
+        "natural outdoor setting",
+        "comfortable home environment"
+      ],
+      "textures": [
+        "natural wood surfaces",
+        "organic materials",
+        "fresh plants",
+        "linen and cotton fabrics",
+        "ceramic and pottery"
+      ],
+      "colors": [
+        "earth tones",
+        "warm browns and greens",
+        "golden accents",
+        "natural cream backgrounds",
+        "muted sage and terracotta"
+      ],
+      "subjects": [
+        "authentic woman in her 40s",
+        "relatable person",
+        "real expression",
+        "natural appearance",
+        "comfortable casual clothing"
+      ]
+    },
+    "forbiddenPhrases": [
+      "Pine Hill Farm kitchen",
+      "Pine Hill Farm living room",
+      "Pine Hill Farm garden",
+      "Pine Hill Farm consultation room",
+      "Pine Hill Farm office",
+      "at Pine Hill Farm"
+    ],
+    "allowedBrandPhrases": [
+      "Pine Hill Farm wellness center",
+      "Pine Hill Farm products",
+      "Pine Hill Farm logo",
+      "Pine Hill Farm entrance",
+      "visit Pine Hill Farm"
+    ]
   }
 }

@@ -67,6 +67,7 @@ class ScriptParserService {
     console.log("[ScriptParser] Starting brand-aware script parsing...");
 
     const brandContext = await brandContextService.getScriptParsingContext();
+    const aestheticContext = await brandContextService.getAestheticOnlyContext();
     const serviceMatches = await brandContextService.matchScriptToServices(script);
     const roleContext = await projectInstructionsService.getCondensedRoleContext();
 
@@ -74,7 +75,7 @@ class ScriptParserService {
       `[ScriptParser] Brand matches - Services: ${serviceMatches.services.length}, Products: ${serviceMatches.products.length}, Conditions: ${serviceMatches.conditions.length}`
     );
 
-    const systemPrompt = this.buildBrandAwareSystemPrompt(brandContext, roleContext);
+    const systemPrompt = this.buildBrandAwareSystemPrompt(brandContext, roleContext, aestheticContext);
     const userPrompt = this.buildParsingPrompt(script, options, serviceMatches);
 
     try {
@@ -102,12 +103,14 @@ class ScriptParserService {
     }
   }
 
-  private buildBrandAwareSystemPrompt(brandContext: string, roleContext: string): string {
+  private buildBrandAwareSystemPrompt(brandContext: string, roleContext: string, aestheticContext: string): string {
     return `${roleContext}
 
 You are an expert video script parser for Pine Hill Farm, a farm-to-wellness brand.
 
 ${brandContext}
+
+${aestheticContext}
 
 YOUR ROLE:
 You parse video scripts into scenes, identifying:
@@ -132,13 +135,50 @@ SCENE TYPES FOR PINE HILL FARM:
 - "intro": Introduction and context setting
 - "brand": Brand values and mission
 
-VISUAL STYLE FOR PINE HILL FARM:
-- Warm, golden lighting (NOT clinical/cold)
-- Natural settings: farm fields, gardens, cozy interiors, spa environments
-- Real people with authentic expressions (NOT stock photo models)
-- Earth tones: greens, browns, warm golds
-- Organic textures: wood, plants, natural materials
-- Family farm feel, NOT corporate wellness
+VISUAL DIRECTION RULES - CRITICAL:
+
+1. APPLY THE AESTHETIC, DON'T FORCE THE LOCATION
+   
+   WRONG: "Pine Hill Farm kitchen with woman preparing food"
+   RIGHT: "Warm, sunlit home kitchen with natural wood counters, woman preparing fresh vegetables, golden morning light, earth tones"
+   
+   WRONG: "Pine Hill Farm consultation room"
+   RIGHT: "Cozy wellness space with plants, natural light, warm wood furniture"
+   
+   WRONG: "Pine Hill Farm entrance"
+   RIGHT: "Welcoming wellness center with natural landscaping" (only for CTA scenes)
+
+2. WHEN TO EXPLICITLY MENTION "PINE HILL FARM":
+   - CTA scenes (call to action, visit us, contact us)
+   - Outro scenes (final branding moment)
+   - Product showcase scenes (PHF supplements, PHF CBD products)
+   - NEVER in educational/informational scenes
+   
+3. BRAND AESTHETIC (apply to ALL scenes):
+   - Warm, golden lighting (NOT clinical/cold)
+   - Earth tones: greens, browns, warm golds
+   - Natural textures: wood, plants, organic materials
+   - Real people with authentic expressions
+   - Home, garden, or wellness settings
+   - Cozy, inviting atmosphere
+   
+4. SCENE TYPE VISUAL GUIDELINES:
+   - HOOK/PROBLEM: Home setting, relatable environment, authentic person
+   - EDUCATIONAL: Clean background, warm lighting, focus on subject matter
+   - SOLUTION: Bright, hopeful, natural ingredients or wellness imagery
+   - BENEFIT: Lifestyle imagery, transformation, vitality
+   - CTA: Pine Hill Farm branding, logo, contact info, welcoming entrance
+
+5. WHAT THE VISUAL DIRECTION SHOULD DESCRIBE:
+   - Lighting quality and color temperature
+   - Setting type (home kitchen, living room, garden, wellness space)
+   - Subject (person demographics, expression, activity)
+   - Textures and materials visible
+   - Color palette
+   - Camera framing/angle
+   - Mood and atmosphere
+   
+   DO NOT describe fictional "Pine Hill Farm" locations that don't exist.
 
 OUTPUT FORMAT:
 Return a JSON object with scenes array. Each scene should include:
@@ -185,6 +225,12 @@ Parse this into scenes with Pine Hill Farm brand awareness. For each scene:
 4. Note audience resonance and brand opportunities
 5. Create searchQuery for stock video (3-5 concise words)
 6. Create fallbackQuery as alternative search approach
+
+CRITICAL VISUAL DIRECTION RULES:
+- For hook/problem/solution/benefit/educational scenes: Use GENERIC aesthetic settings like "warm sunlit home kitchen" or "cozy living room" - do NOT say "Pine Hill Farm kitchen" or "Pine Hill Farm consultation room"
+- Only mention "Pine Hill Farm" explicitly in CTA, outro, product, or testimonial scenes
+- Apply the PHF AESTHETIC (warm lighting, earth tones, natural textures) to ALL scenes
+- Do NOT invent fictional Pine Hill Farm locations
 
 Return ONLY valid JSON matching this structure:
 {
