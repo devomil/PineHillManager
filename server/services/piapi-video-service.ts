@@ -169,10 +169,11 @@ class PiAPIVideoService {
       case 'kling':
         return {
           ...baseRequest,
-          model: 'kling-video',
+          model: 'kling',
+          task_type: 'video_generation',
           input: {
             ...baseRequest.input,
-            mode: 'high_quality',
+            mode: 'std',
             version: '1.6',
           },
         };
@@ -180,7 +181,8 @@ class PiAPIVideoService {
       case 'luma':
         return {
           ...baseRequest,
-          model: 'luma-video',
+          model: 'luma',
+          task_type: 'video_generation',
           input: {
             ...baseRequest.input,
             loop: false,
@@ -190,22 +192,26 @@ class PiAPIVideoService {
       case 'hailuo':
         return {
           ...baseRequest,
-          model: 'hailuo-video',
+          model: 'hailuo',
+          task_type: 'video_generation',
           input: {
             ...baseRequest.input,
+            model: 't2v-01',
           },
         };
         
       case 'hunyuan':
         return {
           ...baseRequest,
-          model: 'hunyuan-video',
+          model: 'hunyuan',
+          task_type: 'txt2video',
         };
         
       case 'veo':
         return {
           ...baseRequest,
-          model: 'veo-video',
+          model: 'veo-3',
+          task_type: 'video_generation',
           input: {
             ...baseRequest.input,
           },
@@ -323,11 +329,11 @@ class PiAPIVideoService {
 
   private getModelConfig(model: string): ModelConfig {
     const configs: Record<string, ModelConfig> = {
-      kling: { modelId: 'kling-video', maxDuration: 10 },
-      luma: { modelId: 'luma-video', maxDuration: 5 },
-      hailuo: { modelId: 'hailuo-video', maxDuration: 6 },
-      hunyuan: { modelId: 'hunyuan-video', maxDuration: 5 },
-      veo: { modelId: 'veo-video', maxDuration: 8 },
+      kling: { modelId: 'kling', maxDuration: 10 },
+      luma: { modelId: 'luma', maxDuration: 5 },
+      hailuo: { modelId: 'hailuo', maxDuration: 6 },
+      hunyuan: { modelId: 'hunyuan', maxDuration: 5 },
+      veo: { modelId: 'veo-3', maxDuration: 8 },
     };
     return configs[model] || { modelId: model, maxDuration: 5 };
   }
