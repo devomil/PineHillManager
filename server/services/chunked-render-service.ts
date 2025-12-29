@@ -154,44 +154,73 @@ class ChunkedRenderService {
     compositionId: string
   ): Promise<ChunkResult> {
     const startTime = Date.now();
+    const maxRetries = 5;
+    let lastError: Error | null = null;
+    
     console.log(`[ChunkedRender] Rendering chunk ${chunk.chunkIndex} with ${chunk.scenes.length} scenes...`);
 
-    try {
-      const chunkInputProps = {
-        ...inputProps,
-        scenes: chunk.scenes,
-        isChunk: true,
-        chunkIndex: chunk.chunkIndex,
-      };
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const chunkInputProps = {
+          ...inputProps,
+          scenes: chunk.scenes,
+          isChunk: true,
+          chunkIndex: chunk.chunkIndex,
+        };
 
-      const outputUrl = await remotionLambdaService.renderVideo({
-        compositionId,
-        inputProps: chunkInputProps,
-      });
+        const outputUrl = await remotionLambdaService.renderVideo({
+          compositionId,
+          inputProps: chunkInputProps,
+        });
 
-      const renderTimeMs = Date.now() - startTime;
-      console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} completed in ${(renderTimeMs / 1000).toFixed(1)}s: ${outputUrl}`);
+        const renderTimeMs = Date.now() - startTime;
+        console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} completed in ${(renderTimeMs / 1000).toFixed(1)}s: ${outputUrl}`);
 
-      return {
-        chunkIndex: chunk.chunkIndex,
-        s3Url: outputUrl,
-        localPath: "",
-        success: true,
-        renderTimeMs,
-      };
-    } catch (error: any) {
-      const renderTimeMs = Date.now() - startTime;
-      console.error(`[ChunkedRender] Chunk ${chunk.chunkIndex} failed:`, error);
+        return {
+          chunkIndex: chunk.chunkIndex,
+          s3Url: outputUrl,
+          localPath: "",
+          success: true,
+          renderTimeMs,
+        };
+      } catch (error: any) {
+        lastError = error;
+        const errorMessage = error?.message || String(error);
+        
+        const isRateLimitError = 
+          errorMessage.includes('Rate Exceeded') ||
+          errorMessage.includes('rate limit') ||
+          errorMessage.includes('Concurrency limit') ||
+          errorMessage.includes('TooManyRequestsException') ||
+          errorMessage.includes('Lambda is currently busy');
 
-      return {
-        chunkIndex: chunk.chunkIndex,
-        s3Url: "",
-        localPath: "",
-        success: false,
-        error: error.message || "Unknown error",
-        renderTimeMs,
-      };
+        if (isRateLimitError && attempt < maxRetries) {
+          const delay = Math.min(30000 * Math.pow(1.5, attempt - 1), 120000);
+          console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} hit rate limit, waiting ${delay/1000}s before retry ${attempt + 1}/${maxRetries}...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        console.error(`[ChunkedRender] Chunk ${chunk.chunkIndex} failed (attempt ${attempt}/${maxRetries}):`, error);
+        
+        if (attempt < maxRetries && !isRateLimitError) {
+          const delay = 10000;
+          console.log(`[ChunkedRender] Retrying chunk ${chunk.chunkIndex} in ${delay/1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
     }
+
+    const renderTimeMs = Date.now() - startTime;
+    return {
+      chunkIndex: chunk.chunkIndex,
+      s3Url: "",
+      localPath: "",
+      success: false,
+      error: lastError?.message || "Unknown error after all retries",
+      renderTimeMs,
+    };
   }
 
   async downloadChunk(s3Url: string, chunkIndex: number): Promise<string> {
