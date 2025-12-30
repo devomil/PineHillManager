@@ -227,6 +227,7 @@ const purchaseOrderFormSchema = z.object({
   orderDate: z.string().optional(),
   requestedDeliveryDate: z.string().optional(),
   shippingAmount: z.string().optional(),
+  taxAmount: z.string().optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   lineItems: z.array(lineItemSchema).min(1, 'At least one line item is required'),
@@ -756,6 +757,7 @@ function PurchaseOrdersTab() {
       paymentTerms: 'Net 30',
       orderDate: '',
       shippingAmount: '',
+      taxAmount: '',
       lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     },
   });
@@ -811,6 +813,7 @@ function PurchaseOrdersTab() {
         orderDate: data.orderDate || null,
         requestedDeliveryDate: data.requestedDeliveryDate,
         shippingAmount: data.shippingAmount || "0",
+        taxAmount: data.taxAmount || "0",
         notes: data.notes,
         internalNotes: data.internalNotes,
         lineItems,
@@ -821,6 +824,22 @@ function PurchaseOrdersTab() {
       toast({ title: 'Purchase order created successfully' });
       setIsPODialogOpen(false);
       poForm.reset();
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || 'Failed to create purchase order';
+      if (errorMessage.includes('duplicate') || errorMessage.includes('already exists')) {
+        toast({ 
+          title: 'PO Number Already Exists', 
+          description: 'A purchase order with this number already exists. Please use a different PO number.',
+          variant: 'destructive' 
+        });
+      } else {
+        toast({ 
+          title: 'Error Creating Purchase Order', 
+          description: errorMessage,
+          variant: 'destructive' 
+        });
+      }
     },
   });
 
@@ -842,6 +861,7 @@ function PurchaseOrdersTab() {
         orderDate: data.orderDate || null,
         requestedDeliveryDate: data.requestedDeliveryDate,
         shippingAmount: data.shippingAmount || "0",
+        taxAmount: data.taxAmount || "0",
         notes: data.notes,
         internalNotes: data.internalNotes,
         lineItems,
@@ -853,6 +873,14 @@ function PurchaseOrdersTab() {
       setIsPODialogOpen(false);
       setEditingPO(null);
       poForm.reset();
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || 'Failed to update purchase order';
+      toast({ 
+        title: 'Error Updating Purchase Order', 
+        description: errorMessage,
+        variant: 'destructive' 
+      });
     },
   });
 
@@ -896,6 +924,7 @@ function PurchaseOrdersTab() {
       orderDate: (po as any).orderDate || '',
       requestedDeliveryDate: po.requestedDeliveryDate || undefined,
       shippingAmount: (po as any).shippingAmount || '',
+      taxAmount: (po as any).taxAmount || '',
       notes: po.notes || '',
       internalNotes: po.internalNotes || '',
       lineItems: po.lineItems && po.lineItems.length > 0 
@@ -1117,7 +1146,7 @@ function PurchaseOrdersTab() {
                     )}
                   />
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <FormField
                       control={poForm.control}
                       name="orderDate"
@@ -1151,6 +1180,27 @@ function PurchaseOrdersTab() {
                               {...field} 
                               value={field.value || ''}
                               data-testid="input-po-shipping-amount"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={poForm.control}
+                      name="taxAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sales Tax</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="0.01"
+                              placeholder="0.00"
+                              {...field} 
+                              value={field.value || ''}
+                              data-testid="input-po-tax-amount"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1773,6 +1823,7 @@ function PurchaseOrdersTab() {
             orderDate: invoiceData.invoice.invoiceDate || invoiceData.invoice.orderDate || '',
             requestedDeliveryDate: invoiceData.invoice.dueDate || '',
             shippingAmount: invoiceData.totals?.shipping ? String(invoiceData.totals.shipping) : '',
+            taxAmount: invoiceData.totals?.tax ? String(invoiceData.totals.tax) : '',
             notes: invoiceData.notes || '',
             lineItems: invoiceData.lineItems.map((item: any) => ({
               description: item.description,
