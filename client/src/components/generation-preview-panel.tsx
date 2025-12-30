@@ -13,6 +13,9 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Brain,
+  CheckCircle,
+  Layers,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,9 +35,20 @@ interface GenerationEstimate {
   };
   providers: {
     video: Record<string, number>;
+    images?: Record<string, number>;
     voiceover: string;
     music: string;
     soundFx: string;
+  };
+  intelligence?: {
+    sceneAnalysis: string;
+    textPlacement: string;
+    transitions: string;
+  };
+  qualityAssurance?: {
+    enabled: boolean;
+    provider: string;
+    checks: string[];
   };
   sceneBreakdown: Array<{
     sceneIndex: number;
@@ -43,13 +57,16 @@ interface GenerationEstimate {
     duration: number;
     provider: string;
     fallbackProvider: string;
+    providerReason?: string;
   }>;
   costs: {
     video: string;
+    images?: string;
     voiceover: string;
     music: string;
     soundFx: string;
-    qualityChecks: string;
+    sceneAnalysis?: string;
+    qualityAssurance?: string;
     total: string;
   };
   time: {
@@ -78,6 +95,10 @@ const PROVIDER_COLORS: Record<string, string> = {
   kling: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   hailuo: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   luma: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  hunyuan: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+  veo: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  flux: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
+  'fal.ai': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
 };
 
 const PROVIDER_NAMES: Record<string, string> = {
@@ -85,6 +106,10 @@ const PROVIDER_NAMES: Record<string, string> = {
   kling: 'Kling 1.6',
   hailuo: 'Hailuo MiniMax',
   luma: 'Luma Dream Machine',
+  hunyuan: 'Hunyuan',
+  veo: 'Veo 3.1',
+  flux: 'Flux.1',
+  'fal.ai': 'fal.ai',
 };
 
 export function GenerationPreviewPanel({
@@ -191,6 +216,73 @@ export function GenerationPreviewPanel({
           </div>
         </div>
 
+        {/* Images Section */}
+        {estimate.providers.images && (Object.values(estimate.providers.images).some(v => v > 0)) && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="images-section">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
+              <Image className="h-4 w-4" />
+              <span className="text-xs font-medium">Image Generation</span>
+            </div>
+            <div className="space-y-1">
+              {Object.entries(estimate.providers.images).map(([provider, count]) => (
+                count > 0 && (
+                  <div key={provider} className="flex items-center justify-between">
+                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[provider] || ''}`}>
+                      {PROVIDER_NAMES[provider] || provider}
+                    </Badge>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{count} images</span>
+                  </div>
+                )
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Intelligence Features */}
+        {estimate.intelligence && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="intelligence-section">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
+              <Brain className="h-4 w-4" />
+              <span className="text-xs font-medium">Intelligence Features</span>
+            </div>
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600 dark:text-gray-300">Scene Analysis</span>
+                <Badge variant="outline" className="text-xs">{estimate.intelligence.sceneAnalysis}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600 dark:text-gray-300">Text Placement</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{estimate.intelligence.textPlacement}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600 dark:text-gray-300">Transitions</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{estimate.intelligence.transitions}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quality Assurance */}
+        {estimate.qualityAssurance?.enabled && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="qa-section">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
+              <CheckCircle className="h-4 w-4" />
+              <span className="text-xs font-medium">Quality Assurance</span>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-300">Provider</span>
+                <Badge variant="outline" className="text-xs">{estimate.qualityAssurance.provider}</Badge>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {estimate.qualityAssurance.checks.map((check, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs">{check}</Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Brand Elements */}
         {estimate.brandElements.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="brand-elements-section">
@@ -244,9 +336,12 @@ export function GenerationPreviewPanel({
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">{scene.duration}s</span>
-                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[scene.provider] || ''}`}>
+                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[scene.provider] || ''}`} title={scene.providerReason || ''}>
                       {PROVIDER_NAMES[scene.provider] || scene.provider}
                     </Badge>
+                    {scene.providerReason && (
+                      <span className="text-xs text-gray-400 italic hidden md:inline">({scene.providerReason})</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -267,6 +362,12 @@ export function GenerationPreviewPanel({
                 <span>Video generation</span>
                 <span>${estimate.costs.video}</span>
               </div>
+              {estimate.costs.images && parseFloat(estimate.costs.images) > 0 && (
+                <div className="flex justify-between">
+                  <span>Image generation</span>
+                  <span>${estimate.costs.images}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Voiceover</span>
                 <span>${estimate.costs.voiceover}</span>
@@ -279,6 +380,18 @@ export function GenerationPreviewPanel({
                 <span>Sound FX</span>
                 <span>${estimate.costs.soundFx}</span>
               </div>
+              {estimate.costs.sceneAnalysis && parseFloat(estimate.costs.sceneAnalysis) > 0 && (
+                <div className="flex justify-between">
+                  <span>Scene analysis</span>
+                  <span>${estimate.costs.sceneAnalysis}</span>
+                </div>
+              )}
+              {estimate.costs.qualityAssurance && parseFloat(estimate.costs.qualityAssurance) > 0 && (
+                <div className="flex justify-between">
+                  <span>Quality assurance</span>
+                  <span>${estimate.costs.qualityAssurance}</span>
+                </div>
+              )}
             </div>
           </div>
 

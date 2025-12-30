@@ -8,6 +8,7 @@ import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked
 import { qualityEvaluationService, VideoQualityReport } from '../services/quality-evaluation-service';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { brandContextService } from '../services/brand-context-service';
+import { selectProvidersForScene, AI_VIDEO_PROVIDERS } from '../config/ai-video-providers';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
 import { universalVideoProjects } from '../../shared/schema';
@@ -2762,40 +2763,32 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     const brandSettings = (project as any).brandSettings || {};
     const musicEnabled = (project as any).musicEnabled !== false;
     
-    // Provider cost rates per second
-    const PROVIDER_COSTS: Record<string, number> = {
-      runway: 0.05,
-      kling: 0.03,
-      hailuo: 0.02,
-      luma: 0.04,
-      piapi_kling: 0.03,
+    // Helper to explain provider selection
+    const getProviderReason = (provider: string, sceneType: string, contentType: string): string => {
+      const reasons: Record<string, string> = {
+        runway: 'cinematic quality',
+        kling: contentType === 'person' ? 'human rendering' : 'versatile motion',
+        luma: 'smooth camera motion',
+        hailuo: 'cost-effective B-roll',
+        hunyuan: 'natural scenes',
+        veo: 'high-quality output',
+      };
+      return reasons[provider] || 'default selection';
     };
     
-    // Style to provider mapping
-    const STYLE_PROVIDERS: Record<string, string[]> = {
-      professional: ['runway', 'kling'],
-      cinematic: ['runway', 'kling'],
-      energetic: ['kling', 'hailuo'],
-      calm: ['luma', 'runway'],
-      casual: ['kling', 'hailuo'],
-      documentary: ['runway', 'luma'],
-      luxury: ['runway', 'kling'],
-      minimal: ['luma', 'kling'],
-    };
-    
-    const preferredProviders = STYLE_PROVIDERS[visualStyle] || ['kling', 'runway'];
-    
-    // Calculate provider assignments per scene
+    // Use intelligent provider selection based on scene content
     const sceneProviders = scenes.map((scene: Scene, index: number) => {
       const contentType = (scene as any).contentType || 'lifestyle';
+      const visualPrompt = scene.visualDirection || scene.narration || '';
       
-      // Determine primary provider based on content type
-      let primaryProvider = preferredProviders[0];
-      if (contentType === 'person') {
-        primaryProvider = 'runway'; // Best for people
-      } else if (contentType === 'abstract') {
-        primaryProvider = preferredProviders.includes('kling') ? 'kling' : primaryProvider;
-      }
+      // Use intelligent provider selection from ai-video-providers
+      const rankedProviders = selectProvidersForScene(scene.type, visualPrompt);
+      const primaryProvider = rankedProviders[0] || 'kling';
+      const fallbackProvider = rankedProviders[1] || 'runway';
+      
+      // Get cost from provider config
+      const providerConfig = AI_VIDEO_PROVIDERS[primaryProvider];
+      const costPerSecond = providerConfig?.costPerSecond || 0.03;
       
       return {
         sceneIndex: index,
@@ -2803,25 +2796,32 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         contentType,
         duration: scene.duration || 5,
         provider: primaryProvider,
-        fallbackProvider: preferredProviders[1] || 'kling',
+        fallbackProvider,
+        costPerSecond,
+        providerReason: getProviderReason(primaryProvider, scene.type, contentType),
       };
     });
     
-    // Calculate video generation cost
+    // Calculate video generation cost using per-scene provider costs
     const VIDEO_COST = sceneProviders.reduce((sum: number, s: any) => {
-      const costPerSec = PROVIDER_COSTS[s.provider] || 0.03;
-      return sum + (s.duration * costPerSec);
+      return sum + (s.duration * s.costPerSecond);
     }, 0);
     
     const totalDuration = scenes.reduce((sum: number, s: Scene) => sum + (s.duration || 5), 0);
     
+    // Estimate image generation - count scenes that might need product images
+    const productScenes = scenes.filter((s: Scene) => s.type === 'product' || s.type === 'cta');
+    const lifestyleScenes = scenes.filter((s: Scene) => s.type === 'hook' || s.type === 'benefit' || s.type === 'testimonial');
+    const IMAGE_COST = (productScenes.length * 0.03) + (lifestyleScenes.length * 0.02); // Flux.1 + fal.ai
+    
     // Calculate other costs
     const VOICEOVER_COST = 0.015 * totalDuration; // ElevenLabs
     const MUSIC_COST = musicEnabled ? 0.10 : 0; // Udio flat rate - only if music enabled
-    const SOUND_FX_COST = 0.05; // Sound effects
-    const BRAND_CHECK_COST = scenes.length * 0.02; // Quality checks
+    const SOUND_FX_COST = 0.05; // Kling Sound effects
+    const SCENE_ANALYSIS_COST = scenes.length * 0.02; // Claude Vision scene analysis
+    const QA_COST = 0.02; // Claude Vision quality check
     
-    const totalCost = VIDEO_COST + VOICEOVER_COST + MUSIC_COST + SOUND_FX_COST + BRAND_CHECK_COST;
+    const totalCost = VIDEO_COST + IMAGE_COST + VOICEOVER_COST + MUSIC_COST + SOUND_FX_COST + SCENE_ANALYSIS_COST + QA_COST;
     
     // Estimate time
     const avgSceneGenTime = 45; // seconds per scene
@@ -2885,18 +2885,34 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       },
       providers: {
         video: providerCounts,
+        images: {
+          'flux': productScenes.length,
+          'fal.ai': lifestyleScenes.length,
+        },
         voiceover: 'ElevenLabs',
         music: musicEnabled ? 'Udio AI (via PiAPI)' : 'Disabled',
-        soundFx: 'Runway Sound',
+        soundFx: 'Kling Sound',
+      },
+      intelligence: {
+        sceneAnalysis: 'Claude Vision',
+        textPlacement: 'Smart positioning enabled',
+        transitions: `Mood-matched (${Math.max(0, scenes.length - 1)} transitions)`,
+      },
+      qualityAssurance: {
+        enabled: true,
+        provider: 'Claude Vision',
+        checks: ['Brand compliance', 'Visual quality', 'Content accuracy'],
       },
       musicEnabled,
       sceneBreakdown: sceneProviders,
       costs: {
         video: VIDEO_COST.toFixed(2),
+        images: IMAGE_COST.toFixed(2),
         voiceover: VOICEOVER_COST.toFixed(2),
         music: MUSIC_COST.toFixed(2),
         soundFx: SOUND_FX_COST.toFixed(2),
-        qualityChecks: BRAND_CHECK_COST.toFixed(2),
+        sceneAnalysis: SCENE_ANALYSIS_COST.toFixed(2),
+        qualityAssurance: QA_COST.toFixed(2),
         total: totalCost.toFixed(2),
       },
       time: {
