@@ -2310,10 +2310,7 @@ function ReportsTab() {
   // Payment update mutation
   const updatePaymentMutation = useMutation({
     mutationFn: async (data: { id: number; paymentData: any }) => {
-      return apiRequest(`/api/purchasing/purchase-orders/${data.id}/payment`, {
-        method: 'PATCH',
-        body: JSON.stringify(data.paymentData),
-      });
+      return apiRequest('PATCH', `/api/purchasing/purchase-orders/${data.id}/payment`, data.paymentData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/reports/outstanding-payables'] });
