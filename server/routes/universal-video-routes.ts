@@ -2828,7 +2828,8 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
           transitionToNext: sceneTransition ? {
             type: sceneTransition.type,
             duration: sceneTransition.duration,
-            moodMatch: sceneTransition.reason || 'auto',
+            moodMatch: sceneTransition.moodMatch || 'smooth',
+            reason: sceneTransition.reason || 'Default transition',
           } : undefined,
         },
       };

@@ -104,6 +104,7 @@ interface GenerationEstimate {
         type: string;
         duration: number;
         moodMatch: string;
+        reason?: string;
       };
     };
   }>;
@@ -512,18 +513,31 @@ export function GenerationPreviewPanel({
                   )}
                   {/* Phase 7D: Per-scene intelligence info */}
                   {scene.intelligence && (
-                    <div className="ml-6 mt-1 flex items-center gap-3 text-xs text-gray-400">
-                      {scene.intelligence.textPlacement && (
-                        <span className="flex items-center gap-1">
-                          <Type className="h-3 w-3 text-purple-400" />
-                          {scene.intelligence.textPlacement.position}
-                        </span>
-                      )}
+                    <div className="ml-6 mt-1 space-y-1">
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        {scene.intelligence.textPlacement && (
+                          <span className="flex items-center gap-1">
+                            <Type className="h-3 w-3 text-purple-400" />
+                            Text: {scene.intelligence.textPlacement.position}
+                          </span>
+                        )}
+                      </div>
                       {scene.intelligence.transitionToNext && (
-                        <span className="flex items-center gap-1">
-                          <Shuffle className="h-3 w-3 text-green-400" />
-                          → {scene.intelligence.transitionToNext.type}
-                        </span>
+                        <div className="text-xs text-gray-400 space-y-0.5 border-l-2 border-green-400/30 pl-2 ml-0.5">
+                          <div className="flex items-center gap-2">
+                            <Shuffle className="h-3 w-3 text-green-400" />
+                            <span className="text-gray-500">Scene {scene.sceneIndex + 1} → Scene {scene.sceneIndex + 2} transition:</span>
+                          </div>
+                          <div className="pl-5">
+                            <div>Type: <span className="text-green-500">{scene.intelligence.transitionToNext.type}</span> ({scene.intelligence.transitionToNext.duration}s)</div>
+                            {scene.intelligence.transitionToNext.moodMatch && (
+                              <div>Mood match: <span className="text-blue-400">{scene.intelligence.transitionToNext.moodMatch}</span></div>
+                            )}
+                            {scene.intelligence.transitionToNext.reason && (
+                              <div className="text-gray-500 italic">Reason: {scene.intelligence.transitionToNext.reason}</div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
