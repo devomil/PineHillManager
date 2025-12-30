@@ -16,6 +16,9 @@ import {
   Brain,
   CheckCircle,
   Layers,
+  Eye,
+  Type,
+  Shuffle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,9 +62,20 @@ interface GenerationEstimate {
     accentCount: number;
   };
   intelligence?: {
-    sceneAnalysis: string;
-    textPlacement: string;
-    transitions: string;
+    sceneAnalysis: { provider: string; enabled: boolean };
+    textPlacement: { enabled: boolean; overlayCount: number };
+    transitions: { enabled: boolean; moodMatched: boolean };
+  };
+  transitions?: {
+    total: number;
+    summary: {
+      cuts: number;
+      fades: number;
+      dissolves: number;
+      wipes: number;
+      zooms: number;
+      slides: number;
+    };
   };
   qualityAssurance?: {
     enabled: boolean;
@@ -80,6 +94,18 @@ interface GenerationEstimate {
     providerReason?: string;
     confidence?: number;
     alternatives?: string[];
+    intelligence?: {
+      analysisStatus: 'pending' | 'complete' | 'error';
+      textPlacement?: {
+        position: 'top' | 'center' | 'bottom' | 'lower-third';
+        alignment: 'left' | 'center' | 'right';
+      };
+      transitionToNext?: {
+        type: string;
+        duration: number;
+        moodMatch: string;
+      };
+    };
   }>;
   costs: {
     video: string;
@@ -330,29 +356,62 @@ export function GenerationPreviewPanel({
           )}
         </div>
 
-        {/* Intelligence Features */}
-        {estimate.intelligence && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="intelligence-section">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-              <Brain className="h-4 w-4" />
-              <span className="text-xs font-medium">Intelligence Features</span>
-            </div>
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Scene Analysis</span>
-                <Badge variant="outline" className="text-xs">{estimate.intelligence.sceneAnalysis}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Text Placement</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{estimate.intelligence.textPlacement}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Transitions</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{estimate.intelligence.transitions}</span>
-              </div>
-            </div>
+        {/* Intelligence Features (Phase 7D) */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="intelligence-section">
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
+            <Brain className="h-4 w-4" />
+            <span className="text-xs font-medium">Intelligence</span>
           </div>
-        )}
+          <div className="space-y-2">
+            {/* Scene Analysis */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="h-3.5 w-3.5 text-blue-500" />
+                <span className="text-sm">Scene Analysis</span>
+              </div>
+              <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                {estimate.intelligence?.sceneAnalysis?.provider || 'Claude Vision'}
+              </Badge>
+            </div>
+            
+            {/* Text Placement */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Type className="h-3.5 w-3.5 text-purple-500" />
+                <span className="text-sm">Text Placement</span>
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Smart positioning ({estimate.intelligence?.textPlacement?.overlayCount || estimate.project.sceneCount} overlays)
+              </span>
+            </div>
+            
+            {/* Transitions */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shuffle className="h-3.5 w-3.5 text-green-500" />
+                <span className="text-sm">Transitions</span>
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Mood-matched ({estimate.transitions?.total ?? Math.max(0, estimate.project.sceneCount - 1)})
+              </span>
+            </div>
+            
+            {/* Transition breakdown */}
+            {estimate.transitions && (estimate.transitions.summary.dissolves > 0 || estimate.transitions.summary.fades > 0 || estimate.transitions.summary.cuts > 0) && (
+              <div className="pl-5 text-xs text-gray-400 dark:text-gray-500 space-y-0.5">
+                {estimate.transitions.summary.dissolves > 0 && (
+                  <div>{estimate.transitions.summary.dissolves} dissolves</div>
+                )}
+                {estimate.transitions.summary.fades > 0 && (
+                  <div>{estimate.transitions.summary.fades} fades</div>
+                )}
+                {estimate.transitions.summary.cuts > 0 && (
+                  <div>{estimate.transitions.summary.cuts} cuts</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Quality Assurance */}
         {estimate.qualityAssurance?.enabled && (
@@ -447,6 +506,23 @@ export function GenerationPreviewPanel({
                       {scene.alternatives && scene.alternatives.length > 0 && (
                         <span className="hidden md:inline">
                           Alt: {scene.alternatives.map(a => PROVIDER_NAMES[a] || a).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* Phase 7D: Per-scene intelligence info */}
+                  {scene.intelligence && (
+                    <div className="ml-6 mt-1 flex items-center gap-3 text-xs text-gray-400">
+                      {scene.intelligence.textPlacement && (
+                        <span className="flex items-center gap-1">
+                          <Type className="h-3 w-3 text-purple-400" />
+                          {scene.intelligence.textPlacement.position}
+                        </span>
+                      )}
+                      {scene.intelligence.transitionToNext && (
+                        <span className="flex items-center gap-1">
+                          <Shuffle className="h-3 w-3 text-green-400" />
+                          → {scene.intelligence.transitionToNext.type}
                         </span>
                       )}
                     </div>

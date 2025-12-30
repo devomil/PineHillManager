@@ -11,6 +11,7 @@ import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
 import { imageProviderSelector } from '../services/image-provider-selector';
 import { soundDesignService } from '../services/sound-design-service';
+import { transitionService } from '../services/transition-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
@@ -2789,10 +2790,22 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       scenesForSelection
     );
     
+    // Phase 7D: Compute transitions for all scenes upfront
+    const transitionsData = transitionService.designTransitions(
+      scenes.map((s: any, i: number) => ({
+        sceneIndex: i,
+        sceneType: s.type || 'general',
+        mood: s.mood,
+        duration: s.duration || 5,
+      })),
+      visualStyle
+    );
+    
     // Build scene providers array for response with explicit fallbacks
     const sceneProviders = Array.from(providerSelections.entries()).map(([index, selection]) => {
       const scene = scenes[index];
       const provider = selection?.provider;
+      const sceneTransition = transitionsData.transitions.find((t: any) => t.fromScene === index);
       return {
         sceneIndex: index,
         sceneType: scene?.type || 'unknown',
@@ -2805,6 +2818,19 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         providerReason: selection?.reason || 'Default selection',
         confidence: selection?.confidence ?? 50,
         alternatives: selection?.alternatives || ['runway', 'hailuo'],
+        // Phase 7D: Per-scene intelligence
+        intelligence: {
+          analysisStatus: 'pending' as const,
+          textPlacement: {
+            position: scene?.type === 'hook' || scene?.type === 'cta' ? 'center' : 'lower-third',
+            alignment: 'center' as const,
+          },
+          transitionToNext: sceneTransition ? {
+            type: sceneTransition.type,
+            duration: sceneTransition.duration,
+            moodMatch: sceneTransition.reason || 'auto',
+          } : undefined,
+        },
       };
     });
     
@@ -2928,10 +2954,15 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         music: musicEnabled ? 'Udio AI (via PiAPI)' : 'Disabled',
         soundFx: 'Kling Sound',
       },
+      // Phase 7D: Transition Design (uses pre-computed transitionsData)
+      transitions: {
+        total: transitionsData.transitions.length,
+        summary: transitionsData.summary,
+      },
       intelligence: {
-        sceneAnalysis: 'Claude Vision',
-        textPlacement: 'Smart positioning enabled',
-        transitions: `Mood-matched (${Math.max(0, scenes.length - 1)} transitions)`,
+        sceneAnalysis: { provider: 'Claude Vision', enabled: true },
+        textPlacement: { enabled: true, overlayCount: scenes.length },
+        transitions: { enabled: true, moodMatched: true },
       },
       qualityAssurance: {
         enabled: true,

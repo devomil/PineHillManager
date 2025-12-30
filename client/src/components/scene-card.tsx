@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GripVertical, ChevronDown, ChevronUp, Clock, Video, Volume2 } from 'lucide-react';
+import { GripVertical, ChevronDown, ChevronUp, Clock, Video, Volume2, Eye, Type, Shuffle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from './content-type-selector';
@@ -9,6 +9,19 @@ interface SceneSoundDesign {
   ambient: { type: string; description: string } | null;
   transition: { type: string; duration: number; description: string } | null;
   accents: string[];
+}
+
+interface SceneIntelligence {
+  analysisStatus?: 'pending' | 'complete' | 'error';
+  textPlacement?: {
+    position: 'top' | 'center' | 'bottom' | 'lower-third';
+    alignment: 'left' | 'center' | 'right';
+  };
+  transitionToNext?: {
+    type: string;
+    duration: number;
+    moodMatch: string;
+  };
 }
 
 interface Scene {
@@ -22,6 +35,7 @@ interface Scene {
   thumbnailUrl?: string;
   status?: 'pending' | 'generating' | 'complete' | 'error';
   soundDesign?: SceneSoundDesign;
+  intelligence?: SceneIntelligence;
 }
 
 interface SceneCardProps {
@@ -194,6 +208,53 @@ export function SceneCard({
                   ))}
                   {!scene.soundDesign.ambient && !scene.soundDesign.transition && (!scene.soundDesign.accents || scene.soundDesign.accents.length === 0) && (
                     <span className="text-xs text-gray-400">No sound effects</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Intelligence (Phase 7D) */}
+            {scene.intelligence && (
+              <div className="mt-3 pt-3 border-t border-gray-100" data-testid="scene-intelligence">
+                <label className="text-xs font-medium text-gray-500 block mb-2">
+                  Intelligence
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Scene Analysis Status */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <Eye className="h-3 w-3 text-blue-500" />
+                    <span className="text-gray-600">
+                      {scene.intelligence.analysisStatus === 'complete' ? (
+                        <span className="text-green-600">Analyzed ✓</span>
+                      ) : scene.intelligence.analysisStatus === 'error' ? (
+                        <span className="text-red-600">Failed</span>
+                      ) : (
+                        <span className="text-gray-400">Pending</span>
+                      )}
+                    </span>
+                  </div>
+                  
+                  {/* Text Placement */}
+                  {scene.intelligence.textPlacement && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Type className="h-3 w-3 text-purple-500" />
+                      <span className="text-gray-600">
+                        {scene.intelligence.textPlacement.position} {scene.intelligence.textPlacement.alignment}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Transition to next scene */}
+                  {scene.intelligence.transitionToNext && (
+                    <div className="col-span-2 flex items-center gap-2 text-xs">
+                      <Shuffle className="h-3 w-3 text-green-500" />
+                      <span className="text-gray-600">
+                        → {scene.intelligence.transitionToNext.type} ({scene.intelligence.transitionToNext.duration}s)
+                      </span>
+                      <span className="text-gray-400">
+                        {scene.intelligence.transitionToNext.moodMatch}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
