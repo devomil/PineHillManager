@@ -42,7 +42,11 @@ interface GenerationEstimate {
   providers: {
     video: Record<string, number>;
     videoCostByProvider?: Record<string, ProviderCostBreakdown>;
-    images?: Record<string, number>;
+    images?: { flux: number; falai: number };
+    imageCosts?: { 
+      flux: { count: number; cost: string }; 
+      falai: { count: number; cost: string };
+    };
     voiceover: string;
     music: string;
     soundFx: string;
@@ -122,6 +126,12 @@ const PROVIDER_NAMES: Record<string, string> = {
   veo: 'Veo 3.1',
   flux: 'Flux.1',
   'fal.ai': 'fal.ai',
+  falai: 'fal.ai',
+};
+
+const IMAGE_PROVIDER_INFO: Record<string, { displayName: string; useCase: string; colorClass: string }> = {
+  flux: { displayName: 'Flux.1', useCase: 'products', colorClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' },
+  falai: { displayName: 'fal.ai', useCase: 'lifestyle', colorClass: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200' },
 };
 
 export function GenerationPreviewPanel({
@@ -242,26 +252,58 @@ export function GenerationPreviewPanel({
         </div>
 
         {/* Images Section */}
-        {estimate.providers.images && (Object.values(estimate.providers.images).some(v => v > 0)) && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="images-section">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-              <Image className="h-4 w-4" />
-              <span className="text-xs font-medium">Image Generation</span>
-            </div>
-            <div className="space-y-1">
-              {Object.entries(estimate.providers.images).map(([provider, count]) => (
-                count > 0 && (
-                  <div key={provider} className="flex items-center justify-between">
-                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[provider] || ''}`}>
-                      {PROVIDER_NAMES[provider] || provider}
-                    </Badge>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{count} images</span>
-                  </div>
-                )
-              ))}
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="images-section">
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
+            <Image className="h-4 w-4" />
+            <span className="text-xs font-medium">Image Generation</span>
           </div>
-        )}
+          {(estimate.providers.images?.flux ?? 0) > 0 || (estimate.providers.images?.falai ?? 0) > 0 ? (
+            <div className="space-y-1.5">
+              {(estimate.providers.images?.flux ?? 0) > 0 && (
+                <div className="flex items-center justify-between">
+                  <Badge variant="secondary" className={`text-xs ${IMAGE_PROVIDER_INFO.flux.colorClass}`}>
+                    {IMAGE_PROVIDER_INFO.flux.displayName}
+                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {estimate.providers.images?.flux ?? 0} images
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      ({IMAGE_PROVIDER_INFO.flux.useCase})
+                    </span>
+                    {estimate.providers.imageCosts?.flux && (
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        ${estimate.providers.imageCosts.flux.cost}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {(estimate.providers.images?.falai ?? 0) > 0 && (
+                <div className="flex items-center justify-between">
+                  <Badge variant="secondary" className={`text-xs ${IMAGE_PROVIDER_INFO.falai.colorClass}`}>
+                    {IMAGE_PROVIDER_INFO.falai.displayName}
+                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {estimate.providers.images?.falai ?? 0} images
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      ({IMAGE_PROVIDER_INFO.falai.useCase})
+                    </span>
+                    {estimate.providers.imageCosts?.falai && (
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        ${estimate.providers.imageCosts.falai.cost}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">No standalone images needed</p>
+          )}
+        </div>
 
         {/* Intelligence Features */}
         {estimate.intelligence && (

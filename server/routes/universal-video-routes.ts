@@ -9,6 +9,7 @@ import { qualityEvaluationService, VideoQualityReport } from '../services/qualit
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
+import { imageProviderSelector } from '../services/image-provider-selector';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
@@ -2811,10 +2812,24 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     
     const totalDuration = scenes.reduce((sum: number, s: Scene) => sum + (s.duration || 5), 0);
     
-    // Estimate image generation - count scenes that might need product images
-    const productScenes = scenes.filter((s: Scene) => s.type === 'product' || s.type === 'cta');
-    const lifestyleScenes = scenes.filter((s: Scene) => s.type === 'hook' || s.type === 'benefit' || s.type === 'testimonial');
-    const IMAGE_COST = (productScenes.length * 0.03) + (lifestyleScenes.length * 0.02); // Flux.1 + fal.ai
+    // Use intelligent image provider selection
+    const scenesForImageSelection = scenes.map((scene: Scene, index: number) => ({
+      sceneIndex: index,
+      contentType: (scene as any).contentType || 'lifestyle',
+      sceneType: scene.type || 'unknown',
+      visualDirection: scene.visualDirection || '',
+      needsImage: scene.type === 'product' || scene.type === 'cta' || 
+                  scene.type === 'hook' || scene.type === 'benefit' || 
+                  scene.type === 'testimonial' || !(scene as any).videoUrl,
+    }));
+    
+    const imageProviderSelections = imageProviderSelector.selectProvidersForScenes(scenesForImageSelection);
+    const rawImageProviderCounts = imageProviderSelector.getProviderSummary(imageProviderSelections);
+    const imageProviderCounts = {
+      flux: rawImageProviderCounts.flux || 0,
+      falai: rawImageProviderCounts.falai || 0,
+    };
+    const IMAGE_COST = imageProviderSelector.calculateImageCost(imageProviderCounts);
     
     // Calculate other costs
     const VOICEOVER_COST = 0.015 * totalDuration; // ElevenLabs
@@ -2893,8 +2908,20 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         video: providerCounts,
         videoCostByProvider,
         images: {
-          'flux': productScenes.length,
-          'fal.ai': lifestyleScenes.length,
+          flux: imageProviderCounts.flux,
+          falai: imageProviderCounts.falai,
+        },
+        imageCosts: {
+          flux: { 
+            count: imageProviderCounts.flux, 
+            cost: (imageProviderCounts.flux * 0.03).toFixed(2),
+            useCase: 'products',
+          },
+          falai: { 
+            count: imageProviderCounts.falai, 
+            cost: (imageProviderCounts.falai * 0.02).toFixed(2),
+            useCase: 'lifestyle',
+          },
         },
         voiceover: 'ElevenLabs',
         music: musicEnabled ? 'Udio AI (via PiAPI)' : 'Disabled',
