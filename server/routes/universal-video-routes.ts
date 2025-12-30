@@ -15,6 +15,7 @@ import { videoProviderSelector, SceneForSelection } from '../services/video-prov
 import { imageProviderSelector } from '../services/image-provider-selector';
 import { soundDesignService } from '../services/sound-design-service';
 import { transitionService } from '../services/transition-service';
+import { textPlacementService, TextOverlay as TextOverlayType, TextPlacement } from '../services/text-placement-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
@@ -3997,6 +3998,114 @@ router.get('/auto-regeneration/config', isAuthenticated, async (req: Request, re
   try {
     const config = autoRegenerationService.getConfig();
     res.json({ success: true, config });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// PHASE 8C: SMART TEXT PLACEMENT
+// ============================================================
+
+const textOverlaySchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  type: z.enum(['lower_third', 'title', 'subtitle', 'caption', 'cta']),
+});
+
+router.post('/projects/:projectId/scenes/:sceneIndex/calculate-text-placements', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneIndex } = req.params;
+    const { overlays, sceneDuration, fps = 30 } = req.body;
+
+    if (!overlays || !Array.isArray(overlays)) {
+      return res.status(400).json({ success: false, error: 'Overlays array is required' });
+    }
+
+    const validatedOverlays = overlays.map((o: any) => textOverlaySchema.parse(o)) as TextOverlayType[];
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    const sceneIdx = parseInt(sceneIndex, 10);
+
+    if (sceneIdx < 0 || sceneIdx >= projectData.scenes.length) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    const scene = projectData.scenes[sceneIdx];
+    const duration = sceneDuration || scene.duration || 5;
+
+    let sceneAnalysis = null;
+    if (scene.analysisResult) {
+      try {
+        sceneAnalysis = {
+          faces: {
+            detected: (scene.analysisResult as any).faceDetected || false,
+            count: (scene.analysisResult as any).faceCount || 0,
+            positions: (scene.analysisResult as any).facePositions || [],
+          },
+          composition: {
+            focalPoint: { x: 0.5, y: 0.5 },
+            brightness: 'normal' as const,
+            dominantColors: (scene.analysisResult as any).dominantColors || [],
+          },
+          safeZones: (scene.analysisResult as any).safeZones || {
+            topLeft: true, topCenter: true, topRight: true,
+            middleLeft: true, middleCenter: true, middleRight: true,
+            bottomLeft: true, bottomCenter: true, bottomRight: true,
+          },
+          recommendations: {
+            textPosition: { vertical: 'lower-third' as const, horizontal: 'center' as const },
+            textColor: '#FFFFFF',
+            needsTextShadow: true,
+            needsTextBackground: false,
+            productOverlayPosition: { x: 'right' as const, y: 'bottom' as const },
+            productOverlaySafe: true,
+          },
+          contentType: 'mixed' as const,
+          mood: 'positive' as const,
+        };
+      } catch (e) {
+        console.warn('[TextPlacement] Could not parse scene analysis:', e);
+      }
+    }
+
+    const placements = textPlacementService.calculatePlacements(
+      validatedOverlays,
+      sceneAnalysis,
+      duration,
+      fps
+    );
+
+    res.json({
+      success: true,
+      sceneIndex: sceneIdx,
+      placements,
+      stats: {
+        inputCount: overlays.length,
+        outputCount: placements.length,
+        duplicatesRemoved: overlays.length - validatedOverlays.length,
+      },
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8C] Calculate text placements failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/text-placement/styles', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const styles = textPlacementService.getDefaultStyles();
+    const positions = textPlacementService.getPositionCoords();
+    res.json({ success: true, styles, positions });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
