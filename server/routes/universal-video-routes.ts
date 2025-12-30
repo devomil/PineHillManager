@@ -8,7 +8,8 @@ import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked
 import { qualityEvaluationService, VideoQualityReport } from '../services/quality-evaluation-service';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { brandContextService } from '../services/brand-context-service';
-import { selectProvidersForScene, AI_VIDEO_PROVIDERS } from '../config/ai-video-providers';
+import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
+import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
 import { universalVideoProjects } from '../../shared/schema';
@@ -2763,49 +2764,50 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     const brandSettings = (project as any).brandSettings || {};
     const musicEnabled = (project as any).musicEnabled !== false;
     
-    // Helper to explain provider selection
-    const getProviderReason = (provider: string, sceneType: string, contentType: string): string => {
-      const reasons: Record<string, string> = {
-        runway: 'cinematic quality',
-        kling: contentType === 'person' ? 'human rendering' : 'versatile motion',
-        luma: 'smooth camera motion',
-        hailuo: 'cost-effective B-roll',
-        hunyuan: 'natural scenes',
-        veo: 'high-quality output',
-      };
-      return reasons[provider] || 'default selection';
-    };
+    // Build scenes for intelligent provider selection
+    const scenesForSelection: SceneForSelection[] = scenes.map((scene: Scene, index: number) => ({
+      sceneIndex: index,
+      sceneType: scene.type,
+      contentType: (scene as any).contentType || 'lifestyle',
+      narration: scene.narration || '',
+      visualDirection: scene.visualDirection || '',
+      duration: scene.duration || 5,
+    }));
     
-    // Use intelligent provider selection based on scene content
-    const sceneProviders = scenes.map((scene: Scene, index: number) => {
-      const contentType = (scene as any).contentType || 'lifestyle';
-      const visualPrompt = scene.visualDirection || scene.narration || '';
-      
-      // Use intelligent provider selection from ai-video-providers
-      const rankedProviders = selectProvidersForScene(scene.type, visualPrompt);
-      const primaryProvider = rankedProviders[0] || 'kling';
-      const fallbackProvider = rankedProviders[1] || 'runway';
-      
-      // Get cost from provider config
-      const providerConfig = AI_VIDEO_PROVIDERS[primaryProvider];
-      const costPerSecond = providerConfig?.costPerSecond || 0.03;
-      
+    // Use intelligent provider selector for all scenes
+    const providerSelections = videoProviderSelector.selectProvidersForProject(
+      scenesForSelection,
+      visualStyle
+    );
+    
+    // Get provider summary counts and cost breakdown
+    const providerCounts = videoProviderSelector.getProviderSummary(providerSelections);
+    const { total: videoCost, breakdown: videoCostBreakdown } = videoProviderSelector.calculateTotalCost(
+      providerSelections,
+      scenesForSelection
+    );
+    
+    // Build scene providers array for response with explicit fallbacks
+    const sceneProviders = Array.from(providerSelections.entries()).map(([index, selection]) => {
+      const scene = scenes[index];
+      const provider = selection?.provider;
       return {
         sceneIndex: index,
-        sceneType: scene.type,
-        contentType,
-        duration: scene.duration || 5,
-        provider: primaryProvider,
-        fallbackProvider,
-        costPerSecond,
-        providerReason: getProviderReason(primaryProvider, scene.type, contentType),
+        sceneType: scene?.type || 'unknown',
+        contentType: (scene as any)?.contentType || 'lifestyle',
+        duration: scene?.duration || 5,
+        provider: provider?.id || 'kling',
+        providerName: provider?.displayName || 'Kling 1.6',
+        fallbackProvider: selection?.alternatives?.[0] || 'runway',
+        costPerSecond: provider?.costPerSecond || 0.03,
+        providerReason: selection?.reason || 'Default selection',
+        confidence: selection?.confidence ?? 50,
+        alternatives: selection?.alternatives || ['runway', 'hailuo'],
       };
     });
     
-    // Calculate video generation cost using per-scene provider costs
-    const VIDEO_COST = sceneProviders.reduce((sum: number, s: any) => {
-      return sum + (s.duration * s.costPerSecond);
-    }, 0);
+    // Use pre-calculated video cost from provider selector
+    const VIDEO_COST = videoCost;
     
     const totalDuration = scenes.reduce((sum: number, s: Scene) => sum + (s.duration || 5), 0);
     
@@ -2829,10 +2831,14 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     const estimatedTimeMin = Math.ceil((scenes.length * avgSceneGenTime * parallelFactor) / 60);
     const estimatedTimeMax = Math.ceil((scenes.length * avgSceneGenTime) / 60);
     
-    // Count provider usage
-    const providerCounts: Record<string, number> = {};
-    sceneProviders.forEach((s: any) => {
-      providerCounts[s.provider] = (providerCounts[s.provider] || 0) + 1;
+    // Build provider cost breakdown with display names
+    const videoCostByProvider: Record<string, { displayName: string; scenes: number; cost: string }> = {};
+    Object.entries(videoCostBreakdown).forEach(([id, cost]) => {
+      videoCostByProvider[id] = {
+        displayName: VIDEO_PROVIDERS[id]?.displayName || id,
+        scenes: providerCounts[id] || 0,
+        cost: cost.toFixed(2),
+      };
     });
     
     // Brand elements summary - only add if actually enabled in project settings
@@ -2885,6 +2891,7 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       },
       providers: {
         video: providerCounts,
+        videoCostByProvider,
         images: {
           'flux': productScenes.length,
           'fal.ai': lifestyleScenes.length,
@@ -2907,6 +2914,7 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       sceneBreakdown: sceneProviders,
       costs: {
         video: VIDEO_COST.toFixed(2),
+        videoCostBreakdown: videoCostByProvider,
         images: IMAGE_COST.toFixed(2),
         voiceover: VOICEOVER_COST.toFixed(2),
         music: MUSIC_COST.toFixed(2),

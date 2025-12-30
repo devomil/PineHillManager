@@ -26,6 +26,12 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 
+interface ProviderCostBreakdown {
+  displayName: string;
+  scenes: number;
+  cost: string;
+}
+
 interface GenerationEstimate {
   project: {
     title: string;
@@ -35,6 +41,7 @@ interface GenerationEstimate {
   };
   providers: {
     video: Record<string, number>;
+    videoCostByProvider?: Record<string, ProviderCostBreakdown>;
     images?: Record<string, number>;
     voiceover: string;
     music: string;
@@ -56,11 +63,16 @@ interface GenerationEstimate {
     contentType: string;
     duration: number;
     provider: string;
+    providerName?: string;
     fallbackProvider: string;
+    costPerSecond?: number;
     providerReason?: string;
+    confidence?: number;
+    alternatives?: string[];
   }>;
   costs: {
     video: string;
+    videoCostBreakdown?: Record<string, ProviderCostBreakdown>;
     images?: string;
     voiceover: string;
     music: string;
@@ -170,21 +182,34 @@ export function GenerationPreviewPanel({
       <CardContent className="space-y-4">
         {/* Provider Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="provider-summary">
-          {/* Video */}
+          {/* Video - Enhanced with per-provider costs */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
               <Video className="h-4 w-4" />
               <span className="text-xs font-medium">Video</span>
             </div>
             <div className="space-y-1">
-              {Object.entries(estimate.providers.video).map(([provider, count]) => (
-                <div key={provider} className="flex items-center justify-between">
-                  <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[provider] || ''}`} data-testid={`provider-badge-${provider}`}>
-                    {PROVIDER_NAMES[provider] || provider}
-                  </Badge>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{count} scenes</span>
-                </div>
-              ))}
+              {estimate.providers.videoCostByProvider ? (
+                Object.entries(estimate.providers.videoCostByProvider).map(([provider, info]) => (
+                  <div key={provider} className="flex items-center justify-between">
+                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[provider] || ''}`} data-testid={`provider-badge-${provider}`}>
+                      {info.displayName}
+                    </Badge>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {info.scenes} × ${info.cost}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                Object.entries(estimate.providers.video).map(([provider, count]) => (
+                  <div key={provider} className="flex items-center justify-between">
+                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[provider] || ''}`} data-testid={`provider-badge-${provider}`}>
+                      {PROVIDER_NAMES[provider] || provider}
+                    </Badge>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{count} scenes</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -326,23 +351,39 @@ export function GenerationPreviewPanel({
           <CollapsibleContent>
             <div className="mt-2 bg-white dark:bg-gray-800 rounded-lg border divide-y dark:divide-gray-700" data-testid="scene-breakdown-list">
               {estimate.sceneBreakdown.map((scene) => (
-                <div key={scene.sceneIndex} className="flex items-center justify-between p-2 text-sm" data-testid={`scene-breakdown-${scene.sceneIndex}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 w-6">#{scene.sceneIndex + 1}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {scene.sceneType}
-                    </Badge>
-                    <span className="text-gray-500 dark:text-gray-400 text-xs">{scene.contentType}</span>
+                <div key={scene.sceneIndex} className="p-2 text-sm" data-testid={`scene-breakdown-${scene.sceneIndex}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 w-6">#{scene.sceneIndex + 1}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {scene.sceneType}
+                      </Badge>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">{scene.contentType}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{scene.duration}s</span>
+                      <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[scene.provider] || ''}`} title={scene.providerReason || ''}>
+                        {scene.providerName || PROVIDER_NAMES[scene.provider] || scene.provider}
+                      </Badge>
+                      {scene.confidence !== undefined && (
+                        <span className={`text-xs ${scene.confidence >= 80 ? 'text-green-600' : scene.confidence >= 60 ? 'text-yellow-600' : 'text-gray-400'}`}>
+                          {scene.confidence}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{scene.duration}s</span>
-                    <Badge variant="secondary" className={`text-xs ${PROVIDER_COLORS[scene.provider] || ''}`} title={scene.providerReason || ''}>
-                      {PROVIDER_NAMES[scene.provider] || scene.provider}
-                    </Badge>
-                    {scene.providerReason && (
-                      <span className="text-xs text-gray-400 italic hidden md:inline">({scene.providerReason})</span>
-                    )}
-                  </div>
+                  {(scene.providerReason || (scene.alternatives && scene.alternatives.length > 0)) && (
+                    <div className="ml-6 mt-1 flex items-center gap-2 text-xs text-gray-400">
+                      {scene.providerReason && (
+                        <span className="italic">{scene.providerReason}</span>
+                      )}
+                      {scene.alternatives && scene.alternatives.length > 0 && (
+                        <span className="hidden md:inline">
+                          Alt: {scene.alternatives.map(a => PROVIDER_NAMES[a] || a).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
