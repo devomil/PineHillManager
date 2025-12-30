@@ -24757,7 +24757,7 @@ Important:
 
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
+        max_tokens: 16000, // Increased for large invoices with many line items
         messages: [{ role: 'user', content: prompt }],
       });
 
@@ -24767,12 +24767,63 @@ Important:
       }
 
       // Extract JSON from response
-      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      let jsonMatch = content.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('Could not parse invoice data from AI response');
       }
 
-      const parsedInvoice = JSON.parse(jsonMatch[0]);
+      let jsonText = jsonMatch[0];
+      let parsedInvoice;
+      
+      try {
+        parsedInvoice = JSON.parse(jsonText);
+      } catch (parseError: any) {
+        // Try to fix common JSON issues from truncated responses
+        console.log('Initial JSON parse failed, attempting cleanup...');
+        
+        // If the response was truncated, try to close unclosed arrays/objects
+        let cleanedJson = jsonText;
+        
+        // Count open brackets
+        const openBraces = (cleanedJson.match(/\{/g) || []).length;
+        const closeBraces = (cleanedJson.match(/\}/g) || []).length;
+        const openBrackets = (cleanedJson.match(/\[/g) || []).length;
+        const closeBrackets = (cleanedJson.match(/\]/g) || []).length;
+        
+        // Remove trailing incomplete objects (after last complete item)
+        if (openBraces > closeBraces || openBrackets > closeBrackets) {
+          // Find and remove incomplete line items
+          const lineItemsMatch = cleanedJson.match(/"lineItems"\s*:\s*\[[\s\S]*$/);
+          if (lineItemsMatch) {
+            // Find the last complete object in the array
+            const lastCompleteItemMatch = cleanedJson.match(/([\s\S]*"lineItems"\s*:\s*\[[\s\S]*\})\s*,?\s*\{[^}]*$/);
+            if (lastCompleteItemMatch) {
+              cleanedJson = lastCompleteItemMatch[1] + ']';
+            }
+          }
+          
+          // Close remaining brackets
+          const newOpenBraces = (cleanedJson.match(/\{/g) || []).length;
+          const newCloseBraces = (cleanedJson.match(/\}/g) || []).length;
+          const newOpenBrackets = (cleanedJson.match(/\[/g) || []).length;
+          const newCloseBrackets = (cleanedJson.match(/\]/g) || []).length;
+          
+          for (let i = 0; i < newOpenBrackets - newCloseBrackets; i++) {
+            cleanedJson += ']';
+          }
+          for (let i = 0; i < newOpenBraces - newCloseBraces; i++) {
+            cleanedJson += '}';
+          }
+        }
+        
+        try {
+          parsedInvoice = JSON.parse(cleanedJson);
+          console.log('JSON cleanup successful, parsed invoice data');
+        } catch (secondError) {
+          console.error('JSON cleanup failed:', secondError);
+          throw new Error(`Failed to parse invoice data: ${parseError.message}`);
+        }
+      }
 
       // Return parsed data with vendor match info
       res.json({
