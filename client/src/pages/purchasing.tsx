@@ -2522,9 +2522,17 @@ function ReportsTab() {
   // Helper function to check if a term is prepaid
   const isPrepaidTerm = (term: string) => prepaidTerms.some(t => term?.toLowerCase().includes(t.toLowerCase()));
   
+  // Helper function to check if an item is still unpaid (outstanding)
+  const isUnpaid = (item: any) => {
+    // Consider unpaid if: not prepaid term AND paymentStatus is not 'paid'
+    return !isPrepaidTerm(item.paymentTerms) && item.paymentStatus !== 'paid';
+  };
+  
   // Calculate totals based on filtered data
-  const totalOutstanding = filteredPayables.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
-  const overdueAmount = filteredPayables.filter(item => item.isOverdue && !isPrepaidTerm(item.paymentTerms)).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  // Total Outstanding = only items that are unpaid and on net terms (not prepaid/credit card)
+  const outstandingItems = filteredPayables.filter(item => isUnpaid(item));
+  const totalOutstanding = outstandingItems.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  const overdueAmount = filteredPayables.filter(item => item.isOverdue && isUnpaid(item)).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   
   // Calculate prepaid/credit card amounts (these don't have due dates)
   const prepaidItems = filteredPayables.filter(item => isPrepaidTerm(item.paymentTerms));
@@ -2565,13 +2573,14 @@ function ReportsTab() {
                   <CardHeader className="pb-2">
                     <CardDescription>Total Outstanding</CardDescription>
                     <CardTitle className="text-2xl">${totalOutstanding.toFixed(2)}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{outstandingItems.length} unpaid bills</p>
                   </CardHeader>
                 </Card>
                 <Card className={overdueAmount > 0 ? "border-destructive" : ""}>
                   <CardHeader className="pb-2">
                     <CardDescription>Overdue</CardDescription>
                     <CardTitle className="text-2xl text-destructive">${overdueAmount.toFixed(2)}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{filteredPayables.filter(p => p.isOverdue && !isPrepaidTerm(p.paymentTerms)).length} bills</p>
+                    <p className="text-xs text-muted-foreground">{filteredPayables.filter(p => p.isOverdue && isUnpaid(p)).length} bills</p>
                   </CardHeader>
                 </Card>
                 <Card className={dueThisWeekAmount > 0 ? "border-orange-500" : ""}>
