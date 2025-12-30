@@ -1,6 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { brandContextService } from './brand-context-service';
 import { projectInstructionsService } from './project-instructions-service';
+import type { Phase8AnalysisResult, Phase8AnalysisIssue } from '../../shared/video-types';
+
+// Re-export the shared type for backwards compatibility
+export type { Phase8AnalysisResult, Phase8AnalysisIssue };
+
+export interface SceneContext {
+  sceneIndex: number;
+  sceneType: string;
+  narration: string;
+  visualDirection: string;
+  expectedContentType: string;
+  totalScenes: number;
+}
+
+// Internal alias for the shared type
+type AnalysisIssue = Phase8AnalysisIssue;
 
 export interface FaceDetection {
   x: number;
@@ -789,6 +805,371 @@ Return ONLY the JSON object.`;
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Phase 8A: Comprehensive scene analysis with AI artifact detection
+   */
+  async analyzeScenePhase8(
+    imageBase64: string,
+    context: SceneContext
+  ): Promise<Phase8AnalysisResult> {
+    console.log(`[SceneAnalysis Phase8] Analyzing scene ${context.sceneIndex + 1}/${context.totalScenes}`);
+    
+    if (!this.anthropic) {
+      console.warn('[SceneAnalysis Phase8] Anthropic not configured, returning simulated result');
+      return this.createSimulatedPhase8Result(context);
+    }
+    
+    const brandContext = await brandContextService.getVisualAnalysisContext();
+    const analysisPrompt = this.buildPhase8AnalysisPrompt(context, brandContext);
+    
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2500,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: imageBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: analysisPrompt,
+              },
+            ],
+          },
+        ],
+      });
+      
+      const analysisText = response.content[0].type === 'text' 
+        ? response.content[0].text 
+        : '';
+      
+      const result = this.parsePhase8AnalysisResponse(analysisText, context);
+      
+      console.log(`[SceneAnalysis Phase8] Scene ${context.sceneIndex + 1} score: ${result.overallScore}/100`);
+      console.log(`[SceneAnalysis Phase8] Recommendation: ${result.recommendation}`);
+      if (result.aiArtifactsDetected) {
+        console.log(`[SceneAnalysis Phase8] AI artifacts detected: ${result.aiArtifactDetails.join(', ')}`);
+      }
+      
+      return result;
+      
+    } catch (error: any) {
+      console.error(`[SceneAnalysis Phase8] Failed:`, error.message);
+      return this.createFailedPhase8Result(context, error.message);
+    }
+  }
+
+  /**
+   * Phase 8A: Quick check for blank/gradient images
+   */
+  async isBlankOrGradient(imageBase64: string): Promise<boolean> {
+    if (!this.anthropic) {
+      return false;
+    }
+    
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 100,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: imageBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: 'Is this image blank, a solid color, or just a gradient with no meaningful content? Answer only "yes" or "no".',
+              },
+            ],
+          },
+        ],
+      });
+      
+      const answer = response.content[0].type === 'text' 
+        ? response.content[0].text.toLowerCase().trim()
+        : '';
+      
+      return answer.includes('yes');
+      
+    } catch {
+      return false;
+    }
+  }
+
+  private buildPhase8AnalysisPrompt(context: SceneContext, brandContext: string): string {
+    return `You are a video production quality analyst. Analyze this image for a marketing video scene.
+
+## SCENE CONTEXT
+- Scene ${context.sceneIndex + 1} of ${context.totalScenes}
+- Scene Type: ${context.sceneType}
+- Expected Content: ${context.expectedContentType}
+- Narration: "${context.narration}"
+- Visual Direction: "${context.visualDirection}"
+
+## BRAND GUIDELINES
+${brandContext}
+
+## ANALYSIS REQUIRED
+
+Analyze this image and provide a JSON response with the following structure:
+
+\`\`\`json
+{
+  "technicalQuality": {
+    "score": <0-100>,
+    "resolution": "<good|acceptable|poor>",
+    "focus": "<sharp|soft|blurry>",
+    "exposure": "<good|overexposed|underexposed>",
+    "issues": ["<issue1>", "<issue2>"]
+  },
+  "contentMatch": {
+    "score": <0-100>,
+    "matchesNarration": <true|false>,
+    "matchesVisualDirection": <true|false>,
+    "appropriateForSceneType": <true|false>,
+    "explanation": "<why it matches or doesn't>"
+  },
+  "aiArtifacts": {
+    "detected": <true|false>,
+    "artifacts": [
+      {
+        "type": "<garbled_text|fake_ui|distorted_hands|unnatural_face|duplicate_elements|other>",
+        "description": "<description>",
+        "severity": "<critical|major|minor>"
+      }
+    ]
+  },
+  "brandCompliance": {
+    "score": <0-100>,
+    "lightingMatch": <true|false>,
+    "lightingType": "<warm|cool|neutral|mixed>",
+    "colorPaletteMatch": <true|false>,
+    "dominantColors": ["<color1>", "<color2>"],
+    "settingAppropriate": <true|false>,
+    "authenticFeel": <true|false>,
+    "issues": ["<issue1>", "<issue2>"]
+  },
+  "composition": {
+    "score": <0-100>,
+    "subjectPosition": "<left|center|right|none>",
+    "faceDetected": <true|false>,
+    "faceRegion": {"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>} | null,
+    "busyRegions": ["<top|bottom|left|right|center>"],
+    "safeTextZones": [
+      {"position": "<lower-third|top|bottom-left|bottom-right>", "confidence": <0-100>}
+    ]
+  },
+  "overallAssessment": {
+    "recommendation": "<approved|needs_review|regenerate|critical_fail>",
+    "primaryIssues": ["<issue1>", "<issue2>"],
+    "improvedPrompt": "<if regenerate needed, provide improved visual direction>"
+  }
+}
+\`\`\`
+
+## SCORING WEIGHTS
+- Technical Quality: 20% of total
+- Content Match: 30% of total  
+- Brand Compliance: 30% of total
+- Composition: 20% of total
+
+## CRITICAL CHECKS (must flag these)
+1. AI ARTIFACTS: Garbled/overlapping text, fake UI elements, distorted hands/faces, duplicate elements
+2. BLANK/EMPTY: Solid colors, gradients with no content, missing subjects
+3. CONTENT MISMATCH: Image completely unrelated to narration
+4. BRAND VIOLATION: Clinical/cold lighting, wrong color palette, corporate feel
+
+If ANY critical issue is found, recommendation should be "regenerate" or "critical_fail".
+
+Respond ONLY with the JSON, no other text.`;
+  }
+
+  private parsePhase8AnalysisResponse(
+    responseText: string,
+    context: SceneContext
+  ): Phase8AnalysisResult {
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+      
+      const analysis = JSON.parse(jsonMatch[0]);
+      
+      const technicalScore = Math.round((analysis.technicalQuality?.score || 0) * 0.2);
+      const contentMatchScore = Math.round((analysis.contentMatch?.score || 0) * 0.3);
+      const brandComplianceScore = Math.round((analysis.brandCompliance?.score || 0) * 0.3);
+      const compositionScore = Math.round((analysis.composition?.score || 0) * 0.2);
+      
+      const overallScore = technicalScore + contentMatchScore + brandComplianceScore + compositionScore;
+      
+      const issues: AnalysisIssue[] = [];
+      
+      if (analysis.aiArtifacts?.detected) {
+        for (const artifact of analysis.aiArtifacts.artifacts || []) {
+          issues.push({
+            category: 'ai_artifacts',
+            severity: artifact.severity || 'major',
+            description: artifact.description,
+            suggestion: `Remove ${artifact.type} by regenerating with cleaner prompt`,
+          });
+        }
+      }
+      
+      if (!analysis.contentMatch?.matchesNarration) {
+        issues.push({
+          category: 'content_match',
+          severity: 'major',
+          description: analysis.contentMatch?.explanation || 'Visual does not match narration',
+          suggestion: 'Regenerate with more specific visual direction',
+        });
+      }
+      
+      for (const issue of analysis.brandCompliance?.issues || []) {
+        issues.push({
+          category: 'brand_compliance',
+          severity: 'major',
+          description: issue,
+          suggestion: 'Adjust to match Pine Hill Farm aesthetic (warm lighting, earth tones)',
+        });
+      }
+      
+      for (const issue of analysis.technicalQuality?.issues || []) {
+        issues.push({
+          category: 'technical',
+          severity: 'minor',
+          description: issue,
+          suggestion: 'Regenerate for better quality',
+        });
+      }
+      
+      let recommendation: Phase8AnalysisResult['recommendation'] = 'approved';
+      const hasCriticalArtifact = analysis.aiArtifacts?.artifacts?.some(
+        (a: any) => a.severity === 'critical'
+      );
+      
+      if (hasCriticalArtifact || overallScore < 50) {
+        recommendation = 'critical_fail';
+      } else if (overallScore < 70) {
+        recommendation = 'regenerate';
+      } else if (overallScore < 85) {
+        recommendation = 'needs_review';
+      }
+      
+      return {
+        sceneIndex: context.sceneIndex,
+        overallScore,
+        technicalScore,
+        contentMatchScore,
+        brandComplianceScore,
+        compositionScore,
+        aiArtifactsDetected: analysis.aiArtifacts?.detected || false,
+        aiArtifactDetails: (analysis.aiArtifacts?.artifacts || []).map((a: any) => a.description),
+        contentMatchDetails: analysis.contentMatch?.explanation || '',
+        brandComplianceDetails: (analysis.brandCompliance?.issues || []).join('; '),
+        frameAnalysis: {
+          subjectPosition: analysis.composition?.subjectPosition || 'center',
+          faceDetected: analysis.composition?.faceDetected || false,
+          faceRegion: analysis.composition?.faceRegion || undefined,
+          busyRegions: analysis.composition?.busyRegions || [],
+          dominantColors: analysis.brandCompliance?.dominantColors || [],
+          lightingType: analysis.brandCompliance?.lightingType || 'neutral',
+          safeTextZones: analysis.composition?.safeTextZones || [],
+        },
+        issues,
+        recommendation,
+        improvedPrompt: analysis.overallAssessment?.improvedPrompt,
+        analysisTimestamp: new Date().toISOString(),
+        analysisModel: 'claude-sonnet-4-20250514',
+      };
+      
+    } catch (error: any) {
+      console.error('[SceneAnalysis Phase8] Parse error:', error.message);
+      return this.createFailedPhase8Result(context, `Parse error: ${error.message}`);
+    }
+  }
+
+  private createFailedPhase8Result(context: SceneContext, reason: string): Phase8AnalysisResult {
+    return {
+      sceneIndex: context.sceneIndex,
+      overallScore: 0,
+      technicalScore: 0,
+      contentMatchScore: 0,
+      brandComplianceScore: 0,
+      compositionScore: 0,
+      aiArtifactsDetected: false,
+      aiArtifactDetails: [],
+      contentMatchDetails: '',
+      brandComplianceDetails: '',
+      frameAnalysis: {
+        subjectPosition: 'none',
+        faceDetected: false,
+        busyRegions: [],
+        dominantColors: [],
+        lightingType: 'neutral',
+        safeTextZones: [],
+      },
+      issues: [{
+        category: 'technical',
+        severity: 'critical',
+        description: `Analysis failed: ${reason}`,
+        suggestion: 'Retry analysis or manually review',
+      }],
+      recommendation: 'critical_fail',
+      analysisTimestamp: new Date().toISOString(),
+      analysisModel: 'claude-sonnet-4-20250514',
+    };
+  }
+
+  private createSimulatedPhase8Result(context: SceneContext): Phase8AnalysisResult {
+    const baseScore = 75 + Math.floor(Math.random() * 15);
+    const technicalScore = Math.round(baseScore * 0.2);
+    const contentMatchScore = Math.round(baseScore * 0.3);
+    const brandComplianceScore = Math.round(baseScore * 0.3);
+    const compositionScore = Math.round(baseScore * 0.2);
+    const overallScore = technicalScore + contentMatchScore + brandComplianceScore + compositionScore;
+    
+    return {
+      sceneIndex: context.sceneIndex,
+      overallScore,
+      technicalScore,
+      contentMatchScore,
+      brandComplianceScore,
+      compositionScore,
+      aiArtifactsDetected: false,
+      aiArtifactDetails: [],
+      contentMatchDetails: 'Simulated analysis - Claude Vision not available',
+      brandComplianceDetails: '',
+      frameAnalysis: {
+        subjectPosition: 'center',
+        faceDetected: false,
+        busyRegions: [],
+        dominantColors: ['earth tones'],
+        lightingType: 'warm',
+        safeTextZones: [{ position: 'lower-third', confidence: 80 }],
+      },
+      issues: [],
+      recommendation: overallScore >= 85 ? 'approved' : 'needs_review',
+      analysisTimestamp: new Date().toISOString(),
+      analysisModel: 'simulated',
+    };
   }
 }
 

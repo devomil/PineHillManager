@@ -6,6 +6,8 @@ import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
 import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked-render-service';
 import { qualityEvaluationService, VideoQualityReport, QualityIssue } from '../services/quality-evaluation-service';
+import { sceneAnalysisService, SceneContext } from '../services/scene-analysis-service';
+import type { Phase8AnalysisResult } from '../../shared/video-types';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
@@ -591,11 +593,69 @@ router.patch('/projects/:projectId/scenes/:sceneId/visual-direction', isAuthenti
   }
 });
 
+// Phase 8A: Background scene analysis helper (runs async without blocking response)
+async function runBackgroundSceneAnalysis(projectId: string, userId: number | string) {
+  try {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData || !projectData.scenes) return;
+    
+    console.log(`[Phase8A Background] Starting analysis for ${projectData.scenes.length} scenes`);
+    
+    for (let i = 0; i < projectData.scenes.length; i++) {
+      const scene = projectData.scenes[i];
+      const imageUrl = scene.assets?.imageUrl || (scene.background as any)?.url;
+      
+      if (!imageUrl) continue;
+      
+      try {
+        let fullUrl = imageUrl;
+        if (imageUrl.startsWith('/objects') || imageUrl.startsWith('/')) {
+          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+            : 'http://localhost:5000';
+          fullUrl = imageUrl.startsWith('/objects') ? `${baseUrl}${imageUrl}` : `${baseUrl}${imageUrl}`;
+        }
+        
+        const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
+        if (!response.ok) continue;
+        
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const base64 = buffer.toString('base64');
+        
+        const context: SceneContext = {
+          sceneIndex: i,
+          sceneType: scene.type || 'content',
+          narration: scene.narration || '',
+          visualDirection: scene.visualDirection || '',
+          expectedContentType: (scene as any).contentType || 'lifestyle',
+          totalScenes: projectData.scenes.length,
+        };
+        
+        const analysisResult = await sceneAnalysisService.analyzeScenePhase8(base64, context);
+        projectData.scenes[i].analysisResult = analysisResult;
+        projectData.scenes[i].qualityScore = analysisResult.overallScore;
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+      } catch (err: any) {
+        console.warn(`[Phase8A Background] Scene ${i + 1} analysis failed:`, err.message);
+      }
+    }
+    
+    await saveProjectToDb(projectData, String(userId));
+    console.log(`[Phase8A Background] Analysis complete for project ${projectId}`);
+    
+  } catch (err: any) {
+    console.error('[Phase8A Background] Analysis error:', err.message);
+  }
+}
+
 router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
     const { projectId } = req.params;
-    const { skipMusic } = req.body || {};
+    const { skipMusic, skipAnalysis } = req.body || {};
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -615,11 +675,20 @@ router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req:
     const notifications = universalVideoService.getNotifications();
     const paidServiceFailures = universalVideoService.hasPaidServiceFailures(updatedProject);
     
+    // Phase 8A: Trigger background scene analysis after asset generation (non-blocking)
+    if (!skipAnalysis && sceneAnalysisService.isAvailable()) {
+      console.log('[Phase8A] Triggering background scene analysis after asset generation');
+      runBackgroundSceneAnalysis(projectId, userId).catch(err => {
+        console.warn('[Phase8A] Background analysis failed:', err.message);
+      });
+    }
+    
     res.json({
       success: true,
       project: updatedProject,
       notifications,
       paidServiceFailures,
+      analysisTriggered: !skipAnalysis && sceneAnalysisService.isAvailable(),
       message: paidServiceFailures 
         ? 'Assets generated with paid service failures - please review' 
         : 'Assets generated successfully',
@@ -1702,6 +1771,44 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
         });
         
         await saveProjectToDb(projectData, projectData.ownerId);
+        
+        // Phase 8A: Trigger background analysis for regenerated scene
+        if (sceneAnalysisService.isAvailable()) {
+          (async () => {
+            try {
+              let fullUrl = result.newImageUrl!;
+              if (fullUrl.startsWith('/')) {
+                const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+                  ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+                  : 'http://localhost:5000';
+                fullUrl = `${baseUrl}${fullUrl}`;
+              }
+              
+              const imgResponse = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
+              if (imgResponse.ok) {
+                const buffer = Buffer.from(await imgResponse.arrayBuffer());
+                const base64 = buffer.toString('base64');
+                
+                const context: SceneContext = {
+                  sceneIndex,
+                  sceneType: projectData.scenes[sceneIndex].type || 'content',
+                  narration: projectData.scenes[sceneIndex].narration || '',
+                  visualDirection: projectData.scenes[sceneIndex].visualDirection || '',
+                  expectedContentType: 'lifestyle',
+                  totalScenes: projectData.scenes.length,
+                };
+                
+                const analysis = await sceneAnalysisService.analyzeScenePhase8(base64, context);
+                projectData.scenes[sceneIndex].analysisResult = analysis;
+                projectData.scenes[sceneIndex].qualityScore = analysis.overallScore;
+                await saveProjectToDb(projectData, projectData.ownerId);
+                console.log(`[Phase8A] Scene ${sceneIndex + 1} analyzed after regeneration: score=${analysis.overallScore}`);
+              }
+            } catch (err: any) {
+              console.warn('[Phase8A] Post-regeneration analysis failed:', err.message);
+            }
+          })();
+        }
       }
       
       return res.json({ 
@@ -3019,6 +3126,232 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
   } catch (error: any) {
     console.error('[UniversalVideo] Generation estimate failed:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Phase 8A: Analyze individual scene with Claude Vision
+router.post('/projects/:projectId/scenes/:sceneIndex/analyze', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneIndex } = req.params;
+    const sceneIdx = parseInt(sceneIndex, 10);
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const scenes = projectData.scenes || [];
+    if (sceneIdx < 0 || sceneIdx >= scenes.length) {
+      return res.status(400).json({ success: false, error: 'Invalid scene index' });
+    }
+    
+    const scene = scenes[sceneIdx];
+    const imageUrl = scene.assets?.imageUrl || (scene.background as any)?.url;
+    
+    if (!imageUrl) {
+      return res.status(400).json({ success: false, error: 'Scene has no generated content to analyze' });
+    }
+    
+    console.log(`[Phase8A] Analyzing scene ${sceneIdx + 1}/${scenes.length} for project ${projectId}`);
+    
+    // Fetch image and convert to base64
+    let fullUrl = imageUrl;
+    if (imageUrl.startsWith('/objects')) {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : 'http://localhost:5000';
+      fullUrl = `${baseUrl}${imageUrl}`;
+    } else if (imageUrl.startsWith('/')) {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : 'http://localhost:5000';
+      fullUrl = `${baseUrl}${imageUrl}`;
+    }
+    
+    const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
+    if (!response.ok) {
+      return res.status(400).json({ success: false, error: 'Failed to fetch scene image' });
+    }
+    
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const base64 = buffer.toString('base64');
+    
+    const context: SceneContext = {
+      sceneIndex: sceneIdx,
+      sceneType: scene.type || 'content',
+      narration: scene.narration || '',
+      visualDirection: scene.visualDirection || '',
+      expectedContentType: (scene as any).contentType || 'lifestyle',
+      totalScenes: scenes.length,
+    };
+    
+    const analysisResult = await sceneAnalysisService.analyzeScenePhase8(base64, context);
+    
+    // Store analysis result on the scene
+    scenes[sceneIdx].analysisResult = analysisResult;
+    scenes[sceneIdx].qualityScore = analysisResult.overallScore;
+    
+    // Save updated project
+    projectData.scenes = scenes;
+    await saveProjectToDb(projectData, userId);
+    
+    console.log(`[Phase8A] Scene ${sceneIdx + 1} analysis complete: score=${analysisResult.overallScore}, recommendation=${analysisResult.recommendation}`);
+    
+    return res.json({
+      success: true,
+      analysis: analysisResult,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase8A] Scene analysis error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 8A: Check if an image is blank or gradient
+router.post('/check-blank-gradient', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { imageBase64 } = req.body;
+    
+    if (!imageBase64) {
+      return res.status(400).json({ success: false, error: 'imageBase64 is required' });
+    }
+    
+    const isBlank = await sceneAnalysisService.isBlankOrGradient(imageBase64);
+    
+    return res.json({
+      success: true,
+      isBlankOrGradient: isBlank,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase8A] Blank/gradient check error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 8A: Analyze all scenes in a project (batch analysis)
+router.post('/projects/:projectId/analyze-all-scenes', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const scenes = projectData.scenes || [];
+    console.log(`[Phase8A] Batch analyzing ${scenes.length} scenes for project ${projectId}`);
+    
+    const results: Phase8AnalysisResult[] = [];
+    let scenesAnalyzed = 0;
+    let scenesFailed = 0;
+    
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      const imageUrl = scene.assets?.imageUrl || (scene.background as any)?.url;
+      
+      if (!imageUrl) {
+        console.log(`[Phase8A] Scene ${i + 1} has no image, skipping`);
+        continue;
+      }
+      
+      try {
+        // Resolve URL
+        let fullUrl = imageUrl;
+        if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+          fullUrl = imageUrl;
+        } else if (imageUrl.startsWith('/objects')) {
+          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+            : 'http://localhost:5000';
+          fullUrl = `${baseUrl}${imageUrl}`;
+        } else if (imageUrl.startsWith('/')) {
+          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+            : 'http://localhost:5000';
+          fullUrl = `${baseUrl}${imageUrl}`;
+        }
+        
+        const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
+        if (!response.ok) {
+          console.warn(`[Phase8A] Failed to fetch scene ${i + 1} image: ${response.status}`);
+          scenesFailed++;
+          continue;
+        }
+        
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const base64 = buffer.toString('base64');
+        
+        const context: SceneContext = {
+          sceneIndex: i,
+          sceneType: scene.type || 'content',
+          narration: scene.narration || '',
+          visualDirection: scene.visualDirection || '',
+          expectedContentType: (scene as any).contentType || 'lifestyle',
+          totalScenes: scenes.length,
+        };
+        
+        const analysisResult = await sceneAnalysisService.analyzeScenePhase8(base64, context);
+        results.push(analysisResult);
+        
+        // Store on scene
+        scenes[i].analysisResult = analysisResult;
+        scenes[i].qualityScore = analysisResult.overallScore;
+        scenesAnalyzed++;
+        
+        // Rate limiting: wait 500ms between Claude Vision calls to avoid overwhelming the API
+        if (i < scenes.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+      } catch (sceneError: any) {
+        console.warn(`[Phase8A] Scene ${i + 1} analysis failed:`, sceneError.message);
+        scenesFailed++;
+      }
+    }
+    
+    // Save updated project
+    projectData.scenes = scenes;
+    await saveProjectToDb(projectData, userId);
+    
+    // Calculate summary
+    const avgScore = results.length > 0 
+      ? Math.round(results.reduce((sum, r) => sum + r.overallScore, 0) / results.length)
+      : 0;
+    const needsRegeneration = results.filter(r => r.recommendation === 'regenerate' || r.recommendation === 'critical_fail').length;
+    const approved = results.filter(r => r.recommendation === 'approved').length;
+    
+    console.log(`[Phase8A] Batch analysis complete: ${scenesAnalyzed}/${scenes.length} scenes, avg score: ${avgScore}`);
+    
+    return res.json({
+      success: true,
+      summary: {
+        totalScenes: scenes.length,
+        scenesAnalyzed,
+        scenesFailed,
+        averageScore: avgScore,
+        approved,
+        needsReview: results.filter(r => r.recommendation === 'needs_review').length,
+        needsRegeneration,
+        criticalFail: results.filter(r => r.recommendation === 'critical_fail').length,
+      },
+      results,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase8A] Batch scene analysis error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

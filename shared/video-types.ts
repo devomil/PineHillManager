@@ -74,6 +74,44 @@ export interface Scene {
   conditionMatch?: string | null;
   audienceResonance?: string | null;
   brandOpportunity?: string | null;
+  // Phase 8A: Scene analysis results
+  analysisResult?: Phase8AnalysisResult;
+  qualityScore?: number;
+}
+
+// Phase 8A: Scene analysis types
+export interface Phase8AnalysisIssue {
+  category: 'content_match' | 'ai_artifacts' | 'brand_compliance' | 'technical' | 'composition';
+  severity: 'critical' | 'major' | 'minor';
+  description: string;
+  suggestion: string;
+}
+
+export interface Phase8AnalysisResult {
+  sceneIndex: number;
+  overallScore: number;
+  technicalScore: number;
+  contentMatchScore: number;
+  brandComplianceScore: number;
+  compositionScore: number;
+  aiArtifactsDetected: boolean;
+  aiArtifactDetails: string[];
+  contentMatchDetails: string;
+  brandComplianceDetails: string;
+  frameAnalysis: {
+    subjectPosition: 'left' | 'center' | 'right' | 'none';
+    faceDetected: boolean;
+    faceRegion?: { x: number; y: number; width: number; height: number };
+    busyRegions: string[];
+    dominantColors: string[];
+    lightingType: 'warm' | 'cool' | 'neutral' | 'mixed';
+    safeTextZones: Array<{ position: string; confidence: number }>;
+  };
+  issues: Phase8AnalysisIssue[];
+  recommendation: 'approved' | 'needs_review' | 'regenerate' | 'critical_fail';
+  improvedPrompt?: string;
+  analysisTimestamp: string;
+  analysisModel: string;
 }
 
 export interface SceneSoundDesign {
