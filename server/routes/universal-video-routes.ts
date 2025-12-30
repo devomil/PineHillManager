@@ -14,7 +14,7 @@ import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
 import { imageProviderSelector } from '../services/image-provider-selector';
 import { soundDesignService } from '../services/sound-design-service';
-import { transitionService } from '../services/transition-service';
+import { transitionService, TransitionPlan, SceneTransition } from '../services/transition-service';
 import { textPlacementService, TextOverlay as TextOverlayType, TextPlacement } from '../services/text-placement-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
@@ -4109,6 +4109,117 @@ router.get('/text-placement/styles', isAuthenticated, async (req: Request, res: 
     const styles = textPlacementService.getDefaultStyles();
     const positions = textPlacementService.getPositionCoords();
     res.json({ success: true, styles, positions });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// PHASE 8D: MOOD-MATCHED TRANSITIONS
+// ============================================================
+
+router.post('/projects/:projectId/plan-transitions', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { visualStyle } = req.body;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    const style = visualStyle || (projectData as any).style || 'professional';
+
+    const scenesForTransition = projectData.scenes.map((scene, index) => ({
+      sceneIndex: index,
+      sceneType: scene.type || 'content',
+      duration: scene.duration || 5,
+      analysisResult: scene.analysisResult,
+    }));
+
+    const transitionPlan = transitionService.planTransitions(scenesForTransition, style);
+
+    res.json({
+      success: true,
+      projectId,
+      visualStyle: style,
+      plan: transitionPlan,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8D] Plan transitions failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/projects/:projectId/transitions/:transitionIndex/remotion-props', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, transitionIndex } = req.params;
+    const { fps = 30 } = req.query;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    const style = (projectData as any).style || 'professional';
+
+    const scenesForTransition = projectData.scenes.map((scene, index) => ({
+      sceneIndex: index,
+      sceneType: scene.type || 'content',
+      duration: scene.duration || 5,
+      analysisResult: scene.analysisResult,
+    }));
+
+    const transitionPlan = transitionService.planTransitions(scenesForTransition, style);
+    const idx = parseInt(transitionIndex, 10);
+
+    if (idx < 0 || idx >= transitionPlan.transitions.length) {
+      return res.status(404).json({ success: false, error: 'Transition not found' });
+    }
+
+    const transition = transitionPlan.transitions[idx];
+    const remotionType = transitionService.getRemotionTransition(transition.config.type);
+    const remotionProps = transitionService.getRemotionTransitionProps(transition, Number(fps));
+    const audioConfig = transitionService.getAudioCrossfadeConfig(transition);
+
+    res.json({
+      success: true,
+      transitionIndex: idx,
+      transition,
+      remotion: {
+        type: remotionType,
+        props: remotionProps,
+      },
+      audio: audioConfig,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8D] Get transition props failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/transitions/mood-mapping', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const moodMapping = transitionService.getMoodMapping();
+    const transitionTypes = transitionService.getAvailableTransitionTypes();
+    const stylePreferences = transitionService.getStylePreferences();
+
+    res.json({
+      success: true,
+      moodMapping,
+      transitionTypes,
+      stylePreferences,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
