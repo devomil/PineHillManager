@@ -9,6 +9,7 @@ import { qualityEvaluationService, VideoQualityReport, QualityIssue } from '../s
 import { sceneAnalysisService, SceneContext } from '../services/scene-analysis-service';
 import type { Phase8AnalysisResult } from '../../shared/video-types';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
+import { autoRegenerationService, SceneForRegeneration, RegenerationResult } from '../services/auto-regeneration-service';
 import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
 import { imageProviderSelector } from '../services/image-provider-selector';
@@ -3702,6 +3703,301 @@ router.get('/projects/:projectId/qa-result', isAuthenticated, async (req: Reques
     
   } catch (error: any) {
     console.error('[UniversalVideo] Get QA result failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Phase 8B: Auto-Regeneration Endpoints
+// ============================================
+
+router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneIndex } = req.params;
+    const sceneIdx = parseInt(sceneIndex, 10);
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    if (sceneIdx < 0 || sceneIdx >= projectData.scenes.length) {
+      return res.status(400).json({ success: false, error: 'Invalid scene index' });
+    }
+    
+    const scene = projectData.scenes[sceneIdx];
+    
+    if (!scene.analysisResult) {
+      return res.status(400).json({ success: false, error: 'Scene has not been analyzed yet. Run analysis first.' });
+    }
+    
+    console.log(`[Phase8B] Starting auto-regeneration for scene ${sceneIdx + 1}`);
+    
+    const sceneForRegen: SceneForRegeneration = {
+      id: scene.id,
+      sceneIndex: sceneIdx,
+      sceneType: scene.type || 'content',
+      contentType: (scene as any).contentType || 'lifestyle',
+      narration: scene.narration || '',
+      visualDirection: scene.visualDirection || '',
+      duration: scene.duration || 0,
+      currentProvider: (scene.assets as any)?.provider || 'flux',
+      currentAssetUrl: scene.assets?.imageUrl || scene.assets?.videoUrl,
+      analysisResult: scene.analysisResult,
+      projectId,
+      aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
+      totalScenes: projectData.scenes.length,
+    };
+    
+    const result = await autoRegenerationService.regenerateScene(sceneForRegen);
+    
+    if (result.success && result.newAssetUrl) {
+      const oldUrl = scene.assets?.imageUrl;
+      
+      if (!scene.assets) scene.assets = {};
+      scene.assets.imageUrl = result.newAssetUrl;
+      scene.assets.backgroundUrl = result.newAssetUrl;
+      scene.analysisResult = result.newAnalysis;
+      scene.qualityScore = result.finalScore;
+      
+      if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
+      projectData.regenerationHistory.push({
+        id: `autoregen_${Date.now()}`,
+        sceneId: scene.id,
+        assetType: 'image',
+        previousUrl: oldUrl,
+        newUrl: result.newAssetUrl,
+        prompt: result.attempts[result.attempts.length - 1]?.prompt || '',
+        timestamp: new Date().toISOString(),
+        success: true,
+      });
+      
+      await saveProjectToDb(projectData, projectData.ownerId);
+    } else if (result.escalatedToUser) {
+      await autoRegenerationService.escalateToUserReview(sceneForRegen, result);
+      (scene as any).needsUserReview = true;
+      await saveProjectToDb(projectData, projectData.ownerId);
+    }
+    
+    res.json({
+      success: result.success,
+      finalScore: result.finalScore,
+      attempts: result.attempts.length,
+      escalatedToUser: result.escalatedToUser,
+      newAssetUrl: result.newAssetUrl,
+      project: projectData,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase8B] Auto-regeneration failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/auto-regenerate-failed', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const failedScenes: SceneForRegeneration[] = [];
+    
+    for (let i = 0; i < projectData.scenes.length; i++) {
+      const scene = projectData.scenes[i];
+      if (scene.analysisResult && 
+          (scene.analysisResult.recommendation === 'regenerate' || 
+           scene.analysisResult.recommendation === 'critical_fail' ||
+           scene.analysisResult.overallScore < 70)) {
+        
+        failedScenes.push({
+          id: scene.id,
+          sceneIndex: i,
+          sceneType: scene.type || 'content',
+          contentType: (scene as any).contentType || 'lifestyle',
+          narration: scene.narration || '',
+          visualDirection: scene.visualDirection || '',
+          duration: scene.duration || 0,
+          currentProvider: (scene.assets as any)?.provider || 'flux',
+          currentAssetUrl: scene.assets?.imageUrl || scene.assets?.videoUrl,
+          analysisResult: scene.analysisResult,
+          projectId,
+          aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
+          totalScenes: projectData.scenes.length,
+        });
+      }
+    }
+    
+    if (failedScenes.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No scenes need regeneration',
+        succeeded: 0,
+        escalated: 0,
+      });
+    }
+    
+    console.log(`[Phase8B] Auto-regenerating ${failedScenes.length} failed scenes`);
+    
+    const batchResult = await autoRegenerationService.regenerateAllFailedScenes(failedScenes);
+    
+    for (const result of batchResult.results) {
+      const sceneForRegen = failedScenes.find(s => s.sceneIndex === result.newAnalysis?.sceneIndex);
+      if (sceneForRegen && result.success && result.newAssetUrl) {
+        const scene = projectData.scenes[sceneForRegen.sceneIndex];
+        if (!scene.assets) scene.assets = {};
+        scene.assets.imageUrl = result.newAssetUrl;
+        scene.analysisResult = result.newAnalysis;
+        scene.qualityScore = result.finalScore;
+      }
+    }
+    
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    res.json({
+      success: true,
+      totalProcessed: failedScenes.length,
+      succeeded: batchResult.succeeded,
+      escalated: batchResult.escalated,
+      project: projectData,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase8B] Batch auto-regeneration failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/projects/:projectId/review-queue', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const queue = autoRegenerationService.getReviewQueue(projectId);
+    
+    res.json({
+      success: true,
+      queue,
+      count: queue.length,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase8B] Get review queue failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/review-queue/:sceneId/resolve', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { action, customPrompt } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    if (action === 'approve') {
+      autoRegenerationService.clearReviewQueueEntry(projectId, sceneId);
+      
+      const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+      if (sceneIndex >= 0) {
+        (projectData.scenes[sceneIndex] as any).needsUserReview = false;
+        (projectData.scenes[sceneIndex] as any).userApproved = true;
+        await saveProjectToDb(projectData, projectData.ownerId);
+      }
+      
+      return res.json({ success: true, message: 'Scene approved by user' });
+    }
+    
+    if (action === 'regenerate') {
+      autoRegenerationService.clearReviewQueueEntry(projectId, sceneId);
+      
+      const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+      if (sceneIndex < 0) {
+        return res.status(404).json({ success: false, error: 'Scene not found' });
+      }
+      
+      const scene = projectData.scenes[sceneIndex];
+      
+      if (customPrompt) {
+        scene.visualDirection = customPrompt;
+      }
+      
+      const sceneForRegen: SceneForRegeneration = {
+        id: scene.id,
+        sceneIndex,
+        sceneType: scene.type || 'content',
+        contentType: (scene as any).contentType || 'lifestyle',
+        narration: scene.narration || '',
+        visualDirection: scene.visualDirection || '',
+        duration: scene.duration || 0,
+        currentProvider: (scene.assets as any)?.provider || 'flux',
+        currentAssetUrl: scene.assets?.imageUrl,
+        analysisResult: scene.analysisResult!,
+        projectId,
+        aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
+        totalScenes: projectData.scenes.length,
+      };
+      
+      const result = await autoRegenerationService.regenerateScene(sceneForRegen);
+      
+      if (result.success && result.newAssetUrl) {
+        if (!scene.assets) scene.assets = {};
+        scene.assets.imageUrl = result.newAssetUrl;
+        scene.analysisResult = result.newAnalysis;
+        scene.qualityScore = result.finalScore;
+        (scene as any).needsUserReview = false;
+        await saveProjectToDb(projectData, projectData.ownerId);
+      }
+      
+      return res.json({
+        success: result.success,
+        finalScore: result.finalScore,
+        newAssetUrl: result.newAssetUrl,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: 'Invalid action. Use "approve" or "regenerate"' });
+    
+  } catch (error: any) {
+    console.error('[Phase8B] Resolve review queue failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/auto-regeneration/config', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const config = autoRegenerationService.getConfig();
+    res.json({ success: true, config });
+  } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
