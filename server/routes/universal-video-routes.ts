@@ -4023,6 +4023,7 @@ router.post('/projects/:projectId/scenes/:sceneIndex/calculate-text-placements',
     }
 
     const validatedOverlays = overlays.map((o: any) => textOverlaySchema.parse(o)) as TextOverlayType[];
+    const inputCount = validatedOverlays.length;
 
     const projectRows = await db.select().from(universalVideoProjects)
       .where(eq(universalVideoProjects.projectId, projectId))
@@ -4077,7 +4078,7 @@ router.post('/projects/:projectId/scenes/:sceneIndex/calculate-text-placements',
       }
     }
 
-    const placements = textPlacementService.calculatePlacements(
+    const result = textPlacementService.calculatePlacements(
       validatedOverlays,
       sceneAnalysis,
       duration,
@@ -4087,11 +4088,13 @@ router.post('/projects/:projectId/scenes/:sceneIndex/calculate-text-placements',
     res.json({
       success: true,
       sceneIndex: sceneIdx,
-      placements,
+      placements: result.placements,
       stats: {
-        inputCount: overlays.length,
-        outputCount: placements.length,
-        duplicatesRemoved: overlays.length - validatedOverlays.length,
+        inputCount,
+        uniqueCount: result.stats.uniqueCount,
+        outputCount: result.placements.length,
+        duplicatesRemoved: inputCount - result.stats.uniqueCount,
+        placementsBlocked: result.stats.skipped,
       },
     });
 

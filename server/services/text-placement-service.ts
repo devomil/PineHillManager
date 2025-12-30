@@ -103,6 +103,8 @@ const POSITION_COORDS: Record<string, { x: number; y: number; anchor: string }> 
   'top-left': { x: 10, y: 10, anchor: 'top-left' },
   'top-right': { x: 90, y: 10, anchor: 'top-right' },
   'center': { x: 50, y: 50, anchor: 'center' },
+  'middle-left': { x: 15, y: 50, anchor: 'middle-left' },
+  'middle-right': { x: 85, y: 50, anchor: 'middle-right' },
 };
 
 interface FrameAnalysis {
@@ -133,9 +135,10 @@ class TextPlacementService {
     analysis: SceneAnalysis | null,
     sceneDuration: number,
     fps: number = 30
-  ): TextPlacement[] {
+  ): { placements: TextPlacement[]; stats: { uniqueCount: number; skipped: number } } {
     const uniqueOverlays = this.deduplicateOverlays(overlays);
     const placements: TextPlacement[] = [];
+    let skipped = 0;
 
     const frameAnalysis = this.convertToFrameAnalysis(analysis);
 
@@ -148,6 +151,7 @@ class TextPlacementService {
 
       if (!position) {
         console.warn(`[TextPlacement] No position found for: ${overlay.text.substring(0, 30)}`);
+        skipped++;
         continue;
       }
 
@@ -172,7 +176,13 @@ class TextPlacementService {
 
     this.resolveOverlaps(placements);
 
-    return placements;
+    return {
+      placements,
+      stats: {
+        uniqueCount: uniqueOverlays.length,
+        skipped,
+      },
+    };
   }
 
   async determineTextPlacements(scenes: SceneForPlacement[]): Promise<LegacyTextPlacement[]> {
@@ -218,6 +228,11 @@ class TextPlacementService {
       if (analysis.safeZones.bottomCenter) safeTextZones.push({ position: 'bottom-center' });
       if (analysis.safeZones.bottomRight) safeTextZones.push({ position: 'bottom-right' });
       if (analysis.safeZones.middleCenter) safeTextZones.push({ position: 'center' });
+      if (analysis.safeZones.middleLeft) safeTextZones.push({ position: 'middle-left' });
+      if (analysis.safeZones.middleRight) safeTextZones.push({ position: 'middle-right' });
+      if (analysis.safeZones.bottomCenter || analysis.safeZones.bottomLeft || analysis.safeZones.bottomRight) {
+        safeTextZones.push({ position: 'lower-third' });
+      }
     }
 
     const busyRegions: string[] = [];
@@ -297,9 +312,14 @@ class TextPlacementService {
         reason += reason ? ', BLOCKED BY FACE' : 'BLOCKED BY FACE';
       }
 
-      if (busyRegions.some(r => posName.includes(r))) {
+      if (busyRegions.includes(posName)) {
         score -= 25;
         reason += reason ? ', busy area' : 'Busy area';
+      }
+
+      if (posName === 'lower-third' && (busyRegions.includes('bottom-center') || busyRegions.includes('bottom-left') || busyRegions.includes('bottom-right'))) {
+        score -= 15;
+        reason += reason ? ', lower area busy' : 'Lower area busy';
       }
 
       for (const existing of existingPlacements) {
