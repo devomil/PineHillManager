@@ -51,6 +51,13 @@ interface GenerationEstimate {
     music: string;
     soundFx: string;
   };
+  soundDesign?: {
+    voiceover: { provider: string; voice: string; totalDuration: number };
+    music: { provider: string; style: string; mood: string; duration: number };
+    ambientCount: number;
+    transitionCount: number;
+    accentCount: number;
+  };
   intelligence?: {
     sceneAnalysis: string;
     textPlacement: string;
@@ -241,13 +248,31 @@ export function GenerationPreviewPanel({
             <p className="text-sm font-medium" data-testid="provider-music">{estimate.providers.music}</p>
           </div>
 
-          {/* Sound FX */}
+          {/* Sound FX - Enhanced with Kling Sound details */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
               <Volume2 className="h-4 w-4" />
               <span className="text-xs font-medium">Sound FX</span>
             </div>
-            <p className="text-sm font-medium" data-testid="provider-soundfx">{estimate.providers.soundFx}</p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium" data-testid="provider-soundfx">{estimate.providers.soundFx}</p>
+              <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                <div className="flex justify-between">
+                  <span>Ambient sounds</span>
+                  <span>{estimate.soundDesign?.ambientCount ?? estimate.project.sceneCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Transitions</span>
+                  <span>{estimate.soundDesign?.transitionCount ?? Math.max(0, estimate.project.sceneCount - 1)}</span>
+                </div>
+                {(estimate.soundDesign?.accentCount ?? 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span>Accent sounds</span>
+                    <span>{estimate.soundDesign?.accentCount}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

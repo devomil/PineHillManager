@@ -1,6 +1,7 @@
 // server/services/sound-design-service.ts
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { SOUND_PROVIDERS } from '@shared/provider-config';
 
 export interface SoundEffect {
   type: 'whoosh' | 'transition' | 'impact' | 'sparkle' | 'ambient' | 'notification' | 'success';
@@ -15,6 +16,42 @@ export interface SceneSoundDesign {
   transitionOut?: SoundEffect;
   ambience?: SoundEffect;
   emphasis?: SoundEffect[];
+}
+
+// Phase 7C: Enhanced sound design interfaces for UI display
+export interface SceneSoundInfo {
+  sceneIndex: number;
+  ambient: {
+    type: string;
+    description: string;
+  } | null;
+  transition: {
+    type: string;
+    duration: number;
+    description: string;
+  } | null;
+  accents: string[];
+}
+
+export interface ProjectSoundInfo {
+  voiceover: {
+    provider: string;
+    voice: string;
+    totalDuration: number;
+  };
+  music: {
+    provider: string;
+    style: string;
+    mood: string;
+    duration: number;
+  };
+  soundEffects: {
+    provider: string;
+    ambientCount: number;
+    transitionCount: number;
+    accentCount: number;
+  };
+  sceneDesigns: SceneSoundInfo[];
 }
 
 interface SoundGenerationOptions {
@@ -407,6 +444,146 @@ class SoundDesignService {
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // ============================================
+  // Phase 7C: Project Sound Info for UI Display
+  // ============================================
+  
+  private readonly SFX_PROVIDER = SOUND_PROVIDERS.kling_sound;
+  
+  designProjectSoundInfo(
+    scenes: Array<{
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+      duration: number;
+      visualDirection: string;
+    }>,
+    options: {
+      musicEnabled: boolean;
+      musicMood: string;
+      voiceId: string;
+    }
+  ): ProjectSoundInfo {
+    console.log(`[SoundDesign] Designing sound info for ${scenes.length} scenes`);
+    console.log(`[SoundDesign] Using ${this.SFX_PROVIDER.displayName} for sound effects`);
+    
+    const sceneDesigns = scenes.map((scene, index) => 
+      this.designSceneSoundInfo(scene, index, scenes.length)
+    );
+    
+    const ambientCount = sceneDesigns.filter(s => s.ambient).length;
+    const transitionCount = sceneDesigns.filter(s => s.transition).length;
+    const accentCount = sceneDesigns.reduce((sum, s) => sum + s.accents.length, 0);
+    const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
+    
+    console.log(`[SoundDesign] Sound effects: ${ambientCount} ambient, ${transitionCount} transitions, ${accentCount} accents`);
+    
+    return {
+      voiceover: {
+        provider: SOUND_PROVIDERS.elevenlabs.displayName,
+        voice: options.voiceId || 'Rachel',
+        totalDuration,
+      },
+      music: {
+        provider: options.musicEnabled ? SOUND_PROVIDERS.udio.displayName : 'Disabled',
+        style: 'corporate ambient',
+        mood: options.musicMood || 'uplifting',
+        duration: totalDuration,
+      },
+      soundEffects: {
+        provider: this.SFX_PROVIDER.displayName,
+        ambientCount,
+        transitionCount,
+        accentCount,
+      },
+      sceneDesigns,
+    };
+  }
+  
+  private designSceneSoundInfo(
+    scene: {
+      sceneIndex: number;
+      sceneType: string;
+      narration: string;
+      duration: number;
+      visualDirection: string;
+    },
+    index: number,
+    totalScenes: number
+  ): SceneSoundInfo {
+    const design: SceneSoundInfo = {
+      sceneIndex: scene.sceneIndex,
+      ambient: null,
+      transition: null,
+      accents: [],
+    };
+    
+    design.ambient = this.selectAmbientSoundInfo(scene.visualDirection, scene.sceneType);
+    
+    if (index < totalScenes - 1) {
+      design.transition = this.selectTransitionSoundInfo(scene.sceneType);
+    }
+    
+    design.accents = this.selectAccentSoundsInfo(scene.narration, scene.sceneType);
+    
+    return design;
+  }
+  
+  private selectAmbientSoundInfo(
+    visualDirection: string,
+    sceneType: string
+  ): { type: string; description: string } | null {
+    const lower = visualDirection.toLowerCase();
+    
+    if (/kitchen|cooking|food|preparing/.test(lower)) {
+      return { type: 'kitchen-ambient', description: 'Soft kitchen ambience, subtle cooking sounds' };
+    }
+    if (/garden|outdoor|nature|farm|field/.test(lower)) {
+      return { type: 'nature-ambient', description: 'Birds chirping, gentle breeze, natural sounds' };
+    }
+    if (/spa|wellness|calm|peaceful|meditation/.test(lower)) {
+      return { type: 'wellness-ambient', description: 'Soft ambient tones, subtle water sounds' };
+    }
+    if (/home|living|cozy|interior|room/.test(lower)) {
+      return { type: 'home-ambient', description: 'Quiet home atmosphere, subtle room tone' };
+    }
+    
+    return { type: 'room-tone', description: 'Clean, subtle background atmosphere' };
+  }
+  
+  private selectTransitionSoundInfo(
+    currentType: string
+  ): { type: string; duration: number; description: string } {
+    if (currentType === 'problem' || currentType === 'agitation') {
+      return { type: 'hopeful-swell', duration: 0.8, description: 'Uplifting transition swell' };
+    }
+    if (currentType === 'hook') {
+      return { type: 'soft-whoosh', duration: 0.5, description: 'Gentle attention transition' };
+    }
+    if (currentType === 'benefit' || currentType === 'solution') {
+      return { type: 'energy-build', duration: 1.0, description: 'Building energy toward next scene' };
+    }
+    
+    return { type: 'soft-dissolve', duration: 0.6, description: 'Smooth audio transition' };
+  }
+  
+  private selectAccentSoundsInfo(narration: string, sceneType: string): string[] {
+    const accents: string[] = [];
+    const lower = narration.toLowerCase();
+    
+    if (/important|crucial|key|remember/.test(lower)) {
+      accents.push('subtle-emphasis');
+    }
+    if (/strategy|tip|try this|here\'s/.test(lower)) {
+      accents.push('soft-notification');
+    }
+    if (sceneType === 'benefit' || /success|result|transform/.test(lower)) {
+      accents.push('positive-chime');
+    }
+    
+    return accents;
   }
 }
 

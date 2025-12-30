@@ -10,6 +10,7 @@ import { sceneRegenerationService } from '../services/scene-regeneration-service
 import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
 import { imageProviderSelector } from '../services/image-provider-selector';
+import { soundDesignService } from '../services/sound-design-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
@@ -2937,6 +2938,30 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         provider: 'Claude Vision',
         checks: ['Brand compliance', 'Visual quality', 'Content accuracy'],
       },
+      // Phase 7C: Sound Design Info for UI
+      soundDesign: (() => {
+        const soundInfo = soundDesignService.designProjectSoundInfo(
+          scenes.map((s: any, i: number) => ({
+            sceneIndex: i,
+            sceneType: s.type || 'general',
+            narration: s.narration || '',
+            duration: s.duration || 5,
+            visualDirection: s.visualDirection || '',
+          })),
+          {
+            musicEnabled: musicEnabled !== false,
+            musicMood: 'uplifting',
+            voiceId: 'Rachel',
+          }
+        );
+        return {
+          voiceover: soundInfo.voiceover,
+          music: soundInfo.music,
+          ambientCount: soundInfo.soundEffects.ambientCount,
+          transitionCount: soundInfo.soundEffects.transitionCount,
+          accentCount: soundInfo.soundEffects.accentCount,
+        };
+      })(),
       musicEnabled,
       sceneBreakdown: sceneProviders,
       costs: {

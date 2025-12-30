@@ -1,9 +1,15 @@
 import { useState } from 'react';
-import { GripVertical, ChevronDown, ChevronUp, Clock, Video } from 'lucide-react';
+import { GripVertical, ChevronDown, ChevronUp, Clock, Video, Volume2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from './content-type-selector';
 import { VisualDirectionEditor } from './visual-direction-editor';
+
+interface SceneSoundDesign {
+  ambient: { type: string; description: string } | null;
+  transition: { type: string; duration: number; description: string } | null;
+  accents: string[];
+}
 
 interface Scene {
   id: string;
@@ -15,6 +21,7 @@ interface Scene {
   videoUrl?: string;
   thumbnailUrl?: string;
   status?: 'pending' | 'generating' | 'complete' | 'error';
+  soundDesign?: SceneSoundDesign;
 }
 
 interface SceneCardProps {
@@ -161,6 +168,36 @@ export function SceneCard({
                 disabled={disabled}
               />
             </div>
+
+            {/* Sound Design (Phase 7C) */}
+            {scene.soundDesign && (
+              <div className="mt-3 pt-3 border-t border-gray-100" data-testid="scene-sound-design">
+                <label className="text-xs font-medium text-gray-500 flex items-center gap-1 mb-2">
+                  <Volume2 className="h-3 w-3" />
+                  Sound Design
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {scene.soundDesign.ambient && (
+                    <Badge variant="outline" className="text-xs" data-testid="badge-ambient">
+                      🔊 {scene.soundDesign.ambient.type}
+                    </Badge>
+                  )}
+                  {scene.soundDesign.transition && (
+                    <Badge variant="outline" className="text-xs" data-testid="badge-transition">
+                      ↔️ {scene.soundDesign.transition.type} ({scene.soundDesign.transition.duration}s)
+                    </Badge>
+                  )}
+                  {scene.soundDesign.accents?.map((accent, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs" data-testid={`badge-accent-${idx}`}>
+                      ✨ {accent}
+                    </Badge>
+                  ))}
+                  {!scene.soundDesign.ambient && !scene.soundDesign.transition && (!scene.soundDesign.accents || scene.soundDesign.accents.length === 0) && (
+                    <span className="text-xs text-gray-400">No sound effects</span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {scene.status && (
               <div className="flex items-center gap-2 text-xs" data-testid="scene-status">
