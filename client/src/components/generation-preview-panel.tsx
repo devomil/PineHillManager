@@ -19,6 +19,7 @@ import {
   Eye,
   Type,
   Shuffle,
+  ShieldCheck,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -418,18 +419,33 @@ export function GenerationPreviewPanel({
         {estimate.qualityAssurance?.enabled && (
           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="qa-section">
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-              <CheckCircle className="h-4 w-4" />
+              <ShieldCheck className="h-4 w-4" />
               <span className="text-xs font-medium">Quality Assurance</span>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-300">Provider</span>
-                <Badge variant="outline" className="text-xs">{estimate.qualityAssurance.provider}</Badge>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="h-3.5 w-3.5 text-blue-500" />
+                  <span className="text-sm">Automated Review</span>
+                </div>
+                <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                  {estimate.qualityAssurance.provider}
+                </Badge>
               </div>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {estimate.qualityAssurance.checks.map((check, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs">{check}</Badge>
-                ))}
+              
+              <div className="text-xs text-gray-500 dark:text-gray-400 pl-5 space-y-1">
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                  <span>AI artifact detection (text, UI)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                  <span>Brand compliance scoring</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                  <span>Technical quality check</span>
+                </div>
               </div>
             </div>
           </div>
