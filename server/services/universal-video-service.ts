@@ -3540,7 +3540,8 @@ Total: 90 seconds` : ''}
   async regenerateSceneImage(
     project: VideoProject,
     sceneId: string,
-    customPrompt?: string
+    customPrompt?: string,
+    provider?: string
   ): Promise<{ success: boolean; newImageUrl?: string; source?: string; error?: string }> {
     const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
     if (sceneIndex < 0) {
@@ -3553,7 +3554,13 @@ Total: 90 seconds` : ''}
     // Detect if this is a product video context by checking for product images in assets
     const isProductVideo = (project.assets?.productImages?.length ?? 0) > 0;
     
-    console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}... (isProductVideo: ${isProductVideo})`);
+    console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}... (isProductVideo: ${isProductVideo}, provider: ${provider || 'default'})`);
+    
+    // Phase 9B: Store the requested provider in scene assets for tracking
+    if (provider) {
+      if (!scene.assets) scene.assets = {};
+      (scene.assets as any).requestedProvider = provider;
+    }
     
     // Check if prompt requests people/persons - if so, use generateImage which allows people
     const promptLower = prompt.toLowerCase();
@@ -3600,7 +3607,8 @@ Total: 90 seconds` : ''}
   async regenerateSceneVideo(
     project: VideoProject,
     sceneId: string,
-    customQuery?: string
+    customQuery?: string,
+    provider?: string
   ): Promise<{ success: boolean; newVideoUrl?: string; duration?: number; source?: string; error?: string }> {
     const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
     if (sceneIndex < 0) {
@@ -3612,7 +3620,13 @@ Total: 90 seconds` : ''}
     const query = customQuery || scene.searchQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
     const fallbackQuery = scene.fallbackQuery;
     
-    console.log(`[Regenerate] Video for scene ${sceneId} with query: "${query}"${fallbackQuery ? ` (fallback: "${fallbackQuery}")` : ''}`);
+    console.log(`[Regenerate] Video for scene ${sceneId} with query: "${query}"${fallbackQuery ? ` (fallback: "${fallbackQuery}")` : ''} (provider: ${provider || 'default'})`);
+    
+    // Phase 9B: Store the requested provider in scene assets for tracking
+    if (provider) {
+      if (!scene.assets) scene.assets = {};
+      (scene.assets as any).requestedProvider = provider;
+    }
     
     // Don't use the duplicate tracking for regeneration - user wants a NEW video
     const pexelsResult = await this.getPexelsVideo(query + ' ' + Date.now()); // Add timestamp to vary results

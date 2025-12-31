@@ -1729,7 +1729,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { prompt } = req.body;
+    const { prompt, provider } = req.body;
+    
+    console.log(`[Phase9B] Regenerating image for scene ${sceneId} with provider: ${provider || 'default'}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -1740,7 +1742,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    const result = await universalVideoService.regenerateSceneImage(projectData, sceneId, prompt);
+    const result = await universalVideoService.regenerateSceneImage(projectData, sceneId, prompt, provider);
     
     if (result.success && result.newImageUrl) {
       const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
@@ -1834,7 +1836,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { query } = req.body;
+    const { query, provider } = req.body;
+    
+    console.log(`[Phase9B] Regenerating video for scene ${sceneId} with provider: ${provider || 'default'}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -1845,7 +1849,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    const result = await universalVideoService.regenerateSceneVideo(projectData, sceneId, query);
+    const result = await universalVideoService.regenerateSceneVideo(projectData, sceneId, query, provider);
     
     if (result.success && result.newVideoUrl) {
       const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);

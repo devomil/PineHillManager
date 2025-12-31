@@ -22,6 +22,7 @@ import { VoiceSelector } from "./voice-selector";
 import { QualityReport } from "./quality-report";
 import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-settings-panel";
 import { MusicStyleSelector } from "./music-style-selector";
+import { ProviderSelector, getRecommendedProvider, getProviderName, VIDEO_PROVIDERS, IMAGE_PROVIDERS } from "./provider-selector";
 import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { GenerationPreviewPanel } from "./generation-preview-panel";
@@ -1236,6 +1237,8 @@ function ScenePreview({
   const [applyingMedia, setApplyingMedia] = useState<string | null>(null);
   const [sceneActionPending, setSceneActionPending] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState<{ sceneIndex: number; sceneId: string } | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<Record<string, string>>({});
+  const [sceneMediaType, setSceneMediaType] = useState<Record<string, 'image' | 'video'>>({});
   const [rejectReason, setRejectReason] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'needs_review' | 'approved' | 'rejected'>('all');
   const { toast } = useToast();
@@ -1544,7 +1547,7 @@ function ScenePreview({
     }
   };
 
-  const regenerateImage = async (sceneId: string) => {
+  const regenerateImage = async (sceneId: string, provider?: string) => {
     if (!projectId) return;
     setRegenerating(`image-${sceneId}`);
     try {
@@ -1552,7 +1555,10 @@ function ScenePreview({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ prompt: customPrompt[sceneId] || undefined })
+        body: JSON.stringify({ 
+          prompt: customPrompt[sceneId] || undefined,
+          provider: provider || undefined 
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -1571,7 +1577,7 @@ function ScenePreview({
     }
   };
 
-  const regenerateVideo = async (sceneId: string) => {
+  const regenerateVideo = async (sceneId: string, provider?: string) => {
     if (!projectId) return;
     setRegenerating(`video-${sceneId}`);
     try {
@@ -1579,7 +1585,10 @@ function ScenePreview({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ query: customPrompt[sceneId] || undefined })
+        body: JSON.stringify({ 
+          query: customPrompt[sceneId] || undefined,
+          provider: provider || undefined 
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -2076,110 +2085,87 @@ function ScenePreview({
                       </div>
                     </div>
                     
-                    {/* Media Source Buttons */}
+                    {/* Phase 9B: Provider Selector */}
                     <div className="grid grid-cols-2 gap-4">
-                      {/* Image Sources */}
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Image Sources</Label>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => regenerateImage(scene.id)}
-                            disabled={!!regenerating}
-                            data-testid={`button-source-ai-image-modal-${scene.id}`}
-                          >
-                            {regenerating === `image-${scene.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4 mr-1" /> AI</>}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'image', 'pexels')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-pexels-image-modal-${scene.id}`}
-                          >
-                            Pexels
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'image', 'unsplash')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-unsplash-image-modal-${scene.id}`}
-                          >
-                            Unsplash
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'image', 'brand')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-brand-image-modal-${scene.id}`}
-                          >
-                            Brand Media
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'image', 'library')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-library-image-modal-${scene.id}`}
-                          >
-                            Asset Library
-                          </Button>
-                        </div>
-                      </div>
+                      {/* Image Providers */}
+                      <ProviderSelector
+                        type="image"
+                        selectedProvider={selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type)}
+                        onSelectProvider={(provider) => {
+                          setSelectedProviders(prev => ({ ...prev, [`image-${scene.id}`]: provider }));
+                          if (provider === 'brand_media') {
+                            openMediaPicker(scene.id, 'image', 'brand');
+                          } else if (provider === 'asset_library') {
+                            openMediaPicker(scene.id, 'image', 'library');
+                          }
+                        }}
+                        recommendedProvider={getRecommendedProvider('image', scene.type)}
+                        sceneContentType={scene.type}
+                        disabled={!!regenerating || !!applyingMedia}
+                      />
                       
-                      {/* Video Sources */}
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Video Sources</Label>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => regenerateVideo(scene.id)}
-                            disabled={!!regenerating}
-                            data-testid={`button-source-ai-video-modal-${scene.id}`}
-                          >
-                            {regenerating === `video-${scene.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4 mr-1" /> AI</>}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'video', 'pexels')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-pexels-video-modal-${scene.id}`}
-                          >
-                            Pexels
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'video', 'brand')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-brand-video-modal-${scene.id}`}
-                          >
-                            Brand Media
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-sm"
-                            onClick={() => openMediaPicker(scene.id, 'video', 'library')}
-                            disabled={!!regenerating || !!applyingMedia}
-                            data-testid={`button-source-library-video-modal-${scene.id}`}
-                          >
-                            Asset Library
-                          </Button>
-                        </div>
+                      {/* Video Providers */}
+                      <ProviderSelector
+                        type="video"
+                        selectedProvider={selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type)}
+                        onSelectProvider={(provider) => {
+                          setSelectedProviders(prev => ({ ...prev, [`video-${scene.id}`]: provider }));
+                          if (provider === 'brand_media') {
+                            openMediaPicker(scene.id, 'video', 'brand');
+                          } else if (provider === 'asset_library') {
+                            openMediaPicker(scene.id, 'video', 'library');
+                          }
+                        }}
+                        recommendedProvider={getRecommendedProvider('video', scene.type)}
+                        sceneContentType={scene.type}
+                        disabled={!!regenerating || !!applyingMedia}
+                      />
+                    </div>
+                    
+                    {/* Generate Button */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button
+                        onClick={() => {
+                          const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
+                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type);
+                          if (mediaType === 'video') {
+                            regenerateVideo(scene.id, provider);
+                          } else {
+                            regenerateImage(scene.id, provider);
+                          }
+                        }}
+                        disabled={!!regenerating || !!applyingMedia}
+                        className="flex-1"
+                        data-testid={`button-generate-with-provider-${scene.id}`}
+                      >
+                        {regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}` ? (
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
+                        ) : (
+                          <><Sparkles className="w-4 h-4 mr-2" /> Generate with {getProviderName(
+                            selectedProviders[`${sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}-${scene.id}`] || 
+                            getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type)
+                          )}</>
+                        )}
+                      </Button>
+                    </div>
+                    
+                    {/* Provider info */}
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                      <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        Selected: {getProviderName(
+                          selectedProviders[`${sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}-${scene.id}`] || 
+                          getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type)
+                        )}
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                        {(() => {
+                          const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
+                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type);
+                          const recommended = getRecommendedProvider(mediaType, scene.type);
+                          return provider === recommended 
+                            ? "This is the recommended provider for this scene type"
+                            : "You can override the recommended provider if needed";
+                        })()}
                       </div>
                     </div>
                   </div>
