@@ -56,7 +56,7 @@ interface GenerationEstimate {
     soundFx: string;
   };
   soundDesign?: {
-    voiceover: { provider: string; voice: string; totalDuration: number };
+    voiceover: { provider: string; voice: string; style?: string; totalDuration: number };
     music: { provider: string; style: string; mood: string; duration: number };
     ambientCount: number;
     transitionCount: number;
@@ -134,11 +134,20 @@ interface GenerationEstimate {
   warnings: string[];
 }
 
+interface QAStats {
+  approved: number;
+  needsReview: number;
+  rejected: number;
+  score: number;
+}
+
 interface GenerationPreviewPanelProps {
   projectId: string;
   onGenerate: () => void;
   onCancel: () => void;
   isGenerating: boolean;
+  qaStats?: QAStats | null;
+  onOpenQADashboard?: () => void;
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -174,6 +183,8 @@ export function GenerationPreviewPanel({
   onGenerate,
   onCancel,
   isGenerating,
+  qaStats,
+  onOpenQADashboard,
 }: GenerationPreviewPanelProps) {
   const [showSceneDetails, setShowSceneDetails] = useState(false);
 
@@ -258,22 +269,53 @@ export function GenerationPreviewPanel({
             </div>
           </div>
 
-          {/* Voiceover */}
+          {/* Voiceover - Enhanced Phase 9E */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
               <Mic className="h-4 w-4" />
               <span className="text-xs font-medium">Voiceover</span>
             </div>
-            <p className="text-sm font-medium" data-testid="provider-voiceover">{estimate.providers.voiceover}</p>
+            <div data-testid="provider-voiceover">
+              {estimate.soundDesign?.voiceover ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    {estimate.soundDesign.voiceover.provider} - {estimate.soundDesign.voiceover.voice}
+                    {estimate.soundDesign.voiceover.style && (
+                      <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
+                        ({estimate.soundDesign.voiceover.style})
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {Math.round(estimate.soundDesign.voiceover.totalDuration)}s total
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm font-medium">{estimate.providers.voiceover}</p>
+              )}
+            </div>
           </div>
 
-          {/* Music */}
+          {/* Music - Enhanced Phase 9E */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
               <Music className="h-4 w-4" />
               <span className="text-xs font-medium">Music</span>
             </div>
-            <p className="text-sm font-medium" data-testid="provider-music">{estimate.providers.music}</p>
+            <div data-testid="provider-music">
+              {estimate.soundDesign?.music ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    {estimate.soundDesign.music.provider} - {estimate.soundDesign.music.style}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {estimate.soundDesign.music.mood} • {Math.round(estimate.soundDesign.music.duration)}s
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm font-medium">{estimate.providers.music}</p>
+              )}
+            </div>
           </div>
 
           {/* Sound FX - Enhanced with Kling Sound details */}
@@ -415,13 +457,49 @@ export function GenerationPreviewPanel({
           </div>
         </div>
 
-        {/* Quality Assurance */}
-        {estimate.qualityAssurance?.enabled && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border" data-testid="qa-section">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
+        {/* Quality Assurance - Enhanced Phase 9E */}
+        <div 
+          className={`bg-white dark:bg-gray-800 rounded-lg p-3 border ${onOpenQADashboard ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors' : ''}`}
+          onClick={onOpenQADashboard}
+          data-testid="qa-section"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
               <ShieldCheck className="h-4 w-4" />
               <span className="text-xs font-medium">Quality Assurance</span>
             </div>
+            {onOpenQADashboard && (
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            )}
+          </div>
+          
+          {qaStats ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-green-600 dark:text-green-400">
+                  <CheckCircle className="h-3.5 w-3.5 inline mr-1" />
+                  {qaStats.approved} approved
+                </span>
+                <span className="text-gray-300 dark:text-gray-600">│</span>
+                <span className="text-yellow-600 dark:text-yellow-400">
+                  {qaStats.needsReview} need review
+                </span>
+                <span className="text-gray-300 dark:text-gray-600">│</span>
+                <span className={`font-bold ${
+                  qaStats.score >= 85 ? 'text-green-600 dark:text-green-400' :
+                  qaStats.score >= 70 ? 'text-yellow-600 dark:text-yellow-400' :
+                  'text-red-600 dark:text-red-400'
+                }`}>
+                  {qaStats.score}/100
+                </span>
+              </div>
+              {qaStats.rejected > 0 && (
+                <div className="text-xs text-red-600 dark:text-red-400">
+                  {qaStats.rejected} scenes need attention
+                </div>
+              )}
+            </div>
+          ) : estimate.qualityAssurance?.enabled ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -448,8 +526,12 @@ export function GenerationPreviewPanel({
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-xs text-gray-400">
+              QA analysis pending...
+            </div>
+          )}
+        </div>
 
         {/* Brand Elements */}
         {estimate.brandElements.length > 0 && (

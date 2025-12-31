@@ -3519,7 +3519,7 @@ export default function UniversalVideoProducer() {
             <div className="space-y-6">
               <ServiceFailureAlert failures={project.progress.serviceFailures} />
               
-              {/* Generation Preview Panel - Phase 5D */}
+              {/* Generation Preview Panel - Phase 5D + Phase 9E enhancements */}
               {showGenerationPreview && project.status === 'draft' && (
                 <GenerationPreviewPanel
                   projectId={project.id}
@@ -3529,6 +3529,13 @@ export default function UniversalVideoProducer() {
                   }}
                   onCancel={() => setShowGenerationPreview(false)}
                   isGenerating={generateAssetsMutation.isPending}
+                  qaStats={qaReport ? {
+                    approved: qaReport.approvedCount,
+                    needsReview: qaReport.needsReviewCount,
+                    rejected: qaReport.rejectedCount,
+                    score: qaReport.overallScore,
+                  } : null}
+                  onOpenQADashboard={() => setShowQADashboard(true)}
                 />
               )}
               

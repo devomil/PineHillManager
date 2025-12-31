@@ -37,6 +37,7 @@ export interface ProjectSoundInfo {
   voiceover: {
     provider: string;
     voice: string;
+    style: string;
     totalDuration: number;
   };
   music: {
@@ -484,6 +485,7 @@ class SoundDesignService {
       voiceover: {
         provider: SOUND_PROVIDERS.elevenlabs.displayName,
         voice: options.voiceId || 'Rachel',
+        style: 'Warm & calm',
         totalDuration,
       },
       music: {
