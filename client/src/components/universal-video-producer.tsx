@@ -30,7 +30,7 @@ import {
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
   FolderOpen, Plus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
-  Undo2, Redo2, GripVertical
+  Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -111,6 +111,50 @@ function convertToDisplayUrl(url: string): string {
 function getImageDisplayUrl(image: ProductImage): string {
   if (image._blobUrl) return image._blobUrl;
   return convertToDisplayUrl(image.url);
+}
+
+// Phase 9A: Quality score and status helper functions
+function getScoreColor(score: number): string {
+  if (score >= 85) return 'bg-green-100 text-green-700';
+  if (score >= 70) return 'bg-yellow-100 text-yellow-700';
+  if (score >= 50) return 'bg-orange-100 text-orange-700';
+  return 'bg-red-100 text-red-700';
+}
+
+function getProviderDisplayName(provider: string | undefined): string | null {
+  if (!provider) return null;
+  const providerNames: Record<string, string> = {
+    'kling': 'Kling 1.6',
+    'kling-1.6': 'Kling 1.6',
+    'runway': 'Runway',
+    'luma': 'Luma',
+    'hailuo': 'Hailuo',
+    'flux': 'Flux.1',
+    'flux-pro': 'Flux.1',
+    'falai': 'fal.ai',
+    'fal.ai': 'fal.ai',
+    'pexels': 'Pexels',
+    'unsplash': 'Unsplash',
+  };
+  return providerNames[provider.toLowerCase()] || provider;
+}
+
+function getProviderBadgeStyle(provider: string | undefined): string {
+  if (!provider) return 'bg-gray-100 text-gray-600';
+  const providerStyles: Record<string, string> = {
+    'kling': 'bg-purple-100 text-purple-700',
+    'kling-1.6': 'bg-purple-100 text-purple-700',
+    'runway': 'bg-blue-100 text-blue-700',
+    'luma': 'bg-pink-100 text-pink-700',
+    'hailuo': 'bg-teal-100 text-teal-700',
+    'flux': 'bg-orange-100 text-orange-700',
+    'flux-pro': 'bg-orange-100 text-orange-700',
+    'falai': 'bg-indigo-100 text-indigo-700',
+    'fal.ai': 'bg-indigo-100 text-indigo-700',
+    'pexels': 'bg-green-100 text-green-700',
+    'unsplash': 'bg-gray-100 text-gray-700',
+  };
+  return providerStyles[provider.toLowerCase()] || 'bg-gray-100 text-gray-600';
 }
 
 function ProductImageUpload({
