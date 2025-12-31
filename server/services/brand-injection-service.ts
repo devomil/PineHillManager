@@ -1,6 +1,101 @@
 // server/services/brand-injection-service.ts
 
+import { db } from '../db';
+import { brandMediaLibrary } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 import { brandBibleService, BrandBible, BrandAsset } from './brand-bible-service';
+
+// ============================================
+// PHASE 8E TYPES
+// ============================================
+
+export interface LogoIntroConfig {
+  enabled: boolean;
+  asset: BrandAsset | null;
+  duration: number;
+  animation: 'fade' | 'zoom' | 'slide-up' | 'none';
+  backgroundColor?: string;
+  position: 'center' | 'lower-third';
+  includeTagline: boolean;
+  tagline?: string;
+}
+
+export interface WatermarkConfig {
+  enabled: boolean;
+  asset: BrandAsset | null;
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  opacity: number;
+  scale: number;
+  margin: number;
+  showDuring: 'all' | 'middle' | 'custom';
+  customStart?: number;
+  customEnd?: number;
+}
+
+export interface CTAOutroConfig {
+  enabled: boolean;
+  duration: number;
+  backgroundColor: string;
+  logo: BrandAsset | null;
+  contactInfo: {
+    phone?: string;
+    email?: string;
+    website?: string;
+    address?: string;
+  };
+  socialMedia?: {
+    facebook?: string;
+    instagram?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
+  headline?: string;
+  subheadline?: string;
+  buttonText?: string;
+  buttonUrl?: string;
+  animation: 'fade' | 'slide-up' | 'build';
+}
+
+export interface BrandInjectionPlan {
+  logoIntro: LogoIntroConfig;
+  watermark: WatermarkConfig;
+  ctaOutro: CTAOutroConfig;
+  totalAddedDuration: number;
+}
+
+const DEFAULT_LOGO_INTRO: Omit<LogoIntroConfig, 'asset'> = {
+  enabled: true,
+  duration: 2.5,
+  animation: 'fade',
+  backgroundColor: '#1a1a1a',
+  position: 'center',
+  includeTagline: true,
+  tagline: 'Cultivating Wellness',
+};
+
+const DEFAULT_WATERMARK: Omit<WatermarkConfig, 'asset'> = {
+  enabled: true,
+  position: 'bottom-right',
+  opacity: 0.7,
+  scale: 0.08,
+  margin: 20,
+  showDuring: 'all',
+};
+
+const DEFAULT_CTA_OUTRO: Omit<CTAOutroConfig, 'logo'> = {
+  enabled: true,
+  duration: 5,
+  backgroundColor: '#2D5A27',
+  contactInfo: {
+    website: 'pinehillfarm.co',
+    phone: '',
+    email: '',
+  },
+  headline: 'Start Your Wellness Journey',
+  subheadline: 'Schedule your consultation today',
+  buttonText: 'Learn More',
+  animation: 'build',
+};
 
 export interface BrandOverlay {
   type: 'logo' | 'watermark' | 'cta' | 'intro' | 'outro';
@@ -389,6 +484,206 @@ class BrandInjectionService {
       hasWatermark: !!(bible.logos.watermark || bible.logos.main),
       hasOutro: !!(bible.logos.outro || bible.logos.main),
       hasCTA: !!bible.callToAction.text,
+    };
+  }
+
+  // ============================================
+  // PHASE 8E: Brand Injection Plan Methods
+  // ============================================
+
+  async createInjectionPlan(
+    projectId: number | string,
+    overrides?: Partial<BrandInjectionPlan>
+  ): Promise<BrandInjectionPlan> {
+    console.log(`[BrandInjection] Creating injection plan for project ${projectId}`);
+    
+    const bible = await brandBibleService.getBrandBible();
+    
+    const primaryLogo = bible.logos.intro || bible.logos.main;
+    const watermarkAsset = bible.logos.watermark || bible.logos.main;
+    const ctaLogo = bible.logos.outro || bible.logos.main;
+    
+    const plan: BrandInjectionPlan = {
+      logoIntro: {
+        ...DEFAULT_LOGO_INTRO,
+        asset: primaryLogo || null,
+        enabled: !!primaryLogo,
+        ...overrides?.logoIntro,
+      },
+      watermark: {
+        ...DEFAULT_WATERMARK,
+        asset: watermarkAsset || null,
+        enabled: !!watermarkAsset,
+        ...overrides?.watermark,
+      },
+      ctaOutro: {
+        ...DEFAULT_CTA_OUTRO,
+        logo: ctaLogo || null,
+        enabled: true,
+        headline: bible.callToAction.text || DEFAULT_CTA_OUTRO.headline,
+        subheadline: bible.callToAction.subtext || DEFAULT_CTA_OUTRO.subheadline,
+        buttonUrl: bible.callToAction.url,
+        ...overrides?.ctaOutro,
+      },
+      totalAddedDuration: 0,
+    };
+    
+    plan.totalAddedDuration = 
+      (plan.logoIntro.enabled ? plan.logoIntro.duration : 0) +
+      (plan.ctaOutro.enabled ? plan.ctaOutro.duration : 0);
+    
+    console.log(`[BrandInjection] Plan created: intro=${plan.logoIntro.enabled}, watermark=${plan.watermark.enabled}, outro=${plan.ctaOutro.enabled}`);
+    console.log(`[BrandInjection] Added duration: ${plan.totalAddedDuration}s`);
+    
+    return plan;
+  }
+
+  getLogoIntroProps(config: LogoIntroConfig, fps: number): {
+    enabled: boolean;
+    durationInFrames?: number;
+    logoUrl?: string;
+    backgroundColor?: string;
+    position?: string;
+    animation?: string;
+    tagline?: string;
+    fadeIn?: number;
+    fadeOut?: number;
+  } {
+    if (!config.enabled || !config.asset) {
+      return { enabled: false };
+    }
+    
+    return {
+      enabled: true,
+      durationInFrames: Math.round(config.duration * fps),
+      logoUrl: config.asset.url,
+      backgroundColor: config.backgroundColor,
+      position: config.position,
+      animation: config.animation,
+      tagline: config.includeTagline ? config.tagline : undefined,
+      fadeIn: Math.round(0.5 * fps),
+      fadeOut: Math.round(0.3 * fps),
+    };
+  }
+  
+  getWatermarkProps(
+    config: WatermarkConfig,
+    totalFrames: number,
+    fps: number
+  ): {
+    enabled: boolean;
+    logoUrl?: string;
+    position?: string;
+    opacity?: number;
+    scale?: number;
+    margin?: number;
+    startFrame?: number;
+    endFrame?: number;
+  } {
+    if (!config.enabled || !config.asset) {
+      return { enabled: false };
+    }
+    
+    let startFrame = 0;
+    let endFrame = totalFrames;
+    
+    if (config.showDuring === 'middle') {
+      startFrame = Math.round(totalFrames * 0.1);
+      endFrame = Math.round(totalFrames * 0.9);
+    } else if (config.showDuring === 'custom') {
+      startFrame = config.customStart || 0;
+      endFrame = config.customEnd || totalFrames;
+    }
+    
+    return {
+      enabled: true,
+      logoUrl: config.asset.url,
+      position: config.position,
+      opacity: config.opacity,
+      scale: config.scale,
+      margin: config.margin,
+      startFrame,
+      endFrame,
+    };
+  }
+  
+  getCTAOutroProps(config: CTAOutroConfig, fps: number): {
+    enabled: boolean;
+    durationInFrames?: number;
+    backgroundColor?: string;
+    logoUrl?: string;
+    headline?: string;
+    subheadline?: string;
+    website?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    socialMedia?: CTAOutroConfig['socialMedia'];
+    buttonText?: string;
+    buttonUrl?: string;
+    animation?: string;
+    logoDelay?: number;
+    headlineDelay?: number;
+    contactDelay?: number;
+    buttonDelay?: number;
+  } {
+    if (!config.enabled) {
+      return { enabled: false };
+    }
+    
+    return {
+      enabled: true,
+      durationInFrames: Math.round(config.duration * fps),
+      backgroundColor: config.backgroundColor,
+      logoUrl: config.logo?.url,
+      headline: config.headline,
+      subheadline: config.subheadline,
+      website: config.contactInfo.website,
+      phone: config.contactInfo.phone,
+      email: config.contactInfo.email,
+      address: config.contactInfo.address,
+      socialMedia: config.socialMedia,
+      buttonText: config.buttonText,
+      buttonUrl: config.buttonUrl,
+      animation: config.animation,
+      logoDelay: Math.round(0.3 * fps),
+      headlineDelay: Math.round(0.8 * fps),
+      contactDelay: Math.round(1.5 * fps),
+      buttonDelay: Math.round(2.2 * fps),
+    };
+  }
+  
+  getRemotionBrandProps(plan: BrandInjectionPlan, totalContentFrames: number, fps: number): {
+    logoIntro: ReturnType<typeof this.getLogoIntroProps>;
+    watermark: ReturnType<typeof this.getWatermarkProps>;
+    ctaOutro: ReturnType<typeof this.getCTAOutroProps>;
+    totalFrames: number;
+    introFrames: number;
+    outroFrames: number;
+  } {
+    const introFrames = plan.logoIntro.enabled ? Math.round(plan.logoIntro.duration * fps) : 0;
+    const outroFrames = plan.ctaOutro.enabled ? Math.round(plan.ctaOutro.duration * fps) : 0;
+    const totalFrames = totalContentFrames + introFrames + outroFrames;
+    
+    return {
+      logoIntro: this.getLogoIntroProps(plan.logoIntro, fps),
+      watermark: this.getWatermarkProps(plan.watermark, totalFrames, fps),
+      ctaOutro: this.getCTAOutroProps(plan.ctaOutro, fps),
+      totalFrames,
+      introFrames,
+      outroFrames,
+    };
+  }
+  
+  getDefaultSettings(): {
+    logoIntro: Omit<LogoIntroConfig, 'asset'>;
+    watermark: Omit<WatermarkConfig, 'asset'>;
+    ctaOutro: Omit<CTAOutroConfig, 'logo'>;
+  } {
+    return {
+      logoIntro: DEFAULT_LOGO_INTRO,
+      watermark: DEFAULT_WATERMARK,
+      ctaOutro: DEFAULT_CTA_OUTRO,
     };
   }
 }

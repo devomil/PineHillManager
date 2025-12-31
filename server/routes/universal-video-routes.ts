@@ -16,6 +16,7 @@ import { imageProviderSelector } from '../services/image-provider-selector';
 import { soundDesignService } from '../services/sound-design-service';
 import { transitionService, TransitionPlan, SceneTransition } from '../services/transition-service';
 import { textPlacementService, TextOverlay as TextOverlayType, TextPlacement } from '../services/text-placement-service';
+import { brandInjectionService, BrandInjectionPlan } from '../services/brand-injection-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
@@ -4221,6 +4222,115 @@ router.get('/transitions/mood-mapping', isAuthenticated, async (req: Request, re
       stylePreferences,
     });
   } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// PHASE 8E: Brand Asset Injection Endpoints
+// ============================================
+
+router.get('/projects/:projectId/brand-injection', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const plan = await brandInjectionService.createInjectionPlan(projectId);
+
+    res.json({
+      success: true,
+      plan,
+      defaults: brandInjectionService.getDefaultSettings(),
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8E] Get brand injection plan failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/projects/:projectId/brand-injection', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const overrides = req.body as Partial<BrandInjectionPlan>;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const plan = await brandInjectionService.createInjectionPlan(projectId, overrides);
+
+    res.json({
+      success: true,
+      plan,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8E] Update brand injection plan failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/projects/:projectId/brand-injection/remotion-props', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { fps = 30 } = req.query;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    const plan = await brandInjectionService.createInjectionPlan(projectId);
+
+    const totalContentDuration = projectData.scenes.reduce((sum, scene) => sum + (scene.duration || 5), 0);
+    const totalContentFrames = Math.round(totalContentDuration * Number(fps));
+
+    const remotionProps = brandInjectionService.getRemotionBrandProps(plan, totalContentFrames, Number(fps));
+
+    res.json({
+      success: true,
+      projectId,
+      plan,
+      remotionProps,
+      contentDuration: totalContentDuration,
+      totalDurationWithBrand: totalContentDuration + plan.totalAddedDuration,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8E] Get brand injection Remotion props failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/brand-injection/defaults', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const defaults = brandInjectionService.getDefaultSettings();
+    const hasAssets = await brandInjectionService.hasBrandAssets();
+
+    res.json({
+      success: true,
+      defaults,
+      hasAssets,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8E] Get brand injection defaults failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
