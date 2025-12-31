@@ -2902,11 +2902,10 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     );
     
     // Phase 7D: Compute transitions for all scenes upfront
-    const transitionsData = transitionService.designTransitions(
+    const transitionsData = transitionService.planTransitions(
       scenes.map((s: any, i: number) => ({
         sceneIndex: i,
         sceneType: s.type || 'general',
-        mood: s.mood,
         duration: s.duration || 5,
       })),
       visualStyle
@@ -2916,7 +2915,7 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     const sceneProviders = Array.from(providerSelections.entries()).map(([index, selection]) => {
       const scene = scenes[index];
       const provider = selection?.provider;
-      const sceneTransition = transitionsData.transitions.find((t: any) => t.fromScene === index);
+      const sceneTransition = transitionsData.transitions.find((t: any) => t.fromSceneIndex === index);
       return {
         sceneIndex: index,
         sceneType: scene?.type || 'unknown',
@@ -2937,9 +2936,9 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
             alignment: 'center' as const,
           },
           transitionToNext: sceneTransition ? {
-            type: sceneTransition.type,
-            duration: sceneTransition.duration,
-            moodMatch: sceneTransition.moodMatch || 'smooth',
+            type: sceneTransition.config.type,
+            duration: sceneTransition.config.duration,
+            moodMatch: sceneTransition.moodFlow || 'smooth',
             reason: sceneTransition.reason || 'Default transition',
           } : undefined,
         },
