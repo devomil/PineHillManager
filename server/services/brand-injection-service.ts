@@ -654,9 +654,9 @@ class BrandInjectionService {
   }
   
   getRemotionBrandProps(plan: BrandInjectionPlan, totalContentFrames: number, fps: number): {
-    logoIntro: ReturnType<typeof this.getLogoIntroProps>;
-    watermark: ReturnType<typeof this.getWatermarkProps>;
-    ctaOutro: ReturnType<typeof this.getCTAOutroProps>;
+    logoIntro: { enabled: boolean; durationInFrames?: number; logoUrl?: string; backgroundColor?: string; position?: string; animation?: string; tagline?: string; fadeIn?: number; fadeOut?: number };
+    watermark: { enabled: boolean; logoUrl?: string; position?: string; opacity?: number; scale?: number; margin?: number; startFrame?: number; endFrame?: number };
+    ctaOutro: { enabled: boolean; durationInFrames?: number; backgroundColor?: string; logoUrl?: string; headline?: string; subheadline?: string; website?: string; phone?: string; email?: string; address?: string; socialMedia?: CTAOutroConfig['socialMedia']; buttonText?: string; buttonUrl?: string; animation?: string; logoDelay?: number; headlineDelay?: number; contactDelay?: number; buttonDelay?: number };
     totalFrames: number;
     introFrames: number;
     outroFrames: number;

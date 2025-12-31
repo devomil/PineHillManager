@@ -150,6 +150,11 @@ class BrandBibleService {
       }));
 
       console.log(`[BrandBible] Loaded ${assets.length} active brand assets`);
+      
+      // Debug: Show all assets with their contexts
+      assets.forEach(a => {
+        console.log(`[BrandBible] Asset: "${a.name}" | type: ${a.mediaType} | contexts: [${a.usageContexts.join(', ')}] | keywords: [${a.matchKeywords.join(', ')}] | url: ${a.url}`);
+      });
 
       // Find logos with flexible mediaType matching (logo, photo, graphic all work)
       const logoTypes = ['logo', 'photo', 'graphic'];
@@ -161,6 +166,11 @@ class BrandBibleService {
         outro: this.findAssetByContextFlexible(assets, logoTypes, ['outro', 'closing', 'cta'], ['logo']),
         favicon: this.findAssetByContextFlexible(assets, logoTypes, ['favicon', 'icon'], []),
       };
+      
+      // Debug: Show found logos with their URLs
+      console.log(`[BrandBible] Intro logo found: ${logos.intro ? `${logos.intro.name} -> ${logos.intro.url}` : 'NONE'}`);
+      console.log(`[BrandBible] Outro logo found: ${logos.outro ? `${logos.outro.name} -> ${logos.outro.url}` : 'NONE'}`);
+      console.log(`[BrandBible] Watermark found: ${logos.watermark ? `${logos.watermark.name} -> ${logos.watermark.url}` : 'NONE'}`);
 
       const bible: BrandBible = {
         ...DEFAULT_BRAND_SETTINGS,

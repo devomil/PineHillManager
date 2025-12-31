@@ -538,6 +538,31 @@ class TransitionService {
       curve: 'exponential',
     };
   }
+
+  /**
+   * Get the mood mapping for transitions
+   */
+  getMoodMapping(): Record<string, TransitionConfig> {
+    const moodMapping: Record<string, TransitionConfig> = {};
+    MOOD_TRANSITIONS.forEach((value, key) => {
+      moodMapping[key] = value;
+    });
+    return moodMapping;
+  }
+
+  /**
+   * Get available transition types
+   */
+  getAvailableTransitionTypes(): TransitionType[] {
+    return ['cut', 'fade', 'dissolve', 'wipe-left', 'wipe-right', 'wipe-up', 'wipe-down', 'zoom-in', 'zoom-out', 'slide-left', 'slide-right', 'blur'];
+  }
+
+  /**
+   * Get style preferences
+   */
+  getStylePreferences(): Record<string, Partial<TransitionConfig>> {
+    return STYLE_PREFERENCES;
+  }
 }
 
 export const transitionService = new TransitionService();

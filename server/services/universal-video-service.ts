@@ -3555,6 +3555,7 @@ Total: 90 seconds` : ''}
     const isProductVideo = (project.assets?.productImages?.length ?? 0) > 0;
     
     console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}... (isProductVideo: ${isProductVideo}, provider: ${provider || 'default'})`);
+    console.log(`[Regenerate] Scene type: ${scene.type}, Visual direction: ${(scene.visualDirection || 'none').substring(0, 50)}`);
     
     // Phase 9B: Store the requested provider in scene assets for tracking
     if (provider) {
@@ -3572,32 +3573,53 @@ Total: 90 seconds` : ''}
     if (wantsPerson) {
       console.log(`[Regenerate] Prompt requests person - using generateImage (not background-only)`);
       // Use generateImage which allows people and enforces gender via enhanceImagePrompt
-      const imageResult = await this.generateImage(prompt, sceneId, isProductVideo);
-      if (imageResult.success && imageResult.url) {
-        return { success: true, newImageUrl: imageResult.url, source: imageResult.source };
+      try {
+        const imageResult = await this.generateImage(prompt, sceneId, isProductVideo);
+        if (imageResult.success && imageResult.url) {
+          return { success: true, newImageUrl: imageResult.url, source: imageResult.source };
+        }
+        console.log(`[Regenerate] generateImage failed: ${imageResult.error || 'no URL returned'}`);
+      } catch (err: any) {
+        console.error(`[Regenerate] generateImage error:`, err.message);
       }
     }
     
     // Try content image generation first (for non-person prompts)
     if (this.isContentScene(scene.type)) {
-      const result = await this.generateContentImage(scene, project.title);
-      if (result.imageUrl) {
-        return { success: true, newImageUrl: result.imageUrl, source: result.source };
+      try {
+        const result = await this.generateContentImage(scene, project.title);
+        if (result.imageUrl) {
+          return { success: true, newImageUrl: result.imageUrl, source: result.source };
+        }
+        console.log(`[Regenerate] generateContentImage returned no imageUrl`);
+      } catch (err: any) {
+        console.error(`[Regenerate] generateContentImage error:`, err.message);
       }
     }
     
     // Try AI background generation (NO PEOPLE - for product overlays)
-    const bgResult = await this.generateAIBackground(prompt, scene.type);
-    if (bgResult.backgroundUrl) {
-      return { success: true, newImageUrl: bgResult.backgroundUrl, source: bgResult.source };
+    try {
+      const bgResult = await this.generateAIBackground(prompt, scene.type);
+      if (bgResult.backgroundUrl) {
+        return { success: true, newImageUrl: bgResult.backgroundUrl, source: bgResult.source };
+      }
+      console.log(`[Regenerate] generateAIBackground returned no backgroundUrl`);
+    } catch (err: any) {
+      console.error(`[Regenerate] generateAIBackground error:`, err.message);
     }
     
     // Fallback to stock image
-    const stockResult = await this.getStockImage(prompt);
-    if (stockResult.success) {
-      return { success: true, newImageUrl: stockResult.url, source: stockResult.source };
+    try {
+      const stockResult = await this.getStockImage(prompt);
+      if (stockResult.success) {
+        return { success: true, newImageUrl: stockResult.url, source: stockResult.source };
+      }
+      console.log(`[Regenerate] getStockImage failed: ${stockResult.error || 'unknown'}`);
+    } catch (err: any) {
+      console.error(`[Regenerate] getStockImage error:`, err.message);
     }
     
+    console.error(`[Regenerate] All methods failed for scene ${sceneId}`);
     return { success: false, error: 'All image generation methods failed' };
   }
 
