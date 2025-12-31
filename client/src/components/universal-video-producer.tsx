@@ -1703,6 +1703,43 @@ function ScenePreview({
                       {showsProductOverlay ? 'AI + Product' : 'AI Background'}
                     </Badge>
                   )}
+                  {/* Phase 9A: Quality Score Badge */}
+                  {scene.qualityScore !== undefined && (
+                    <Badge className={`text-xs ${getScoreColor(scene.qualityScore)}`} data-testid={`badge-quality-${scene.id}`}>
+                      Q: {scene.qualityScore}
+                    </Badge>
+                  )}
+                  {/* Phase 9A: Status Indicator */}
+                  {scene.analysisResult?.recommendation && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="flex items-center" data-testid={`status-indicator-${scene.id}`}>
+                            {scene.analysisResult.recommendation === 'approved' && (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            )}
+                            {scene.analysisResult.recommendation === 'needs_review' && (
+                              <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                            )}
+                            {(scene.analysisResult.recommendation === 'regenerate' || scene.analysisResult.recommendation === 'critical_fail') && (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            )}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{scene.analysisResult.recommendation === 'approved' ? 'Approved' : 
+                              scene.analysisResult.recommendation === 'needs_review' ? 'Needs Review' : 
+                              'Regeneration Needed'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {/* Phase 9A: Provider Badge */}
+                  {scene.assets?.videoSource && getProviderDisplayName(scene.assets.videoSource) && (
+                    <Badge className={`text-xs ${getProviderBadgeStyle(scene.assets.videoSource)}`} data-testid={`badge-provider-${scene.id}`}>
+                      {getProviderDisplayName(scene.assets.videoSource)}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm truncate mt-1">{scene.narration.substring(0, 60)}...</p>
               </div>
