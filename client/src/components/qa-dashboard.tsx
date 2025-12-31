@@ -9,10 +9,12 @@ import {
   ChevronDown,
   ChevronUp,
   Shield,
+  Filter,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SceneQualityCard } from './scene-quality-card';
 
 interface SceneQualityStatus {
@@ -23,6 +25,9 @@ interface SceneQualityStatus {
   userApproved: boolean;
   autoApproved?: boolean;
   regenerationCount?: number;
+  thumbnailUrl?: string;
+  narration?: string;
+  provider?: string;
 }
 
 interface ProjectQualityReport {
@@ -64,7 +69,7 @@ export function QADashboard({
   onProceedToRender,
 }: QADashboardProps) {
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set());
-  const [showAllScenes, setShowAllScenes] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'needs_review' | 'rejected' | 'approved'>('all');
   
   if (isLoading) {
     return (
@@ -107,9 +112,14 @@ export function QADashboard({
     return 'text-red-600';
   };
   
-  const scenesToShow = showAllScenes 
-    ? report.sceneStatuses 
-    : report.sceneStatuses.filter(s => s.status !== 'approved');
+  // Filter scenes based on selected filter tab
+  const filteredScenes = report.sceneStatuses.filter(scene => {
+    if (filter === 'all') return true;
+    if (filter === 'needs_review') return scene.status === 'needs_review' && !scene.userApproved;
+    if (filter === 'rejected') return scene.status === 'rejected';
+    if (filter === 'approved') return scene.status === 'approved' || scene.userApproved;
+    return true;
+  });
   
   return (
     <div className="space-y-4" data-testid="qa-dashboard">
@@ -198,30 +208,59 @@ export function QADashboard({
         </CardContent>
       </Card>
       
+      {/* Filter Tabs */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Scene Quality ({report.sceneStatuses.length} scenes)</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAllScenes(!showAllScenes)}
-              data-testid="btn-toggle-scenes"
-            >
-              {showAllScenes ? 'Show Issues Only' : 'Show All'}
-              {showAllScenes ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
-            </Button>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Scene Quality ({report.sceneStatuses.length} scenes)
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {scenesToShow.length === 0 ? (
-            <div className="text-center py-8 text-gray-500" data-testid="all-approved-message">
-              <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
-              <p>All scenes approved!</p>
+        <CardContent className="space-y-4">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)} data-testid="filter-tabs">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="all" data-testid="filter-all">
+                All ({report.sceneStatuses.length})
+              </TabsTrigger>
+              <TabsTrigger value="needs_review" data-testid="filter-needs-review">
+                <AlertTriangle className="h-3 w-3 mr-1 text-yellow-500" />
+                Review ({report.needsReviewCount})
+              </TabsTrigger>
+              <TabsTrigger value="rejected" data-testid="filter-rejected">
+                <XCircle className="h-3 w-3 mr-1 text-red-500" />
+                Rejected ({report.rejectedCount})
+              </TabsTrigger>
+              <TabsTrigger value="approved" data-testid="filter-approved">
+                <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
+                Approved ({report.approvedCount})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          {filteredScenes.length === 0 ? (
+            <div className="text-center py-8 text-gray-500" data-testid="no-scenes-message">
+              {filter === 'approved' ? (
+                <>
+                  <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                  <p>No approved scenes yet</p>
+                </>
+              ) : filter === 'rejected' ? (
+                <>
+                  <XCircle className="h-12 w-12 mx-auto mb-2 text-red-500" />
+                  <p>No rejected scenes</p>
+                </>
+              ) : filter === 'needs_review' ? (
+                <>
+                  <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                  <p>All scenes reviewed!</p>
+                </>
+              ) : (
+                <p>No scenes available</p>
+              )}
             </div>
           ) : (
             <div className="space-y-3" data-testid="scene-list">
-              {scenesToShow.map(scene => (
+              {filteredScenes.map(scene => (
                 <SceneQualityCard
                   key={scene.sceneIndex}
                   scene={scene}

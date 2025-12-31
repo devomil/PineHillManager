@@ -19,6 +19,16 @@ export interface SceneQualityStatus {
   userApproved: boolean;
   autoApproved: boolean;
   regenerationCount: number;
+  thumbnailUrl?: string;
+  narration?: string;
+  provider?: string;
+}
+
+export interface SceneMetadata {
+  thumbnailUrl?: string;
+  narration?: string;
+  provider?: string;
+  regenerationCount?: number;
 }
 
 export interface ProjectQualityReport {
@@ -52,13 +62,15 @@ class QualityGateService {
     projectId: string,
     sceneAnalyses: Phase8AnalysisResult[],
     userApprovals: Map<number, boolean>,
-    thresholds: QualityThresholds = DEFAULT_THRESHOLDS
+    thresholds: QualityThresholds = DEFAULT_THRESHOLDS,
+    sceneMetadata?: Map<number, SceneMetadata>
   ): ProjectQualityReport {
     console.log(`[QualityGate] Generating report for project ${projectId} with ${sceneAnalyses.length} scenes`);
     
     const sceneStatuses: SceneQualityStatus[] = sceneAnalyses.map(analysis => {
       const userApproved = userApprovals.get(analysis.sceneIndex) || false;
       const autoApproved = analysis.overallScore >= 85;
+      const metadata = sceneMetadata?.get(analysis.sceneIndex);
       
       let status: SceneQualityStatus['status'] = 'pending';
       if (userApproved || autoApproved) {
@@ -81,7 +93,10 @@ class QualityGateService {
         })),
         userApproved,
         autoApproved,
-        regenerationCount: 0,
+        regenerationCount: metadata?.regenerationCount || 0,
+        thumbnailUrl: metadata?.thumbnailUrl,
+        narration: metadata?.narration,
+        provider: metadata?.provider,
       };
     });
     

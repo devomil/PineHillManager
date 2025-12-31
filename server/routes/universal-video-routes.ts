@@ -4399,10 +4399,24 @@ router.get('/projects/:projectId/quality-report', isAuthenticated, async (req: R
         .map((s, idx) => [idx, true])
     );
     
+    // Build scene metadata with thumbnails, narration, and provider info
+    const sceneMetadata = new Map<number, { thumbnailUrl?: string; narration?: string; provider?: string; regenerationCount?: number }>();
+    projectData.scenes.forEach((scene, idx) => {
+      const thumbnailUrl = scene.assets?.imageUrl || scene.assets?.videoUrl || (scene.background as any)?.url;
+      sceneMetadata.set(idx, {
+        thumbnailUrl,
+        narration: scene.narration,
+        provider: scene.assets?.videoProvider || scene.assets?.imageProvider,
+        regenerationCount: (scene as any).regenerationCount || 0,
+      });
+    });
+    
     const report = qualityGateService.generateReport(
       projectId,
       analyses,
-      approvals
+      approvals,
+      undefined,
+      sceneMetadata
     );
 
     const unanalyzedCount = projectData.scenes.filter(s => !s.analysisResult).length;
@@ -4551,10 +4565,24 @@ router.post('/projects/:projectId/analyze-all', isAuthenticated, async (req: Req
       })
       .where(eq(universalVideoProjects.projectId, projectId));
 
+    // Build scene metadata with thumbnails
+    const sceneMetadata = new Map<number, { thumbnailUrl?: string; narration?: string; provider?: string; regenerationCount?: number }>();
+    projectData.scenes.forEach((scene, idx) => {
+      const thumbnailUrl = scene.assets?.imageUrl || scene.assets?.videoUrl || (scene.background as any)?.url;
+      sceneMetadata.set(idx, {
+        thumbnailUrl,
+        narration: scene.narration,
+        provider: scene.assets?.videoProvider || scene.assets?.imageProvider,
+        regenerationCount: (scene as any).regenerationCount || 0,
+      });
+    });
+
     const report = qualityGateService.generateReport(
       projectId,
       analyses,
-      new Map()
+      new Map(),
+      undefined,
+      sceneMetadata
     );
 
     res.json({

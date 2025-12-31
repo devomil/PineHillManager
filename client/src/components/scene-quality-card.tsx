@@ -21,6 +21,9 @@ interface SceneQualityStatus {
   userApproved: boolean;
   autoApproved?: boolean;
   regenerationCount?: number;
+  thumbnailUrl?: string;
+  narration?: string;
+  provider?: string;
 }
 
 interface SceneQualityCardProps {
@@ -92,13 +95,35 @@ export function SceneQualityCard({
       >
         <div className="flex items-center gap-3">
           {getStatusIcon()}
-          <span className="font-medium">Scene {scene.sceneIndex + 1}</span>
-          {getStatusBadge()}
-          {scene.regenerationCount && scene.regenerationCount > 0 && (
-            <Badge variant="outline" className="text-xs">
-              Regen #{scene.regenerationCount}
-            </Badge>
+          
+          {/* Thumbnail */}
+          {scene.thumbnailUrl ? (
+            <div className="w-16 h-10 bg-gray-200 rounded overflow-hidden flex-shrink-0" data-testid={`thumbnail-${scene.sceneIndex}`}>
+              <img src={scene.thumbnailUrl} alt={`Scene ${scene.sceneIndex + 1}`} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="w-16 h-10 bg-gradient-to-br from-gray-300 to-gray-400 rounded flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-medium">{scene.sceneIndex + 1}</span>
+            </div>
           )}
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium">Scene {scene.sceneIndex + 1}</span>
+              {getStatusBadge()}
+              {scene.provider && (
+                <Badge variant="outline" className="text-xs">{scene.provider}</Badge>
+              )}
+              {scene.regenerationCount && scene.regenerationCount > 0 && (
+                <Badge variant="outline" className="text-xs text-gray-500">
+                  Regen #{scene.regenerationCount}
+                </Badge>
+              )}
+            </div>
+            {scene.narration && (
+              <p className="text-xs text-gray-500 truncate mt-0.5">{scene.narration}</p>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
