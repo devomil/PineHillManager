@@ -111,7 +111,12 @@ class SceneAnalysisService {
   private anthropic: Anthropic | null = null;
 
   constructor() {
-    if (process.env.ANTHROPIC_API_KEY) {
+    this.initializeClient();
+  }
+
+  private initializeClient(): void {
+    if (process.env.ANTHROPIC_API_KEY && !this.anthropic) {
+      console.log(`[SceneAnalysis] Initializing Anthropic client with API key`);
       this.anthropic = new Anthropic({
         apiKey: process.env.ANTHROPIC_API_KEY,
       });
@@ -119,7 +124,13 @@ class SceneAnalysisService {
   }
 
   isAvailable(): boolean {
-    return !!this.anthropic;
+    // Re-check at runtime in case the secret was loaded after construction
+    if (!this.anthropic && process.env.ANTHROPIC_API_KEY) {
+      this.initializeClient();
+    }
+    const available = !!this.anthropic;
+    console.log(`[SceneAnalysis] isAvailable() = ${available}, ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
+    return available;
   }
 
   async analyzeScene(
