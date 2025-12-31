@@ -1718,10 +1718,19 @@ function ScenePreview({
             const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
             const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
             
+            // Phase 9A: Determine border styling based on analysis status
+            const borderClass = scene.analysisResult?.recommendation === 'needs_review' 
+              ? 'border-2 border-yellow-400' 
+              : (scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail')
+                ? 'border-2 border-red-400'
+                : scene.analysisResult?.recommendation === 'approved'
+                  ? 'border-2 border-green-400'
+                  : '';
+            
             return (
               <SortableSceneItem key={scene.id} scene={scene} index={index}>
                 {(dragHandle) => (
-                  <Card className="overflow-hidden">
+                  <Card className={`overflow-hidden ${borderClass}`} data-testid={`card-scene-${scene.id}`}>
                     <div 
                       className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
                       onClick={() => setSceneEditorOpen(scene.id)}
