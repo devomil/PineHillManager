@@ -17,6 +17,7 @@ import { soundDesignService } from '../services/sound-design-service';
 import { transitionService, TransitionPlan, SceneTransition } from '../services/transition-service';
 import { textPlacementService, TextOverlay as TextOverlayType, TextPlacement } from '../services/text-placement-service';
 import { brandInjectionService, BrandInjectionPlan } from '../services/brand-injection-service';
+import { qualityGateService, ProjectQualityReport, SceneQualityStatus } from '../services/quality-gate-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
@@ -4331,6 +4332,448 @@ router.get('/brand-injection/defaults', isAuthenticated, async (req: Request, re
 
   } catch (error: any) {
     console.error('[Phase8E] Get brand injection defaults failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// PHASE 8F: Quality Assurance Dashboard Endpoints
+// ============================================
+
+router.get('/projects/:projectId/quality-report', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    const analyses: Phase8AnalysisResult[] = projectData.scenes.map((scene, idx) => {
+      if (scene.analysisResult) {
+        return scene.analysisResult;
+      }
+      return {
+        sceneIndex: idx,
+        overallScore: 0,
+        technicalScore: 0,
+        contentMatchScore: 0,
+        brandComplianceScore: 0,
+        compositionScore: 0,
+        aiArtifactsDetected: false,
+        aiArtifactDetails: [],
+        contentMatchDetails: 'Not yet analyzed',
+        brandComplianceDetails: 'Not yet analyzed',
+        frameAnalysis: {
+          subjectPosition: 'center' as const,
+          faceDetected: false,
+          facePositions: [],
+          busyRegions: [],
+          dominantColors: [],
+          lightingType: 'neutral' as const,
+          safeTextZones: [],
+        },
+        issues: [{ 
+          category: 'technical' as const, 
+          severity: 'critical' as const, 
+          description: 'Scene has not been analyzed yet', 
+          suggestion: 'Run quality analysis on all scenes' 
+        }],
+        recommendation: 'regenerate' as const,
+        analysisTimestamp: '',
+        analysisModel: 'pending',
+      };
+    });
+    
+    const approvals = new Map<number, boolean>(
+      projectData.scenes
+        .filter(s => (s as any).userApproved)
+        .map((s, idx) => [idx, true])
+    );
+    
+    const report = qualityGateService.generateReport(
+      projectId,
+      analyses,
+      approvals
+    );
+
+    const unanalyzedCount = projectData.scenes.filter(s => !s.analysisResult).length;
+    if (unanalyzedCount > 0 && !report.blockingReasons.some(r => r.includes('not analyzed'))) {
+      report.blockingReasons.push(`${unanalyzedCount} scenes not yet analyzed`);
+      report.canRender = false;
+      report.passesThreshold = false;
+    }
+
+    res.json({
+      success: true,
+      report,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8F] Get quality report failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/analyze-all', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    const analyses: Phase8AnalysisResult[] = [];
+
+    for (let i = 0; i < projectData.scenes.length; i++) {
+      const scene = projectData.scenes[i];
+      
+      if (scene.analysisResult) {
+        analyses.push(scene.analysisResult);
+        continue;
+      }
+      
+      const sceneAssets = scene.assets;
+      const mediaUrl = sceneAssets?.videoUrl || sceneAssets?.imageUrl || sceneAssets?.primaryImageUrl;
+      
+      if (mediaUrl) {
+        try {
+          const context = {
+            sceneIndex: i,
+            sceneType: scene.type || 'content',
+            narration: scene.narration || '',
+            visualDirection: scene.visualDirection || '',
+            expectedContentType: 'video',
+            totalScenes: projectData.scenes.length,
+          };
+          
+          const analysis = await sceneAnalysisService.analyzeScenePhase8(mediaUrl, context);
+          analyses.push(analysis);
+          
+          projectData.scenes[i] = {
+            ...scene,
+            analysisResult: analysis,
+          };
+        } catch (analysisError: any) {
+          console.error(`[Phase8F] Scene ${i} analysis failed:`, analysisError.message);
+          const fallbackAnalysis: Phase8AnalysisResult = {
+            sceneIndex: i,
+            overallScore: 50,
+            technicalScore: 50,
+            contentMatchScore: 50,
+            brandComplianceScore: 50,
+            compositionScore: 50,
+            aiArtifactsDetected: false,
+            aiArtifactDetails: [],
+            contentMatchDetails: 'Analysis failed',
+            brandComplianceDetails: 'Analysis failed',
+            frameAnalysis: {
+              subjectPosition: 'center',
+              faceDetected: false,
+              facePositions: [],
+              busyRegions: [],
+              dominantColors: [],
+              lightingType: 'neutral',
+              safeTextZones: [],
+            },
+            issues: [{ 
+              category: 'technical', 
+              severity: 'major', 
+              description: `Analysis failed: ${analysisError.message}`, 
+              suggestion: 'Retry analysis' 
+            }],
+            recommendation: 'needs_review',
+            analysisTimestamp: new Date().toISOString(),
+            analysisModel: 'fallback',
+          };
+          analyses.push(fallbackAnalysis);
+          projectData.scenes[i] = {
+            ...scene,
+            analysisResult: fallbackAnalysis,
+          };
+        }
+      } else {
+        const noMediaAnalysis: Phase8AnalysisResult = {
+          sceneIndex: i,
+          overallScore: 0,
+          technicalScore: 0,
+          contentMatchScore: 0,
+          brandComplianceScore: 0,
+          compositionScore: 0,
+          aiArtifactsDetected: false,
+          aiArtifactDetails: [],
+          contentMatchDetails: 'No media to analyze',
+          brandComplianceDetails: 'No media to analyze',
+          frameAnalysis: {
+            subjectPosition: 'center',
+            faceDetected: false,
+            facePositions: [],
+            busyRegions: [],
+            dominantColors: [],
+            lightingType: 'neutral',
+            safeTextZones: [],
+          },
+          issues: [{ 
+            category: 'technical', 
+            severity: 'critical', 
+            description: 'No media URL available for analysis', 
+            suggestion: 'Generate video/image for this scene first' 
+          }],
+          recommendation: 'regenerate',
+          analysisTimestamp: new Date().toISOString(),
+          analysisModel: 'none',
+        };
+        analyses.push(noMediaAnalysis);
+        projectData.scenes[i] = {
+          ...scene,
+          analysisResult: noMediaAnalysis,
+        };
+      }
+    }
+
+    await db.update(universalVideoProjects)
+      .set({
+        scenes: projectData.scenes,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+
+    const report = qualityGateService.generateReport(
+      projectId,
+      analyses,
+      new Map()
+    );
+
+    res.json({
+      success: true,
+      report,
+      analyzedCount: analyses.length,
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8F] Analyze all scenes failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneIndex/approve', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneIndex } = req.params;
+    const idx = parseInt(sceneIndex, 10);
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    if (idx < 0 || idx >= projectData.scenes.length) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    projectData.scenes[idx] = {
+      ...projectData.scenes[idx],
+      userApproved: true,
+    } as any;
+
+    await db.update(universalVideoProjects)
+      .set({
+        scenes: projectData.scenes,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+
+    res.json({ success: true, sceneIndex: idx, approved: true });
+
+  } catch (error: any) {
+    console.error('[Phase8F] Approve scene failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneIndex/reject', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneIndex } = req.params;
+    const { reason } = req.body;
+    const idx = parseInt(sceneIndex, 10);
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    if (idx < 0 || idx >= projectData.scenes.length) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    projectData.scenes[idx] = {
+      ...projectData.scenes[idx],
+      userApproved: false,
+      rejectionReason: reason || 'User rejected',
+    } as any;
+
+    await db.update(universalVideoProjects)
+      .set({
+        scenes: projectData.scenes,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+
+    res.json({ success: true, sceneIndex: idx, rejected: true, reason });
+
+  } catch (error: any) {
+    console.error('[Phase8F] Reject scene failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/approve-all', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    let approvedCount = 0;
+
+    const updatedScenes = projectData.scenes.map((scene, idx) => {
+      if (scene.analysisResult && 
+          scene.analysisResult.recommendation === 'needs_review' &&
+          !(scene as any).userApproved) {
+        approvedCount++;
+        return {
+          ...scene,
+          userApproved: true,
+        } as any;
+      }
+      return scene;
+    });
+
+    await db.update(universalVideoProjects)
+      .set({
+        scenes: updatedScenes,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+
+    res.json({ success: true, approvedCount });
+
+  } catch (error: any) {
+    console.error('[Phase8F] Approve all scenes failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/projects/:projectId/can-render', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    const analyses: Phase8AnalysisResult[] = projectData.scenes.map((scene, idx) => {
+      if (scene.analysisResult) {
+        return scene.analysisResult;
+      }
+      return {
+        sceneIndex: idx,
+        overallScore: 0,
+        technicalScore: 0,
+        contentMatchScore: 0,
+        brandComplianceScore: 0,
+        compositionScore: 0,
+        aiArtifactsDetected: false,
+        aiArtifactDetails: [],
+        contentMatchDetails: 'Not yet analyzed',
+        brandComplianceDetails: 'Not yet analyzed',
+        frameAnalysis: {
+          subjectPosition: 'center' as const,
+          faceDetected: false,
+          facePositions: [],
+          busyRegions: [],
+          dominantColors: [],
+          lightingType: 'neutral' as const,
+          safeTextZones: [],
+        },
+        issues: [{ 
+          category: 'technical' as const, 
+          severity: 'critical' as const, 
+          description: 'Scene has not been analyzed yet', 
+          suggestion: 'Run quality analysis on all scenes' 
+        }],
+        recommendation: 'regenerate' as const,
+        analysisTimestamp: '',
+        analysisModel: 'pending',
+      };
+    });
+    
+    const approvals = new Map<number, boolean>(
+      projectData.scenes
+        .filter(s => (s as any).userApproved)
+        .map((s, idx) => [idx, true])
+    );
+    
+    const report = qualityGateService.generateReport(
+      projectId,
+      analyses,
+      approvals
+    );
+
+    const unanalyzedCount = projectData.scenes.filter(s => !s.analysisResult).length;
+    if (unanalyzedCount > 0) {
+      report.blockingReasons.push(`${unanalyzedCount} scenes not yet analyzed`);
+      report.canRender = false;
+      report.passesThreshold = false;
+    }
+
+    const renderCheck = qualityGateService.canProceedToRender(report);
+
+    res.json({
+      success: true,
+      ...renderCheck,
+      report: {
+        overallScore: report.overallScore,
+        approvedCount: report.approvedCount,
+        needsReviewCount: report.needsReviewCount,
+        rejectedCount: report.rejectedCount,
+        blockingReasons: report.blockingReasons,
+      },
+    });
+
+  } catch (error: any) {
+    console.error('[Phase8F] Check render permission failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
