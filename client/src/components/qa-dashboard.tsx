@@ -197,12 +197,12 @@ export function QADashboard({
             )}
             <Button 
               onClick={onProceedToRender}
-              disabled={!report.canRender}
+              disabled={!report.canRender || report.blockingReasons.length > 0}
               className="flex-1"
               data-testid="btn-proceed-render"
             >
               <Play className="h-4 w-4 mr-2" />
-              {report.canRender ? 'Proceed to Render' : 'Fix Issues First'}
+              {report.canRender && report.blockingReasons.length === 0 ? 'Proceed to Render' : 'Fix Issues First'}
             </Button>
           </div>
         </CardContent>
