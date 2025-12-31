@@ -1235,6 +1235,9 @@ function ScenePreview({
   const [mediaPickerSource, setMediaPickerSource] = useState<'ai' | 'pexels' | 'unsplash' | 'brand' | 'library'>('ai');
   const [applyingMedia, setApplyingMedia] = useState<string | null>(null);
   const [sceneActionPending, setSceneActionPending] = useState<string | null>(null);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState<{ sceneIndex: number; sceneId: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [sceneFilter, setSceneFilter] = useState<'all' | 'needs_review' | 'approved' | 'rejected'>('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -1698,10 +1701,81 @@ function ScenePreview({
     );
   };
 
+  // Filter scenes based on selected filter
+  const filteredScenes = scenes.filter(scene => {
+    if (sceneFilter === 'all') return true;
+    if (sceneFilter === 'needs_review') return scene.analysisResult?.recommendation === 'needs_review';
+    if (sceneFilter === 'approved') return scene.analysisResult?.recommendation === 'approved';
+    if (sceneFilter === 'rejected') return scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail';
+    return true;
+  });
+  
+  // Count scenes by status
+  const statusCounts = {
+    all: scenes.length,
+    needs_review: scenes.filter(s => s.analysisResult?.recommendation === 'needs_review').length,
+    approved: scenes.filter(s => s.analysisResult?.recommendation === 'approved').length,
+    rejected: scenes.filter(s => s.analysisResult?.recommendation === 'regenerate' || s.analysisResult?.recommendation === 'critical_fail').length,
+  };
+  
+  // Handle reject with dialog
+  const handleRejectWithDialog = (sceneIndex: number, sceneId: string) => {
+    setRejectDialogOpen({ sceneIndex, sceneId });
+    setRejectReason('');
+  };
+  
+  const submitRejection = () => {
+    if (rejectDialogOpen) {
+      handleSceneReject(rejectDialogOpen.sceneIndex, rejectReason || 'Manual rejection');
+      setRejectDialogOpen(null);
+      setRejectReason('');
+    }
+  };
+
   return (
     <>
+    {/* Phase 9A: Scene Filter Controls */}
+    <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="scene-filter-controls">
+      <span className="text-sm font-medium text-muted-foreground">Filter:</span>
+      <Button
+        size="sm"
+        variant={sceneFilter === 'all' ? 'default' : 'outline'}
+        onClick={() => setSceneFilter('all')}
+        data-testid="filter-all"
+      >
+        All ({statusCounts.all})
+      </Button>
+      <Button
+        size="sm"
+        variant={sceneFilter === 'needs_review' ? 'default' : 'outline'}
+        className={sceneFilter === 'needs_review' ? '' : 'border-yellow-400 text-yellow-700 hover:bg-yellow-50'}
+        onClick={() => setSceneFilter('needs_review')}
+        data-testid="filter-needs-review"
+      >
+        <AlertTriangle className="w-3 h-3 mr-1" /> Needs Review ({statusCounts.needs_review})
+      </Button>
+      <Button
+        size="sm"
+        variant={sceneFilter === 'approved' ? 'default' : 'outline'}
+        className={sceneFilter === 'approved' ? '' : 'border-green-400 text-green-700 hover:bg-green-50'}
+        onClick={() => setSceneFilter('approved')}
+        data-testid="filter-approved"
+      >
+        <CheckCircle className="w-3 h-3 mr-1" /> Approved ({statusCounts.approved})
+      </Button>
+      <Button
+        size="sm"
+        variant={sceneFilter === 'rejected' ? 'default' : 'outline'}
+        className={sceneFilter === 'rejected' ? '' : 'border-red-400 text-red-700 hover:bg-red-50'}
+        onClick={() => setSceneFilter('rejected')}
+        data-testid="filter-rejected"
+      >
+        <XCircle className="w-3 h-3 mr-1" /> Rejected ({statusCounts.rejected})
+      </Button>
+    </div>
+    
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={scenes.map(s => s.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={filteredScenes.map(s => s.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3">
           {isReordering && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 bg-muted/50 rounded">
@@ -1709,7 +1783,13 @@ function ScenePreview({
               Saving new order...
             </div>
           )}
-          {scenes.map((scene, index) => {
+          {filteredScenes.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No scenes match the selected filter.
+            </div>
+          )}
+          {filteredScenes.map((scene) => {
+            const index = scenes.findIndex(s => s.id === scene.id);
             const imageAsset = assets.images.find(img => img.sceneId === scene.id);
             const isEditing = sceneEditorOpen === scene.id;
             const hasAIBackground = scene.assets?.backgroundUrl;
@@ -2457,7 +2537,7 @@ function ScenePreview({
                       size="sm"
                       variant="outline"
                       className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-                      onClick={() => handleSceneReject(index, 'Manual rejection')}
+                      onClick={() => handleRejectWithDialog(index, scene.id)}
                       disabled={!!sceneActionPending}
                       data-testid={`button-reject-scene-${scene.id}`}
                     >
@@ -2522,6 +2602,56 @@ function ScenePreview({
       }}
       isApplying={!!applyingMedia}
     />
+    
+    {/* Phase 9A: Reject Reason Dialog */}
+    <Dialog open={!!rejectDialogOpen} onOpenChange={(open) => !open && setRejectDialogOpen(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ThumbsDown className="w-5 h-5 text-red-500" />
+            Reject Scene
+          </DialogTitle>
+          <DialogDescription>
+            Provide a reason for rejecting this scene. This helps improve future generations.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="reject-reason">Rejection Reason</Label>
+            <Textarea
+              id="reject-reason"
+              placeholder="e.g., Incorrect product placement, poor lighting, doesn't match brand style..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              data-testid="input-reject-reason"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRejectDialogOpen(null)}
+              data-testid="button-cancel-reject"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={submitRejection}
+              disabled={!!sceneActionPending}
+              data-testid="button-submit-reject"
+            >
+              {sceneActionPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <ThumbsDown className="w-4 h-4 mr-1" />
+              )}
+              Reject Scene
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
