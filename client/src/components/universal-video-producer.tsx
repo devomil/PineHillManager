@@ -134,8 +134,6 @@ function getProviderDisplayName(provider: string | undefined): string | null {
     'flux-pro': 'Flux.1',
     'falai': 'fal.ai',
     'fal.ai': 'fal.ai',
-    'pexels': 'Pexels',
-    'unsplash': 'Unsplash',
   };
   return providerNames[provider.toLowerCase()] || provider;
 }
@@ -1233,7 +1231,7 @@ function ScenePreview({
   const [isReordering, setIsReordering] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState<string | null>(null);
   const [mediaPickerType, setMediaPickerType] = useState<'image' | 'video'>('image');
-  const [mediaPickerSource, setMediaPickerSource] = useState<'ai' | 'pexels' | 'unsplash' | 'brand' | 'library'>('ai');
+  const [mediaPickerSource, setMediaPickerSource] = useState<'brand' | 'library'>('brand');
   const [applyingMedia, setApplyingMedia] = useState<string | null>(null);
   const [sceneActionPending, setSceneActionPending] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState<{ sceneIndex: number; sceneId: string } | null>(null);
@@ -1665,7 +1663,7 @@ function ScenePreview({
   };
 
   // Open media picker for a scene
-  const openMediaPicker = (sceneId: string, type: 'image' | 'video', source: 'ai' | 'pexels' | 'unsplash' | 'brand' | 'library') => {
+  const openMediaPicker = (sceneId: string, type: 'image' | 'video', source: 'brand' | 'library') => {
     setMediaPickerOpen(sceneId);
     setMediaPickerType(type);
     setMediaPickerSource(source);
@@ -2657,14 +2655,11 @@ function MediaPickerDialog({
   onClose: () => void;
   sceneId: string;
   mediaType: 'image' | 'video';
-  source: 'ai' | 'pexels' | 'unsplash' | 'brand' | 'library';
-  onSourceChange: (source: 'ai' | 'pexels' | 'unsplash' | 'brand' | 'library') => void;
+  source: 'brand' | 'library';
+  onSourceChange: (source: 'brand' | 'library') => void;
   onMediaSelect: (url: string, type: 'image' | 'video', source: string) => void;
   isApplying: boolean;
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pexelsResults, setPexelsResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   
   // Fetch brand media library
   const { data: brandMediaData } = useQuery<{ success: boolean; assets: any[] }>({
@@ -2693,28 +2688,8 @@ function MediaPickerDialog({
     return a.type === 'image';
   });
   
-  // Search Pexels/Unsplash
-  const searchStock = async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    try {
-      const endpoint = source === 'pexels' 
-        ? `/api/stock/${mediaType === 'video' ? 'videos' : 'images'}/search?query=${encodeURIComponent(searchQuery)}&source=pexels`
-        : `/api/stock/images/search?query=${encodeURIComponent(searchQuery)}&source=unsplash`;
-      const res = await fetch(endpoint, { credentials: 'include' });
-      const data = await res.json();
-      setPexelsResults(data.results || data.photos || data.videos || []);
-    } catch (err) {
-      console.error('Stock search error:', err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-  
   const getSourceLabel = () => {
     switch (source) {
-      case 'pexels': return 'Pexels Stock';
-      case 'unsplash': return 'Unsplash Stock';
       case 'brand': return 'Brand Media Library';
       case 'library': return 'Asset Library';
       default: return 'Select Source';
@@ -2736,77 +2711,22 @@ function MediaPickerDialog({
         
         {/* Source Tabs */}
         <div className="flex gap-1 flex-wrap border-b pb-2">
-          {['pexels', 'unsplash', 'brand', 'library'].map((s) => {
-            if (s === 'unsplash' && mediaType === 'video') return null;
-            return (
-              <Button
-                key={s}
-                size="sm"
-                variant={source === s ? 'default' : 'outline'}
-                className="h-7 text-xs"
-                onClick={() => onSourceChange(s as any)}
-              >
-                {s === 'pexels' ? 'Pexels' : s === 'unsplash' ? 'Unsplash' : s === 'brand' ? 'Brand Media' : 'Asset Library'}
-              </Button>
-            );
-          })}
-        </div>
-        
-        {/* Search for stock sources */}
-        {(source === 'pexels' || source === 'unsplash') && (
-          <div className="flex gap-2">
-            <Input
-              placeholder={`Search ${source === 'pexels' ? 'Pexels' : 'Unsplash'} for ${mediaType}s...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && searchStock()}
-              className="flex-1"
-            />
-            <Button onClick={searchStock} disabled={isSearching}>
-              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+          {(['brand', 'library'] as const).map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={source === s ? 'default' : 'outline'}
+              className="h-7 text-xs"
+              onClick={() => onSourceChange(s)}
+            >
+              {s === 'brand' ? 'Brand Media' : 'Asset Library'}
             </Button>
-          </div>
-        )}
+          ))}
+        </div>
         
         {/* Results Grid */}
         <ScrollArea className="flex-1 min-h-[300px]">
           <div className="grid grid-cols-3 md:grid-cols-4 gap-3 p-1">
-            {/* Pexels/Unsplash Results */}
-            {(source === 'pexels' || source === 'unsplash') && pexelsResults.map((item, idx) => {
-              const url = mediaType === 'video' 
-                ? (item.video_files?.[0]?.link || item.url)
-                : (item.src?.large || item.urls?.regular || item.url);
-              const thumbnail = mediaType === 'video'
-                ? (item.image || item.video_pictures?.[0]?.picture)
-                : (item.src?.medium || item.urls?.thumb || item.url);
-              
-              return (
-                <div
-                  key={idx}
-                  className="relative group cursor-pointer rounded-lg overflow-hidden border hover:border-primary transition-colors"
-                  onClick={() => onMediaSelect(url, mediaType, source)}
-                >
-                  <div className="aspect-video bg-gray-200">
-                    {mediaType === 'video' ? (
-                      <div className="relative w-full h-full">
-                        <img src={thumbnail} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Video className="w-8 h-8 text-white drop-shadow-lg" />
-                        </div>
-                      </div>
-                    ) : (
-                      <img src={thumbnail} alt="" className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <Button size="sm" variant="secondary" disabled={isApplying}>
-                      {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Use This'}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-            
             {/* Brand Media Results */}
             {source === 'brand' && filteredBrandAssets.map((item) => (
               <div
@@ -2876,12 +2796,6 @@ function MediaPickerDialog({
               <div className="col-span-full text-center py-8 text-muted-foreground">
                 <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>No {mediaType}s in Asset Library</p>
-              </div>
-            )}
-            {(source === 'pexels' || source === 'unsplash') && pexelsResults.length === 0 && (
-              <div className="col-span-full text-center py-8 text-muted-foreground">
-                <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Search for {mediaType}s above</p>
               </div>
             )}
           </div>
