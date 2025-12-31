@@ -3738,9 +3738,36 @@ router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthent
     
     const scene = projectData.scenes[sceneIdx];
     
-    if (!scene.analysisResult) {
-      return res.status(400).json({ success: false, error: 'Scene has not been analyzed yet. Run analysis first.' });
-    }
+    // Create a default analysis result if none exists to allow regeneration
+    const analysisResult: Phase8AnalysisResult = scene.analysisResult || {
+      sceneIndex: sceneIdx,
+      overallScore: 50,
+      technicalScore: 50,
+      contentMatchScore: 50,
+      brandComplianceScore: 50,
+      compositionScore: 50,
+      aiArtifactsDetected: false,
+      aiArtifactDetails: [],
+      contentMatchDetails: 'User requested regeneration',
+      brandComplianceDetails: 'Pending analysis',
+      frameAnalysis: {
+        subjectPosition: 'center' as const,
+        faceDetected: false,
+        busyRegions: [],
+        dominantColors: [],
+        lightingType: 'neutral' as const,
+        safeTextZones: [],
+      },
+      issues: [{ 
+        category: 'technical' as const, 
+        severity: 'minor' as const, 
+        description: 'User requested regeneration', 
+        suggestion: 'Regenerating...' 
+      }],
+      recommendation: 'regenerate' as const,
+      analysisTimestamp: new Date().toISOString(),
+      analysisModel: 'user-requested',
+    };
     
     console.log(`[Phase8B] Starting auto-regeneration for scene ${sceneIdx + 1}`);
     
@@ -3754,7 +3781,7 @@ router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthent
       duration: scene.duration || 0,
       currentProvider: (scene.assets as any)?.provider || 'flux',
       currentAssetUrl: scene.assets?.imageUrl || scene.assets?.videoUrl,
-      analysisResult: scene.analysisResult,
+      analysisResult: analysisResult,
       projectId,
       aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
       totalScenes: projectData.scenes.length,
@@ -4375,7 +4402,6 @@ router.get('/projects/:projectId/quality-report', isAuthenticated, async (req: R
         frameAnalysis: {
           subjectPosition: 'center' as const,
           faceDetected: false,
-          facePositions: [],
           busyRegions: [],
           dominantColors: [],
           lightingType: 'neutral' as const,
@@ -4406,7 +4432,7 @@ router.get('/projects/:projectId/quality-report', isAuthenticated, async (req: R
       sceneMetadata.set(idx, {
         thumbnailUrl,
         narration: scene.narration,
-        provider: scene.assets?.videoProvider || scene.assets?.imageProvider,
+        provider: (scene.assets as any)?.videoProvider || (scene.assets as any)?.imageProvider || (scene.assets as any)?.provider,
         regenerationCount: (scene as any).regenerationCount || 0,
       });
     });
@@ -4461,7 +4487,7 @@ router.post('/projects/:projectId/analyze-all', isAuthenticated, async (req: Req
       }
       
       const sceneAssets = scene.assets;
-      const mediaUrl = sceneAssets?.videoUrl || sceneAssets?.imageUrl || sceneAssets?.primaryImageUrl;
+      const mediaUrl = sceneAssets?.videoUrl || sceneAssets?.imageUrl || (sceneAssets as any)?.primaryImageUrl;
       
       if (mediaUrl) {
         try {
@@ -4495,17 +4521,16 @@ router.post('/projects/:projectId/analyze-all', isAuthenticated, async (req: Req
             contentMatchDetails: 'Analysis failed',
             brandComplianceDetails: 'Analysis failed',
             frameAnalysis: {
-              subjectPosition: 'center',
+              subjectPosition: 'center' as const,
               faceDetected: false,
-              facePositions: [],
               busyRegions: [],
               dominantColors: [],
-              lightingType: 'neutral',
+              lightingType: 'neutral' as const,
               safeTextZones: [],
             },
             issues: [{ 
-              category: 'technical', 
-              severity: 'major', 
+              category: 'technical' as const, 
+              severity: 'major' as const, 
               description: `Analysis failed: ${analysisError.message}`, 
               suggestion: 'Retry analysis' 
             }],
@@ -4532,17 +4557,16 @@ router.post('/projects/:projectId/analyze-all', isAuthenticated, async (req: Req
           contentMatchDetails: 'No media to analyze',
           brandComplianceDetails: 'No media to analyze',
           frameAnalysis: {
-            subjectPosition: 'center',
+            subjectPosition: 'center' as const,
             faceDetected: false,
-            facePositions: [],
             busyRegions: [],
             dominantColors: [],
-            lightingType: 'neutral',
+            lightingType: 'neutral' as const,
             safeTextZones: [],
           },
           issues: [{ 
-            category: 'technical', 
-            severity: 'critical', 
+            category: 'technical' as const, 
+            severity: 'critical' as const, 
             description: 'No media URL available for analysis', 
             suggestion: 'Generate video/image for this scene first' 
           }],
@@ -4572,7 +4596,7 @@ router.post('/projects/:projectId/analyze-all', isAuthenticated, async (req: Req
       sceneMetadata.set(idx, {
         thumbnailUrl,
         narration: scene.narration,
-        provider: scene.assets?.videoProvider || scene.assets?.imageProvider,
+        provider: (scene.assets as any)?.videoProvider || (scene.assets as any)?.imageProvider || (scene.assets as any)?.provider,
         regenerationCount: (scene as any).regenerationCount || 0,
       });
     });
@@ -4752,7 +4776,6 @@ router.get('/projects/:projectId/can-render', isAuthenticated, async (req: Reque
         frameAnalysis: {
           subjectPosition: 'center' as const,
           faceDetected: false,
-          facePositions: [],
           busyRegions: [],
           dominantColors: [],
           lightingType: 'neutral' as const,
