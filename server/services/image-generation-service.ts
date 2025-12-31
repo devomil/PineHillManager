@@ -47,7 +47,7 @@ class ImageGenerationService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'flux-schnell',
+          model: 'Qubico/flux1-schnell',
           task_type: 'txt2img',
           input: {
             prompt: options.prompt,
