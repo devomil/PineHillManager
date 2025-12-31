@@ -1234,7 +1234,9 @@ function ScenePreview({
   const [mediaPickerType, setMediaPickerType] = useState<'image' | 'video'>('image');
   const [mediaPickerSource, setMediaPickerSource] = useState<'ai' | 'pexels' | 'unsplash' | 'brand' | 'library'>('ai');
   const [applyingMedia, setApplyingMedia] = useState<string | null>(null);
+  const [sceneActionPending, setSceneActionPending] = useState<string | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -1329,6 +1331,92 @@ function ScenePreview({
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setSavingOverlay(null);
+    }
+  };
+  
+  // Phase 9A: Scene approval, rejection, and regeneration handlers
+  const handleSceneApprove = async (sceneIndex: number) => {
+    if (!projectId) return;
+    const scene = scenes[sceneIndex];
+    if (!scene) return;
+    
+    setSceneActionPending(scene.id);
+    try {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneIndex}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Scene Approved', description: 'Scene manually approved for final render.' });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSceneActionPending(null);
+    }
+  };
+  
+  const handleSceneReject = async (sceneIndex: number, reason: string) => {
+    if (!projectId) return;
+    const scene = scenes[sceneIndex];
+    if (!scene) return;
+    
+    setSceneActionPending(scene.id);
+    try {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneIndex}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Scene Rejected', description: 'Scene marked for regeneration.' });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSceneActionPending(null);
+    }
+  };
+  
+  const handleSceneRegenerate = async (sceneIndex: number) => {
+    if (!projectId) return;
+    const scene = scenes[sceneIndex];
+    if (!scene) return;
+    
+    setSceneActionPending(scene.id);
+    try {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneIndex}/auto-regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ 
+          title: 'Regeneration Started', 
+          description: `Regenerating scene ${sceneIndex + 1} with improved prompt.` 
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSceneActionPending(null);
     }
   };
 
@@ -2277,6 +2365,134 @@ function ScenePreview({
                 )}
               </div>
             </div>
+            
+            {/* Phase 9A: Quality Review Section */}
+            {(scene.analysisResult || scene.qualityScore !== undefined) && (
+              <div className="mt-6 pt-4 border-t">
+                <Label className="text-sm font-medium mb-3 block">Quality & Review</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Quality Scores */}
+                  <div className="space-y-2">
+                    {scene.qualityScore !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground w-28">Overall Score:</span>
+                        <Badge className={`${getScoreColor(scene.qualityScore)}`} data-testid={`modal-quality-score-${scene.id}`}>
+                          {scene.qualityScore}/100
+                        </Badge>
+                        {scene.analysisResult?.recommendation && (
+                          <Badge variant="outline" className="capitalize" data-testid={`modal-recommendation-${scene.id}`}>
+                            {scene.analysisResult.recommendation.replace('_', ' ')}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    {scene.analysisResult && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-28">Technical:</span>
+                          <Progress value={scene.analysisResult.technicalScore} className="w-20 h-2" />
+                          <span className="text-xs">{scene.analysisResult.technicalScore}/100</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-28">Content Match:</span>
+                          <Progress value={scene.analysisResult.contentMatchScore} className="w-20 h-2" />
+                          <span className="text-xs">{scene.analysisResult.contentMatchScore}/100</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-28">Composition:</span>
+                          <Progress value={scene.analysisResult.compositionScore} className="w-20 h-2" />
+                          <span className="text-xs">{scene.analysisResult.compositionScore}/100</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Issues List */}
+                  {scene.analysisResult?.issues && scene.analysisResult.issues.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">Issues Found:</span>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {scene.analysisResult.issues.map((issue, idx) => (
+                          <div key={idx} className={`text-xs p-2 rounded ${
+                            issue.severity === 'critical' ? 'bg-red-50 text-red-700' :
+                            issue.severity === 'major' ? 'bg-orange-50 text-orange-700' :
+                            'bg-yellow-50 text-yellow-700'
+                          }`}>
+                            <span className="font-medium capitalize">[{issue.severity}]</span> {issue.description}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Action Buttons */}
+                {scene.analysisResult?.recommendation === 'needs_review' && projectId && (
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                      onClick={() => handleSceneApprove(index)}
+                      disabled={!!sceneActionPending}
+                      data-testid={`button-approve-scene-${scene.id}`}
+                    >
+                      {sceneActionPending === scene.id ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <ThumbsUp className="w-4 h-4 mr-1" />
+                      )}
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                      onClick={() => handleSceneReject(index, 'Manual rejection')}
+                      disabled={!!sceneActionPending}
+                      data-testid={`button-reject-scene-${scene.id}`}
+                    >
+                      <ThumbsDown className="w-4 h-4 mr-1" />
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handleSceneRegenerate(index)}
+                      disabled={!!sceneActionPending}
+                      data-testid={`button-regenerate-scene-${scene.id}`}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      Regenerate
+                    </Button>
+                  </div>
+                )}
+                {(scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail') && projectId && (
+                  <div className="flex gap-2 mt-4">
+                    <Alert variant="destructive" className="flex-1">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-sm">
+                        This scene requires regeneration. Click to generate a new version.
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleSceneRegenerate(index)}
+                      disabled={!!sceneActionPending}
+                      data-testid={`button-regenerate-critical-${scene.id}`}
+                    >
+                      {sceneActionPending === scene.id ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                      )}
+                      Regenerate Now
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       );
