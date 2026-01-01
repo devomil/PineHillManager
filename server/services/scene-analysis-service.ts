@@ -1185,13 +1185,21 @@ Respond ONLY with the JSON, no other text.`;
     };
   }
 
+  /**
+   * Phase 10A WARNING: This method generates FAKE random scores!
+   * These are NOT real quality analysis results from Claude Vision.
+   * When ANTHROPIC_API_KEY is not configured, this placeholder data is returned.
+   */
   private createSimulatedPhase8Result(context: SceneContext): Phase8AnalysisResult {
+    // WARNING: These are FAKE random scores, NOT real analysis!
     const baseScore = 75 + Math.floor(Math.random() * 15);
     const technicalScore = Math.round(baseScore * 0.2);
     const contentMatchScore = Math.round(baseScore * 0.3);
     const brandComplianceScore = Math.round(baseScore * 0.3);
     const compositionScore = Math.round(baseScore * 0.2);
     const overallScore = technicalScore + contentMatchScore + brandComplianceScore + compositionScore;
+    
+    console.warn(`[Phase10A] Generated FAKE score ${overallScore} for scene ${context.sceneIndex + 1} (random 75-90 range)`);
     
     return {
       sceneIndex: context.sceneIndex,
@@ -1202,8 +1210,8 @@ Respond ONLY with the JSON, no other text.`;
       compositionScore,
       aiArtifactsDetected: false,
       aiArtifactDetails: [],
-      contentMatchDetails: 'Simulated analysis - Claude Vision not available',
-      brandComplianceDetails: '',
+      contentMatchDetails: '⚠️ SIMULATED (FAKE) - Claude Vision not available. Configure ANTHROPIC_API_KEY for real analysis.',
+      brandComplianceDetails: '⚠️ NOT ANALYZED - No Anthropic API key',
       frameAnalysis: {
         subjectPosition: 'center',
         faceDetected: false,
@@ -1212,10 +1220,15 @@ Respond ONLY with the JSON, no other text.`;
         lightingType: 'warm',
         safeTextZones: [{ position: 'lower-third', confidence: 80 }],
       },
-      issues: [],
-      recommendation: overallScore >= 85 ? 'approved' : 'needs_review',
+      issues: [{
+        category: 'technical',
+        severity: 'warning' as const,
+        description: '⚠️ This is a SIMULATED score. Claude Vision analysis not performed.',
+        suggestion: 'Configure ANTHROPIC_API_KEY to enable real quality analysis',
+      }],
+      recommendation: 'needs_review',
       analysisTimestamp: new Date().toISOString(),
-      analysisModel: 'simulated',
+      analysisModel: 'simulated-fake-scores',
     };
   }
 }

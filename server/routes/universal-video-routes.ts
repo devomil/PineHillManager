@@ -3243,10 +3243,17 @@ router.post('/check-blank-gradient', isAuthenticated, async (req: Request, res: 
 });
 
 // Phase 8A: Analyze all scenes in a project (batch analysis)
+// Phase 10A: Added diagnostic logging
 router.post('/projects/:projectId/analyze-all-scenes', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
     const { projectId } = req.params;
+    
+    console.log('═══════════════════════════════════════════════════════════════════════════════');
+    console.log('[Phase10A] ANALYZE-ALL-SCENES ENDPOINT CALLED');
+    console.log(`[Phase10A] Project ID: ${projectId}`);
+    console.log(`[Phase10A] ANTHROPIC_API_KEY configured: ${!!process.env.ANTHROPIC_API_KEY}`);
+    console.log('═══════════════════════════════════════════════════════════════════════════════');
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -3258,7 +3265,7 @@ router.post('/projects/:projectId/analyze-all-scenes', isAuthenticated, async (r
     }
     
     const scenes = projectData.scenes || [];
-    console.log(`[Phase8A] Batch analyzing ${scenes.length} scenes for project ${projectId}`);
+    console.log(`[Phase10A] Batch analyzing ${scenes.length} scenes for project ${projectId}`);
     
     const results: Phase8AnalysisResult[] = [];
     let scenesAnalyzed = 0;
@@ -3530,11 +3537,18 @@ router.post('/projects/:projectId/run-qa', isAuthenticated, async (req: Request,
     }
     
     // Fallback to simulated scoring if Claude Vision is not available or failed
+    // Phase 10A WARNING: These are FAKE random scores, NOT real quality analysis!
     if (!qualityReport) {
-      console.log('[UniversalVideo] Using simulated QA scoring (Claude Vision not available)');
+      console.warn('═══════════════════════════════════════════════════════════════════════════════');
+      console.warn('[Phase10A] WARNING: USING SIMULATED FAKE QA SCORES');
+      console.warn('[Phase10A] Claude Vision is NOT being called - scores are randomly generated!');
+      console.warn('[Phase10A] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+      console.warn('[Phase10A] This is why quality scores appear incorrect!');
+      console.warn('═══════════════════════════════════════════════════════════════════════════════');
       
       const sceneScores = scenes.map((scene, i) => {
         const hasAsset = scene.assets?.videoUrl || scene.assets?.imageUrl || (scene.background as any)?.url;
+        // FAKE SCORES: These are randomly generated placeholders!
         const baseScore = hasAsset ? 75 + Math.floor(Math.random() * 20) : 70;
         
         return {
