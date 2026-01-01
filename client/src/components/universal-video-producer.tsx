@@ -3957,7 +3957,7 @@ export default function UniversalVideoProducer() {
 
       {/* QA Dashboard Modal - Full Screen */}
       <Dialog open={showQADashboard} onOpenChange={setShowQADashboard}>
-        <DialogContent className="w-[95vw] h-[95vh] max-w-[95vw] flex flex-col overflow-hidden">
+        <DialogContent className="w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5" />
