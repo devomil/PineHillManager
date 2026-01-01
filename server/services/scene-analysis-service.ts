@@ -115,10 +115,19 @@ class SceneAnalysisService {
   }
 
   private initializeClient(): void {
-    if (process.env.ANTHROPIC_API_KEY && !this.anthropic) {
-      console.log(`[SceneAnalysis] Initializing Anthropic client with API key`);
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (apiKey && !this.anthropic) {
+      const keyPrefix = apiKey.substring(0, 15);
+      const keyLength = apiKey.length;
+      const hasWhitespace = /\s/.test(apiKey);
+      console.log(`[SceneAnalysis] Initializing Anthropic client`);
+      console.log(`[SceneAnalysis] API Key prefix: ${keyPrefix}...`);
+      console.log(`[SceneAnalysis] API Key length: ${keyLength} chars`);
+      console.log(`[SceneAnalysis] API Key has whitespace: ${hasWhitespace}`);
+      
+      const cleanedKey = apiKey.trim();
       this.anthropic = new Anthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY,
+        apiKey: cleanedKey,
       });
     }
   }
