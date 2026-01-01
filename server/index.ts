@@ -23,7 +23,7 @@ console.log('[Phase10A DIAGNOSTIC] AI Service Configuration Check');
 console.log('═══════════════════════════════════════════════════════════════════════════════');
 console.log('[Phase10A] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
 if (process.env.ANTHROPIC_API_KEY) {
-  console.log('[Phase10A] ANTHROPIC_API_KEY prefix:', process.env.ANTHROPIC_API_KEY.substring(0, 15) + '...');
+  console.log('[Phase10A] ANTHROPIC_API_KEY present: YES (key masked for security)');
 } else {
   console.warn('[Phase10A] WARNING: ANTHROPIC_API_KEY is NOT set - Claude Vision will NOT work!');
   console.warn('[Phase10A] Quality analysis will return SIMULATED scores (fake 75-90 values)');

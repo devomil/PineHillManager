@@ -2005,11 +2005,36 @@ function ScenePreview({
                       {showsProductOverlay ? 'AI + Product' : 'AI Background'}
                     </Badge>
                   )}
-                  {/* Phase 9A: Quality Score Badge */}
+                  {/* Phase 9A: Quality Score Badge - Phase 10A: Added simulated indicator */}
                   {scene.qualityScore !== undefined && (
-                    <Badge className={`text-xs ${getScoreColor(scene.qualityScore)}`} data-testid={`badge-quality-${scene.id}`}>
-                      Q: {scene.qualityScore}
-                    </Badge>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge 
+                            className={`text-xs ${
+                              scene.analysisResult?.analysisModel?.includes('simulated') 
+                                ? 'bg-orange-500 border-orange-600' 
+                                : getScoreColor(scene.qualityScore)
+                            }`} 
+                            data-testid={`badge-quality-${scene.id}`}
+                          >
+                            {scene.analysisResult?.analysisModel?.includes('simulated') ? '⚠️ ' : ''}
+                            Q: {scene.qualityScore}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {scene.analysisResult?.analysisModel?.includes('simulated') ? (
+                            <div className="text-orange-300">
+                              <p className="font-bold">⚠️ SIMULATED SCORE</p>
+                              <p>This is a fake score - Claude Vision not configured.</p>
+                              <p className="text-xs mt-1">Configure ANTHROPIC_API_KEY for real analysis.</p>
+                            </div>
+                          ) : (
+                            <p>Quality Score: {scene.qualityScore}/100</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                   {/* Phase 9A: Status Indicator */}
                   {scene.analysisResult?.recommendation && (
