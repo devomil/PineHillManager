@@ -17,6 +17,20 @@ function log(message: string, source = "express") {
 process.env.VAPID_PUBLIC_KEY = "BKVeBF9FrhiHDbvKQe8nojV_igVq_QzaWreyTU0Nr2oQmyU_j9gGJkCAQMtMLRr6toZ1v0tqdxgpf5pDdpiyPSg";
 process.env.VAPID_PRIVATE_KEY = "pOqnB95DYmnfI5elizMXyIpq4LJA8EZEQHoyguwV1R4";
 
+// Phase 10A: Diagnostic logging for AI services
+console.log('═══════════════════════════════════════════════════════════════════════════════');
+console.log('[Phase10A DIAGNOSTIC] AI Service Configuration Check');
+console.log('═══════════════════════════════════════════════════════════════════════════════');
+console.log('[Phase10A] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+if (process.env.ANTHROPIC_API_KEY) {
+  console.log('[Phase10A] ANTHROPIC_API_KEY prefix:', process.env.ANTHROPIC_API_KEY.substring(0, 15) + '...');
+} else {
+  console.warn('[Phase10A] WARNING: ANTHROPIC_API_KEY is NOT set - Claude Vision will NOT work!');
+  console.warn('[Phase10A] Quality analysis will return SIMULATED scores (fake 75-90 values)');
+}
+console.log('[Phase10A] PIAPI_API_KEY configured:', !!process.env.PIAPI_API_KEY);
+console.log('═══════════════════════════════════════════════════════════════════════════════');
+
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));

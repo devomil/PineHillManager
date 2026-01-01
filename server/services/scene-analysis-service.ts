@@ -820,15 +820,35 @@ Return ONLY the JSON object.`;
 
   /**
    * Phase 8A: Comprehensive scene analysis with AI artifact detection
+   * Phase 10A: Added diagnostic logging
    */
   async analyzeScenePhase8(
     imageBase64: string,
     context: SceneContext
   ): Promise<Phase8AnalysisResult> {
-    console.log(`[SceneAnalysis Phase8] Analyzing scene ${context.sceneIndex + 1}/${context.totalScenes}`);
+    console.log('═══════════════════════════════════════════════════════════════════════════════');
+    console.log('[Phase10A] SCENE ANALYSIS STARTED');
+    console.log('═══════════════════════════════════════════════════════════════════════════════');
+    console.log(`[Phase10A] Scene: ${context.sceneIndex + 1}/${context.totalScenes}`);
+    console.log(`[Phase10A] Scene Type: ${context.sceneType}`);
+    console.log(`[Phase10A] Visual Direction: "${context.visualDirection?.substring(0, 120)}..."`);
+    console.log(`[Phase10A] Narration: "${context.narration?.substring(0, 100)}..."`);
+    console.log(`[Phase10A] Image data size: ${imageBase64.length} chars`);
+    console.log(`[Phase10A] Anthropic client available: ${!!this.anthropic}`);
+    console.log(`[Phase10A] ANTHROPIC_API_KEY env: ${!!process.env.ANTHROPIC_API_KEY}`);
+    
+    // Re-check in case the key was loaded after construction
+    if (!this.anthropic && process.env.ANTHROPIC_API_KEY) {
+      console.log('[Phase10A] Re-initializing Anthropic client...');
+      this.initializeClient();
+    }
     
     if (!this.anthropic) {
-      console.warn('[SceneAnalysis Phase8] Anthropic not configured, returning simulated result');
+      console.warn('═══════════════════════════════════════════════════════════════════════════════');
+      console.warn('[Phase10A] WARNING: ANTHROPIC NOT CONFIGURED');
+      console.warn('[Phase10A] Returning SIMULATED result with FAKE scores (75-90 range)');
+      console.warn('[Phase10A] This is why quality scores appear incorrect!');
+      console.warn('═══════════════════════════════════════════════════════════════════════════════');
       return this.createSimulatedPhase8Result(context);
     }
     
@@ -864,18 +884,34 @@ Return ONLY the JSON object.`;
         ? response.content[0].text 
         : '';
       
+      console.log('[Phase10A] Claude Vision API call SUCCESSFUL');
+      console.log('[Phase10A] Raw response length:', analysisText.length, 'chars');
+      
       const result = this.parsePhase8AnalysisResponse(analysisText, context);
       
-      console.log(`[SceneAnalysis Phase8] Scene ${context.sceneIndex + 1} score: ${result.overallScore}/100`);
-      console.log(`[SceneAnalysis Phase8] Recommendation: ${result.recommendation}`);
+      console.log('═══════════════════════════════════════════════════════════════════════════════');
+      console.log('[Phase10A] REAL ANALYSIS RESULT (from Claude Vision)');
+      console.log('═══════════════════════════════════════════════════════════════════════════════');
+      console.log(`[Phase10A] Scene ${context.sceneIndex + 1} Overall Score: ${result.overallScore}/100`);
+      console.log(`[Phase10A] Technical: ${result.technicalScore}, Content Match: ${result.contentMatchScore}`);
+      console.log(`[Phase10A] Brand: ${result.brandComplianceScore}, Composition: ${result.compositionScore}`);
+      console.log(`[Phase10A] Recommendation: ${result.recommendation}`);
+      console.log(`[Phase10A] Content Match Details: ${result.contentMatchDetails}`);
+      console.log(`[Phase10A] Issues: ${result.issues.length > 0 ? result.issues.map(i => i.description).join('; ') : 'None'}`);
       if (result.aiArtifactsDetected) {
-        console.log(`[SceneAnalysis Phase8] AI artifacts detected: ${result.aiArtifactDetails.join(', ')}`);
+        console.log(`[Phase10A] AI Artifacts: ${result.aiArtifactDetails.join(', ')}`);
       }
+      console.log(`[Phase10A] Analysis Model: ${result.analysisModel}`);
+      console.log('═══════════════════════════════════════════════════════════════════════════════');
       
       return result;
       
     } catch (error: any) {
-      console.error(`[SceneAnalysis Phase8] Failed:`, error.message);
+      console.error('═══════════════════════════════════════════════════════════════════════════════');
+      console.error('[Phase10A] CLAUDE VISION API CALL FAILED');
+      console.error('[Phase10A] Error:', error.message);
+      console.error('[Phase10A] Returning FAILED result with score 0');
+      console.error('═══════════════════════════════════════════════════════════════════════════════');
       return this.createFailedPhase8Result(context, error.message);
     }
   }
