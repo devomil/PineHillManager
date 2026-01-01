@@ -3981,10 +3981,33 @@ export default function UniversalVideoProducer() {
                 });
                 const data = await res.json();
                 if (data.success) {
-                  setQAReport(data.report);
+                  // Backend returns report fields directly on response, not nested under 'report'
+                  const report = {
+                    projectId: data.projectId || project.id,
+                    overallScore: data.overallScore,
+                    sceneStatuses: data.sceneStatuses || data.sceneResults || [],
+                    approvedCount: data.approvedCount || 0,
+                    needsReviewCount: data.needsReviewCount || 0,
+                    rejectedCount: data.rejectedCount || 0,
+                    pendingCount: data.pendingCount || 0,
+                    criticalIssueCount: data.criticalIssueCount || 0,
+                    majorIssueCount: data.majorIssueCount || 0,
+                    minorIssueCount: data.minorIssueCount || 0,
+                    passesThreshold: data.passesThreshold,
+                    canRender: data.canRender,
+                    blockingReasons: data.blockingReasons || [],
+                    lastAnalyzedAt: data.lastAnalyzedAt || new Date().toISOString(),
+                  };
+                  setQAReport(report);
                   toast({
                     title: "Analysis Complete",
-                    description: `Quality score: ${data.report.overallScore}/100`,
+                    description: `Quality score: ${report.overallScore}/100`,
+                  });
+                } else {
+                  toast({
+                    title: "Analysis Failed",
+                    description: data.error || "Could not run quality analysis",
+                    variant: "destructive",
                   });
                 }
               } catch (err) {
