@@ -3955,9 +3955,9 @@ export default function UniversalVideoProducer() {
         </DialogContent>
       </Dialog>
 
-      {/* QA Dashboard Modal */}
+      {/* QA Dashboard Modal - Full Screen */}
       <Dialog open={showQADashboard} onOpenChange={setShowQADashboard}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+        <DialogContent className="w-[95vw] h-[95vh] max-w-[95vw] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5" />
@@ -3968,6 +3968,7 @@ export default function UniversalVideoProducer() {
             </DialogDescription>
           </DialogHeader>
           
+          <div className="flex-1 overflow-auto">
           <QADashboard
             report={qaReport}
             isLoading={isAnalyzingQA}
@@ -4103,6 +4104,7 @@ export default function UniversalVideoProducer() {
               renderMutation.mutate();
             }}
           />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
