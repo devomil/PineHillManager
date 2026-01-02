@@ -147,6 +147,11 @@ app.use((req, res, next) => {
   startMarketplaceSyncScheduler();
   log('🛒 Marketplace sync scheduler initialized (every 15 minutes)', 'marketplace-sync');
 
+  // Import and initialize the video generation worker
+  const { videoGenerationWorker } = await import('./services/video-generation-worker');
+  videoGenerationWorker.startWorker(3000); // Check for jobs every 3 seconds
+  log('🎬 Video generation worker initialized (every 3 seconds)', 'video-worker');
+
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {
     // Temporarily set NODE_ENV to production to prevent cartographer plugin from loading and breaking HMR

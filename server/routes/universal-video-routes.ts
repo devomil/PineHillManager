@@ -1838,7 +1838,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     const { projectId, sceneId } = req.params;
     const { query, provider } = req.body;
     
-    console.log(`[Phase9B] Regenerating video for scene ${sceneId} with provider: ${provider || 'default'}`);
+    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -1849,13 +1849,89 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    const result = await universalVideoService.regenerateSceneVideo(projectData, sceneId, query, provider);
+    // Check if there's already an active job for this scene
+    const { videoGenerationWorker } = await import('../services/video-generation-worker');
+    const existingJob = await videoGenerationWorker.getActiveJobForScene(projectId, sceneId);
+    if (existingJob) {
+      console.log(`[Phase9B-Async] Scene ${sceneId} already has active job: ${existingJob.jobId}`);
+      return res.json({ 
+        success: true, 
+        jobId: existingJob.jobId,
+        status: existingJob.status,
+        progress: existingJob.progress,
+        message: 'Video generation already in progress'
+      });
+    }
     
-    if (result.success && result.newVideoUrl) {
+    // Find the scene to get the visual direction/prompt
+    const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    // Use provided query or scene's visual direction
+    const prompt = query || scene.visualDirection || (scene as any).description || 'Professional wellness video';
+    const fallbackPrompt = (scene as any).summary || 'professional video';
+    
+    // Create async job - returns immediately
+    const job = await videoGenerationWorker.createJob({
+      projectId,
+      sceneId,
+      provider: provider || 'runway',
+      prompt,
+      fallbackPrompt,
+      duration: scene.duration || 6,
+      aspectRatio: (projectData as any).settings?.aspectRatio || '16:9',
+      style: (projectData as any).settings?.visualStyle || 'professional',
+      triggeredBy: userId,
+    });
+    
+    console.log(`[Phase9B-Async] Created job ${job.jobId} for scene ${sceneId}`);
+    
+    return res.json({ 
+      success: true, 
+      jobId: job.jobId,
+      status: job.status,
+      progress: job.progress,
+      message: 'Video generation job created'
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Regenerate video error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get video generation job status
+router.get('/:projectId/scenes/:sceneId/video-job/:jobId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId, jobId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const { videoGenerationWorker } = await import('../services/video-generation-worker');
+    const job = await videoGenerationWorker.getJob(jobId);
+    
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+    
+    // If job succeeded, also return updated scene data
+    let updatedProject = projectData;
+    if (job.status === 'succeeded' && job.videoUrl) {
+      // Update scene with new video URL
       const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
       if (sceneIndex >= 0) {
         const oldUrl = projectData.scenes[sceneIndex].assets?.videoUrl;
-        if (oldUrl) {
+        if (oldUrl && oldUrl !== job.videoUrl) {
           if (!projectData.scenes[sceneIndex].assets!.alternativeVideos) {
             projectData.scenes[sceneIndex].assets!.alternativeVideos = [];
           }
@@ -1867,17 +1943,10 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
         }
         
         projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
-        projectData.scenes[sceneIndex].assets!.videoUrl = result.newVideoUrl;
+        projectData.scenes[sceneIndex].assets!.videoUrl = job.videoUrl;
         projectData.scenes[sceneIndex].background = projectData.scenes[sceneIndex].background || { type: 'video', source: '' };
         projectData.scenes[sceneIndex].background!.type = 'video';
-        projectData.scenes[sceneIndex].background!.videoUrl = result.newVideoUrl;
-        
-        // IMPORTANT: Save custom query to visual direction so it persists
-        if (query) {
-          projectData.scenes[sceneIndex].visualDirection = query;
-          projectData.scenes[sceneIndex].background!.source = query;
-          console.log(`[UniversalVideo] Updated visual direction for scene ${sceneId}: ${query.substring(0, 60)}...`);
-        }
+        projectData.scenes[sceneIndex].background!.videoUrl = job.videoUrl;
         
         if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
         projectData.regenerationHistory.push({
@@ -1885,27 +1954,70 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
           sceneId,
           assetType: 'video',
           previousUrl: oldUrl,
-          newUrl: result.newVideoUrl,
-          prompt: query,
+          newUrl: job.videoUrl,
+          prompt: job.prompt || undefined,
           timestamp: new Date().toISOString(),
           success: true
         });
         
         await saveProjectToDb(projectData, projectData.ownerId);
+        updatedProject = projectData;
       }
-      
-      return res.json({ 
-        success: true, 
-        newVideoUrl: result.newVideoUrl,
-        duration: result.duration,
-        source: result.source,
-        project: projectData
-      });
     }
     
-    return res.status(400).json({ success: false, error: result.error });
+    return res.json({
+      success: true,
+      job: {
+        jobId: job.jobId,
+        status: job.status,
+        progress: job.progress,
+        videoUrl: job.videoUrl,
+        errorMessage: job.errorMessage,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+      },
+      project: job.status === 'succeeded' ? updatedProject : undefined,
+    });
+    
   } catch (error: any) {
-    console.error('[UniversalVideo] Regenerate video error:', error);
+    console.error('[UniversalVideo] Get job status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get active jobs for a scene
+router.get('/:projectId/scenes/:sceneId/active-jobs', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const { videoGenerationWorker } = await import('../services/video-generation-worker');
+    const jobs = await videoGenerationWorker.getJobsByScene(projectId, sceneId);
+    const activeJobs = jobs.filter(j => j.status === 'pending' || j.status === 'running');
+    
+    return res.json({
+      success: true,
+      jobs: activeJobs.map(job => ({
+        jobId: job.jobId,
+        status: job.status,
+        progress: job.progress,
+        provider: job.provider,
+        startedAt: job.startedAt,
+        createdAt: job.createdAt,
+      })),
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Get active jobs error:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

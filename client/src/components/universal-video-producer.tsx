@@ -1357,8 +1357,18 @@ function ScenePreview({
   const [sceneMediaType, setSceneMediaType] = useState<Record<string, 'image' | 'video'>>({});
   const [rejectReason, setRejectReason] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'needs_review' | 'approved' | 'rejected'>('all');
+  const [activeJobPolling, setActiveJobPolling] = useState<Record<string, { jobId: string; progress: number }>>({});
+  const pollingTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Cleanup polling timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(pollingTimeoutRefs.current).forEach(timeout => clearTimeout(timeout));
+      pollingTimeoutRefs.current = {};
+    };
+  }, []);
   
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -1718,20 +1728,122 @@ function ScenePreview({
       console.log('[regenerateVideo] Fetch response status:', res.status);
       const data = await res.json();
       console.log('[regenerateVideo] Response data:', data);
-      if (data.success) {
+      
+      if (data.success && data.jobId) {
+        toast({ 
+          title: 'Video generation started', 
+          description: 'This may take 3-5 minutes. Progress will update automatically.' 
+        });
+        
+        // Track active job
+        setActiveJobPolling(prev => ({ 
+          ...prev, 
+          [sceneId]: { jobId: data.jobId, progress: 0 } 
+        }));
+        
+        // Clear any existing polling for this scene
+        if (pollingTimeoutRefs.current[sceneId]) {
+          clearTimeout(pollingTimeoutRefs.current[sceneId]);
+        }
+        
+        // Start polling for job status
+        const pollJobStatus = () => {
+          const maxPolls = 120; // 10 minutes max (5 second intervals)
+          let pollCount = 0;
+          
+          const cleanupPolling = () => {
+            delete pollingTimeoutRefs.current[sceneId];
+            setActiveJobPolling(prev => {
+              const next = { ...prev };
+              delete next[sceneId];
+              return next;
+            });
+            setRegenerating(null);
+          };
+          
+          const poll = async (): Promise<void> => {
+            pollCount++;
+            if (pollCount > maxPolls) {
+              toast({ 
+                title: 'Video generation timeout', 
+                description: 'The job is taking longer than expected. It may still complete.', 
+                variant: 'destructive' 
+              });
+              cleanupPolling();
+              return;
+            }
+            
+            try {
+              const statusRes = await fetch(
+                `/api/universal-video/${projectId}/scenes/${sceneId}/video-job/${data.jobId}`,
+                { credentials: 'include' }
+              );
+              const statusData = await statusRes.json();
+              
+              if (statusData.success && statusData.job) {
+                const job = statusData.job;
+                console.log(`[regenerateVideo] Job ${data.jobId} status: ${job.status}, progress: ${job.progress}%`);
+                
+                // Update progress in state
+                setActiveJobPolling(prev => ({ 
+                  ...prev, 
+                  [sceneId]: { jobId: data.jobId, progress: job.progress } 
+                }));
+                
+                if (job.status === 'succeeded') {
+                  toast({ title: 'Video generated successfully!' });
+                  if (statusData.project) {
+                    onProjectUpdate?.(statusData.project);
+                  }
+                  onSceneUpdate?.();
+                  cleanupPolling();
+                  return;
+                } else if (job.status === 'failed') {
+                  toast({ 
+                    title: 'Video generation failed', 
+                    description: job.errorMessage || 'Unknown error', 
+                    variant: 'destructive' 
+                  });
+                  cleanupPolling();
+                  return;
+                } else if (job.status === 'cancelled') {
+                  toast({ title: 'Video generation cancelled' });
+                  cleanupPolling();
+                  return;
+                }
+                
+                // Still pending or running - continue polling with tracked timeout
+                pollingTimeoutRefs.current[sceneId] = setTimeout(poll, 5000);
+              } else {
+                console.error('[regenerateVideo] Failed to get job status');
+                pollingTimeoutRefs.current[sceneId] = setTimeout(poll, 5000);
+              }
+            } catch (pollErr) {
+              console.error('[regenerateVideo] Poll error:', pollErr);
+              pollingTimeoutRefs.current[sceneId] = setTimeout(poll, 5000);
+            }
+          };
+          
+          // Start polling after initial delay
+          pollingTimeoutRefs.current[sceneId] = setTimeout(poll, 3000);
+        };
+        
+        pollJobStatus();
+      } else if (data.success && data.newVideoUrl) {
+        // Fallback for direct response (legacy)
         toast({ title: 'Video regenerated', description: `New video from ${data.source}` });
         if (data.project) {
           onProjectUpdate?.(data.project);
         }
         onSceneUpdate?.();
+        setRegenerating(null);
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+        setRegenerating(null);
       }
     } catch (err: any) {
       console.error('[regenerateVideo] FETCH ERROR:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
-    } finally {
-      console.log('[regenerateVideo] Setting regenerating to null');
       setRegenerating(null);
     }
   };

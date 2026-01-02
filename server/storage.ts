@@ -333,6 +333,10 @@ import {
   type InsertPurchaseOrderApproval,
   type PurchaseOrderEvent,
   type InsertPurchaseOrderEvent,
+  // Video Generation Jobs
+  videoGenerationJobs,
+  type VideoGenerationJob,
+  type InsertVideoGenerationJob,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, ilike, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
@@ -1862,6 +1866,16 @@ export interface IStorage {
   getPaymentComplianceReport(startDate?: string, endDate?: string): Promise<any[]>;
   getOutstandingPayablesReport(): Promise<any[]>;
   importVendorsFromInventory(): Promise<{ imported: number; skipped: number; vendors: string[] }>;
+  
+  // Video Generation Jobs - Async job tracking
+  createVideoGenerationJob(job: InsertVideoGenerationJob): Promise<VideoGenerationJob>;
+  getVideoGenerationJob(jobId: string): Promise<VideoGenerationJob | undefined>;
+  getVideoGenerationJobsByProject(projectId: string): Promise<VideoGenerationJob[]>;
+  getVideoGenerationJobsByScene(projectId: string, sceneId: string): Promise<VideoGenerationJob[]>;
+  getPendingVideoGenerationJobs(): Promise<VideoGenerationJob[]>;
+  updateVideoGenerationJob(jobId: string, updates: Partial<InsertVideoGenerationJob>): Promise<VideoGenerationJob>;
+  deleteVideoGenerationJob(jobId: string): Promise<void>;
+  recoverStuckVideoGenerationJobs(stuckThresholdMinutes?: number): Promise<number>;
 }
 
 // @ts-ignore
@@ -15650,6 +15664,91 @@ export class DatabaseStorage implements IStorage {
       skipped,
       vendors: importedVendorNames,
     };
+  }
+
+  // ========================================
+  // VIDEO GENERATION JOBS
+  // ========================================
+  
+  async createVideoGenerationJob(job: InsertVideoGenerationJob): Promise<VideoGenerationJob> {
+    const [createdJob] = await db
+      .insert(videoGenerationJobs)
+      .values(job)
+      .returning();
+    return createdJob;
+  }
+
+  async getVideoGenerationJob(jobId: string): Promise<VideoGenerationJob | undefined> {
+    const [job] = await db
+      .select()
+      .from(videoGenerationJobs)
+      .where(eq(videoGenerationJobs.jobId, jobId));
+    return job;
+  }
+
+  async getVideoGenerationJobsByProject(projectId: string): Promise<VideoGenerationJob[]> {
+    return await db
+      .select()
+      .from(videoGenerationJobs)
+      .where(eq(videoGenerationJobs.projectId, projectId))
+      .orderBy(desc(videoGenerationJobs.createdAt));
+  }
+
+  async getVideoGenerationJobsByScene(projectId: string, sceneId: string): Promise<VideoGenerationJob[]> {
+    return await db
+      .select()
+      .from(videoGenerationJobs)
+      .where(
+        and(
+          eq(videoGenerationJobs.projectId, projectId),
+          eq(videoGenerationJobs.sceneId, sceneId)
+        )
+      )
+      .orderBy(desc(videoGenerationJobs.createdAt));
+  }
+
+  async getPendingVideoGenerationJobs(): Promise<VideoGenerationJob[]> {
+    return await db
+      .select()
+      .from(videoGenerationJobs)
+      .where(eq(videoGenerationJobs.status, 'pending'))
+      .orderBy(asc(videoGenerationJobs.createdAt));
+  }
+
+  async updateVideoGenerationJob(jobId: string, updates: Partial<InsertVideoGenerationJob>): Promise<VideoGenerationJob> {
+    const [updatedJob] = await db
+      .update(videoGenerationJobs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(videoGenerationJobs.jobId, jobId))
+      .returning();
+    return updatedJob;
+  }
+
+  async deleteVideoGenerationJob(jobId: string): Promise<void> {
+    await db
+      .delete(videoGenerationJobs)
+      .where(eq(videoGenerationJobs.jobId, jobId));
+  }
+
+  async recoverStuckVideoGenerationJobs(stuckThresholdMinutes: number = 10): Promise<number> {
+    const thresholdTime = new Date(Date.now() - stuckThresholdMinutes * 60 * 1000);
+    
+    const result = await db
+      .update(videoGenerationJobs)
+      .set({ 
+        status: 'pending',
+        updatedAt: new Date(),
+        retryCount: sql`${videoGenerationJobs.retryCount} + 1`
+      })
+      .where(
+        and(
+          eq(videoGenerationJobs.status, 'running'),
+          lte(videoGenerationJobs.startedAt, thresholdTime)
+        )
+      )
+      .returning();
+    
+    return result.length;
   }
 }
 

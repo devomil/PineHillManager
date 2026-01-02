@@ -5496,3 +5496,71 @@ export const insertMarketplaceProductMappingSchema = createInsertSchema(marketpl
 
 export type MarketplaceProductMapping = typeof marketplaceProductMappings.$inferSelect;
 export type InsertMarketplaceProductMapping = z.infer<typeof insertMarketplaceProductMappingSchema>;
+
+// ============================================
+// VIDEO GENERATION JOBS
+// Async job tracking for AI video generation
+// ============================================
+
+export const videoGenerationJobs = pgTable("video_generation_jobs", {
+  id: serial("id").primaryKey(),
+  jobId: varchar("job_id", { length: 100 }).notNull().unique(), // Unique job identifier (UUID)
+  
+  // Project and scene reference
+  projectId: varchar("project_id", { length: 100 }).notNull(),
+  sceneId: varchar("scene_id", { length: 100 }).notNull(),
+  
+  // Provider info
+  provider: varchar("provider", { length: 50 }).notNull(), // runway, kling, luma, hailuo, hunyuan, veo
+  
+  // Job status
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, running, succeeded, failed, cancelled
+  progress: integer("progress").default(0), // 0-100 percentage
+  
+  // Input parameters
+  prompt: text("prompt"),
+  fallbackPrompt: text("fallback_prompt"),
+  duration: integer("duration").default(6), // seconds
+  aspectRatio: varchar("aspect_ratio", { length: 20 }).default("16:9"),
+  negativePrompt: text("negative_prompt"),
+  style: varchar("style", { length: 50 }),
+  
+  // Output
+  videoUrl: text("video_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  
+  // Error handling
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Who triggered
+  triggeredBy: varchar("triggered_by").references(() => users.id),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  jobIdIdx: index("idx_video_gen_jobs_job_id").on(table.jobId),
+  projectIdIdx: index("idx_video_gen_jobs_project_id").on(table.projectId),
+  sceneIdIdx: index("idx_video_gen_jobs_scene_id").on(table.sceneId),
+  statusIdx: index("idx_video_gen_jobs_status").on(table.status),
+  projectSceneIdx: index("idx_video_gen_jobs_project_scene").on(table.projectId, table.sceneId),
+  createdAtIdx: index("idx_video_gen_jobs_created_at").on(table.createdAt),
+}));
+
+export const videoGenerationJobsRelations = relations(videoGenerationJobs, ({ one }) => ({
+  triggeredByUser: one(users, { fields: [videoGenerationJobs.triggeredBy], references: [users.id] }),
+}));
+
+export const insertVideoGenerationJobSchema = createInsertSchema(videoGenerationJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type VideoGenerationJob = typeof videoGenerationJobs.$inferSelect;
+export type InsertVideoGenerationJob = z.infer<typeof insertVideoGenerationJobSchema>;
