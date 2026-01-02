@@ -189,13 +189,16 @@ class AIMusicService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'udio',
-          task_type: 'text_to_music',
+          model: 'music-u',
+          task_type: 'generate_music',
           input: {
-            prompt: prompt,
-            duration: Math.min(duration, 300),
-            instrumental: true,
-            quality: 'high',
+            gpt_description_prompt: prompt,
+            negative_tags: 'vocals, singing, voice',
+            lyrics_type: 'instrumental',
+            seed: -1,
+          },
+          config: {
+            service_mode: 'public',
           },
         }),
       });
