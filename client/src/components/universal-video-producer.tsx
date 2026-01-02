@@ -1694,7 +1694,11 @@ function ScenePreview({
   };
 
   const regenerateVideo = async (sceneId: string, provider?: string) => {
-    if (!projectId) return;
+    console.log('[regenerateVideo] Called with sceneId:', sceneId, 'provider:', provider, 'projectId:', projectId);
+    if (!projectId) {
+      console.log('[regenerateVideo] EARLY RETURN - projectId is undefined');
+      return;
+    }
     setRegenerating(`video-${sceneId}`);
     try {
       const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-video`, {
@@ -2273,6 +2277,7 @@ function ScenePreview({
                         onClick={() => {
                           const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                           const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type);
+                          console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'projectId:', projectId, 'sceneMediaType:', sceneMediaType, 'selectedProviders:', selectedProviders);
                           if (mediaType === 'video') {
                             regenerateVideo(scene.id, provider);
                           } else {
