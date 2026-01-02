@@ -969,8 +969,17 @@ Return ONLY the JSON object.`;
     }
   }
 
+  /**
+   * Phase 10B: Strict content matching prompt
+   * This prompt enforces rigorous validation that generated images ACTUALLY match visual directions
+   */
   private buildPhase8AnalysisPrompt(context: SceneContext, brandContext: string): string {
-    return `You are a video production quality analyst. Analyze this image for a marketing video scene.
+    const requiredElements = this.extractRequiredElements(context.visualDirection);
+    
+    return `You are a STRICT quality assurance analyst for video production. Your job is to determine if this generated image ACTUALLY matches what was requested.
+
+## CRITICAL INSTRUCTION
+You must be STRICT about content matching. If the visual direction asks for specific elements and they are missing or wrong, the score MUST be low. Do NOT give high scores to technically good images that don't match what was requested.
 
 ## SCENE CONTEXT
 - Scene ${context.sceneIndex + 1} of ${context.totalScenes}
@@ -982,10 +991,68 @@ Return ONLY the JSON object.`;
 ## BRAND GUIDELINES
 ${brandContext}
 
-## ANALYSIS REQUIRED
+## YOUR ANALYSIS TASK
 
-Analyze this image and provide a JSON response with the following structure:
+### 1. CONTENT MATCH CHECK (Most Important - 40 points max)
+Go through EACH element mentioned in the visual direction and verify it exists:
 
+${requiredElements}
+
+For EACH element:
+- Present and correct: Full points
+- Present but wrong: Half points  
+- Missing entirely: Zero points
+- CRITICAL: If visual direction mentions "text overlay" or "text with [content]" and there is NO text visible, this is an AUTOMATIC FAILURE (contentMatch.score = 0)
+
+### 2. FRAMING/COMPOSITION CHECK (15 points max)
+- If direction says "wide shot" but image is close-up: FAIL
+- If direction says "close-up" but image is wide: FAIL
+- If direction mentions "full body" or "upper body" but only face/partial: FAIL
+- If direction says "surrounded by X" but X is not visible: FAIL
+- If direction mentions person "in [location]" but location is not visible: FAIL
+
+### 3. TECHNICAL QUALITY (20 points max)
+- Resolution and clarity
+- No AI artifacts (distorted hands, garbled text, impossible geometry)
+- Proper lighting
+
+### 4. BRAND COMPLIANCE (15 points max)
+- Warm, natural lighting (not clinical/cold)
+- Earth tones, greens, natural colors
+- Welcoming, health-focused aesthetic
+
+### 5. AI ARTIFACTS (10 points max)
+- Check for distorted hands, extra fingers
+- Garbled or unreadable text
+- Unnatural faces or expressions
+- Impossible geometry
+
+## SCORING RULES
+
+**AUTOMATIC FAILURES (contentMatch.score must be < 30):**
+- Visual direction mentions "text overlay/text with X" but NO text is visible in image
+- Visual direction describes specific scene (e.g., "woman in kitchen") but scene is completely different
+- Visual direction says "wide shot" but image is extreme close-up (or vice versa)
+- Visual direction says "surrounded by X" but X is not visible at all
+- Major element from visual direction is completely missing
+
+**NEEDS REVIEW (contentMatch.score 30-59):**
+- Most elements present but one significant element missing
+- Correct scene but wrong framing
+- Person visible but environment not shown when required
+
+**ACCEPTABLE (contentMatch.score 60-79):**
+- All major elements present
+- Minor deviations from direction
+- Good technical quality
+
+**EXCELLENT (contentMatch.score 80-100):**
+- Perfectly matches visual direction
+- All elements present and correct
+- Excellent technical quality
+
+## RESPONSE FORMAT
+Respond ONLY with JSON:
 \`\`\`json
 {
   "technicalQuality": {
@@ -1000,7 +1067,13 @@ Analyze this image and provide a JSON response with the following structure:
     "matchesNarration": <true|false>,
     "matchesVisualDirection": <true|false>,
     "appropriateForSceneType": <true|false>,
-    "explanation": "<why it matches or doesn't>"
+    "explanation": "<detailed explanation of why it matches or doesn't>",
+    "detectedFraming": "<wide-shot|medium-shot|close-up|extreme-close-up>",
+    "requestedElements": ["<element1>", "<element2>"],
+    "presentElements": ["<element1>"],
+    "missingElements": ["<element2>"],
+    "textOverlayRequired": <true|false>,
+    "textOverlayPresent": <true|false>
   },
   "aiArtifacts": {
     "detected": <true|false>,
@@ -1026,11 +1099,12 @@ Analyze this image and provide a JSON response with the following structure:
     "score": <0-100>,
     "subjectPosition": "<left|center|right|none>",
     "faceDetected": <true|false>,
-    "faceRegion": {"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>} | null,
+    "faceRegion": {"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>},
     "busyRegions": ["<top|bottom|left|right|center>"],
     "safeTextZones": [
       {"position": "<lower-third|top|bottom-left|bottom-right>", "confidence": <0-100>}
-    ]
+    ],
+    "environmentVisible": <true|false>
   },
   "overallAssessment": {
     "recommendation": "<approved|needs_review|regenerate|critical_fail>",
@@ -1040,21 +1114,151 @@ Analyze this image and provide a JSON response with the following structure:
 }
 \`\`\`
 
-## SCORING WEIGHTS
+## SCORING WEIGHTS FOR OVERALL SCORE
+- Content Match: 40% of total (most important!)
 - Technical Quality: 20% of total
-- Content Match: 30% of total  
-- Brand Compliance: 30% of total
-- Composition: 20% of total
+- Brand Compliance: 20% of total
+- Composition/Framing: 20% of total
 
-## CRITICAL CHECKS (must flag these)
-1. AI ARTIFACTS: Garbled/overlapping text, fake UI elements, distorted hands/faces, duplicate elements
-2. BLANK/EMPTY: Solid colors, gradients with no content, missing subjects
-3. CONTENT MISMATCH: Image completely unrelated to narration
-4. BRAND VIOLATION: Clinical/cold lighting, wrong color palette, corporate feel
-
-If ANY critical issue is found, recommendation should be "regenerate" or "critical_fail".
+REMEMBER: A technically perfect image that doesn't match the visual direction should score LOW. Content match is the MOST important factor.
 
 Respond ONLY with the JSON, no other text.`;
+  }
+
+  /**
+   * Phase 10B: Extract required elements from visual direction for strict checking
+   */
+  private extractRequiredElements(visualDirection: string): string {
+    const elements: string[] = [];
+    const direction = visualDirection?.toLowerCase() || '';
+    
+    // Check for text overlay requirements
+    if (direction.includes('text overlay') || 
+        direction.includes('text with') ||
+        direction.includes('overlay with') ||
+        direction.includes('actionable steps') ||
+        direction.includes('bullet points') ||
+        direction.includes('list of') ||
+        direction.includes('showing text') ||
+        direction.includes('display text')) {
+      elements.push('- TEXT OVERLAY: Visual direction requires text to be visible in the image. If no text is visible, this is an AUTOMATIC FAILURE.');
+    }
+    
+    // Check for person requirements
+    if (direction.includes('woman') || direction.includes('man') || direction.includes('person')) {
+      elements.push('- PERSON: A person matching the description must be visible');
+      
+      // Check if environment context is also required
+      if (direction.includes(' in ') || direction.includes('surrounded by')) {
+        elements.push('- PERSON + ENVIRONMENT: The person must be shown WITH their environment visible (not just face close-up)');
+      }
+    }
+    
+    // Check for setting requirements
+    if (direction.includes('kitchen')) {
+      elements.push('- SETTING: Kitchen environment must be clearly visible (counters, cabinets, appliances, etc.)');
+    }
+    if (direction.includes('wellness center') || direction.includes('entrance')) {
+      elements.push('- SETTING: Wellness center/entrance must be visible');
+    }
+    if (direction.includes('nature') || direction.includes('outdoor') || direction.includes('garden')) {
+      elements.push('- SETTING: Natural/outdoor environment must be visible');
+    }
+    
+    // Check for "surrounded by" requirements
+    const surroundedMatch = visualDirection?.match(/surrounded by ([^,\.]+)/i);
+    if (surroundedMatch) {
+      elements.push(`- SURROUNDINGS: "${surroundedMatch[1]}" must be visible around the subject. If person is shown in close-up without surroundings, this FAILS.`);
+    }
+    
+    // Check for framing requirements
+    if (direction.includes('wide shot')) {
+      elements.push('- FRAMING: Wide shot showing full environment (not close-up)');
+    }
+    if (direction.includes('close-up') && !direction.includes('extreme')) {
+      elements.push('- FRAMING: Close-up shot of subject');
+    }
+    if (direction.includes('full body')) {
+      elements.push('- FRAMING: Full body of person must be visible');
+    }
+    if (direction.includes('upper body') || direction.includes('waist up')) {
+      elements.push('- FRAMING: Upper body of person must be visible');
+    }
+    
+    // Check for specific objects
+    if (direction.includes('food') || direction.includes('foods')) {
+      elements.push('- OBJECTS: Food items must be visible in the scene');
+    }
+    if (direction.includes('vegetable') || direction.includes('vegetables')) {
+      elements.push('- OBJECTS: Vegetables must be visible');
+    }
+    if (direction.includes('fruit') || direction.includes('fruits')) {
+      elements.push('- OBJECTS: Fruits must be visible');
+    }
+    if (direction.includes('product') || direction.includes('products')) {
+      elements.push('- OBJECTS: Products must be visible');
+    }
+    
+    // Check for lighting/mood
+    if (direction.includes('natural lighting') || direction.includes('natural light')) {
+      elements.push('- LIGHTING: Natural, soft lighting (not artificial/harsh)');
+    }
+    if (direction.includes('golden hour')) {
+      elements.push('- LIGHTING: Golden hour warm lighting');
+    }
+    if (direction.includes('bright')) {
+      elements.push('- LIGHTING: Bright, well-lit scene');
+    }
+    
+    // Check for mood/emotion requirements
+    if (direction.includes('confident') || direction.includes('empowered')) {
+      elements.push('- MOOD: Person should appear confident and empowered');
+    }
+    if (direction.includes('welcoming') || direction.includes('friendly')) {
+      elements.push('- MOOD: Scene should feel welcoming and friendly');
+    }
+    
+    return elements.length > 0 
+      ? 'Required elements to verify (BE STRICT - if missing, score must be LOW):\n' + elements.join('\n')
+      : 'Verify ALL elements mentioned in the visual direction are present. Be strict about content matching.';
+  }
+
+  /**
+   * Phase 10B: Check if visual direction requires text overlay
+   */
+  private requiresTextOverlay(visualDirection: string): boolean {
+    const textKeywords = [
+      'text overlay',
+      'text with',
+      'overlay with',
+      'actionable steps',
+      'bullet points',
+      'list of',
+      'showing text',
+      'display text',
+      'three steps',
+      'numbered',
+    ];
+    
+    const direction = visualDirection?.toLowerCase() || '';
+    return textKeywords.some(keyword => direction.includes(keyword));
+  }
+
+  /**
+   * Phase 10B: Check if visual direction requires environment to be visible with person
+   */
+  private requiresEnvironmentWithPerson(visualDirection: string): boolean {
+    const direction = visualDirection?.toLowerCase() || '';
+    
+    // Check for person + environment patterns
+    const hasPersonReference = direction.includes('woman') || direction.includes('man') || direction.includes('person');
+    const hasEnvironmentContext = direction.includes(' in ') || 
+                                   direction.includes('surrounded by') || 
+                                   direction.includes('kitchen') ||
+                                   direction.includes('center') ||
+                                   direction.includes('entrance');
+    
+    return hasPersonReference && hasEnvironmentContext;
   }
 
   private parsePhase8AnalysisResponse(
@@ -1069,14 +1273,66 @@ Respond ONLY with the JSON, no other text.`;
       
       const analysis = JSON.parse(jsonMatch[0]);
       
+      // Phase 10B: Updated scoring weights - content match is now 40% (most important)
+      // Weights: Content Match 40%, Technical 20%, Brand 20%, Composition 20% = 100%
       const technicalScore = Math.round((analysis.technicalQuality?.score || 0) * 0.2);
-      const contentMatchScore = Math.round((analysis.contentMatch?.score || 0) * 0.3);
-      const brandComplianceScore = Math.round((analysis.brandCompliance?.score || 0) * 0.3);
+      const contentMatchScore = Math.round((analysis.contentMatch?.score || 0) * 0.4); // 40% weight
+      const brandComplianceScore = Math.round((analysis.brandCompliance?.score || 0) * 0.2);
       const compositionScore = Math.round((analysis.composition?.score || 0) * 0.2);
       
-      const overallScore = technicalScore + contentMatchScore + brandComplianceScore + compositionScore;
+      // Phase 10B: Calculate base overall score
+      let overallScore = technicalScore + contentMatchScore + brandComplianceScore + compositionScore;
+      
+      // Phase 10B: Post-analysis validation for text overlay requirements
+      const requiresText = this.requiresTextOverlay(context.visualDirection);
+      const textOverlayPresent = analysis.contentMatch?.textOverlayPresent ?? false;
+      
+      if (requiresText && !textOverlayPresent) {
+        console.log('[Phase10B] FORCING LOW SCORE: Text overlay required but not detected');
+        overallScore = Math.min(overallScore, 40);
+      }
+      
+      // Phase 10B: Post-analysis validation for environment requirements
+      const requiresEnvironment = this.requiresEnvironmentWithPerson(context.visualDirection);
+      const environmentVisible = analysis.composition?.environmentVisible ?? false;
+      const detectedFraming = analysis.contentMatch?.detectedFraming || '';
+      
+      if (requiresEnvironment && (detectedFraming === 'extreme-close-up' || !environmentVisible)) {
+        console.log('[Phase10B] FORCING LOW SCORE: Environment required but not visible (framing: ' + detectedFraming + ')');
+        overallScore = Math.min(overallScore, 45);
+      }
       
       const issues: AnalysisIssue[] = [];
+      
+      // Phase 10B: Add issues for missing required elements
+      if (requiresText && !textOverlayPresent) {
+        issues.push({
+          category: 'content_match',
+          severity: 'critical',
+          description: 'Visual direction requires text overlay but no text is visible in the image',
+          suggestion: 'Regenerate with explicit text overlay or add text in post-production',
+        });
+      }
+      
+      if (requiresEnvironment && (detectedFraming === 'extreme-close-up' || !environmentVisible)) {
+        issues.push({
+          category: 'content_match',
+          severity: 'critical',
+          description: `Visual direction requires person WITH environment visible, but only ${detectedFraming || 'close-up'} framing detected without environment`,
+          suggestion: 'Regenerate with wider framing to show the person in their environment',
+        });
+      }
+      
+      // Phase 10B: Add issues for missing elements from Claude's analysis
+      const missingElements = analysis.contentMatch?.missingElements || [];
+      for (const missing of missingElements) {
+        issues.push({
+          category: 'content_match',
+          severity: 'major',
+          description: `Missing required element: ${missing}`,
+          suggestion: 'Regenerate to include this element',
+        });
+      }
       
       if (analysis.aiArtifacts?.detected) {
         for (const artifact of analysis.aiArtifacts.artifacts || []) {
@@ -1231,7 +1487,7 @@ Respond ONLY with the JSON, no other text.`;
       },
       issues: [{
         category: 'technical',
-        severity: 'warning' as const,
+        severity: 'minor',
         description: '⚠️ This is a SIMULATED score. Claude Vision analysis not performed.',
         suggestion: 'Configure ANTHROPIC_API_KEY to enable real quality analysis',
       }],
