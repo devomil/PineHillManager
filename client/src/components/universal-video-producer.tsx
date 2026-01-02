@@ -2236,6 +2236,7 @@ function ScenePreview({
                         selectedProvider={selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type)}
                         onSelectProvider={(provider) => {
                           setSelectedProviders(prev => ({ ...prev, [`image-${scene.id}`]: provider }));
+                          setSceneMediaType(prev => ({ ...prev, [scene.id]: 'image' }));
                           if (provider === 'brand_media') {
                             openMediaPicker(scene.id, 'image', 'brand');
                           } else if (provider === 'asset_library') {
@@ -2253,6 +2254,7 @@ function ScenePreview({
                         selectedProvider={selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type)}
                         onSelectProvider={(provider) => {
                           setSelectedProviders(prev => ({ ...prev, [`video-${scene.id}`]: provider }));
+                          setSceneMediaType(prev => ({ ...prev, [scene.id]: 'video' }));
                           if (provider === 'brand_media') {
                             openMediaPicker(scene.id, 'video', 'brand');
                           } else if (provider === 'asset_library') {
