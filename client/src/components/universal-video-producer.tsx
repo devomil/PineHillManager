@@ -2237,9 +2237,13 @@ function ScenePreview({
                       {/* Image Providers */}
                       <ProviderSelector
                         type="image"
-                        selectedProvider={selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type)}
+                        selectedProvider={sceneMediaType[scene.id] === 'image' ? (selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type)) : undefined}
                         onSelectProvider={(provider) => {
-                          setSelectedProviders(prev => ({ ...prev, [`image-${scene.id}`]: provider }));
+                          setSelectedProviders(prev => ({ 
+                            ...prev, 
+                            [`image-${scene.id}`]: provider,
+                            [`video-${scene.id}`]: undefined
+                          }));
                           setSceneMediaType(prev => ({ ...prev, [scene.id]: 'image' }));
                           if (provider === 'brand_media') {
                             openMediaPicker(scene.id, 'image', 'brand');
@@ -2255,9 +2259,13 @@ function ScenePreview({
                       {/* Video Providers */}
                       <ProviderSelector
                         type="video"
-                        selectedProvider={selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type)}
+                        selectedProvider={sceneMediaType[scene.id] === 'video' ? (selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type)) : undefined}
                         onSelectProvider={(provider) => {
-                          setSelectedProviders(prev => ({ ...prev, [`video-${scene.id}`]: provider }));
+                          setSelectedProviders(prev => ({ 
+                            ...prev, 
+                            [`video-${scene.id}`]: provider,
+                            [`image-${scene.id}`]: undefined
+                          }));
                           setSceneMediaType(prev => ({ ...prev, [scene.id]: 'video' }));
                           if (provider === 'brand_media') {
                             openMediaPicker(scene.id, 'video', 'brand');

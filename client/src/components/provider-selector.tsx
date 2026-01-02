@@ -74,7 +74,7 @@ const OTHER_SOURCES = [
 
 interface ProviderSelectorProps {
   type: 'image' | 'video';
-  selectedProvider: string;
+  selectedProvider: string | undefined;
   onSelectProvider: (provider: string) => void;
   recommendedProvider?: string;
   sceneContentType?: string;
@@ -114,14 +114,16 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     indigo: 'border-indigo-300 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-900/30',
   };
   
+  const isColumnActive = selectedProvider !== undefined;
+  
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 transition-opacity ${isColumnActive ? '' : 'opacity-60'}`}>
       <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
         {type === 'video' ? 'VIDEO PROVIDERS' : 'IMAGE PROVIDERS'}
       </div>
       
       <RadioGroup 
-        value={selectedProvider} 
+        value={selectedProvider || ''} 
         onValueChange={onSelectProvider}
         disabled={disabled}
       >
