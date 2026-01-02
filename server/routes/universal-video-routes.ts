@@ -4089,6 +4089,58 @@ router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthent
     
     console.log(`[Phase8B] Starting auto-regeneration for scene ${sceneIdx + 1}`);
     
+    // Check if this scene uses video (B-Roll) - if so, trigger video regeneration instead
+    const isVideoScene = scene.background?.type === 'video' || scene.assets?.videoUrl;
+    
+    if (isVideoScene) {
+      console.log(`[Phase8B] Scene ${sceneIdx + 1} is a video scene - triggering async video regeneration`);
+      
+      const { videoGenerationWorker } = await import('../services/video-generation-worker');
+      
+      // Check if there's already an active job for this scene
+      const existingJob = await videoGenerationWorker.getActiveJobForScene(projectId, scene.id);
+      if (existingJob) {
+        console.log(`[Phase8B] Scene ${scene.id} already has active job: ${existingJob.jobId}`);
+        return res.json({ 
+          success: true, 
+          jobId: existingJob.jobId,
+          status: existingJob.status,
+          progress: existingJob.progress,
+          message: 'Video generation already in progress',
+          isVideoRegeneration: true,
+        });
+      }
+      
+      // Create async video generation job
+      const prompt = scene.visualDirection || (scene as any).description || 'Professional wellness video';
+      const fallbackPrompt = (scene as any).summary || 'professional video';
+      
+      const job = await videoGenerationWorker.createJob({
+        projectId,
+        sceneId: scene.id,
+        provider: 'runway', // Default to Runway for auto-regeneration
+        prompt,
+        fallbackPrompt,
+        duration: scene.duration || 6,
+        aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
+        style: (projectData as any).settings?.visualStyle || 'professional',
+        triggeredBy: userId,
+      });
+      
+      console.log(`[Phase8B] Created video job ${job.jobId} for scene ${scene.id}`);
+      
+      return res.json({ 
+        success: true, 
+        jobId: job.jobId,
+        status: job.status,
+        progress: job.progress,
+        message: 'Video regeneration job created',
+        isVideoRegeneration: true,
+        project: projectData,
+      });
+    }
+    
+    // Image regeneration path (original logic)
     const sceneForRegen: SceneForRegeneration = {
       id: scene.id,
       sceneIndex: sceneIdx,
@@ -4141,6 +4193,7 @@ router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthent
       attempts: result.attempts.length,
       escalatedToUser: result.escalatedToUser,
       newAssetUrl: result.newAssetUrl,
+      isVideoRegeneration: false,
       project: projectData,
     });
     

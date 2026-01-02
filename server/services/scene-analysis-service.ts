@@ -828,6 +828,62 @@ Return ONLY the JSON object.`;
   }
 
   /**
+   * Detect media type from base64 encoded image data by checking magic bytes
+   * Handles both raw base64 and data URI format (data:image/png;base64,...)
+   * Case-insensitive matching for MIME types and handles optional parameters
+   */
+  private detectMediaTypeFromBase64(base64Data: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
+    // First, check if this is a data URI and extract both the declared type and raw base64
+    // Pattern handles: data:image/png;base64,xxx OR data:image/PNG;charset=utf-8;base64,xxx
+    const dataUriMatch = base64Data.match(/^data:(image\/[a-zA-Z]+)[^,]*;base64,(.+)$/i);
+    let rawBase64 = base64Data;
+    let declaredType: string | null = null;
+    
+    if (dataUriMatch) {
+      declaredType = dataUriMatch[1].toLowerCase();
+      rawBase64 = dataUriMatch[2];
+      console.log(`[SceneAnalysis] Data URI detected, declared type: ${declaredType}`);
+    }
+    
+    // Check the first few characters of base64 which represent the magic bytes
+    // Base64 encoding is case-sensitive, so these magic bytes are always the same
+    // PNG starts with iVBORw0KGgo (base64 of 89 50 4E 47 0D 0A 1A 0A)
+    if (rawBase64.startsWith('iVBORw0KGgo') || rawBase64.startsWith('iVBORw0K')) {
+      console.log('[SceneAnalysis] Detected PNG from magic bytes');
+      return 'image/png';
+    }
+    // JPEG starts with /9j/ (base64 of FF D8 FF)
+    if (rawBase64.startsWith('/9j/')) {
+      console.log('[SceneAnalysis] Detected JPEG from magic bytes');
+      return 'image/jpeg';
+    }
+    // WebP starts with UklGR (base64 of RIFF header)
+    if (rawBase64.startsWith('UklGR')) {
+      console.log('[SceneAnalysis] Detected WebP from magic bytes');
+      return 'image/webp';
+    }
+    // GIF starts with R0lGOD (base64 of GIF89a or GIF87a)
+    if (rawBase64.startsWith('R0lGOD')) {
+      console.log('[SceneAnalysis] Detected GIF from magic bytes');
+      return 'image/gif';
+    }
+    
+    // If magic bytes don't match but we have a declared type from data URI, use that
+    // Normalize jpg -> jpeg for consistency
+    if (declaredType) {
+      const normalizedType = declaredType === 'image/jpg' ? 'image/jpeg' : declaredType;
+      if (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(normalizedType)) {
+        console.log(`[SceneAnalysis] Using declared type from data URI: ${normalizedType}`);
+        return normalizedType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+      }
+    }
+    
+    // Default to JPEG if unknown
+    console.warn('[SceneAnalysis] Could not detect media type from base64, defaulting to image/jpeg');
+    return 'image/jpeg';
+  }
+
+  /**
    * Phase 8A: Comprehensive scene analysis with AI artifact detection
    * Phase 10A: Added diagnostic logging
    */
@@ -864,6 +920,10 @@ Return ONLY the JSON object.`;
     const brandContext = await brandContextService.getVisualAnalysisContext();
     const analysisPrompt = this.buildPhase8AnalysisPrompt(context, brandContext);
     
+    // Detect the actual media type from the base64 data
+    const detectedMediaType = this.detectMediaTypeFromBase64(imageBase64);
+    console.log(`[Phase10A] Detected media type: ${detectedMediaType}`);
+    
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -876,7 +936,7 @@ Return ONLY the JSON object.`;
                 type: 'image',
                 source: {
                   type: 'base64',
-                  media_type: 'image/jpeg',
+                  media_type: detectedMediaType,
                   data: imageBase64,
                 },
               },
@@ -933,6 +993,9 @@ Return ONLY the JSON object.`;
       return false;
     }
     
+    // Detect the actual media type from the base64 data
+    const detectedMediaType = this.detectMediaTypeFromBase64(imageBase64);
+    
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -945,7 +1008,7 @@ Return ONLY the JSON object.`;
                 type: 'image',
                 source: {
                   type: 'base64',
-                  media_type: 'image/jpeg',
+                  media_type: detectedMediaType,
                   data: imageBase64,
                 },
               },
