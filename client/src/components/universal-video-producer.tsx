@@ -1694,23 +1694,30 @@ function ScenePreview({
   };
 
   const regenerateVideo = async (sceneId: string, provider?: string) => {
-    console.log('[regenerateVideo] Called with sceneId:', sceneId, 'provider:', provider, 'projectId:', projectId);
+    console.log('[regenerateVideo] FUNCTION CALLED with sceneId:', sceneId, 'provider:', provider, 'projectId:', projectId);
     if (!projectId) {
-      console.log('[regenerateVideo] EARLY RETURN - projectId is undefined');
+      console.error('[regenerateVideo] EARLY RETURN - projectId is undefined');
+      toast({ title: 'Error', description: 'Project ID is missing', variant: 'destructive' });
       return;
     }
+    console.log('[regenerateVideo] Setting regenerating state...');
     setRegenerating(`video-${sceneId}`);
+    const url = `/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-video`;
+    const body = { 
+      query: customPrompt[sceneId] || undefined,
+      provider: provider || undefined 
+    };
+    console.log('[regenerateVideo] About to fetch:', url, 'with body:', JSON.stringify(body));
     try {
-      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-video`, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ 
-          query: customPrompt[sceneId] || undefined,
-          provider: provider || undefined 
-        })
+        body: JSON.stringify(body)
       });
+      console.log('[regenerateVideo] Fetch response status:', res.status);
       const data = await res.json();
+      console.log('[regenerateVideo] Response data:', data);
       if (data.success) {
         toast({ title: 'Video regenerated', description: `New video from ${data.source}` });
         if (data.project) {
@@ -1721,8 +1728,10 @@ function ScenePreview({
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
       }
     } catch (err: any) {
+      console.error('[regenerateVideo] FETCH ERROR:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
+      console.log('[regenerateVideo] Setting regenerating to null');
       setRegenerating(null);
     }
   };
@@ -2239,11 +2248,10 @@ function ScenePreview({
                         type="image"
                         selectedProvider={sceneMediaType[scene.id] === 'image' ? (selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type)) : undefined}
                         onSelectProvider={(provider) => {
-                          setSelectedProviders(prev => ({ 
-                            ...prev, 
-                            [`image-${scene.id}`]: provider,
-                            [`video-${scene.id}`]: undefined
-                          }));
+                          const newProviders = { ...selectedProviders };
+                          newProviders[`image-${scene.id}`] = provider;
+                          delete newProviders[`video-${scene.id}`];
+                          setSelectedProviders(newProviders);
                           setSceneMediaType(prev => ({ ...prev, [scene.id]: 'image' }));
                           if (provider === 'brand_media') {
                             openMediaPicker(scene.id, 'image', 'brand');
@@ -2261,11 +2269,10 @@ function ScenePreview({
                         type="video"
                         selectedProvider={sceneMediaType[scene.id] === 'video' ? (selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type)) : undefined}
                         onSelectProvider={(provider) => {
-                          setSelectedProviders(prev => ({ 
-                            ...prev, 
-                            [`video-${scene.id}`]: provider,
-                            [`image-${scene.id}`]: undefined
-                          }));
+                          const newProviders = { ...selectedProviders };
+                          newProviders[`video-${scene.id}`] = provider;
+                          delete newProviders[`image-${scene.id}`];
+                          setSelectedProviders(newProviders);
                           setSceneMediaType(prev => ({ ...prev, [scene.id]: 'video' }));
                           if (provider === 'brand_media') {
                             openMediaPicker(scene.id, 'video', 'brand');
