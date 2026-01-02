@@ -1,0 +1,1510 @@
+Start generating
+These endpoints all kick off tasks to create generations.
+
+Image to video
+POST
+/v1/image_to_video
+This endpoint will start a new task to generate a video from an image.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+Accepted values:"gen4_turbo", "veo3.1", "gen3a_turbo", "veo3.1_fast", "veo3"
+Fields change based on which value is passed. Select which value to show documentation for.
+
+gen4_turbo
+promptImage
+Required
+(string or string or string) or Array of PromptImages (objects)
+One of the following shapes:
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded image. See our docs on image inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 5242880 ] characters
+^data:image\/.*
+A data URI containing encoded media.
+
+PromptImages
+Array of
+objects
+= 1 items
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded image. See our docs on image inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 5242880 ] characters
+^data:image\/.*
+A data URI containing encoded media.
+
+position
+Required
+string
+The position of the image in the output video. "first" will use the image as the first frame of the video.
+
+This field must be set to the exact value first.
+
+ratio
+Required
+string
+Accepted values:"1280:720", "720:1280", "1104:832", "832:1104", "960:960", "1584:672"
+The resolution of the output video.
+
+promptText
+string
+[ 1 .. 1000 ] characters
+A non-empty string up to 1000 characters (measured in UTF-16 code units). This should describe in detail what should appear in the output.
+
+seed
+integer
+[ 0 .. 4294967295 ]
+If unspecified, a random number is chosen. Varying the seed integer is a way to get different results for the same other request parameters. Using the same seed integer for an identical request will produce similar results.
+
+duration
+integer
+[ 2 .. 10 ]
+The number of seconds of duration for the output video.
+
+contentModeration
+object
+Settings that affect the behavior of the content moderation system.
+
+publicFigureThreshold
+string
+Accepted values:"auto", "low"
+When set to low, the content moderation system will be less strict about preventing generations that include recognizable public figures.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.imageToVideo
+  .create({
+    model: 'gen4_turbo',
+    promptImage: 'https://example.com/bunny.jpg',
+    promptText: 'A cute bunny hopping in a meadow',
+    duration: 10,
+  })
+  .waitForTaskOutput();
+
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Text to video
+POST
+/v1/text_to_video
+This endpoint will start a new task to generate a video from a text prompt.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+Accepted values:"veo3.1", "veo3.1_fast", "veo3"
+Fields change based on which value is passed. Select which value to show documentation for.
+
+veo3.1
+promptText
+Required
+string
+[ 1 .. 1000 ] characters
+A non-empty string up to 1000 characters (measured in UTF-16 code units). This should describe in detail what should appear in the output.
+
+ratio
+Required
+string
+Accepted values:"1280:720", "720:1280", "1080:1920", "1920:1080"
+The resolution of the output video.
+
+audio
+boolean
+Default:true
+Whether to generate audio for the video. Audio inclusion affects pricing.
+
+duration
+number
+Accepted values:4, 6, 8
+The number of seconds of duration for the output video.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.textToVideo
+  .create({
+    model: 'veo3.1',
+    promptText: 'A cute bunny hopping in a meadow',
+    ratio: '1280:720',
+    duration: 8,
+  })
+  .waitForTaskOutput();
+
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Video to video
+POST
+/v1/video_to_video
+This endpoint will start a new task to generate a video from a video.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value gen4_aleph.
+
+videoUri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded video. See our docs on video inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:video\/.*
+A data URI containing encoded media.
+
+promptText
+Required
+string
+[ 1 .. 1000 ] characters
+A non-empty string up to 1000 characters (measured in UTF-16 code units). This should describe in detail what should appear in the output.
+
+ratio
+Required
+string
+Accepted values:"1280:720", "720:1280", "1104:832", "960:960", "832:1104", "1584:672", "848:480", "640:480"
+The resolution of the output video.
+
+seed
+integer
+[ 0 .. 4294967295 ]
+If unspecified, a random number is chosen. Varying the seed integer is a way to get different results for the same other request parameters. Using the same seed integer for an identical request will produce similar results.
+
+references
+Array of
+any
+An array of references. Currently up to one reference is supported. See our docs on image inputs for more information.
+
+ImageReference
+object
+Passing an image reference allows the model to emulate the style or content of the reference in the output.
+
+type
+Required
+string
+This field must be set to the exact value image.
+
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded image. See our docs on image inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 5242880 ] characters
+^data:image\/.*
+A data URI containing encoded media.
+
+contentModeration
+object
+Settings that affect the behavior of the content moderation system.
+
+publicFigureThreshold
+string
+Accepted values:"auto", "low"
+When set to low, the content moderation system will be less strict about preventing generations that include recognizable public figures.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.videoToVideo
+  .create({
+    model: 'gen4_aleph',
+    videoUri: 'https://example.com/bunny.mp4',
+    promptText: 'string',
+    references: [
+      {
+        type: 'image',
+        uri: 'https://example.com/easter-scene.jpg',
+      },
+    ],
+    ratio: '1280:720',
+  })
+  .waitForTaskOutput();
+
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Text/Image to Image
+POST
+/v1/text_to_image
+This endpoint will start a new task to generate images from text and/or image(s)
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+Accepted values:"gen4_image_turbo", "gen4_image", "gemini_2.5_flash"
+Fields change based on which value is passed. Select which value to show documentation for.
+
+gen4_image_turbo
+promptText
+Required
+string
+[ 1 .. 1000 ] characters
+A non-empty string up to 1000 characters (measured in UTF-16 code units). This should describe in detail what should appear in the output.
+
+ratio
+Required
+string
+Accepted values:"1024:1024", "1080:1080", "1168:880", "1360:768", "1440:1080", "1080:1440", "1808:768", "1920:1080", "1080:1920", "2112:912", "1280:720", "720:1280", "720:720", "960:720", "720:960", "1680:720"
+The resolution of the output image.
+
+referenceImages
+Required
+Array of
+objects
+[ 1 .. 3 ] items
+An array of one to three images to be used as references for the generated image output.
+
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded image. See our docs on image inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 5242880 ] characters
+^data:image\/.*
+A data URI containing encoded media.
+
+tag
+string
+[ 3 .. 16 ] characters
+^[a-z][a-z0-9_]+$
+A tag to identify the reference image. This is used to reference the image in prompt text.
+
+seed
+integer
+[ 0 .. 4294967295 ]
+If unspecified, a random number is chosen. Varying the seed integer is a way to get different results for the same other request parameters. Using the same seed integer for an identical request will produce similar results.
+
+contentModeration
+object
+Settings that affect the behavior of the content moderation system.
+
+publicFigureThreshold
+string
+Accepted values:"auto", "low"
+When set to low, the content moderation system will be less strict about preventing generations that include recognizable public figures.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.textToImage
+  .create({
+    model: 'gen4_image',
+    promptText: 'A serene landscape with mountains',
+    ratio: '1360:768',
+  })
+  .waitForTaskOutput();
+
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Video upscale
+POST
+/v1/video_upscale
+This endpoint will start a new task to upscale a video. Videos will be upscaled by a factor of 4X, capped at a maximum of 4096px along each side.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value upscale_v1.
+
+videoUri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded video. See our docs on video inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:video\/.*
+A data URI containing encoded media.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.videoUpscale
+  .create({
+    model: 'upscale_v1',
+    videoUri: 'https://example.com/bunny.mp4',
+  })
+  .waitForTaskOutput();
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Control a character
+POST
+/v1/character_performance
+This endpoint will start a new task to control a character's facial expressions and body movements using a reference video.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value act_two.
+
+character
+Required
+any
+The character to control. You can either provide a video or an image. A visually recognizable face must be visible and stay within the frame.
+
+One of the following shapes:
+CharacterImage
+object
+An image of your character. In the output, the character will use the reference video performance in its original static environment.
+
+type
+Required
+string
+This field must be set to the exact value image.
+
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded image. See our docs on image inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 5242880 ] characters
+^data:image\/.*
+A data URI containing encoded media.
+
+CharacterVideo
+object
+A video of your character. In the output, the character will use the reference video performance in its original animated environment and some of the character's own movements.
+
+type
+Required
+string
+This field must be set to the exact value video.
+
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded video. See our docs on video inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:video\/.*
+A data URI containing encoded media.
+
+reference
+Required
+any
+The reference video containing the performance to apply to the character.
+
+CharacterReferenceVideo
+object
+A video of a person performing in the manner that you would like your character to perform. The video must be between 3 and 30 seconds in duration.
+
+type
+Required
+string
+This field must be set to the exact value video.
+
+uri
+Required
+string or string or string
+A video of a person performing in the manner that you would like your character to perform. The video must be between 3 and 30 seconds in duration. See our docs on video inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:video\/.*
+A data URI containing encoded media.
+
+seed
+integer
+[ 0 .. 4294967295 ]
+If unspecified, a random number is chosen. Varying the seed integer is a way to get different results for the same other request parameters. Using the same seed integer for an identical request will produce similar results.
+
+bodyControl
+boolean
+A boolean indicating whether to enable body control. When enabled, non-facial movements and gestures will be applied to the character in addition to facial expressions.
+
+expressionIntensity
+integer
+[ 1 .. 5 ]
+Default:3
+An integer between 1 and 5 (inclusive). A larger value increases the intensity of the character's expression.
+
+ratio
+string
+Accepted values:"1280:720", "720:1280", "960:960", "1104:832", "832:1104", "1584:672"
+The resolution of the output video.
+
+contentModeration
+object
+Settings that affect the behavior of the content moderation system.
+
+publicFigureThreshold
+string
+Accepted values:"auto", "low"
+When set to low, the content moderation system will be less strict about preventing generations that include recognizable public figures.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.characterPerformance
+  .create({
+    model: 'act_two',
+    character: {
+      type: 'video',
+      uri: 'https://example.com/posedCharacter.mp4',
+    },
+    reference: {
+      type: 'video',
+      uri: 'https://example.com/actorPerformance.mp4',
+    },
+    ratio: '1280:720',
+  })
+  .waitForTaskOutput();
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Generate sound effects
+POST
+/v1/sound_effect
+This endpoint will start a new task to generate sound effects from a text description.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value eleven_text_to_sound_v2.
+
+promptText
+Required
+string
+[ 1 .. 3000 ] characters
+A text description of the sound effect to generate.
+
+duration
+number
+[ 0.5 .. 30 ]
+The duration of the sound effect in seconds, between 0.5 and 30 seconds. If not provided, the duration will be determined automatically based on the text description.
+
+loop
+boolean
+Default:false
+Whether the output sound effect should be designed to loop seamlessly.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.soundEffect
+  .create({
+    model: 'eleven_text_to_sound_v2',
+    promptText: 'A thunderstorm with heavy rain',
+    duration: 10,
+    loop: true,
+  })
+  .waitForTaskOutput();
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Speech to speech
+POST
+/v1/speech_to_speech
+This endpoint will start a new task to convert speech from one voice to another in audio or video.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value eleven_multilingual_sts_v2.
+
+media
+Required
+any
+One of the following shapes:
+SpeechToSpeechAudio
+object
+An audio file containing dialogue to be processed.
+
+type
+Required
+string
+This field must be set to the exact value audio.
+
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded audio. See our docs on audio inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:audio\/.*
+A data URI containing encoded media.
+
+SpeechToSpeechVideo
+object
+A video file containing dialogue to be processed.
+
+type
+Required
+string
+This field must be set to the exact value video.
+
+uri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded video. See our docs on video inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:video\/.*
+A data URI containing encoded media.
+
+voice
+Required
+any
+The voice to use for the generated speech.
+
+RunwayPresetVoice
+object
+A voice preset from the RunwayML API.
+
+type
+Required
+string
+This field must be set to the exact value runway-preset.
+
+presetId
+Required
+string
+Accepted values:"Maya", "Arjun", "Serene", "Bernard", "Billy", "Mark", "Clint", "Mabel", "Chad", "Leslie", "Eleanor", "Elias", "Elliot", "Grungle", "Brodie", "Sandra", "Kirk", "Kylie", "Lara", "Lisa", "Malachi", "Marlene", "Martin", "Miriam", "Monster", "Paula", "Pip", "Rusty", "Ragnar", "Xylar", "Maggie", "Jack", "Katie", "Noah", "James", "Rina", "Ella", "Mariah", "Frank", "Claudia", "Niki", "Vincent", "Kendrick", "Myrna", "Tom", "Wanda", "Benjamin", "Kiana", "Rachel"
+The preset voice ID to use for the generated speech.
+
+removeBackgroundNoise
+boolean
+Whether to remove background noise from the generated speech.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const audioTask = await client.speechToSpeech
+  .create({
+    model: 'eleven_multilingual_sts_v2',
+    media: {
+      type: 'audio',
+      uri: 'https://example.com/audio.mp3',
+    },
+    voice: {
+      type: 'runway-preset',
+      presetId: 'Maggie',
+    },
+  })
+  .waitForTaskOutput();
+console.log(audioTask);
+
+const videoTask = await client.speechToSpeech
+  .create({
+    model: 'eleven_multilingual_sts_v2',
+    media: {
+      type: 'video',
+      uri: 'https://example.com/video.mp4',
+    },
+    voice: {
+      type: 'runway-preset',
+      presetId: 'Noah',
+    },
+  })
+  .waitForTaskOutput();
+console.log(videoTask);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Text to speech
+POST
+/v1/text_to_speech
+This endpoint will start a new task to generate speech from text.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value eleven_multilingual_v2.
+
+promptText
+Required
+string
+[ 1 .. 1000 ] characters
+A non-empty string up to 1000 characters (measured in UTF-16 code units). This should describe in detail what should appear in the output.
+
+voice
+Required
+any
+The voice to use for the generated speech.
+
+RunwayPresetVoice
+object
+A voice preset from the RunwayML API.
+
+type
+Required
+string
+This field must be set to the exact value runway-preset.
+
+presetId
+Required
+string
+Accepted values:"Maya", "Arjun", "Serene", "Bernard", "Billy", "Mark", "Clint", "Mabel", "Chad", "Leslie", "Eleanor", "Elias", "Elliot", "Grungle", "Brodie", "Sandra", "Kirk", "Kylie", "Lara", "Lisa", "Malachi", "Marlene", "Martin", "Miriam", "Monster", "Paula", "Pip", "Rusty", "Ragnar", "Xylar", "Maggie", "Jack", "Katie", "Noah", "James", "Rina", "Ella", "Mariah", "Frank", "Claudia", "Niki", "Vincent", "Kendrick", "Myrna", "Tom", "Wanda", "Benjamin", "Kiana", "Rachel"
+The preset voice ID to use for the generated speech.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.textToSpeech
+  .create({
+    model: 'eleven_multilingual_v2',
+    promptText: 'The quick brown fox jumps over the lazy dog',
+    voice: {
+      type: 'runway-preset',
+      presetId: 'Leslie',
+    },
+  })
+  .waitForTaskOutput();
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Voice dubbing
+POST
+/v1/voice_dubbing
+This endpoint will start a new task to dub audio content to a target language.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value eleven_voice_dubbing.
+
+audioUri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded audio. See our docs on audio inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:audio\/.*
+A data URI containing encoded media.
+
+targetLang
+Required
+string
+Accepted values:"en", "hi", "pt", "zh", "es", "fr", "de", "ja", "ar", "ru", "ko", "id", "it", "nl", "tr", "pl", "sv", "fil", "ms", "ro", "uk", "el", "cs", "da", "fi", "bg", "hr", "sk", "ta"
+The target language code to dub the audio to (e.g., "es" for Spanish, "fr" for French).
+
+disableVoiceCloning
+boolean
+Whether to disable voice cloning and use a generic voice instead.
+
+dropBackgroundAudio
+boolean
+Whether to remove background audio from the dubbed output.
+
+numSpeakers
+integer
+( 0 .. 9007199254740991 ]
+The number of speakers in the audio. If not provided, it will be detected automatically.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.voiceDubbing
+  .create({
+    model: 'eleven_voice_dubbing',
+    audioUri: 'https://example.com/audio.mp3',
+    targetLang: 'es',
+  })
+  .waitForTaskOutput();
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Voice isolation
+POST
+/v1/voice_isolation
+This endpoint will start a new task to isolate the voice from the background audio. Audio duration must be greater than 4.6 seconds and less than 3600 seconds.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+model
+Required
+string
+This field must be set to the exact value eleven_voice_isolation.
+
+audioUri
+Required
+string or string or string
+A HTTPS URL, Runway or data URI containing an encoded audio. See our docs on audio inputs for more information.
+
+One of the following shapes:
+string
+[ 13 .. 2048 ] characters
+^https:\/\/.*
+A HTTPS URL.
+
+string
+[ 13 .. 5000 ] characters
+^runway:\/\/.*
+A Runway upload URI. See https://docs.dev.runwayml.com/assets/uploads for more information.
+
+string
+[ 13 .. 16777216 ] characters
+^data:audio\/.*
+A data URI containing encoded media.
+
+Responses
+200 The task that was created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const task = await client.voiceIsolation
+  .create({
+    model: 'eleven_voice_isolation',
+    audioUrl: 'https://example.com/audio.mp3',
+  })
+  .waitForTaskOutput();
+console.log(task);
+200
+429
+
+{
+"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+Task management
+Endpoints for managing tasks that have been submitted.
+
+Get task detail
+GET
+/v1/tasks/{id}
+Return details about a task. Consumers of this API should not expect updates more frequent than once every five seconds for a given task.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Path parameters
+id
+Required
+string
+<uuid>
+^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{...
+Show pattern
+The ID of a previously-submitted task that has not been canceled or deleted.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Responses
+200 Success
+404 The task does not exist, or was deleted or canceled.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+// Fetch the current state of the task:
+const task = await client.tasks.retrieve(
+  '17f20503-6c24-4c16-946b-35dbbce2af2f'
+);
+
+// Or, wait for the task to succeed or fail:
+const task = await client.tasks
+  .retrieve('17f20503-6c24-4c16-946b-35dbbce2af2f')
+  .waitForTaskOutput();
+200
+404
+
+
+An example of a pending task
+An example of a pending task
+{
+"id": "17f20503-6c24-4c16-946b-35dbbce2af2f",
+"status": "PENDING",
+"createdAt": "2024-06-27T19:49:32.334Z"
+}
+Cancel or delete a task
+DELETE
+/v1/tasks/{id}
+Tasks that are running, pending, or throttled can be canceled by invoking this method. Invoking this method for other tasks will delete them.
+
+The output data associated with a deleted task will be deleted from persistent storage in accordance with our data retention policy. Aborted and deleted tasks will not be able to be fetched again in the future.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Path parameters
+id
+Required
+string
+<uuid>
+^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{...
+Show pattern
+The ID of a previously-submitted task that has not been canceled or deleted.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Responses
+204 This endpoint will produce a 204 No Content response indicating successful cancellation or deletion. Calling this endpoint for tasks which have already been deleted or aborted will result in a 404: for idempotency purposes, it is safe to ignore these 404 errors.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+await client.tasks.delete('17f20503-6c24-4c16-946b-35dbbce2af2f');
+Uploads
+Endpoints for uploading media files.
+
+Upload a file
+POST
+/v1/uploads
+Uploads a temporary media file that can be referenced in API generation requests. The uploaded files will be automatically expired and deleted after a period of time. It is strongly recommended to use our SDKs for this which have a simplified interface that directly accepts file objects.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+filename
+Required
+string
+[ 3 .. 255 ] characters
+The filename of the file to upload. Must have a valid extension and be a supported media type (image, video, or audio).
+
+type
+Required
+string
+Accepted value:"ephemeral"
+The type of upload to create
+
+Responses
+200 The upload URL and Runway URI have been successfully created.
+429 You have exceeded the rate limit for this endpoint.
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+import fs from 'node:fs';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+filename = './funny-cats.mp4';
+const uploadUri = await client.uploads.createEphemeral(
+  fs.createReadStream(filename),
+);
+
+// Use the runwayUri in generation requests
+const task = await client.videoToVideo
+  .create({
+    model: 'gen4_aleph',
+    videoUri: uploadUri,
+    promptText: 'Add the easter elements to the cat video',
+    references: [
+      {
+        type: 'image',
+        uri: 'https://example.com/easter-scene.jpg',
+      },
+    ],
+    ratio: '1280:720',
+  })
+  .waitForTaskOutput();
+
+console.log(task);
+200
+
+Expand allCollapse all
+{
+"uploadUrl": "http://example.com",
+"fields": {
+"property1": "string",
+"property2": "string"
+},
+"runwayUri": "string"
+}
+Organization
+Get organization information
+GET
+/v1/organization
+Get usage tier and credit balance information about the organization associated with the API key used to make the request.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Responses
+200 Success
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const details = await client.organization.retrieve();
+console.log(details.creditBalance);
+200
+
+Expand allCollapse all
+{
+"tier": {
+"maxMonthlyCreditSpend": 9007199254740991,
+"models": {}
+},
+"creditBalance": 9007199254740991,
+"usage": {
+"models": {}
+}
+}
+Query credit usage
+POST
+/v1/organization/usage
+Fetch credit usage data broken down by model and day for the organization associated with the API key used to make the request. Up to 90 days of data can be queried at a time.
+
+Authentication
+Authorization
+Use the HTTP Authorization header with the Bearer scheme along with an API key.
+
+Headers
+X-Runway-Version
+Required
+string
+The version of the RunwayML API being used. You can read more about versioning here.
+
+This field must be set to the exact value 2024-11-06.
+
+Request body
+startDate
+string
+<date>
+^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[...
+Show pattern
+The start date of the usage data in ISO-8601 format (YYYY-MM-DD). If unspecified, it will default to 30 days before the current date. All dates are in UTC.
+
+beforeDate
+string
+<date>
+^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[...
+Show pattern
+The end date of the usage data in ISO-8601 format (YYYY-MM-DD), not inclusive. If unspecified, it will default to thirty days after the start date. Must be less than or equal to 90 days after the start date. All dates are in UTC.
+
+Responses
+200 Success
+Node SDK
+Python SDK
+fetch()
+cURL
+httpx
+
+// npm install --save @runwayml/sdk
+import RunwayML from '@runwayml/sdk';
+
+// The env var RUNWAYML_API_SECRET is expected to contain your API key.
+const client = new RunwayML();
+
+const usage = await client.organization.retrieveUsage();
+console.log(usage);
+200
+
+Expand allCollapse all
+{
+"results": [
+{}
+],
+"models": [
+"gen3a_turbo"
+]
+}

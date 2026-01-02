@@ -77,30 +77,35 @@ class RunwayVideoService {
     }
 
     try {
-      const ratio = this.formatRatio(options.aspectRatio);
-      const duration = Math.min(Math.max(options.duration, 5), 8) as 5 | 6 | 7 | 8;
+      const validDurations: (4 | 6 | 8)[] = [4, 6, 8];
+      const closestDuration = validDurations.reduce((prev, curr) => 
+        Math.abs(curr - options.duration) < Math.abs(prev - options.duration) ? curr : prev
+      );
+      const duration = closestDuration;
       const formattedPrompt = this.formatPrompt(options.prompt, options.negativePrompt);
 
       let task: any;
 
       if (options.imageUrl) {
-        console.log(`[Runway] Using imageToVideo with gen4_turbo...`);
+        const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
+        console.log(`[Runway] Using imageToVideo with gen4_turbo, ratio: ${imageRatio}...`);
         task = await client.imageToVideo
           .create({
             model: 'gen4_turbo',
             promptImage: options.imageUrl,
             promptText: formattedPrompt,
-            ratio: ratio as any,
+            ratio: imageRatio as any,
             duration: duration,
           })
           .waitForTaskOutput();
       } else {
-        console.log(`[Runway] Using textToVideo with veo3.1...`);
+        const textRatio = this.formatRatioForTextToVideo(options.aspectRatio);
+        console.log(`[Runway] Using textToVideo with veo3.1, ratio: ${textRatio}...`);
         task = await client.textToVideo
           .create({
             model: 'veo3.1',
             promptText: formattedPrompt,
-            ratio: ratio as any,
+            ratio: textRatio as any,
             duration: duration,
           })
           .waitForTaskOutput();
@@ -205,7 +210,16 @@ class RunwayVideoService {
     return formatted;
   }
 
-  private formatRatio(aspectRatio: string): string {
+  private formatRatioForTextToVideo(aspectRatio: string): string {
+    const ratioMap: Record<string, string> = {
+      '16:9': '1280:720',
+      '9:16': '720:1280',
+      '1:1': '1280:720',
+    };
+    return ratioMap[aspectRatio] || '1280:720';
+  }
+
+  private formatRatioForImageToVideo(aspectRatio: string): string {
     const ratioMap: Record<string, string> = {
       '16:9': '1280:720',
       '9:16': '720:1280',
