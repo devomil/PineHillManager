@@ -17,7 +17,7 @@ export const AI_VIDEO_PROVIDERS: Record<string, AIVideoProvider> = {
     name: 'Runway Gen-3 Alpha',
     type: 'direct',
     apiKey: process.env.RUNWAY_API_KEY || '',
-    endpoint: 'https://api.dev.runwayml.com/v1',
+    endpoint: 'https://api.runwayml.com/v1',
     maxDuration: 10,
     costPerSecond: 0.05,
     strengths: ['hook', 'cta', 'cinematic', 'dramatic', 'emotional'],
