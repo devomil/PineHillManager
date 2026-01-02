@@ -3638,17 +3638,63 @@ Total: 90 seconds` : ''}
     }
     
     const scene = project.scenes[sceneIndex];
-    // Priority: customQuery > scene.searchQuery (AI-optimized) > buildVideoSearchQuery (fallback)
-    const query = customQuery || scene.searchQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
+    // Priority: customQuery > scene.visualDirection > scene.searchQuery (AI-optimized) > buildVideoSearchQuery (fallback)
+    const prompt = customQuery || scene.visualDirection || scene.searchQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
     const fallbackQuery = scene.fallbackQuery;
     
-    console.log(`[Regenerate] Video for scene ${sceneId} with query: "${query}"${fallbackQuery ? ` (fallback: "${fallbackQuery}")` : ''} (provider: ${provider || 'default'})`);
+    console.log(`[Regenerate] Video for scene ${sceneId} with prompt: "${prompt}"${fallbackQuery ? ` (fallback: "${fallbackQuery}")` : ''} (provider: ${provider || 'stock'})`);
     
     // Phase 9B: Store the requested provider in scene assets for tracking
     if (provider) {
       if (!scene.assets) scene.assets = {};
       (scene.assets as any).requestedProvider = provider;
     }
+    
+    // AI Video providers (not stock)
+    const aiProviders = ['runway', 'kling', 'luma', 'hailuo', 'hunyuan', 'veo', 'fal.ai'];
+    
+    // If an AI provider is specified, use the AI video service
+    if (provider && aiProviders.includes(provider.toLowerCase())) {
+      console.log(`[Regenerate] Using AI video provider: ${provider}`);
+      
+      try {
+        const aiResult = await aiVideoService.generateVideo({
+          prompt: prompt,
+          duration: Math.min(scene.duration || 5, 10),
+          aspectRatio: (project.outputFormat?.aspectRatio as '16:9' | '9:16' | '1:1') || '16:9',
+          sceneType: scene.type,
+          preferredProvider: provider.toLowerCase(),
+          narration: scene.narration,
+          mood: (scene as any).analysis?.mood,
+          contentType: (scene as any).analysis?.contentType as 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle' | undefined,
+        });
+        
+        if (aiResult.success && aiResult.s3Url) {
+          console.log(`[Regenerate] AI video generated (${aiResult.provider}): ${aiResult.s3Url.substring(0, 80)}...`);
+          return {
+            success: true,
+            newVideoUrl: aiResult.s3Url,
+            duration: aiResult.duration,
+            source: aiResult.provider || provider,
+          };
+        } else {
+          console.warn(`[Regenerate] AI video generation failed: ${aiResult.error}`);
+          return { 
+            success: false, 
+            error: aiResult.error || `${provider} video generation failed` 
+          };
+        }
+      } catch (err: any) {
+        console.error(`[Regenerate] AI video provider ${provider} error:`, err.message);
+        return { 
+          success: false, 
+          error: `${provider} error: ${err.message}` 
+        };
+      }
+    }
+    
+    // Stock video fallback (Pexels/Pixabay) - only when no AI provider specified or explicitly requested
+    const query = customQuery || scene.searchQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
     
     // Don't use the duplicate tracking for regeneration - user wants a NEW video
     const pexelsResult = await this.getPexelsVideo(query + ' ' + Date.now()); // Add timestamp to vary results
