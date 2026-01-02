@@ -32,6 +32,7 @@ interface AIVideoOptions {
   mood?: string;
   contentType?: 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle';
   visualStyle?: string;
+  imageUrl?: string;
 }
 
 class AIVideoService {
@@ -159,6 +160,7 @@ class AIVideoService {
         duration: options.duration,
         aspectRatio: options.aspectRatio,
         negativePrompt: options.negativePrompt,
+        imageUrl: options.imageUrl,
       });
       
       return {

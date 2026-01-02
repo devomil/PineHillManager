@@ -56,7 +56,7 @@
     "@remotion/cli": "4.0.382",
     "@remotion/lambda": "4.0.382",
     "@remotion/player": "^4.0.391",
-    "@runwayml/sdk": "^3.8.0",
+    "@runwayml/sdk": "^3.11.0",
     "@sendgrid/mail": "^8.1.5",
     "@tanstack/react-query": "^5.60.5",
     "@types/bcrypt": "^5.0.2",
