@@ -1945,6 +1945,7 @@ function ScenePreview({
                 {hasBrollVideo ? (
                   <div className="relative w-full h-full">
                     <video 
+                      key={scene.background!.videoUrl}
                       src={convertToDisplayUrl(scene.background!.videoUrl!)}
                       className="w-full h-full object-cover"
                       muted
@@ -2130,6 +2131,7 @@ function ScenePreview({
                     </Label>
                     <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
                       <video 
+                        key={scene.background!.videoUrl}
                         src={convertToDisplayUrl(scene.background!.videoUrl!)}
                         className="w-full h-full object-contain"
                         controls
