@@ -183,10 +183,10 @@ class VideoGenerationWorker {
           visualStyle: job.style || 'professional',
         });
 
-        if (result.success && result.s3Url) {
-          videoUrl = result.s3Url;
-        } else if (result.success && result.videoUrl) {
+        if (result.success && result.videoUrl) {
           videoUrl = result.videoUrl;
+        } else if (result.success && result.s3Url) {
+          videoUrl = result.s3Url;
         }
 
         const progressJob2 = await storage.updateVideoGenerationJob(job.jobId, { progress: 90 });
