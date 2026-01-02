@@ -18,6 +18,7 @@ interface RunwayGenerationOptions {
   duration: number;
   aspectRatio: '16:9' | '9:16' | '1:1';
   negativePrompt?: string;
+  imageUrl?: string;
 }
 
 class RunwayVideoService {
@@ -55,27 +56,50 @@ class RunwayVideoService {
     const startTime = Date.now();
     console.log(`[Runway] Starting generation...`);
     console.log(`[Runway] Prompt: ${options.prompt.substring(0, 100)}...`);
-    if (options.negativePrompt) {
-      console.log(`[Runway] Negative prompt applied (${options.negativePrompt.split(',').length} terms)`);
+    console.log(`[Runway] Duration: ${options.duration}s, Aspect: ${options.aspectRatio}`);
+    if (options.imageUrl) {
+      console.log(`[Runway] Source image provided: ${options.imageUrl.substring(0, 50)}...`);
     }
 
     try {
-      const createResponse = await fetch(`${this.provider.endpoint}/generations`, {
+      const ratio = this.formatRatio(options.aspectRatio);
+      const duration = Math.min(Math.max(options.duration, 2), this.provider.maxDuration);
+      
+      let endpoint: string;
+      let requestBody: any;
+
+      if (options.imageUrl) {
+        endpoint = `${this.provider.endpoint}/image_to_video`;
+        requestBody = {
+          model: 'gen4_turbo',
+          promptImage: options.imageUrl,
+          promptText: this.formatPrompt(options.prompt),
+          ratio: ratio,
+          duration: duration,
+        };
+        console.log(`[Runway] Using image_to_video with gen4_turbo`);
+      } else {
+        endpoint = `${this.provider.endpoint}/image_to_video`;
+        requestBody = {
+          model: 'gen3a_turbo',
+          promptText: this.formatPrompt(options.prompt),
+          ratio: ratio,
+          duration: duration,
+        };
+        console.log(`[Runway] Using image_to_video with gen3a_turbo (text-only)`);
+      }
+
+      console.log(`[Runway] POST ${endpoint}`);
+      console.log(`[Runway] Request:`, JSON.stringify(requestBody, null, 2));
+
+      const createResponse = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.provider.apiKey}`,
           'Content-Type': 'application/json',
           'X-Runway-Version': '2024-11-06',
         },
-        body: JSON.stringify({
-          promptText: this.formatPrompt(options.prompt),
-          model: 'gen3a_turbo',
-          duration: Math.min(options.duration, this.provider.maxDuration),
-          ratio: this.formatAspectRatio(options.aspectRatio),
-          ...(options.negativePrompt && { 
-            negativePromptText: options.negativePrompt.substring(0, 500)
-          }),
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!createResponse.ok) {
@@ -83,7 +107,7 @@ class RunwayVideoService {
         console.error(`[Runway] API error: ${createResponse.status} - ${errorText}`);
         return { 
           success: false, 
-          error: `Runway API error: ${createResponse.status}`,
+          error: `Runway API error: ${createResponse.status} - ${errorText}`,
           generationTimeMs: Date.now() - startTime,
         };
       }
@@ -105,7 +129,7 @@ class RunwayVideoService {
       const s3Url = await this.uploadToS3(result.videoUrl);
 
       const generationTimeMs = Date.now() - startTime;
-      const cost = options.duration * this.provider.costPerSecond;
+      const cost = duration * this.provider.costPerSecond;
 
       console.log(`[Runway] Complete! Time: ${(generationTimeMs / 1000).toFixed(1)}s, Cost: $${cost.toFixed(3)}`);
 
@@ -113,7 +137,7 @@ class RunwayVideoService {
         success: true,
         videoUrl: result.videoUrl,
         s3Url,
-        duration: options.duration,
+        duration: duration,
         cost,
         generationTimeMs,
       };
@@ -129,14 +153,15 @@ class RunwayVideoService {
   }
 
   private async pollForCompletion(taskId: string): Promise<{ success: boolean; videoUrl?: string; error?: string }> {
-    const maxAttempts = 60;
+    const maxAttempts = 120;
     const pollInterval = 5000;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await this.sleep(pollInterval);
 
       try {
-        const statusResponse = await fetch(`${this.provider.endpoint}/generations/${taskId}`, {
+        const statusUrl = `${this.provider.endpoint}/tasks/${taskId}`;
+        const statusResponse = await fetch(statusUrl, {
           headers: {
             'Authorization': `Bearer ${this.provider.apiKey}`,
             'X-Runway-Version': '2024-11-06',
@@ -144,7 +169,8 @@ class RunwayVideoService {
         });
 
         if (!statusResponse.ok) {
-          console.warn(`[Runway] Status check failed: ${statusResponse.status}`);
+          const errorText = await statusResponse.text();
+          console.warn(`[Runway] Status check failed: ${statusResponse.status} - ${errorText}`);
           continue;
         }
 
@@ -166,12 +192,16 @@ class RunwayVideoService {
           };
         }
 
+        if (status.status === 'CANCELLED') {
+          return { success: false, error: 'Task was cancelled' };
+        }
+
       } catch (error: any) {
         console.warn(`[Runway] Poll error:`, error.message);
       }
     }
 
-    return { success: false, error: 'Generation timed out after 5 minutes' };
+    return { success: false, error: 'Generation timed out after 10 minutes' };
   }
 
   private async uploadToS3(videoUrl: string): Promise<string> {
@@ -215,15 +245,20 @@ class RunwayVideoService {
       .replace(/\bcreating an?\b/gi, '')
       .trim();
 
-    if (formatted.length > 500) {
-      formatted = formatted.substring(0, 497) + '...';
+    if (formatted.length > 1000) {
+      formatted = formatted.substring(0, 997) + '...';
     }
 
     return formatted;
   }
 
-  private formatAspectRatio(ratio: string): string {
-    return ratio;
+  private formatRatio(aspectRatio: string): string {
+    const ratioMap: Record<string, string> = {
+      '16:9': '1280:720',
+      '9:16': '720:1280',
+      '1:1': '960:960',
+    };
+    return ratioMap[aspectRatio] || '1280:720';
   }
 
   private sleep(ms: number): Promise<void> {
