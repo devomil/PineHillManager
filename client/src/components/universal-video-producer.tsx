@@ -3349,7 +3349,18 @@ export default function UniversalVideoProducer() {
     mutationFn: async () => {
       if (!project) throw new Error("No project");
       const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/render`);
-      return response.json();
+      const data = await response.json();
+      
+      // Phase 10D: Handle QA gate blocked response
+      if (!response.ok && data.qaGateBlocked) {
+        throw new Error(`QA_GATE_BLOCKED:${JSON.stringify(data)}`);
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Render failed');
+      }
+      
+      return data;
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -3363,6 +3374,22 @@ export default function UniversalVideoProducer() {
       }
     },
     onError: (error: Error) => {
+      // Phase 10D: Handle QA gate blocked errors specially
+      if (error.message.startsWith('QA_GATE_BLOCKED:')) {
+        try {
+          const data = JSON.parse(error.message.replace('QA_GATE_BLOCKED:', ''));
+          toast({
+            title: "Rendering Blocked",
+            description: data.blockingReasons?.join(', ') || data.error || 'Quality gate not passed',
+            variant: "destructive",
+          });
+          setShowQADashboard(true);
+          return;
+        } catch {
+          // Fall through to generic error handling
+        }
+      }
+      
       toast({
         title: "Render Failed",
         description: error.message,
@@ -3754,18 +3781,60 @@ export default function UniversalVideoProducer() {
                   )}
                   
                   {(project.status === 'ready' || project.status === 'error') && (
-                    <Button
-                      onClick={() => renderMutation.mutate()}
-                      disabled={renderMutation.isPending}
-                      data-testid="button-render-video"
-                    >
-                      {renderMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Play className="w-4 h-4 mr-2" />
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        onClick={() => {
+                          // Phase 10D: Check QA gate before rendering
+                          if (qaReport && !qaReport.canRender) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Cannot render',
+                              description: qaReport.blockingReasons?.join(', ') || 'Quality gate not passed. Review and approve scenes first.',
+                            });
+                            setShowQADashboard(true);
+                            return;
+                          }
+                          renderMutation.mutate();
+                        }}
+                        disabled={renderMutation.isPending || !!(qaReport && qaReport.canRender === false)}
+                        className={qaReport && !qaReport.canRender ? 'bg-gray-400 cursor-not-allowed' : ''}
+                        data-testid="button-render-video"
+                      >
+                        {renderMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : qaReport && !qaReport.canRender ? (
+                          <AlertTriangle className="w-4 h-4 mr-2" />
+                        ) : (
+                          <Play className="w-4 h-4 mr-2" />
+                        )}
+                        {qaReport && !qaReport.canRender 
+                          ? 'Cannot Render - QA Issues' 
+                          : project.status === 'error' 
+                            ? 'Retry Render' 
+                            : 'Render Video'}
+                      </Button>
+                      
+                      {qaReport && !qaReport.canRender && qaReport.blockingReasons && qaReport.blockingReasons.length > 0 && (
+                        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded p-2">
+                          <div className="text-xs font-medium text-red-800 dark:text-red-200 mb-1">
+                            Rendering blocked:
+                          </div>
+                          <ul className="text-xs text-red-700 dark:text-red-300 space-y-0.5">
+                            {qaReport.blockingReasons.map((reason, i) => (
+                              <li key={i}>• {reason}</li>
+                            ))}
+                          </ul>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2 text-xs"
+                            onClick={() => setShowQADashboard(true)}
+                          >
+                            Review Issues in QA Dashboard
+                          </Button>
+                        </div>
                       )}
-                      {project.status === 'error' ? 'Retry Render' : 'Render Video'}
-                    </Button>
+                    </div>
                   )}
                   
                   {project.status === 'rendering' && (

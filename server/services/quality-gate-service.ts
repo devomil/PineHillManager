@@ -144,8 +144,9 @@ class QualityGateService {
     }
     
     const passesThreshold = blockingReasons.length === 0;
-    const canRender = passesThreshold || 
-      (blockingReasons.length === 1 && blockingReasons[0].includes('user review'));
+    // Phase 10D: Strict QA gate enforcement - canRender is ONLY true when NO blocking reasons exist
+    // Previously: allowed rendering even with "needs review" scenes - this is now blocked
+    const canRender = passesThreshold;
     
     console.log(`[QualityGate] Report: score=${overallScore}, approved=${approvedCount}, review=${needsReviewCount}, rejected=${rejectedCount}, canRender=${canRender}`);
     
@@ -167,21 +168,42 @@ class QualityGateService {
     };
   }
   
-  canProceedToRender(report: ProjectQualityReport): { allowed: boolean; reason: string } {
-    if (report.passesThreshold) {
-      return { allowed: true, reason: 'All quality checks passed' };
+  canProceedToRender(report: ProjectQualityReport): { allowed: boolean; reason: string; blockingReasons: string[] } {
+    // Phase 10D: ALWAYS recompute blocking reasons from live data - never trust stored canRender
+    const blockingReasons: string[] = [];
+    
+    if (report.rejectedCount > 0) {
+      blockingReasons.push(`${report.rejectedCount} scene(s) rejected - must regenerate`);
     }
     
-    if (report.canRender && report.needsReviewCount > 0) {
-      return { 
-        allowed: true, 
-        reason: `${report.needsReviewCount} scenes pending review - user can override` 
-      };
+    if (report.needsReviewCount > 0) {
+      blockingReasons.push(`${report.needsReviewCount} scene(s) need review - approve or regenerate`);
+    }
+    
+    if (report.criticalIssueCount > 0) {
+      blockingReasons.push(`${report.criticalIssueCount} critical issue(s) must be resolved`);
+    }
+    
+    // Phase 10D: Check major issues threshold
+    if (report.majorIssueCount > DEFAULT_THRESHOLDS.maximumMajorIssues) {
+      blockingReasons.push(`${report.majorIssueCount} major issues (max ${DEFAULT_THRESHOLDS.maximumMajorIssues})`);
+    }
+    
+    if (report.overallScore < DEFAULT_THRESHOLDS.minimumProjectScore) {
+      blockingReasons.push(`Overall score ${report.overallScore} below minimum ${DEFAULT_THRESHOLDS.minimumProjectScore}`);
+    }
+    
+    // Phase 10D: Compute allowed purely from blocking reasons, ignore stored canRender/passesThreshold
+    const allowed = blockingReasons.length === 0;
+    
+    if (allowed) {
+      return { allowed: true, reason: 'All quality checks passed', blockingReasons: [] };
     }
     
     return {
       allowed: false,
-      reason: report.blockingReasons.join('; '),
+      reason: blockingReasons.join('; ') || 'Quality gate not passed',
+      blockingReasons,
     };
   }
   
@@ -210,14 +232,17 @@ class QualityGateService {
       if (idx >= 0) blockingReasons.splice(idx, 1);
     }
     
+    // Phase 10D: Strict enforcement - canRender only when no blocking reasons
+    const updatedPassesThreshold = blockingReasons.length === 0;
+    
     return {
       ...report,
       sceneStatuses: updatedStatuses,
       approvedCount,
       needsReviewCount,
       blockingReasons,
-      passesThreshold: blockingReasons.length === 0,
-      canRender: blockingReasons.length === 0 || needsReviewCount === 0,
+      passesThreshold: updatedPassesThreshold,
+      canRender: updatedPassesThreshold,
       lastApprovedAt: new Date().toISOString(),
     };
   }
@@ -277,14 +302,17 @@ class QualityGateService {
       }
     }
     
+    // Phase 10D: Strict enforcement - canRender only when no blocking reasons
+    const updatedPassesThreshold = blockingReasons.length === 0;
+    
     return {
       ...report,
       sceneStatuses: updatedStatuses,
       approvedCount,
       needsReviewCount,
       blockingReasons,
-      passesThreshold: blockingReasons.length === 0,
-      canRender: blockingReasons.length === 0 || needsReviewCount === 0,
+      passesThreshold: updatedPassesThreshold,
+      canRender: updatedPassesThreshold,
     };
   }
   

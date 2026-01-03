@@ -762,7 +762,12 @@ const renderBuckets: Map<string, string> = new Map();
 router.post('/projects/:projectId/render', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
+    const userRole = (req.user as any)?.role;
     const { projectId } = req.params;
+    const { forceRender } = req.body;
+    
+    // Phase 10D: Security - forceRender only allowed for admin role
+    const isAdminForceRender = forceRender && userRole === 'admin';
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -780,7 +785,156 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       });
     }
     
-    console.log('[UniversalVideo] Starting render for project:', projectId);
+    // Phase 10D: QA Gate Enforcement - check quality gate before rendering
+    console.log('[UniversalVideo] Phase 10D: Checking QA gate for project:', projectId);
+    
+    // Get existing quality report from project or generate one
+    let qaReport: ProjectQualityReport | null = null;
+    
+    if (projectData.qualityReport) {
+      // Phase 10D: Use existing quality report - preserve stored status and userApproved flags
+      const existingReport = projectData.qualityReport as any;
+      
+      // Reconstruct scene statuses preserving all stored values
+      const sceneStatuses = (existingReport.sceneScores || existingReport.sceneStatuses || []).map((s: any, idx: number) => {
+        const score = s.score ?? s.overallScore ?? 0;
+        const userApproved = s.userApproved ?? false; // Preserve stored userApproved
+        const autoApproved = s.autoApproved ?? (score >= 85);
+        
+        // Preserve stored status or recalculate based on score and approvals
+        let status = s.status;
+        if (!status || status === 'pending') {
+          // Only recalculate if status was not set or was pending
+          if (userApproved || autoApproved) {
+            status = 'approved';
+          } else if (score < 70) {
+            status = 'rejected';
+          } else {
+            status = 'needs_review';
+          }
+        }
+        
+        return {
+          sceneIndex: s.sceneIndex ?? idx,
+          score,
+          status,
+          issues: s.issues || [],
+          userApproved,
+          autoApproved,
+          regenerationCount: s.regenerationCount ?? 0,
+        };
+      });
+      
+      // Calculate counts based on scene statuses
+      const approvedCount = sceneStatuses.filter((s: any) => s.status === 'approved').length;
+      const needsReviewCount = sceneStatuses.filter((s: any) => s.status === 'needs_review').length;
+      const rejectedCount = sceneStatuses.filter((s: any) => s.status === 'rejected').length;
+      const pendingCount = sceneStatuses.filter((s: any) => s.status === 'pending').length;
+      
+      // Phase 10D: Recompute blocking reasons based on current data
+      const blockingReasons: string[] = [];
+      if (rejectedCount > 0) {
+        blockingReasons.push(`${rejectedCount} scene(s) rejected - must regenerate`);
+      }
+      if (needsReviewCount > 0) {
+        blockingReasons.push(`${needsReviewCount} scene(s) need review - approve or regenerate`);
+      }
+      
+      const overallScore = existingReport.overallScore || 0;
+      if (overallScore < 75) {
+        blockingReasons.push(`Overall score ${overallScore} below minimum 75`);
+      }
+      
+      const criticalIssueCount = existingReport.criticalIssues?.length || 0;
+      if (criticalIssueCount > 0) {
+        blockingReasons.push(`${criticalIssueCount} critical issue(s) must be resolved`);
+      }
+      
+      // Phase 10D: Check major issues threshold (max 3 allowed)
+      const majorIssueCount = existingReport.majorIssues?.length || existingReport.overallIssues?.filter((i: any) => i.severity === 'major')?.length || 0;
+      if (majorIssueCount > 3) {
+        blockingReasons.push(`${majorIssueCount} major issues (max 3)`);
+      }
+      
+      const passesThreshold = blockingReasons.length === 0;
+      const canRender = passesThreshold;
+      
+      qaReport = {
+        projectId: projectId,
+        overallScore,
+        sceneStatuses,
+        approvedCount,
+        needsReviewCount,
+        rejectedCount,
+        pendingCount,
+        criticalIssueCount,
+        majorIssueCount: existingReport.majorIssues?.length || existingReport.overallIssues?.filter((i: any) => i.severity === 'major')?.length || 0,
+        minorIssueCount: existingReport.overallIssues?.filter((i: any) => i.severity === 'minor')?.length || 0,
+        passesThreshold,
+        canRender,
+        blockingReasons,
+        lastAnalyzedAt: existingReport.evaluatedAt || new Date().toISOString(),
+      };
+    }
+    
+    // Check QA gate
+    if (qaReport) {
+      const renderCheck = qualityGateService.canProceedToRender(qaReport);
+      
+      console.log('[UniversalVideo] QA gate check result:', {
+        allowed: renderCheck.allowed,
+        reason: renderCheck.reason,
+        blockingReasons: renderCheck.blockingReasons,
+        forceRender: !!forceRender,
+      });
+      
+      if (!renderCheck.allowed && !isAdminForceRender) {
+        console.log('[UniversalVideo] RENDER BLOCKED by QA gate:', renderCheck.reason);
+        
+        // Log if non-admin tried to force render
+        if (forceRender && userRole !== 'admin') {
+          console.warn(`[UniversalVideo] Non-admin user ${userId} attempted forceRender - denied`);
+        }
+        
+        return res.status(400).json({
+          success: false,
+          error: 'Cannot render: Quality gate not passed',
+          qaGateBlocked: true,
+          blockingReasons: renderCheck.blockingReasons,
+          qaReport: {
+            overallScore: qaReport.overallScore,
+            passesThreshold: qaReport.passesThreshold,
+            canRender: qaReport.canRender,
+            approvedCount: qaReport.approvedCount,
+            needsReviewCount: qaReport.needsReviewCount,
+            rejectedCount: qaReport.rejectedCount,
+            criticalIssueCount: qaReport.criticalIssueCount,
+          },
+          action: 'Review and approve flagged scenes, or regenerate rejected scenes',
+        });
+      }
+      
+      if (isAdminForceRender && !renderCheck.allowed) {
+        console.warn(`[UniversalVideo] ADMIN FORCE RENDER by user ${userId} - bypassing QA gate`);
+      }
+    } else {
+      // Phase 10D: Block rendering when no QA report exists
+      console.log('[UniversalVideo] No QA report found - blocking render');
+      
+      if (!isAdminForceRender) {
+        return res.status(400).json({
+          success: false,
+          error: 'Cannot render: Quality analysis required',
+          qaGateBlocked: true,
+          blockingReasons: ['No quality analysis found - run QA check first'],
+          action: 'Run quality analysis before rendering',
+        });
+      }
+      
+      console.warn(`[UniversalVideo] ADMIN FORCE RENDER without QA by user ${userId}`);
+    }
+    
+    console.log('[UniversalVideo] QA gate PASSED - starting render for project:', projectId);
     
     console.log('[UniversalVideo] Preparing assets for Lambda...');
     const assetPrep = await universalVideoService.prepareAssetsForLambda(projectData);
