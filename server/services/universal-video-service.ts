@@ -28,6 +28,7 @@ import { scriptParserService, ParsedScript } from "./script-parser-service";
 import { brandContextService } from "./brand-context-service";
 import { detectTextOverlayRequirements, TextOverlayRequirement } from "./text-overlay-detector";
 import { generateTextOverlays, RemotionTextOverlay } from "./text-overlay-generator";
+import { sanitizePromptForAI, SanitizedPrompt } from "./prompt-sanitizer";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -721,14 +722,20 @@ Total: 90 seconds` : ''}
     return sanitized;
   }
 
-  async generateImage(prompt: string, sceneId: string, isProductVideo: boolean = false): Promise<ImageGenerationResult> {
+  async generateImage(prompt: string, sceneId: string, isProductVideo: boolean = false, sceneType: string = 'content'): Promise<ImageGenerationResult> {
     const falKey = process.env.FAL_KEY;
+    
+    // Phase 11A: Sanitize prompt to remove text/logo requests before AI generation
+    const sanitized = sanitizePromptForAI(prompt, sceneType);
+    console.log(`[GenerateImage] Sanitized prompt for scene ${sceneId}`);
+    console.log(`[GenerateImage] Removed elements: ${sanitized.removedElements.length}`);
+    console.log(`[GenerateImage] Extracted text for overlays: ${sanitized.extractedText.join(', ') || 'none'}`);
     
     // Only sanitize product terms for product video context to avoid AI-generated bottles
     // Non-product videos can keep full context for better image relevance
     const basePrompt = isProductVideo 
-      ? this.sanitizeProductTermsFromPrompt(prompt)
-      : prompt;
+      ? this.sanitizeProductTermsFromPrompt(sanitized.cleanPrompt)
+      : sanitized.cleanPrompt;
     const enhancedPrompt = this.enhanceImagePrompt(basePrompt);
 
     if (falKey) {
@@ -1027,7 +1034,7 @@ Total: 90 seconds` : ''}
   private async generateAIBackground(
     backgroundPrompt: string,
     sceneType: string
-  ): Promise<{ backgroundUrl: string | null; source: string }> {
+  ): Promise<{ backgroundUrl: string | null; source: string; sanitizedResult?: SanitizedPrompt }> {
     const falKey = process.env.FAL_KEY;
     if (!falKey) {
       console.log('[UniversalVideoService] FAL_KEY not available - cannot generate AI background');
@@ -1037,9 +1044,16 @@ Total: 90 seconds` : ''}
     try {
       console.log(`[UniversalVideoService] Generating AI background for ${sceneType} scene...`);
       
+      // Phase 11A: Sanitize prompt to remove text/logo requests
+      const sanitized = sanitizePromptForAI(backgroundPrompt, sceneType);
+      console.log(`[GenerateBackground] Sanitized prompt for ${sceneType} scene`);
+      console.log(`[GenerateBackground] Removed elements: ${sanitized.removedElements.length}`);
+      console.log(`[GenerateBackground] Extracted text: ${sanitized.extractedText.join(', ') || 'none'}`);
+      
       const environmentContext = this.getBackgroundEnvironmentPrompt(sceneType);
       
-      const cleanedPrompt = backgroundPrompt
+      // Use sanitized prompt as base (already has "no text" instruction)
+      const cleanedPrompt = sanitized.cleanPrompt
         .replace(/product\s*(shot|image|photo|photography)?/gi, '')
         .replace(/bottle/gi, '')
         .replace(/packaging/gi, '')
@@ -1047,7 +1061,7 @@ Total: 90 seconds` : ''}
         .replace(/(Black Cohosh|Extract|Plus)/gi, '')
         .trim();
 
-      const environmentOnlyPrompt = `Empty background scene for product photography: ${environmentContext}. ${cleanedPrompt}. IMPORTANT: No products, no bottles, no packaging, no text, no labels, no logos, NO PEOPLE, NO FACES, NO HUMANS - ONLY the background environment and setting. Empty clean surface ready for product placement. Professional studio lighting, high quality, 4K, photorealistic background plate.`;
+      const environmentOnlyPrompt = `Empty background scene for product photography: ${environmentContext}. ${cleanedPrompt} NO PEOPLE, NO FACES, NO HUMANS - ONLY the background environment and setting. Empty clean surface ready for product placement. Professional studio lighting, high quality, 4K, photorealistic background plate.`;
       
       console.log(`[UniversalVideoService] Environment-only prompt: ${environmentOnlyPrompt}`);
 
@@ -1137,6 +1151,14 @@ Total: 90 seconds` : ''}
     const visualDirection = scene.visualDirection || '';
     const narration = scene.narration || '';
     
+    // Phase 11A: Sanitize visual direction to remove text/logo requests
+    const sanitized = sanitizePromptForAI(visualDirection, sceneType);
+    const cleanVisualDirection = sanitized.cleanPrompt;
+    
+    console.log(`[BuildContentPrompt] Scene ${scene.id} sanitized:`);
+    console.log(`  Removed: ${sanitized.removedElements.length} elements`);
+    console.log(`  Extracted text: ${sanitized.extractedText.join(', ') || 'none'}`);
+    
     // Get demographic context from scene or infer from product
     let demographicContext = '';
     const lowerNarration = narration.toLowerCase();
@@ -1179,9 +1201,11 @@ Total: 90 seconds` : ''}
         baseContext = `${demographicContext}Professional lifestyle photography with natural lighting.`;
     }
     
-    const extractedConcepts = this.extractVisualConcepts(visualDirection, narration);
+    // Use sanitized visual direction for concept extraction
+    const extractedConcepts = this.extractVisualConcepts(cleanVisualDirection, narration);
     
-    const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging. IMPORTANT: Show ADULTS only, no children or teenagers.`;
+    // The sanitized prompt already has "no text" instruction appended, so just add scene-specific requirements
+    const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging, NO watermarks, NO labels, NO buttons. IMPORTANT: Show ADULTS only, no children or teenagers.`;
     
     return fullPrompt;
   }
