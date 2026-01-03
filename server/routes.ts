@@ -16125,26 +16125,31 @@ Respond in JSON format:
   });
 
   // AI Producer: Evaluate assets
+  // Phase 10C: Returns pending status instead of fake scores when real analysis not performed
   app.post('/api/videos/ai-producer/evaluate', isAuthenticated, async (req, res) => {
     try {
       const { productionId, brief } = req.body;
       
-      // Generate sample evaluations for demo
+      // Phase 10C: Return pending status - real evaluation requires Claude Vision analysis
       const sections = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
       const evaluations = sections.map(section => ({
         section,
-        score: 65 + Math.floor(Math.random() * 30),
-        relevance: 70 + Math.floor(Math.random() * 25),
-        technicalQuality: 75 + Math.floor(Math.random() * 20),
-        brandAlignment: 70 + Math.floor(Math.random() * 25),
-        emotionalImpact: 65 + Math.floor(Math.random() * 30),
+        score: null,  // Phase 10C: No fake scores
+        relevance: null,
+        technicalQuality: null,
+        brandAlignment: null,
+        emotionalImpact: null,
+        status: 'pending',
+        hasRealAnalysis: false,
       }));
       
       res.json({
         success: true,
         productionId,
         evaluations,
-        overallScore: Math.round(evaluations.reduce((sum, e) => sum + e.score, 0) / evaluations.length),
+        overallScore: null,  // Phase 10C: No fake overall score
+        status: 'analysis_pending',
+        message: 'Quality evaluation requires Claude Vision analysis. Run quality check to get real scores.',
       });
     } catch (error) {
       console.error('[AI Producer] Evaluation error:', error);

@@ -36,22 +36,24 @@ interface QualityIssue {
 interface SceneQualityScore {
   sceneId: string;
   sceneIndex: number;
-  overallScore: number;
+  overallScore: number | null;  // Phase 10C: null indicates no real analysis
   scores: {
     composition: number;
     visibility: number;
     technicalQuality: number;
     contentMatch: number;
     professionalLook: number;
-  };
+  } | null;  // Phase 10C: null indicates pending analysis
   issues: QualityIssue[];
   passesThreshold: boolean;
   needsRegeneration: boolean;
+  status?: 'pending' | 'analyzed';  // Phase 10C: explicit status
+  hasRealAnalysis?: boolean;  // Phase 10C: flag for real vs fake analysis
 }
 
 interface VideoQualityReport {
   projectId: string;
-  overallScore: number;
+  overallScore: number | null;  // Phase 10C: null indicates pending analysis
   passesQuality: boolean;
   sceneScores: SceneQualityScore[];
   criticalIssues: QualityIssue[];
@@ -65,6 +67,8 @@ interface VideoQualityReport {
     major: number;
     minor: number;
   };
+  status?: 'analysis_pending';  // Phase 10C: explicit pending status
+  hasRealAnalysis?: boolean;  // Phase 10C: flag for real vs fake analysis
 }
 
 interface QualityReportProps {
@@ -149,7 +153,11 @@ export function QualityReport({ projectId, projectStatus, onRegenerateComplete, 
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast({ title: 'Quality evaluation complete', description: `Score: ${data.qualityReport.overallScore}/100` });
+        // Phase 10C: Handle null scores in toast message
+        const scoreDisplay = data.qualityReport.overallScore !== null && data.qualityReport.overallScore !== undefined
+          ? `Score: ${data.qualityReport.overallScore}/100`
+          : 'Analysis pending - run quality check to get real scores';
+        toast({ title: 'Quality evaluation complete', description: scoreDisplay });
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'quality-report'] });
       } else {
         toast({ variant: 'destructive', title: 'Evaluation failed', description: data.error });
@@ -260,12 +268,22 @@ export function QualityReport({ projectId, projectStatus, onRegenerateComplete, 
         {report && (
           <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className={`text-center p-4 rounded-lg ${getScoreBg(report.overallScore)} min-w-[100px]`}>
-                <div className={`text-3xl font-bold ${getScoreColor(report.overallScore)}`}>
-                  {report.overallScore}
+              {/* Phase 10C: Show Pending for null/zero scores */}
+              {report.overallScore === null || report.overallScore === 0 || report.status === 'analysis_pending' ? (
+                <div className="text-center p-4 rounded-lg bg-gray-100 dark:bg-gray-800 min-w-[100px]">
+                  <div className="text-xl font-bold text-gray-500 dark:text-gray-400">
+                    Pending
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">Analysis Required</div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">Overall Score</div>
-              </div>
+              ) : (
+                <div className={`text-center p-4 rounded-lg ${getScoreBg(report.overallScore)} min-w-[100px]`}>
+                  <div className={`text-3xl font-bold ${getScoreColor(report.overallScore)}`}>
+                    {report.overallScore}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">Overall Score</div>
+                </div>
+              )}
               
               <div className="flex-1">
                 {report.passesQuality ? (
@@ -364,22 +382,36 @@ export function QualityReport({ projectId, projectStatus, onRegenerateComplete, 
                             )}
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className={`font-bold ${getScoreColor(scene.overallScore)}`}>
-                              {scene.overallScore}/100
-                            </span>
+                            {/* Phase 10C: Show Pending for null/zero scores */}
+                            {scene.overallScore === null || scene.overallScore === 0 || scene.status === 'pending' ? (
+                              <span className="font-bold text-gray-500">Pending</span>
+                            ) : (
+                              <span className={`font-bold ${getScoreColor(scene.overallScore)}`}>
+                                {scene.overallScore}/100
+                              </span>
+                            )}
                             <ChevronDown className={`w-4 h-4 transition-transform ${expandedScenes.has(index) ? 'rotate-180' : ''}`} />
                           </div>
                         </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="mt-2 p-3 bg-muted/30 rounded-lg space-y-3">
-                          <div className="grid grid-cols-1 gap-2">
-                            <ScoreBar label="Composition" score={scene.scores.composition} icon={<Palette className="w-4 h-4" />} />
-                            <ScoreBar label="Visibility" score={scene.scores.visibility} icon={<Eye className="w-4 h-4" />} />
-                            <ScoreBar label="Technical Quality" score={scene.scores.technicalQuality} icon={<Film className="w-4 h-4" />} />
-                            <ScoreBar label="Content Match" score={scene.scores.contentMatch} icon={<CheckCircle2 className="w-4 h-4" />} />
-                            <ScoreBar label="Professional Look" score={scene.scores.professionalLook} icon={<Sparkles className="w-4 h-4" />} />
-                          </div>
+                          {/* Phase 10C: Show pending message if no real analysis */}
+                          {scene.scores === null || scene.status === 'pending' ? (
+                            <div className="text-center text-gray-500 py-4">
+                              <AlertTriangle className="w-6 h-6 mx-auto mb-2" />
+                              <p className="text-sm">Analysis not performed yet</p>
+                              <p className="text-xs text-muted-foreground">Run quality check to get real scores</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-2">
+                              <ScoreBar label="Composition" score={scene.scores.composition} icon={<Palette className="w-4 h-4" />} />
+                              <ScoreBar label="Visibility" score={scene.scores.visibility} icon={<Eye className="w-4 h-4" />} />
+                              <ScoreBar label="Technical Quality" score={scene.scores.technicalQuality} icon={<Film className="w-4 h-4" />} />
+                              <ScoreBar label="Content Match" score={scene.scores.contentMatch} icon={<CheckCircle2 className="w-4 h-4" />} />
+                              <ScoreBar label="Professional Look" score={scene.scores.professionalLook} icon={<Sparkles className="w-4 h-4" />} />
+                            </div>
+                          )}
 
                           {scene.issues.length > 0 && (
                             <div className="border-t pt-2">

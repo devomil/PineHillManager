@@ -3840,52 +3840,38 @@ router.post('/projects/:projectId/run-qa', isAuthenticated, async (req: Request,
       }
     }
     
-    // Fallback to simulated scoring if Claude Vision is not available or failed
-    // Phase 10A WARNING: These are FAKE random scores, NOT real quality analysis!
+    // Phase 10C: Return pending status when Claude Vision is not available
+    // DO NOT generate fake random scores - UI should show "Pending" state
     if (!qualityReport) {
       console.warn('═══════════════════════════════════════════════════════════════════════════════');
-      console.warn('[Phase10A] WARNING: USING SIMULATED FAKE QA SCORES');
-      console.warn('[Phase10A] Claude Vision is NOT being called - scores are randomly generated!');
-      console.warn('[Phase10A] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
-      console.warn('[Phase10A] This is why quality scores appear incorrect!');
+      console.warn('[Phase10C] Claude Vision analysis not available');
+      console.warn('[Phase10C] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+      console.warn('[Phase10C] Returning pending status - NO FAKE SCORES');
       console.warn('═══════════════════════════════════════════════════════════════════════════════');
       
-      const sceneScores = scenes.map((scene, i) => {
-        const hasAsset = scene.assets?.videoUrl || scene.assets?.imageUrl || (scene.background as any)?.url;
-        // FAKE SCORES: These are randomly generated placeholders!
-        const baseScore = hasAsset ? 75 + Math.floor(Math.random() * 20) : 70;
-        
-        return {
-          sceneId: scene.id,
-          sceneIndex: i,
-          overallScore: baseScore,
-          scores: {
-            composition: 70 + Math.floor(Math.random() * 25),
-            visibility: 75 + Math.floor(Math.random() * 20),
-            technicalQuality: 72 + Math.floor(Math.random() * 23),
-            contentMatch: 70 + Math.floor(Math.random() * 25),
-            professionalLook: 73 + Math.floor(Math.random() * 22),
-          },
-          issues: [],
-          passesThreshold: baseScore >= 70,
-          needsRegeneration: baseScore < 65,
-        };
-      });
-      
-      const avgScore = sceneScores.length > 0
-        ? Math.round(sceneScores.reduce((sum, s) => sum + s.overallScore, 0) / sceneScores.length)
-        : 75;
+      // Phase 10C: Return pending status for each scene instead of fake scores
+      const sceneScores = scenes.map((scene, i) => ({
+        sceneId: scene.id,
+        sceneIndex: i,
+        overallScore: null,  // Phase 10C: No fake score
+        scores: null,  // Phase 10C: No fake scores
+        issues: [],
+        passesThreshold: false,  // Cannot pass without real analysis
+        needsRegeneration: false,
+        status: 'pending',
+        hasRealAnalysis: false,
+      }));
       
       qualityReport = {
         projectId,
-        overallScore: avgScore,
-        passesQuality: avgScore >= 70,
+        overallScore: null,  // Phase 10C: No fake overall score
+        passesQuality: false,  // Cannot pass without real analysis
         sceneScores,
         criticalIssues: [],
-        recommendations: avgScore >= 85 
-          ? ['Video meets all quality standards'] 
-          : ['Consider enhancing lighting in some scenes'],
+        recommendations: ['Configure ANTHROPIC_API_KEY to enable real quality analysis'],
         evaluatedAt: new Date().toISOString(),
+        status: 'analysis_pending',
+        hasRealAnalysis: false,
       };
     }
     
@@ -5199,6 +5185,112 @@ router.get('/projects/:projectId/can-render', isAuthenticated, async (req: Reque
 
   } catch (error: any) {
     console.error('[Phase8F] Check render permission failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 10C: Score Integrity Check - Debug endpoint to verify real vs fake scores
+router.get('/api/debug/score-integrity', isAuthenticated, async (req, res) => {
+  try {
+    const userId = (req.user as any).id || '';
+    
+    // Get all video projects for this user
+    const projectIds = await listUserProjects(userId);
+    
+    const report = {
+      totalProjects: projectIds.length,
+      totalScenes: 0,
+      withRealAnalysis: 0,
+      withoutAnalysis: 0,
+      scoreMismatches: [] as Array<{
+        projectId: string;
+        sceneId: string;
+        sceneIndex: number;
+        storedScore: number | null;
+        analysisScore: number | null;
+      }>,
+      suspiciousScores: [] as Array<{
+        projectId: string;
+        sceneId: string;
+        sceneIndex: number;
+        score: number;
+        reason: string;
+      }>,
+      allScores: [] as number[],
+      warning: null as string | null,
+    };
+    
+    for (const projectId of projectIds.slice(0, 10)) { // Limit to 10 projects for performance
+      const projectData = await getProjectFromDb(projectId);
+      if (!projectData?.scenes) continue;
+      
+      for (const scene of projectData.scenes) {
+        report.totalScenes++;
+        const sceneIndex = projectData.scenes.indexOf(scene);
+        
+        const analysisResult = scene.analysisResult;
+        const qualityScore = scene.qualityScore || projectData.qualityReport?.sceneScores?.find(
+          s => s.sceneId === scene.id || s.sceneIndex === sceneIndex
+        )?.overallScore;
+        
+        if (analysisResult?.overallScore !== undefined && analysisResult.overallScore > 0) {
+          report.withRealAnalysis++;
+          report.allScores.push(analysisResult.overallScore);
+          
+          // Check for score mismatch
+          if (qualityScore !== undefined && qualityScore !== analysisResult.overallScore) {
+            report.scoreMismatches.push({
+              projectId,
+              sceneId: scene.id,
+              sceneIndex,
+              storedScore: qualityScore,
+              analysisScore: analysisResult.overallScore,
+            });
+          }
+        } else {
+          report.withoutAnalysis++;
+          
+          // Scene has score but no real analysis = suspicious
+          if (qualityScore && qualityScore > 0) {
+            report.suspiciousScores.push({
+              projectId,
+              sceneId: scene.id,
+              sceneIndex,
+              score: qualityScore,
+              reason: 'Has score but no analysisResult with valid score',
+            });
+          }
+        }
+      }
+    }
+    
+    // Check for suspiciously uniform scores (all in 90-93 range = likely fake)
+    const uniqueScores = new Set(report.allScores);
+    if (report.allScores.length > 5 && uniqueScores.size < 5) {
+      report.warning = 'Scores are suspiciously uniform - may indicate fake scoring still active';
+    }
+    
+    // Check for all scores in narrow range
+    if (report.allScores.length > 0) {
+      const min = Math.min(...report.allScores);
+      const max = Math.max(...report.allScores);
+      if (max - min < 10 && report.allScores.length > 5) {
+        report.warning = `All ${report.allScores.length} scores in narrow range (${min}-${max}) - may indicate fake scoring`;
+      }
+    }
+    
+    res.json({
+      success: true,
+      phase: '10C',
+      purpose: 'Verify quality scores come from real Claude Vision analysis',
+      report,
+      conclusion: report.suspiciousScores.length === 0 && report.scoreMismatches.length === 0
+        ? 'PASS: All displayed scores appear to come from real analysis'
+        : 'FAIL: Found suspicious or mismatched scores - fake scoring may still be active',
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase10C] Score integrity check failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

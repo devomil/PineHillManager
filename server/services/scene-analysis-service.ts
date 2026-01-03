@@ -1514,50 +1514,43 @@ Respond ONLY with the JSON, no other text.`;
   }
 
   /**
-   * Phase 10A WARNING: This method generates FAKE random scores!
-   * These are NOT real quality analysis results from Claude Vision.
-   * When ANTHROPIC_API_KEY is not configured, this placeholder data is returned.
+   * Phase 10C: Returns pending status when Claude Vision is not available.
+   * NO FAKE SCORES - UI should show "Analysis Pending" state.
    */
   private createSimulatedPhase8Result(context: SceneContext): Phase8AnalysisResult {
-    // WARNING: These are FAKE random scores, NOT real analysis!
-    const baseScore = 75 + Math.floor(Math.random() * 15);
-    const technicalScore = Math.round(baseScore * 0.2);
-    const contentMatchScore = Math.round(baseScore * 0.3);
-    const brandComplianceScore = Math.round(baseScore * 0.3);
-    const compositionScore = Math.round(baseScore * 0.2);
-    const overallScore = technicalScore + contentMatchScore + brandComplianceScore + compositionScore;
+    console.warn(`[Phase10C] Scene ${context.sceneIndex + 1} requires Claude Vision analysis - returning pending status`);
     
-    console.warn(`[Phase10A] Generated FAKE score ${overallScore} for scene ${context.sceneIndex + 1} (random 75-90 range)`);
-    
+    // Phase 10C: Return null/0 scores to indicate no real analysis performed
     return {
       sceneIndex: context.sceneIndex,
-      overallScore,
-      technicalScore,
-      contentMatchScore,
-      brandComplianceScore,
-      compositionScore,
+      overallScore: 0,  // Phase 10C: Zero indicates no analysis, not a real score
+      technicalScore: 0,
+      contentMatchScore: 0,
+      brandComplianceScore: 0,
+      compositionScore: 0,
       aiArtifactsDetected: false,
       aiArtifactDetails: [],
-      contentMatchDetails: '⚠️ SIMULATED (FAKE) - Claude Vision not available. Configure ANTHROPIC_API_KEY for real analysis.',
-      brandComplianceDetails: '⚠️ NOT ANALYZED - No Anthropic API key',
+      contentMatchDetails: '⚠️ ANALYSIS PENDING - Configure ANTHROPIC_API_KEY for real quality analysis.',
+      brandComplianceDetails: '⚠️ ANALYSIS PENDING - No Anthropic API key configured',
       frameAnalysis: {
-        subjectPosition: 'center',
+        subjectPosition: 'unknown',
         faceDetected: false,
         busyRegions: [],
-        dominantColors: ['earth tones'],
-        lightingType: 'warm',
-        safeTextZones: [{ position: 'lower-third', confidence: 80 }],
+        dominantColors: [],
+        lightingType: 'neutral',
+        safeTextZones: [],
       },
       issues: [{
         category: 'technical',
-        severity: 'minor',
-        description: '⚠️ This is a SIMULATED score. Claude Vision analysis not performed.',
+        severity: 'critical',
+        description: '⚠️ Quality analysis not performed - Claude Vision API required',
         suggestion: 'Configure ANTHROPIC_API_KEY to enable real quality analysis',
       }],
-      recommendation: 'needs_review',
+      recommendation: 'critical_fail',  // Phase 10C: Cannot pass without real analysis
       analysisTimestamp: new Date().toISOString(),
-      analysisModel: 'simulated-fake-scores',
-    };
+      analysisModel: 'analysis-pending',
+      hasRealAnalysis: false,  // Phase 10C: Flag to indicate no real analysis
+    } as Phase8AnalysisResult;
   }
 }
 
