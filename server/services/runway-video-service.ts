@@ -99,16 +99,45 @@ class RunwayVideoService {
           })
           .waitForTaskOutput();
       } else {
-        const textRatio = this.formatRatioForTextToVideo(options.aspectRatio);
-        console.log(`[Runway] Using textToVideo with veo3.1, ratio: ${textRatio}...`);
-        task = await client.textToVideo
-          .create({
-            model: 'veo3.1',
-            promptText: formattedPrompt,
-            ratio: textRatio as any,
-            duration: duration,
-          })
-          .waitForTaskOutput();
+        // Text-to-video: Try to generate an image first with fal.ai, then use image-to-video with gen4_turbo
+        // This allows us to use actual Runway models. Falls back to Veo if fal.ai unavailable.
+        console.log(`[Runway] No source image provided - attempting to generate one with fal.ai...`);
+        
+        const imageResult = await this.generateImageForVideo(options.prompt, options.aspectRatio);
+        
+        if (imageResult.success && imageResult.imageUrl) {
+          // Success: use gen4_turbo with the generated image
+          console.log(`[Runway] Generated source image: ${imageResult.imageUrl.substring(0, 50)}...`);
+          
+          const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
+          console.log(`[Runway] Using imageToVideo with gen4_turbo (from generated image), ratio: ${imageRatio}...`);
+          
+          task = await client.imageToVideo
+            .create({
+              model: 'gen4_turbo',
+              promptImage: imageResult.imageUrl,
+              promptText: formattedPrompt,
+              ratio: imageRatio as any,
+              duration: duration,
+            })
+            .waitForTaskOutput();
+        } else {
+          // Fallback: use Veo text-to-video (through Runway SDK)
+          console.warn(`[Runway] fal.ai image generation failed: ${imageResult.error}`);
+          console.log(`[Runway] Falling back to Veo text-to-video...`);
+          
+          const textRatio = this.formatRatioForTextToVideo(options.aspectRatio);
+          console.log(`[Runway] Using textToVideo with veo3.1, ratio: ${textRatio}...`);
+          
+          task = await client.textToVideo
+            .create({
+              model: 'veo3.1',
+              promptText: formattedPrompt,
+              ratio: textRatio as any,
+              duration: duration,
+            })
+            .waitForTaskOutput();
+        }
       }
 
       console.log(`[Runway] Task completed:`, JSON.stringify(task, null, 2));
@@ -155,6 +184,39 @@ class RunwayVideoService {
         error: error.message,
         generationTimeMs: Date.now() - startTime,
       };
+    }
+  }
+
+  private async generateImageForVideo(prompt: string, aspectRatio: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+    try {
+      const { fal } = await import('@fal-ai/client');
+      
+      const imageAspect = aspectRatio === '9:16' ? 'portrait_16_9' : 
+                          aspectRatio === '1:1' ? 'square' : 'landscape_16_9';
+      
+      console.log(`[Runway] Generating image with fal.ai FLUX...`);
+      
+      const result = await fal.subscribe('fal-ai/flux/schnell', {
+        input: {
+          prompt: prompt.substring(0, 500) + ' High quality, professional, cinematic frame.',
+          image_size: imageAspect,
+          num_images: 1,
+          enable_safety_checker: true,
+        },
+        pollInterval: 1000,
+      });
+      
+      const imageUrl = (result.data as any)?.images?.[0]?.url;
+      
+      if (imageUrl) {
+        console.log(`[Runway] Image generated successfully`);
+        return { success: true, imageUrl };
+      }
+      
+      return { success: false, error: 'No image URL in response' };
+    } catch (error: any) {
+      console.error(`[Runway] Image generation error:`, error.message);
+      return { success: false, error: error.message };
     }
   }
 

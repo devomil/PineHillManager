@@ -2683,32 +2683,11 @@ Total: 90 seconds` : ''}
           }
         }
         
-        // Fall back to stock video (Pexels) if AI generation failed or not applicable
+        // Stock video fallback DISABLED - only use AI-generated videos
+        // Pexels and Pixabay stock footage is disabled per user request
         if (!videoResult) {
-          const searchQuery = this.buildVideoSearchQuery(scene, project.targetAudience);
-          console.log(`[UniversalVideoService] Searching stock B-roll for scene ${scene.id} (${scene.type}): ${searchQuery}`);
-          
-          const stockResult = await this.getStockVideo(searchQuery, project.targetAudience, scene.fallbackQuery);
-          
-          // B-ROLL CONTENT VALIDATION: Ensure video matches scene context appropriately
-          if (stockResult && stockResult.url) {
-            const sceneContext = scene.visualDirection || scene.narration || scene.background?.source || '';
-            const isAppropriate = brandAssetService.isBrollContentAppropriate(
-              searchQuery, 
-              sceneContext, 
-              project.targetAudience
-            );
-            
-            if (isAppropriate) {
-              videoResult = { 
-                url: stockResult.url, 
-                source: stockResult.source,
-                duration: stockResult.duration,
-              };
-            } else {
-              console.log(`[UniversalVideoService] Stock B-roll REJECTED for scene ${scene.id} - content mismatch`);
-            }
-          }
+          console.log(`[UniversalVideoService] No AI video available for scene ${scene.id} - stock video (Pexels/Pixabay) is disabled`);
+          console.log(`[UniversalVideoService] Scene will use AI-generated image instead`);
         }
         
         // Update scene index and initialize assets
@@ -3693,50 +3672,12 @@ Total: 90 seconds` : ''}
       }
     }
     
-    // Stock video fallback (Pexels/Pixabay) - only when no AI provider specified or explicitly requested
-    const query = customQuery || scene.searchQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
+    // Stock video fallback DISABLED - only use AI-generated videos
+    // Pexels and Pixabay are disabled per user request
+    console.log(`[Regenerate] No AI provider specified and stock video (Pexels/Pixabay) is disabled`);
+    console.log(`[Regenerate] Please select an AI provider: runway, kling, luma, or hailuo`);
     
-    // Don't use the duplicate tracking for regeneration - user wants a NEW video
-    const pexelsResult = await this.getPexelsVideo(query + ' ' + Date.now()); // Add timestamp to vary results
-    if (pexelsResult) {
-      if (!project.targetAudience || this.validateVideoForAudience(pexelsResult, project.targetAudience)) {
-        return { 
-          success: true, 
-          newVideoUrl: pexelsResult.url, 
-          duration: pexelsResult.duration,
-          source: pexelsResult.source 
-        };
-      }
-    }
-    
-    // Try fallback query if available
-    if (fallbackQuery && fallbackQuery !== query) {
-      console.log(`[Regenerate] Trying fallback query: "${fallbackQuery}"`);
-      const fallbackResult = await this.getPexelsVideo(fallbackQuery + ' ' + Date.now());
-      if (fallbackResult) {
-        if (!project.targetAudience || this.validateVideoForAudience(fallbackResult, project.targetAudience)) {
-          return { 
-            success: true, 
-            newVideoUrl: fallbackResult.url, 
-            duration: fallbackResult.duration,
-            source: fallbackResult.source 
-          };
-        }
-      }
-    }
-    
-    // Try Pixabay
-    const pixabayResult = await this.getPixabayVideo(query);
-    if (pixabayResult) {
-      return { 
-        success: true, 
-        newVideoUrl: pixabayResult.url, 
-        duration: pixabayResult.duration,
-        source: pixabayResult.source 
-      };
-    }
-    
-    return { success: false, error: 'No suitable video found' };
+    return { success: false, error: 'No AI video provider specified. Select Runway, Kling, Luma, or Hailuo to generate video.' };
   }
 
   /**
