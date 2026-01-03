@@ -20,6 +20,7 @@ import { brandInjectionService, BrandInjectionPlan } from '../services/brand-inj
 import { qualityGateService, ProjectQualityReport, SceneQualityStatus } from '../services/quality-gate-service';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
+import { videoFrameExtractor } from '../services/video-frame-extractor';
 import { db } from '../db';
 import { universalVideoProjects } from '../../shared/schema';
 import type { 
@@ -598,6 +599,7 @@ router.patch('/projects/:projectId/scenes/:sceneId/visual-direction', isAuthenti
 });
 
 // Phase 8A: Background scene analysis helper (runs async without blocking response)
+// Updated to handle video scenes by extracting a thumbnail frame for analysis
 async function runBackgroundSceneAnalysis(projectId: string, userId: number | string) {
   try {
     const projectData = await getProjectFromDb(projectId);
@@ -607,24 +609,60 @@ async function runBackgroundSceneAnalysis(projectId: string, userId: number | st
     
     for (let i = 0; i < projectData.scenes.length; i++) {
       const scene = projectData.scenes[i];
+      const videoUrl = scene.assets?.videoUrl || (scene.background as any)?.videoUrl;
       const imageUrl = scene.assets?.imageUrl || (scene.background as any)?.url;
       
-      if (!imageUrl) continue;
+      // Determine if this is a video scene - check both assets and background
+      const isVideoScene = !!videoUrl || scene.background?.type === 'video';
+      
+      let base64: string | null = null;
+      let mediaSource = 'image';
       
       try {
-        let fullUrl = imageUrl;
-        if (imageUrl.startsWith('/objects') || imageUrl.startsWith('/')) {
-          const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-            : 'http://localhost:5000';
-          fullUrl = imageUrl.startsWith('/objects') ? `${baseUrl}${imageUrl}` : `${baseUrl}${imageUrl}`;
+        if (isVideoScene && videoUrl) {
+          // For video scenes, extract a frame for analysis
+          console.log(`[Phase8A Background] Scene ${i + 1} is a video - extracting frame for analysis`);
+          
+          let fullVideoUrl = videoUrl;
+          if (videoUrl.startsWith('/objects') || videoUrl.startsWith('/')) {
+            const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+              ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+              : 'http://localhost:5000';
+            fullVideoUrl = `${baseUrl}${videoUrl}`;
+          }
+          
+          const frameResult = await videoFrameExtractor.extractFrameAsBase64(fullVideoUrl, 2);
+          if (frameResult) {
+            base64 = frameResult.base64;
+            mediaSource = 'video_frame';
+            console.log(`[Phase8A Background] Successfully extracted frame from video`);
+          } else {
+            console.warn(`[Phase8A Background] Failed to extract frame from video, falling back to image`);
+          }
         }
         
-        const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
-        if (!response.ok) continue;
+        // Fall back to image if no video frame extracted
+        if (!base64 && imageUrl) {
+          let fullUrl = imageUrl;
+          if (imageUrl.startsWith('/objects') || imageUrl.startsWith('/')) {
+            const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+              ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+              : 'http://localhost:5000';
+            fullUrl = `${baseUrl}${imageUrl}`;
+          }
+          
+          const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
+          if (response.ok) {
+            const buffer = Buffer.from(await response.arrayBuffer());
+            base64 = buffer.toString('base64');
+            mediaSource = 'image';
+          }
+        }
         
-        const buffer = Buffer.from(await response.arrayBuffer());
-        const base64 = buffer.toString('base64');
+        if (!base64) {
+          console.warn(`[Phase8A Background] Scene ${i + 1} has no analyzable media`);
+          continue;
+        }
         
         const context: SceneContext = {
           sceneIndex: i,
@@ -635,6 +673,7 @@ async function runBackgroundSceneAnalysis(projectId: string, userId: number | st
           totalScenes: projectData.scenes.length,
         };
         
+        console.log(`[Phase8A Background] Analyzing scene ${i + 1} from ${mediaSource}`);
         const analysisResult = await sceneAnalysisService.analyzeScenePhase8(base64, context);
         projectData.scenes[i].analysisResult = analysisResult;
         projectData.scenes[i].qualityScore = analysisResult.overallScore;

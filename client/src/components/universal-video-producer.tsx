@@ -29,6 +29,7 @@ import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { GenerationPreviewPanel } from "./generation-preview-panel";
 import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayConfig } from "./overlay-editor";
+import { OverlayPreview } from "./overlay-preview";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
 import type { AnimationSettings } from "@shared/video-types";
 import { 
@@ -1362,6 +1363,8 @@ function ScenePreview({
   const [rejectReason, setRejectReason] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'needs_review' | 'approved' | 'rejected'>('all');
   const [activeJobPolling, setActiveJobPolling] = useState<Record<string, { jobId: string; progress: number }>>({});
+  const [overlayPreviewMode, setOverlayPreviewMode] = useState<Record<string, boolean>>({});
+  const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
   const pollingTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2317,7 +2320,44 @@ function ScenePreview({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
               {/* Left Column: Large Media Preview */}
               <div className="space-y-4">
-                {hasBrollVideo ? (
+                {/* Preview Mode Toggle */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm text-muted-foreground">Preview Mode</Label>
+                  <div className="flex border rounded-md overflow-hidden">
+                    <Button
+                      size="sm"
+                      variant={!overlayPreviewMode[scene.id] ? 'default' : 'ghost'}
+                      className="h-7 text-xs rounded-none"
+                      onClick={() => setOverlayPreviewMode(prev => ({ ...prev, [scene.id]: false }))}
+                      data-testid={`button-preview-media-${scene.id}`}
+                    >
+                      <ImageIcon className="w-3 h-3 mr-1" /> Media
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={overlayPreviewMode[scene.id] ? 'default' : 'ghost'}
+                      className="h-7 text-xs rounded-none"
+                      onClick={() => setOverlayPreviewMode(prev => ({ ...prev, [scene.id]: true }))}
+                      data-testid={`button-preview-overlay-${scene.id}`}
+                    >
+                      <Layers className="w-3 h-3 mr-1" /> With Overlays
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Overlay Preview Mode */}
+                {overlayPreviewMode[scene.id] && (hasBrollVideo || hasAIBackground || imageAsset?.url) ? (
+                  <OverlayPreview
+                    mediaUrl={convertToDisplayUrl(
+                      hasBrollVideo ? scene.background!.videoUrl! :
+                      hasAIBackground ? scene.assets!.backgroundUrl! :
+                      imageAsset!.url
+                    )}
+                    mediaType={hasBrollVideo ? 'video' : 'image'}
+                    config={previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general')}
+                    convertUrl={convertToDisplayUrl}
+                  />
+                ) : hasBrollVideo ? (
                   <div>
                     <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
                       <Video className="w-4 h-4" /> B-Roll Video
@@ -2796,7 +2836,12 @@ function ScenePreview({
                       if (projectId) {
                         try {
                           await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: config });
+                          setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
                           onSceneUpdate?.();
+                          toast({
+                            title: 'Saved',
+                            description: 'Overlay settings saved successfully',
+                          });
                         } catch (err) {
                           console.error('Failed to update overlay config:', err);
                           toast({
@@ -2805,6 +2850,12 @@ function ScenePreview({
                             variant: 'destructive',
                           });
                         }
+                      }
+                    }}
+                    onPreview={(config) => {
+                      setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
+                      if (!overlayPreviewMode[scene.id]) {
+                        setOverlayPreviewMode(prev => ({ ...prev, [scene.id]: true }));
                       }
                     }}
                     extractedText={scene.extractedOverlayText ?? []}
