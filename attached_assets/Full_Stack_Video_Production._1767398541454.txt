@@ -1,0 +1,72 @@
+┌─────────────────────────────────────────────────────────────┐
+│              PINE HILL FARM VIDEO PRODUCTION                │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  SCRIPT PARSING                                             │
+│    └── Claude AI (existing)                                 │
+│                                                             │
+│  VIDEO GENERATION                                           │
+│    ├── Runway (cinematic/dramatic)                          │
+│    ├── Kling (human subjects)                               │
+│    ├── Luma (product reveals)                               │
+│    └── Hailuo (B-roll)                                      │
+│                                                             │
+│  IMAGE GENERATION                                           │
+│    ├── Flux.1 (product shots)                               │
+│    └── fal.ai (existing - AI lifestyle images)              │
+│                                                             │
+│  AUDIO PRODUCTION                                           │
+│    ├── ElevenLabs (voiceover)                               │
+│    ├── Udio (custom background music)                       │
+│    └── Kling Sound (sound effects, ambience)                │
+│                                                             │
+│  INTELLIGENT COMPOSITION                                    │
+│    ├── Claude Vision (scene analysis)                       │
+│    ├── Smart text placement                                 │
+│    └── Mood-matched transitions                             │
+│                                                             │
+│  RENDERING                                                  │
+│    └── Remotion + AWS Lambda                                │
+│                                                             │
+│  QUALITY ASSURANCE                                          │
+│    └── Claude Vision (automated review)                     │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘	
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    PHASE 8: INTELLIGENCE LOOP                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. GENERATE ASSET (image or video)                            │
+│         ↓                                                       │
+│  2. CLAUDE VISION ANALYSIS                                      │
+│     • Content match to narration?                              │
+│     • AI artifacts present?                                    │
+│     • Brand aesthetic match?                                   │
+│         ↓                                                       │
+│  3. SCORE < 70?  ──YES──→  AUTO-REGENERATE (max 3x)            │
+│         ↓ NO                      ↓                            │
+│  4. SCORE 70-84? ──YES──→  FLAG FOR USER REVIEW                │
+│         ↓ NO                      ↓                            │
+│  5. PASS → SMART COMPOSITION                                   │
+│     • Detect face/subject regions                              │
+│     • Calculate safe text zones                                │
+│     • Set text color for contrast                              │
+│         ↓                                                       │
+│  6. ASSEMBLY WITH BRAND ASSETS                                 │
+│     • Inject logo intro                                        │
+│     • Apply watermark                                          │
+│     • Add CTA outro                                            │
+│         ↓                                                       │
+│  7. FINAL QA REVIEW                                            │
+│     • Full video analysis                                      │
+│     • Transition smoothness                                    │
+│     • Audio sync check                                         │
+│         ↓                                                       │
+│  8. USER APPROVAL GATE                                         │
+│     • Show QA dashboard                                        │
+│     • Per-scene approve/reject                                 │
+│     • Render only when approved                                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘

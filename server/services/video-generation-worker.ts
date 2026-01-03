@@ -183,13 +183,21 @@ class VideoGenerationWorker {
           visualStyle: job.style || 'professional',
         });
 
+        // Log which provider actually fulfilled the request
+        const actualProvider = result.provider || provider;
+        console.log(`[VideoWorker] Job ${job.jobId} fulfilled by provider: ${actualProvider}`);
+
         if (result.success && result.videoUrl) {
           videoUrl = result.videoUrl;
         } else if (result.success && result.s3Url) {
           videoUrl = result.s3Url;
         }
 
-        const progressJob2 = await storage.updateVideoGenerationJob(job.jobId, { progress: 90 });
+        // Update job with actual provider used (for tracking/debugging)
+        const progressJob2 = await storage.updateVideoGenerationJob(job.jobId, { 
+          progress: 90,
+          provider: actualProvider,
+        });
         this.notifyJobUpdate(progressJob2);
 
       } catch (genError: any) {
