@@ -3057,14 +3057,14 @@ function MediaPickerDialog({
     enabled: open && source === 'brand',
   });
   
-  // Fetch asset library (general assets)
-  const { data: assetLibraryData } = useQuery<{ success: boolean; assets: any[] }>({
-    queryKey: ['/api/videos/assets', { type: mediaType === 'video' ? 'video' : 'all' }],
+  // Fetch asset library (Phase 11E - AI-generated assets)
+  const { data: assetLibraryData } = useQuery<any[]>({
+    queryKey: ['/api/asset-library', { type: mediaType }],
     enabled: open && source === 'library',
   });
   
   const brandAssets = brandMediaData?.assets || [];
-  const libraryAssets = assetLibraryData?.assets || [];
+  const libraryAssets = assetLibraryData || [];
   
   // Filter brand assets by media type
   const filteredBrandAssets = brandAssets.filter(a => {
@@ -3074,8 +3074,8 @@ function MediaPickerDialog({
   
   // Filter library assets by type  
   const filteredLibraryAssets = libraryAssets.filter(a => {
-    if (mediaType === 'video') return a.type === 'video';
-    return a.type === 'image';
+    if (mediaType === 'video') return a.assetType === 'video';
+    return a.assetType === 'image';
   });
   
   const getSourceLabel = () => {
@@ -3143,35 +3143,55 @@ function MediaPickerDialog({
               </div>
             ))}
             
-            {/* Asset Library Results */}
+            {/* Asset Library Results (Phase 11E) */}
             {source === 'library' && filteredLibraryAssets.map((item) => (
               <div
                 key={item.id}
                 className="relative group cursor-pointer rounded-lg overflow-hidden border hover:border-primary transition-colors"
-                onClick={() => onMediaSelect(item.url, mediaType, 'Asset Library')}
+                onClick={() => onMediaSelect(item.assetUrl, mediaType, 'Asset Library')}
+                data-testid={`asset-library-item-${item.id}`}
               >
                 <div className="aspect-video bg-gray-200">
-                  {item.type === 'video' ? (
+                  {item.assetType === 'video' ? (
                     <div className="relative w-full h-full bg-gray-900 flex items-center justify-center">
                       <Video className="w-8 h-8 text-white/70" />
+                      {item.thumbnailUrl && (
+                        <img 
+                          src={item.thumbnailUrl} 
+                          alt="" 
+                          className="absolute inset-0 w-full h-full object-cover opacity-70" 
+                        />
+                      )}
                     </div>
                   ) : (
                     <img 
-                      src={item.thumbnail_url || item.url} 
-                      alt={item.name} 
+                      src={item.thumbnailUrl || item.assetUrl} 
+                      alt="" 
                       className="w-full h-full object-cover" 
                     />
                   )}
                 </div>
                 <div className="p-1.5">
-                  <p className="text-xs font-medium truncate">{item.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{item.source}</p>
+                  <p className="text-xs font-medium truncate">{item.visualDirection || item.prompt || 'AI Generated'}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-[10px] text-muted-foreground">{item.provider || 'Unknown'}</p>
+                    {item.qualityScore && (
+                      <Badge variant="outline" className={`text-[9px] px-1 py-0 ${item.qualityScore >= 85 ? 'border-green-500 text-green-600' : item.qualityScore >= 70 ? 'border-yellow-500 text-yellow-600' : 'border-red-500 text-red-600'}`}>
+                        Q:{item.qualityScore}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                   <Button size="sm" variant="secondary" disabled={isApplying}>
                     {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Use This'}
                   </Button>
                 </div>
+                {item.isFavorite && (
+                  <div className="absolute top-1 right-1">
+                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                  </div>
+                )}
               </div>
             ))}
             
