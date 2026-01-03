@@ -21,6 +21,14 @@ import type {
   SceneSoundDesign,
 } from "../shared/video-types";
 
+import { EnhancedTextOverlay } from "./components/TextOverlay";
+import { LogoOverlay } from "./components/LogoOverlay";
+import { WatermarkOverlay } from "./components/WatermarkOverlay";
+import { LowerThird as Phase11BLowerThird } from "./components/LowerThird";
+import { BulletList } from "./components/BulletList";
+import { CTAButton } from "./components/CTAButton";
+import { mapSceneToOverlays, shouldShowLogo, shouldShowWatermark } from "./utils/overlay-mapper";
+
 // ============================================================
 // BRAND OVERLAY TYPES (Phase 4E)
 // ============================================================
@@ -1445,6 +1453,48 @@ const SceneRenderer: React.FC<{
                 fps={fps}
               />
             ))}
+          </>
+        );
+      })()}
+
+      {/* Phase 11B: Extracted Overlay Rendering */}
+      {(() => {
+        if (!scene.extractedOverlayText?.length && !scene.extractedLogos?.length) {
+          return null;
+        }
+        
+        const mappedOverlays = mapSceneToOverlays(
+          scene,
+          fps,
+          brand.logoUrl,
+          brand.watermarkUrl
+        );
+        
+        return (
+          <>
+            {mappedOverlays.textOverlays.map((textProps, idx) => (
+              <EnhancedTextOverlay key={`ext-text-${scene.id}-${idx}`} {...textProps} />
+            ))}
+            
+            {mappedOverlays.bulletLists.map((listProps, idx) => (
+              <BulletList key={`ext-bullets-${scene.id}-${idx}`} {...listProps} />
+            ))}
+            
+            {mappedOverlays.lowerThirds.map((ltProps, idx) => (
+              <Phase11BLowerThird key={`ext-lt-${scene.id}-${idx}`} {...ltProps} />
+            ))}
+            
+            {mappedOverlays.ctaButtons.map((ctaProps, idx) => (
+              <CTAButton key={`ext-cta-${scene.id}-${idx}`} {...ctaProps} />
+            ))}
+            
+            {shouldShowLogo(scene.type) && mappedOverlays.logo && (
+              <LogoOverlay {...mappedOverlays.logo} />
+            )}
+            
+            {shouldShowWatermark(scene.type) && mappedOverlays.watermark && (
+              <WatermarkOverlay {...mappedOverlays.watermark} />
+            )}
           </>
         );
       })()}
