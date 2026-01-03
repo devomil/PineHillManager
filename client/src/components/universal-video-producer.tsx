@@ -29,6 +29,8 @@ import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { GenerationPreviewPanel } from "./generation-preview-panel";
 import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayConfig } from "./overlay-editor";
+import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
+import type { AnimationSettings } from "@shared/video-types";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -1352,6 +1354,7 @@ function ScenePreview({
   const [mediaPickerType, setMediaPickerType] = useState<'image' | 'video'>('image');
   const [mediaPickerSource, setMediaPickerSource] = useState<'brand' | 'library'>('brand');
   const [applyingMedia, setApplyingMedia] = useState<string | null>(null);
+  const [brandMediaSelectorOpen, setBrandMediaSelectorOpen] = useState<string | null>(null);
   const [sceneActionPending, setSceneActionPending] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState<{ sceneIndex: number; sceneId: string } | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<Record<string, string>>({});
@@ -1905,6 +1908,70 @@ function ScenePreview({
       setApplyingMedia(null);
     }
   };
+  
+  // Phase 11D: Apply brand media with animation settings
+  const applyBrandMedia = async (sceneId: string, asset: BrandAsset, animationSettings?: AnimationSettings) => {
+    if (!projectId) return;
+    setApplyingMedia(sceneId);
+    try {
+      const isVideo = ['video', 'broll', 'intro', 'outro'].includes(asset.mediaType);
+      
+      // Find the current scene to preserve all non-media-url fields
+      const currentScene = scenes.find(s => s.id === sceneId);
+      const existingAssets = currentScene?.assets ? { ...currentScene.assets } : {};
+      
+      // Clone existing assets and only modify media-related keys
+      const updatedAssets = { ...existingAssets };
+      
+      if (isVideo) {
+        // Set video, clear image fields
+        updatedAssets.videoUrl = asset.url;
+        updatedAssets.videoSource = 'brand';
+        updatedAssets.imageUrl = null;
+        updatedAssets.imageSource = null;
+      } else {
+        // Set image, clear video fields
+        updatedAssets.imageUrl = asset.url;
+        updatedAssets.imageSource = 'brand';
+        updatedAssets.videoUrl = null;
+        updatedAssets.videoSource = null;
+      }
+      
+      // Build updates object
+      const updates: Record<string, any> = {
+        mediaSource: 'brand',
+        brandAssetId: asset.id,
+        brandAssetUrl: asset.url,
+        brandAssetType: isVideo ? 'video' : 'image',
+        assets: updatedAssets,
+      };
+      
+      // Only include animationSettings when applicable
+      if (isVideo) {
+        // Videos don't use Ken Burns - clear animation settings
+        updates.animationSettings = null;
+      } else if (animationSettings) {
+        // Images with animation settings
+        updates.animationSettings = animationSettings;
+      }
+      // If image without animation settings, don't modify existing animationSettings
+      
+      await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${sceneId}`, updates);
+      
+      toast({ 
+        title: 'Brand media applied', 
+        description: animationSettings && !isVideo 
+          ? `${asset.name} with ${animationSettings.type} animation` 
+          : asset.name 
+      });
+      setBrandMediaSelectorOpen(null);
+      onSceneUpdate?.();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setApplyingMedia(null);
+    }
+  };
 
   // Open media picker for a scene
   const openMediaPicker = (sceneId: string, type: 'image' | 'video', source: 'brand' | 'library') => {
@@ -2367,7 +2434,7 @@ function ScenePreview({
                           setSelectedProviders(newProviders);
                           setSceneMediaType(prev => ({ ...prev, [scene.id]: 'image' }));
                           if (provider === 'brand_media') {
-                            openMediaPicker(scene.id, 'image', 'brand');
+                            setBrandMediaSelectorOpen(scene.id);
                           } else if (provider === 'asset_library') {
                             openMediaPicker(scene.id, 'image', 'library');
                           }
@@ -2388,7 +2455,7 @@ function ScenePreview({
                           setSelectedProviders(newProviders);
                           setSceneMediaType(prev => ({ ...prev, [scene.id]: 'video' }));
                           if (provider === 'brand_media') {
-                            openMediaPicker(scene.id, 'video', 'brand');
+                            setBrandMediaSelectorOpen(scene.id);
                           } else if (provider === 'asset_library') {
                             openMediaPicker(scene.id, 'video', 'library');
                           }
@@ -2894,6 +2961,21 @@ function ScenePreview({
       }}
       isApplying={!!applyingMedia}
     />
+    
+    {/* Phase 11D: Brand Media Selector with Animation Controls */}
+    {brandMediaSelectorOpen && (
+      <BrandMediaSelector
+        isOpen={!!brandMediaSelectorOpen}
+        onClose={() => setBrandMediaSelectorOpen(null)}
+        onSelect={(asset, animationSettings) => {
+          if (brandMediaSelectorOpen) {
+            applyBrandMedia(brandMediaSelectorOpen, asset, animationSettings);
+          }
+        }}
+        isApplying={!!applyingMedia}
+        mediaType="all"
+      />
+    )}
     
     {/* Phase 9A: Reject Reason Dialog */}
     <Dialog open={!!rejectDialogOpen} onOpenChange={(open) => !open && setRejectDialogOpen(null)}>

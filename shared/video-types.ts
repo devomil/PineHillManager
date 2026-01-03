@@ -54,6 +54,24 @@ export interface BrandSettings {
   includeCTAOutro?: boolean;
 }
 
+// Phase 11D: Animation settings for brand media/static images
+export type AnimationType = 'ken-burns' | 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'static';
+export type AnimationIntensity = 'subtle' | 'medium' | 'dramatic';
+
+export interface AnimationSettings {
+  type: AnimationType;
+  intensity: AnimationIntensity;
+  focusPoint?: { x: number; y: number }; // 0-100 percentage for Ken Burns focus
+}
+
+// Phase 11D: Video settings for brand media videos
+export interface VideoSettings {
+  trimStart?: number; // Seconds to skip at start
+  trimEnd?: number; // Seconds to cut from end
+  loop: boolean; // Loop if shorter than scene duration
+  playbackRate: number; // 0.5 = slow mo, 1.0 = normal, 2.0 = speed up
+}
+
 export interface Scene {
   id: string;
   order: number;
@@ -86,6 +104,13 @@ export interface Scene {
     logoSize?: number;
     includeWatermark?: boolean;
   };
+  // Phase 11D: Brand media source and animation settings
+  mediaSource?: 'ai' | 'brand' | 'library';
+  brandAssetId?: number;
+  brandAssetUrl?: string;
+  brandAssetType?: 'image' | 'video';
+  animationSettings?: AnimationSettings;
+  videoSettings?: VideoSettings;
 }
 
 // Phase 8A: Scene analysis types
