@@ -3,6 +3,7 @@
 import { runwayVideoService } from './runway-video-service';
 import { piapiVideoService } from './piapi-video-service';
 import { promptEnhancementService } from './prompt-enhancement-service';
+import { intelligentProviderSelector, SceneContent } from './intelligent-provider-selector';
 import { 
   AI_VIDEO_PROVIDERS, 
   selectProvidersForScene, 
@@ -94,10 +95,21 @@ class AIVideoService {
       contentType,
     };
 
-    // Select providers based on style preferences (Phase 5B)
-    const providerOrder = enhancedOptions.preferredProvider 
-      ? [enhancedOptions.preferredProvider, ...configuredProviders.filter(p => p !== enhancedOptions.preferredProvider)]
-      : this.selectProvidersForStyle(styleConfig.preferredVideoProviders, enhancedOptions.sceneType, contentType, configuredProviders);
+    // Select providers using intelligent Claude-based analysis when narration available
+    let providerOrder: string[];
+    
+    if (enhancedOptions.preferredProvider) {
+      providerOrder = [enhancedOptions.preferredProvider, ...configuredProviders.filter(p => p !== enhancedOptions.preferredProvider)];
+      console.log(`[AIVideo] Using explicit preferred provider: ${enhancedOptions.preferredProvider}`);
+    } else if (options.narration && options.prompt) {
+      // Use Claude-based intelligent provider selection
+      const recommendation = await this.getIntelligentProviderRecommendation(options, configuredProviders);
+      providerOrder = recommendation.providerOrder;
+      console.log(`[AIVideo] Intelligent selection: ${recommendation.reasoning}`);
+    } else {
+      // Fallback to rule-based selection
+      providerOrder = this.selectProvidersForStyle(styleConfig.preferredVideoProviders, enhancedOptions.sceneType, contentType, configuredProviders);
+    }
 
     console.log(`[AIVideo] Scene: ${enhancedOptions.sceneType}`);
     console.log(`[AIVideo] Provider order: ${providerOrder.join(' → ')}`);
@@ -263,6 +275,52 @@ class AIVideoService {
     }
     
     return providers;
+  }
+
+  /**
+   * Get intelligent provider recommendation using Claude analysis
+   */
+  private async getIntelligentProviderRecommendation(
+    options: AIVideoOptions,
+    configuredProviders: string[]
+  ): Promise<{ providerOrder: string[]; reasoning: string }> {
+    try {
+      const sceneContent: SceneContent = {
+        sceneId: `scene_${options.sceneType}`,
+        sceneIndex: 0,
+        sceneType: options.sceneType,
+        narration: options.narration || '',
+        visualDirection: options.prompt,
+        duration: options.duration,
+      };
+
+      const result = await intelligentProviderSelector.recommendProviderForScene(sceneContent);
+      
+      const recommendedProvider = result.recommendedProvider;
+      const fallbackProvider = result.fallbackProvider;
+      
+      // Build provider order: recommended first, then fallback, then other configured providers
+      const providerOrder = [recommendedProvider];
+      if (fallbackProvider && fallbackProvider !== recommendedProvider && configuredProviders.includes(fallbackProvider)) {
+        providerOrder.push(fallbackProvider);
+      }
+      for (const p of configuredProviders) {
+        if (!providerOrder.includes(p)) {
+          providerOrder.push(p);
+        }
+      }
+
+      return {
+        providerOrder,
+        reasoning: `${result.contentClassification} content (${result.confidence}% confidence): ${result.reasoning}`,
+      };
+    } catch (error: any) {
+      console.warn('[AIVideo] Intelligent selection failed, using default order:', error.message);
+      return {
+        providerOrder: ['runway', ...configuredProviders.filter(p => p !== 'runway')],
+        reasoning: 'Fallback to Runway (intelligent selection unavailable)',
+      };
+    }
   }
 
   estimateCost(duration: number, providerKey?: string): number {
