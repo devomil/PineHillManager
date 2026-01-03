@@ -2,6 +2,7 @@
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import RunwayML from '@runwayml/sdk';
+import { sanitizePromptForAI, enhancePromptForProvider } from './prompt-sanitizer';
 
 interface RunwayGenerationResult {
   success: boolean;
@@ -69,8 +70,18 @@ class RunwayVideoService {
     }
 
     const startTime = Date.now();
+    
+    // Phase 11A: Sanitize prompt to remove text/logo requests before video generation
+    const sanitized = sanitizePromptForAI(options.prompt, 'video');
+    const sanitizedPrompt = enhancePromptForProvider(sanitized.cleanPrompt, 'runway');
+    
     console.log(`[Runway] Starting generation with official SDK...`);
-    console.log(`[Runway] Prompt: ${options.prompt.substring(0, 100)}...`);
+    console.log(`[Runway] Original prompt: ${options.prompt.substring(0, 80)}...`);
+    console.log(`[Runway] Sanitized prompt: ${sanitizedPrompt.substring(0, 80)}...`);
+    console.log(`[Runway] Removed ${sanitized.removedElements.length} elements`);
+    if (sanitized.extractedText.length > 0) {
+      console.log(`[Runway] Extracted text for overlays: ${sanitized.extractedText.join(', ')}`);
+    }
     console.log(`[Runway] Duration: ${options.duration}s, Aspect: ${options.aspectRatio}`);
     if (options.imageUrl) {
       console.log(`[Runway] Source image provided: ${options.imageUrl.substring(0, 50)}...`);
@@ -82,7 +93,8 @@ class RunwayVideoService {
         Math.abs(curr - options.duration) < Math.abs(prev - options.duration) ? curr : prev
       );
       const duration = closestDuration;
-      const formattedPrompt = this.formatPrompt(options.prompt, options.negativePrompt);
+      // Use sanitized prompt for formatting
+      const formattedPrompt = this.formatPrompt(sanitizedPrompt, options.negativePrompt);
 
       let task: any;
 

@@ -2,6 +2,7 @@
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { AI_VIDEO_PROVIDERS } from '../config/ai-video-providers';
+import { sanitizePromptForAI, enhancePromptForProvider } from './prompt-sanitizer';
 
 interface PiAPIGenerationResult {
   success: boolean;
@@ -63,11 +64,23 @@ class PiAPIVideoService {
     const startTime = Date.now();
     const modelConfig = this.getModelConfig(options.model);
     
+    // Phase 11A: Sanitize prompt to remove text/logo requests before video generation
+    const sanitized = sanitizePromptForAI(options.prompt, 'video');
+    const sanitizedPrompt = enhancePromptForProvider(sanitized.cleanPrompt, options.model);
+    
     console.log(`[PiAPI:${options.model}] Starting generation...`);
-    console.log(`[PiAPI:${options.model}] Prompt: ${options.prompt.substring(0, 100)}...`);
+    console.log(`[PiAPI:${options.model}] Original prompt: ${options.prompt.substring(0, 80)}...`);
+    console.log(`[PiAPI:${options.model}] Sanitized prompt: ${sanitizedPrompt.substring(0, 80)}...`);
+    console.log(`[PiAPI:${options.model}] Removed ${sanitized.removedElements.length} elements`);
+    if (sanitized.extractedText.length > 0) {
+      console.log(`[PiAPI:${options.model}] Extracted text for overlays: ${sanitized.extractedText.join(', ')}`);
+    }
+    
+    // Use sanitized prompt for generation
+    const sanitizedOptions = { ...options, prompt: sanitizedPrompt };
 
     try {
-      const taskResponse = await this.createTask(options, modelConfig);
+      const taskResponse = await this.createTask(sanitizedOptions, modelConfig);
       
       if (!taskResponse.success || !taskResponse.taskId) {
         return {

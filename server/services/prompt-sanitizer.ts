@@ -151,17 +151,24 @@ export function sanitizePromptForAI(
 
   const genericTextPatterns = [
     /(?:with\s+)?(?:title|headline|heading|subtitle)\s*(?:overlay)?/gi,
-    /(?:with\s+)?(?:caption|label|badge)\s*(?:overlay)?/gi,
-    /(?:with\s+)?text\s*(?:overlay|element)?/gi,
-    /(?:with\s+)?(?:watermark|stamp)/gi,
+    /(?:with\s+)?(?:caption|badge)\s*(?:overlay)?/gi,
+    /(?:with\s+)?text\s*(?:overlay|element)?s?/gi,
+    /(?:with\s+)?(?:company\s+)?(?:watermark|stamp)s?/gi,
     /(?:show(?:ing)?|display(?:ing)?)\s+(?:text|words|letters)/gi,
+    /\w+\s+text\s+labels?/gi,  // "X text labels"
+    /text\s+labels?\s+(?:for|of|with)?\s*\w*/gi,  // "text labels for/of X"
+    /(?:with\s+)?labels?\s*(?:overlay)?/gi,  // "with labels"
   ];
   
   for (const pattern of genericTextPatterns) {
+    while ((match = pattern.exec(cleanPrompt)) !== null) {
+      removedElements.push(match[0]);
+    }
+    pattern.lastIndex = 0;
     cleanPrompt = cleanPrompt.replace(pattern, '');
   }
 
-  // === STEP 5: Remove UI element requests ===
+  // === STEP 5: Remove UI element and branding requests ===
 
   const uiPatterns = [
     /(?:with\s+)?(?:ui|user interface)\s*(?:element)?s?/gi,
@@ -170,9 +177,15 @@ export function sanitizePromptForAI(
     /(?:with\s+)?(?:banner|banners)/gi,
     /(?:with\s+)?(?:overlay|overlays)/gi,
     /(?:with\s+)?(?:graphics|graphic)/gi,
+    /(?:with\s+)?(?:branding\s+)?(?:elements?|assets?)/gi,  // "branding elements"
+    /(?:and\s+)?branding\b/gi,  // standalone "branding"
   ];
   
   for (const pattern of uiPatterns) {
+    while ((match = pattern.exec(cleanPrompt)) !== null) {
+      removedElements.push(match[0]);
+    }
+    pattern.lastIndex = 0;
     cleanPrompt = cleanPrompt.replace(pattern, '');
   }
 
