@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Type, Image, Droplet, User, Check, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, Eye, Type, Image, Droplet, User, Check, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SCENE_OVERLAY_DEFAULTS } from '@shared/video-types';
 import { useQuery } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 interface BrandMediaAsset {
   id: number;
@@ -63,6 +64,7 @@ export interface OverlayConfig {
 interface OverlayEditorProps {
   config: OverlayConfig;
   onChange: (config: OverlayConfig) => void;
+  onPreview?: (draftConfig: OverlayConfig) => void;
   extractedText?: string[];
   sceneType?: string;
 }
@@ -114,9 +116,11 @@ export function getDefaultOverlayConfig(sceneType: string): OverlayConfig {
 export function OverlayEditor({
   config,
   onChange,
+  onPreview,
   extractedText = [],
   sceneType,
 }: OverlayEditorProps) {
+  const { toast } = useToast();
   const { data: brandMedia = [], isLoading: brandMediaLoading } = useQuery<BrandMediaAsset[]>({
     queryKey: ['/api/brand-media'],
   });
@@ -131,41 +135,31 @@ export function OverlayEditor({
     (a.entityType === 'watermark' || a.entityType === 'brand' || a.name?.toLowerCase().includes('watermark') || a.name?.toLowerCase().includes('logo'))
   );
   
+  const [draft, setDraft] = useState<OverlayConfig>(config);
+  const [hasChanges, setHasChanges] = useState(false);
+  
+  useEffect(() => {
+    setDraft(config);
+    setHasChanges(false);
+  }, [JSON.stringify(config)]);
+  
   const suggestedTexts = extractedText.filter(
-    text => !config.texts.some(t => t.text === text)
+    text => !draft.texts.some(t => t.text === text)
   );
   
-  const [localTexts, setLocalTexts] = useState<Record<string, string>>({});
-  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const updateDraft = (newConfig: OverlayConfig) => {
+    setDraft(newConfig);
+    setHasChanges(true);
+  };
   
-  useEffect(() => {
-    const textMap: Record<string, string> = {};
-    config.texts.forEach(t => {
-      textMap[t.id] = t.text;
+  const handleSave = () => {
+    onChange(draft);
+    setHasChanges(false);
+    toast({
+      title: "Overlays saved",
+      description: "Your overlay settings have been saved.",
     });
-    setLocalTexts(textMap);
-  }, [config.texts.map(t => t.id).join(',')]);
-  
-  const handleTextChange = useCallback((id: string, newText: string) => {
-    setLocalTexts(prev => ({ ...prev, [id]: newText }));
-    
-    if (debounceTimers.current[id]) {
-      clearTimeout(debounceTimers.current[id]);
-    }
-    
-    debounceTimers.current[id] = setTimeout(() => {
-      onChange({
-        ...config,
-        texts: config.texts.map(t => t.id === id ? { ...t, text: newText } : t),
-      });
-    }, 500);
-  }, [config, onChange]);
-  
-  useEffect(() => {
-    return () => {
-      Object.values(debounceTimers.current).forEach(clearTimeout);
-    };
-  }, []);
+  };
   
   const addTextOverlay = (text: string = 'New Text') => {
     const newText: TextOverlayItem = {
@@ -175,23 +169,23 @@ export function OverlayEditor({
       fontSize: 32,
       animation: 'slide-up',
     };
-    onChange({
-      ...config,
-      texts: [...config.texts, newText],
+    updateDraft({
+      ...draft,
+      texts: [...draft.texts, newText],
     });
   };
   
   const updateTextOverlay = (id: string, updates: Partial<TextOverlayItem>) => {
-    onChange({
-      ...config,
-      texts: config.texts.map(t => t.id === id ? { ...t, ...updates } : t),
+    updateDraft({
+      ...draft,
+      texts: draft.texts.map(t => t.id === id ? { ...t, ...updates } : t),
     });
   };
   
   const removeTextOverlay = (id: string) => {
-    onChange({
-      ...config,
-      texts: config.texts.filter(t => t.id !== id),
+    updateDraft({
+      ...draft,
+      texts: draft.texts.filter(t => t.id !== id),
     });
   };
   
@@ -202,23 +196,23 @@ export function OverlayEditor({
       title: 'Title',
       position: 'left',
     };
-    onChange({
-      ...config,
-      lowerThirds: [...config.lowerThirds, newLT],
+    updateDraft({
+      ...draft,
+      lowerThirds: [...draft.lowerThirds, newLT],
     });
   };
   
   const updateLowerThird = (id: string, updates: Partial<LowerThirdItem>) => {
-    onChange({
-      ...config,
-      lowerThirds: config.lowerThirds.map(lt => lt.id === id ? { ...lt, ...updates } : lt),
+    updateDraft({
+      ...draft,
+      lowerThirds: draft.lowerThirds.map(lt => lt.id === id ? { ...lt, ...updates } : lt),
     });
   };
   
   const removeLowerThird = (id: string) => {
-    onChange({
-      ...config,
-      lowerThirds: config.lowerThirds.filter(lt => lt.id !== id),
+    updateDraft({
+      ...draft,
+      lowerThirds: draft.lowerThirds.filter(lt => lt.id !== id),
     });
   };
   
@@ -271,13 +265,13 @@ export function OverlayEditor({
           )}
           
           <div className="space-y-3">
-            {config.texts.map((text, idx) => (
+            {draft.texts.map((text, idx) => (
               <Card key={text.id}>
                 <CardContent className="p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <Input
-                      value={localTexts[text.id] ?? text.text}
-                      onChange={(e) => handleTextChange(text.id, e.target.value)}
+                      value={text.text}
+                      onChange={(e) => updateTextOverlay(text.id, { text: e.target.value })}
                       className="flex-1 mr-2"
                       placeholder="Enter text..."
                       data-testid={`input-text-overlay-${idx}`}
@@ -350,7 +344,7 @@ export function OverlayEditor({
               </Card>
             ))}
             
-            {config.texts.length === 0 && (
+            {draft.texts.length === 0 && (
               <div className="text-center py-6 text-muted-foreground text-sm">
                 No text overlays. Click "Add Text" or select a suggestion above.
               </div>
@@ -362,16 +356,16 @@ export function OverlayEditor({
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Logo Overlay</Label>
             <Switch
-              checked={config.logo.enabled}
-              onCheckedChange={(checked) => onChange({
-                ...config,
-                logo: { ...config.logo, enabled: checked }
+              checked={draft.logo.enabled}
+              onCheckedChange={(checked) => updateDraft({
+                ...draft,
+                logo: { ...draft.logo, enabled: checked }
               })}
               data-testid="switch-logo-enabled"
             />
           </div>
           
-          {config.logo.enabled && (
+          {draft.logo.enabled && (
             <Card>
               <CardContent className="p-4 space-y-4">
                 <div>
@@ -391,12 +385,12 @@ export function OverlayEditor({
                           <button
                             key={logo.id}
                             type="button"
-                            onClick={() => onChange({
-                              ...config,
-                              logo: { ...config.logo, logoUrl: logo.url, logoName: logo.name }
+                            onClick={() => updateDraft({
+                              ...draft,
+                              logo: { ...draft.logo, logoUrl: logo.url, logoName: logo.name }
                             })}
                             className={`relative flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
-                              config.logo.logoUrl === logo.url 
+                              draft.logo.logoUrl === logo.url 
                                 ? 'border-primary ring-2 ring-primary/30' 
                                 : 'border-muted hover:border-muted-foreground/50'
                             }`}
@@ -407,7 +401,7 @@ export function OverlayEditor({
                               alt={logo.name}
                               className="w-full h-full object-contain bg-white p-1"
                             />
-                            {config.logo.logoUrl === logo.url && (
+                            {draft.logo.logoUrl === logo.url && (
                               <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
                                 <Check className="h-5 w-5 text-primary" />
                               </div>
@@ -417,9 +411,9 @@ export function OverlayEditor({
                       </div>
                     </ScrollArea>
                   )}
-                  {config.logo.logoName && (
+                  {draft.logo.logoName && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      Selected: {config.logo.logoName}
+                      Selected: {draft.logo.logoName}
                     </div>
                   )}
                 </div>
@@ -428,10 +422,10 @@ export function OverlayEditor({
                   <div>
                     <Label className="text-xs">Position</Label>
                     <Select
-                      value={config.logo.position}
-                      onValueChange={(v) => onChange({
-                        ...config,
-                        logo: { ...config.logo, position: v as LogoConfig['position'] }
+                      value={draft.logo.position}
+                      onValueChange={(v) => updateDraft({
+                        ...draft,
+                        logo: { ...draft.logo, position: v as LogoConfig['position'] }
                       })}
                     >
                       <SelectTrigger data-testid="select-logo-position">
@@ -450,10 +444,10 @@ export function OverlayEditor({
                   <div>
                     <Label className="text-xs">Size</Label>
                     <Select
-                      value={config.logo.size}
-                      onValueChange={(v) => onChange({
-                        ...config,
-                        logo: { ...config.logo, size: v as LogoConfig['size'] }
+                      value={draft.logo.size}
+                      onValueChange={(v) => updateDraft({
+                        ...draft,
+                        logo: { ...draft.logo, size: v as LogoConfig['size'] }
                       })}
                     >
                       <SelectTrigger data-testid="select-logo-size">
@@ -470,10 +464,10 @@ export function OverlayEditor({
                 
                 <div className="flex items-center gap-2">
                   <Switch
-                    checked={config.logo.showTagline}
-                    onCheckedChange={(checked) => onChange({
-                      ...config,
-                      logo: { ...config.logo, showTagline: checked }
+                    checked={draft.logo.showTagline}
+                    onCheckedChange={(checked) => updateDraft({
+                      ...draft,
+                      logo: { ...draft.logo, showTagline: checked }
                     })}
                     data-testid="switch-logo-tagline"
                   />
@@ -488,16 +482,16 @@ export function OverlayEditor({
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Watermark</Label>
             <Switch
-              checked={config.watermark.enabled}
-              onCheckedChange={(checked) => onChange({
-                ...config,
-                watermark: { ...config.watermark, enabled: checked }
+              checked={draft.watermark.enabled}
+              onCheckedChange={(checked) => updateDraft({
+                ...draft,
+                watermark: { ...draft.watermark, enabled: checked }
               })}
               data-testid="switch-watermark-enabled"
             />
           </div>
           
-          {config.watermark.enabled && (
+          {draft.watermark.enabled && (
             <Card>
               <CardContent className="p-4 space-y-4">
                 <div>
@@ -517,12 +511,12 @@ export function OverlayEditor({
                           <button
                             key={wm.id}
                             type="button"
-                            onClick={() => onChange({
-                              ...config,
-                              watermark: { ...config.watermark, watermarkUrl: wm.url, watermarkName: wm.name }
+                            onClick={() => updateDraft({
+                              ...draft,
+                              watermark: { ...draft.watermark, watermarkUrl: wm.url, watermarkName: wm.name }
                             })}
                             className={`relative flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
-                              config.watermark.watermarkUrl === wm.url 
+                              draft.watermark.watermarkUrl === wm.url 
                                 ? 'border-primary ring-2 ring-primary/30' 
                                 : 'border-muted hover:border-muted-foreground/50'
                             }`}
@@ -533,7 +527,7 @@ export function OverlayEditor({
                               alt={wm.name}
                               className="w-full h-full object-contain bg-white p-1"
                             />
-                            {config.watermark.watermarkUrl === wm.url && (
+                            {draft.watermark.watermarkUrl === wm.url && (
                               <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
                                 <Check className="h-5 w-5 text-primary" />
                               </div>
@@ -543,9 +537,9 @@ export function OverlayEditor({
                       </div>
                     </ScrollArea>
                   )}
-                  {config.watermark.watermarkName && (
+                  {draft.watermark.watermarkName && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      Selected: {config.watermark.watermarkName}
+                      Selected: {draft.watermark.watermarkName}
                     </div>
                   )}
                 </div>
@@ -553,10 +547,10 @@ export function OverlayEditor({
                 <div>
                   <Label className="text-xs">Position</Label>
                   <Select
-                    value={config.watermark.position}
-                    onValueChange={(v) => onChange({
-                      ...config,
-                      watermark: { ...config.watermark, position: v as WatermarkConfig['position'] }
+                    value={draft.watermark.position}
+                    onValueChange={(v) => updateDraft({
+                      ...draft,
+                      watermark: { ...draft.watermark, position: v as WatermarkConfig['position'] }
                     })}
                   >
                     <SelectTrigger data-testid="select-watermark-position">
@@ -574,13 +568,13 @@ export function OverlayEditor({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <Label className="text-xs">Opacity</Label>
-                    <span className="text-xs text-muted-foreground">{config.watermark.opacity}%</span>
+                    <span className="text-xs text-muted-foreground">{draft.watermark.opacity}%</span>
                   </div>
                   <Slider
-                    value={[config.watermark.opacity]}
-                    onValueChange={([v]) => onChange({
-                      ...config,
-                      watermark: { ...config.watermark, opacity: v }
+                    value={[draft.watermark.opacity]}
+                    onValueChange={([v]) => updateDraft({
+                      ...draft,
+                      watermark: { ...draft.watermark, opacity: v }
                     })}
                     min={20}
                     max={100}
@@ -602,7 +596,7 @@ export function OverlayEditor({
           </div>
           
           <div className="space-y-3">
-            {config.lowerThirds.map((lt, idx) => (
+            {draft.lowerThirds.map((lt, idx) => (
               <Card key={lt.id}>
                 <CardContent className="p-3 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
@@ -651,7 +645,7 @@ export function OverlayEditor({
               </Card>
             ))}
             
-            {config.lowerThirds.length === 0 && (
+            {draft.lowerThirds.length === 0 && (
               <div className="text-center py-6 text-muted-foreground text-sm">
                 No lower thirds. Use these for testimonials or speaker names.
               </div>
@@ -659,6 +653,30 @@ export function OverlayEditor({
           </div>
         </TabsContent>
       </Tabs>
+      
+      <div className="flex items-center justify-between pt-4 border-t mt-4">
+        <div className="text-sm text-muted-foreground">
+          {hasChanges && <span className="text-amber-600">You have unsaved changes</span>}
+        </div>
+        <div className="flex gap-2">
+          {onPreview && (
+            <Button 
+              variant="outline" 
+              onClick={() => onPreview(draft)}
+              data-testid="button-preview-overlays"
+            >
+              <Eye className="h-4 w-4 mr-1" /> Preview
+            </Button>
+          )}
+          <Button 
+            onClick={handleSave}
+            disabled={!hasChanges}
+            data-testid="button-save-overlays"
+          >
+            <Save className="h-4 w-4 mr-1" /> Save Overlays
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
