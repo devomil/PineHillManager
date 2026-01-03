@@ -18130,6 +18130,112 @@ Respond in JSON format:
     }
   });
 
+  // ========== PHASE 11E: ASSET LIBRARY (AI-Generated Assets Reuse) ==========
+  
+  // Get assets from library with filters
+  app.get('/api/asset-library', isAuthenticated, async (req, res) => {
+    try {
+      const { type, favorite, search, contentType, provider, limit = '50', offset = '0' } = req.query;
+      
+      const { getAssetLibrary } = await import('./services/asset-library-service');
+      
+      const assets = await getAssetLibrary({
+        type: type as 'all' | 'image' | 'video' || 'all',
+        favorite: favorite === 'true',
+        search: search as string | undefined,
+        contentType: contentType as string | undefined,
+        provider: provider as string | undefined,
+        limit: parseInt(limit as string) || 50,
+        offset: parseInt(offset as string) || 0,
+      });
+      
+      res.json(assets);
+    } catch (error) {
+      console.error('[Asset Library] Get assets error:', error);
+      res.status(500).json([]);
+    }
+  });
+  
+  // Get single asset by ID
+  app.get('/api/asset-library/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { getAssetById } = await import('./services/asset-library-service');
+      
+      const asset = await getAssetById(id);
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      res.json(asset);
+    } catch (error) {
+      console.error('[Asset Library] Get asset error:', error);
+      res.status(500).json({ error: 'Failed to get asset' });
+    }
+  });
+  
+  // Toggle favorite status
+  app.post('/api/asset-library/:id/favorite', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { toggleFavorite } = await import('./services/asset-library-service');
+      
+      const newStatus = await toggleFavorite(id);
+      
+      res.json({ success: true, isFavorite: newStatus });
+    } catch (error) {
+      console.error('[Asset Library] Toggle favorite error:', error);
+      res.status(500).json({ error: 'Failed to toggle favorite' });
+    }
+  });
+  
+  // Update tags
+  app.post('/api/asset-library/:id/tags', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { tags } = req.body;
+      
+      const { updateTags } = await import('./services/asset-library-service');
+      await updateTags(id, tags);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[Asset Library] Update tags error:', error);
+      res.status(500).json({ error: 'Failed to update tags' });
+    }
+  });
+  
+  // Record asset usage (increment use count)
+  app.post('/api/asset-library/:id/use', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { recordUsage } = await import('./services/asset-library-service');
+      
+      await recordUsage(id);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[Asset Library] Record usage error:', error);
+      res.status(500).json({ error: 'Failed to record usage' });
+    }
+  });
+  
+  // Delete asset from library
+  app.delete('/api/asset-library/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { deleteAsset } = await import('./services/asset-library-service');
+      
+      await deleteAsset(id);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[Asset Library] Delete error:', error);
+      res.status(500).json({ error: 'Failed to delete asset' });
+    }
+  });
+
   // Upload and create brand media asset from file
   app.post('/api/brand-media-library/upload', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
     try {
