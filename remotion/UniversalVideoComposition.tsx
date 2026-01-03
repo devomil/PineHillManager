@@ -27,6 +27,7 @@ import { WatermarkOverlay } from "./components/WatermarkOverlay";
 import { LowerThird as Phase11BLowerThird } from "./components/LowerThird";
 import { BulletList } from "./components/BulletList";
 import { CTAButton } from "./components/CTAButton";
+import { KenBurnsImage } from "./components/KenBurnsImage";
 import { mapSceneToOverlays, shouldShowLogo, shouldShowWatermark } from "./utils/overlay-mapper";
 
 // ============================================================
@@ -1277,6 +1278,12 @@ const SceneRenderer: React.FC<{
 
   const kenBurnsInstruction = instructions?.kenBurns || defaultKenBurns;
 
+  // Phase 11D: Check for brand media assets first
+  const brandAssetUrl = (scene as any).brandAssetUrl;
+  const brandAssetType = (scene as any).brandAssetType;
+  const animationSettings = (scene as any).animationSettings;
+  const useBrandMedia = (scene as any).mediaSource === 'brand' && brandAssetUrl;
+  
   const imageUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl;
   const videoUrl = scene.assets?.videoUrl;
   const productOverlayUrl = scene.assets?.productOverlayImage || 
@@ -1288,8 +1295,10 @@ const SceneRenderer: React.FC<{
 
   const imageStatus = getAssetStatus(imageUrl);
   const videoStatus = getAssetStatus(videoUrl);
+  const brandStatus = getAssetStatus(brandAssetUrl);
   const hasValidImage = imageStatus === 'valid';
   const hasValidVideo = videoStatus === 'valid' && scene.background?.type === 'video';
+  const hasValidBrandAsset = useBrandMedia && brandStatus === 'valid';
   
   React.useEffect(() => {
     console.log(`[SceneRenderer] Scene ${scene.id} (${scene.type}):`);
@@ -1312,9 +1321,25 @@ const SceneRenderer: React.FC<{
       isFirst={isFirst}
       isLast={isLast}
     >
-      {/* Background Layer - Video or Image with AI-powered Ken Burns */}
+      {/* Background Layer - Brand Media, Video or Image with AI-powered Ken Burns */}
       <AbsoluteFill>
-        {hasValidVideo ? (
+        {/* Phase 11D: Priority 1 - Brand media assets with Ken Burns animation */}
+        {hasValidBrandAsset && brandAssetType === 'video' ? (
+          <Video
+            src={brandAssetUrl}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            volume={0}
+            startFrom={0}
+            loop
+          />
+        ) : hasValidBrandAsset && brandAssetType === 'image' ? (
+          <KenBurnsImage
+            src={brandAssetUrl}
+            animation={animationSettings?.type || 'ken-burns'}
+            intensity={animationSettings?.intensity || 'subtle'}
+            focusPoint={animationSettings?.focusPoint || { x: 50, y: 50 }}
+          />
+        ) : hasValidVideo ? (
           <KenBurnsBackground
             src={videoUrl!}
             isVideo={true}

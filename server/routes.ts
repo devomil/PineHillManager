@@ -17964,7 +17964,37 @@ Respond in JSON format:
   });
 
   // ========== BRAND MEDIA LIBRARY MANAGEMENT ==========
-  // Get all brand media library assets
+  
+  // Simplified brand media endpoint for BrandMediaSelector (Phase 11D)
+  // Returns flat array of assets for the selector modal
+  app.get('/api/brand-media', isAuthenticated, async (req, res) => {
+    try {
+      const assets = await db.select().from(brandMediaLibrary)
+        .where(eq(brandMediaLibrary.isActive, true))
+        .orderBy(brandMediaLibrary.priority, brandMediaLibrary.createdAt);
+      
+      // Return flat array for BrandMediaSelector compatibility
+      res.json(assets.map(a => ({
+        id: a.id,
+        name: a.name,
+        url: a.url,
+        thumbnailUrl: a.thumbnailUrl,
+        mediaType: a.mediaType,
+        entityName: a.entityName,
+        entityType: a.entityType,
+        duration: a.duration,
+        width: a.width,
+        height: a.height,
+        isDefault: a.isDefault,
+        priority: a.priority,
+      })));
+    } catch (error) {
+      console.error('[Brand Media] Get all error:', error);
+      res.status(500).json([]);
+    }
+  });
+  
+  // Get all brand media library assets (full response with metadata)
   app.get('/api/brand-media-library', isAuthenticated, async (req, res) => {
     try {
       const assets = await db.select().from(brandMediaLibrary)
