@@ -28,6 +28,7 @@ import { ProviderSelector, getRecommendedProvider, getProviderName, VIDEO_PROVID
 import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { GenerationPreviewPanel } from "./generation-preview-panel";
+import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayConfig } from "./overlay-editor";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -2715,6 +2716,34 @@ function ScenePreview({
                     )}
                   </div>
                 )}
+                
+                {/* Phase 11C: Overlay Editor */}
+                <div className="space-y-3 mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Layers className="w-4 h-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Scene Overlays</Label>
+                  </div>
+                  <OverlayEditor
+                    config={(scene.overlayConfig as OverlayConfig) ?? getDefaultOverlayConfig(scene.type || 'general')}
+                    onChange={async (config) => {
+                      if (projectId) {
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: config });
+                          onSceneUpdate?.();
+                        } catch (err) {
+                          console.error('Failed to update overlay config:', err);
+                          toast({
+                            title: 'Error',
+                            description: 'Failed to save overlay settings',
+                            variant: 'destructive',
+                          });
+                        }
+                      }
+                    }}
+                    extractedText={scene.extractedOverlayText ?? []}
+                    sceneType={scene.type ?? 'general'}
+                  />
+                </div>
               </div>
             </div>
             
