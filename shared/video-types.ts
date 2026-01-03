@@ -77,6 +77,15 @@ export interface Scene {
   // Phase 8A: Scene analysis results
   analysisResult?: Phase8AnalysisResult;
   qualityScore?: number;
+  // Phase 11A: Extracted overlay information from prompt sanitization
+  extractedOverlayText?: string[];
+  extractedLogos?: string[];
+  overlayConfig?: {
+    autoGenerateTextOverlays?: boolean;
+    logoPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
+    logoSize?: number;
+    includeWatermark?: boolean;
+  };
 }
 
 // Phase 8A: Scene analysis types

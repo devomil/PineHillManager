@@ -1034,7 +1034,7 @@ Total: 90 seconds` : ''}
   private async generateAIBackground(
     backgroundPrompt: string,
     sceneType: string
-  ): Promise<{ backgroundUrl: string | null; source: string; sanitizedResult?: SanitizedPrompt }> {
+  ): Promise<{ backgroundUrl: string | null; source: string; extractedText?: string[]; extractedLogos?: string[] }> {
     const falKey = process.env.FAL_KEY;
     if (!falKey) {
       console.log('[UniversalVideoService] FAL_KEY not available - cannot generate AI background');
@@ -1086,13 +1086,15 @@ Total: 90 seconds` : ''}
         return {
           backgroundUrl: backgroundResult.data.images[0].url,
           source: 'fal.ai/flux-pro',
+          extractedText: sanitized.extractedText,
+          extractedLogos: sanitized.extractedLogos,
         };
       }
     } catch (error: any) {
       console.warn('[UniversalVideoService] Background generation failed:', error.message);
     }
 
-    return { backgroundUrl: null, source: 'failed' };
+    return { backgroundUrl: null, source: 'failed', extractedText: [], extractedLogos: [] };
   }
 
   private isContentScene(sceneType: string): boolean {
@@ -1103,22 +1105,23 @@ Total: 90 seconds` : ''}
   private async generateContentImage(
     scene: Scene,
     productName: string
-  ): Promise<{ imageUrl: string | null; source: string }> {
+  ): Promise<{ imageUrl: string | null; source: string; extractedText?: string[]; extractedLogos?: string[] }> {
     const falKey = process.env.FAL_KEY;
     if (!falKey) {
       console.log('[UniversalVideoService] FAL_KEY not available - trying stock images');
-      return this.getContentStockImage(scene);
+      const stockResult = await this.getContentStockImage(scene);
+      return { ...stockResult, extractedText: [], extractedLogos: [] };
     }
 
     try {
       console.log(`[UniversalVideoService] Generating content image for ${scene.type} scene...`);
       
-      const contentPrompt = this.buildContentPrompt(scene, productName);
-      console.log(`[UniversalVideoService] Content prompt: ${contentPrompt}`);
+      const contentPromptResult = this.buildContentPrompt(scene, productName);
+      console.log(`[UniversalVideoService] Content prompt: ${contentPromptResult.prompt}`);
 
       const result = await fal.subscribe("fal-ai/flux-pro/v1.1", {
         input: {
-          prompt: contentPrompt,
+          prompt: contentPromptResult.prompt,
           image_size: "landscape_16_9",
           num_images: 1,
           safety_tolerance: "2",
@@ -1137,16 +1140,19 @@ Total: 90 seconds` : ''}
         return {
           imageUrl: result.data.images[0].url,
           source: 'fal.ai/flux-pro (content)',
+          extractedText: contentPromptResult.extractedText,
+          extractedLogos: contentPromptResult.extractedLogos,
         };
       }
     } catch (error: any) {
       console.warn('[UniversalVideoService] Content image generation failed:', error.message);
     }
 
-    return this.getContentStockImage(scene);
+    const stockResult = await this.getContentStockImage(scene);
+    return { ...stockResult, extractedText: [], extractedLogos: [] };
   }
 
-  private buildContentPrompt(scene: Scene, productName: string): string {
+  private buildContentPrompt(scene: Scene, productName: string): { prompt: string; extractedText: string[]; extractedLogos: string[] } {
     const sceneType = scene.type;
     const visualDirection = scene.visualDirection || '';
     const narration = scene.narration || '';
@@ -1207,7 +1213,11 @@ Total: 90 seconds` : ''}
     // The sanitized prompt already has "no text" instruction appended, so just add scene-specific requirements
     const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging, NO watermarks, NO labels, NO buttons. IMPORTANT: Show ADULTS only, no children or teenagers.`;
     
-    return fullPrompt;
+    return {
+      prompt: fullPrompt,
+      extractedText: sanitized.extractedText,
+      extractedLogos: sanitized.extractedLogos,
+    };
   }
 
   private extractVisualConcepts(visualDirection: string, narration: string): string {
@@ -2550,6 +2560,14 @@ Total: 90 seconds` : ''}
             updatedProject.scenes[i].assets!.imageUrl = contentResult.imageUrl;
             updatedProject.scenes[i].assets!.backgroundUrl = contentResult.imageUrl;
             updatedProject.scenes[i].assets!.useProductOverlay = false;
+            
+            // Phase 11A: Store extracted overlay data in scene
+            if (contentResult.extractedText && contentResult.extractedText.length > 0) {
+              updatedProject.scenes[i].extractedOverlayText = contentResult.extractedText;
+            }
+            if (contentResult.extractedLogos && contentResult.extractedLogos.length > 0) {
+              updatedProject.scenes[i].extractedLogos = contentResult.extractedLogos;
+            }
             console.log(`[UniversalVideoService] Content image generated for ${scene.type}: ${contentResult.source}`);
           } else {
             // Fallback to stock image search based on script content
@@ -2594,6 +2612,14 @@ Total: 90 seconds` : ''}
               updatedProject.scenes[i].assets!.imageUrl = backgroundResult.backgroundUrl;
               updatedProject.scenes[i].assets!.backgroundUrl = backgroundResult.backgroundUrl;
               updatedProject.scenes[i].assets!.useProductOverlay = useProductOverlay;
+              
+              // Phase 11A: Store extracted overlay data in scene
+              if (backgroundResult.extractedText && backgroundResult.extractedText.length > 0) {
+                updatedProject.scenes[i].extractedOverlayText = backgroundResult.extractedText;
+              }
+              if (backgroundResult.extractedLogos && backgroundResult.extractedLogos.length > 0) {
+                updatedProject.scenes[i].extractedLogos = backgroundResult.extractedLogos;
+              }
               
               // Only set product overlay if enabled for this scene type
               if (useProductOverlay) {
