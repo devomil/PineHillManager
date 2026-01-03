@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Type, Image, Droplet, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, Eye, EyeOff, Type, Image, Droplet, User, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,18 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { SCENE_OVERLAY_DEFAULTS } from '@shared/video-types';
+import { useQuery } from '@tanstack/react-query';
+
+interface BrandMediaAsset {
+  id: number;
+  name: string;
+  url: string;
+  thumbnailUrl?: string;
+  mediaType: string;
+  entityType?: string;
+}
 
 interface TextOverlayItem {
   id: string;
@@ -23,12 +34,16 @@ interface LogoConfig {
   position: 'top-left' | 'top-right' | 'center' | 'bottom-left' | 'bottom-right';
   size: 'small' | 'medium' | 'large';
   showTagline: boolean;
+  logoUrl?: string;
+  logoName?: string;
 }
 
 interface WatermarkConfig {
   enabled: boolean;
   position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   opacity: number;
+  watermarkUrl?: string;
+  watermarkName?: string;
 }
 
 interface LowerThirdItem {
@@ -59,11 +74,15 @@ export const defaultOverlayConfig: OverlayConfig = {
     position: 'center',
     size: 'medium',
     showTagline: true,
+    logoUrl: undefined,
+    logoName: undefined,
   },
   watermark: {
     enabled: true,
     position: 'bottom-right',
     opacity: 70,
+    watermarkUrl: undefined,
+    watermarkName: undefined,
   },
   lowerThirds: [],
 };
@@ -76,11 +95,15 @@ export function getDefaultOverlayConfig(sceneType: string): OverlayConfig {
       position: 'center',
       size: 'medium',
       showTagline: true,
+      logoUrl: undefined,
+      logoName: undefined,
     },
     watermark: {
       enabled: true,
       position: 'bottom-right',
       opacity: 70,
+      watermarkUrl: undefined,
+      watermarkName: undefined,
     },
     lowerThirds: [],
   };
@@ -94,6 +117,20 @@ export function OverlayEditor({
   extractedText = [],
   sceneType,
 }: OverlayEditorProps) {
+  const { data: brandMedia = [], isLoading: brandMediaLoading } = useQuery<BrandMediaAsset[]>({
+    queryKey: ['/api/brand-media'],
+  });
+
+  const logos = brandMedia.filter(a => 
+    a.mediaType === 'image' && 
+    (a.entityType === 'logo' || a.name?.toLowerCase().includes('logo'))
+  );
+  
+  const watermarks = brandMedia.filter(a => 
+    a.mediaType === 'image' && 
+    (a.entityType === 'watermark' || a.name?.toLowerCase().includes('watermark') || a.entityType === 'logo')
+  );
+  
   const suggestedTexts = extractedText.filter(
     text => !config.texts.some(t => t.text === text)
   );
@@ -305,13 +342,54 @@ export function OverlayEditor({
           {config.logo.enabled && (
             <Card>
               <CardContent className="p-4 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-muted rounded flex items-center justify-center overflow-hidden">
-                    <Image className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Brand logo from library will be applied at render time
-                  </div>
+                <div>
+                  <Label className="text-xs mb-2 block">Select Logo</Label>
+                  {brandMediaLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : logos.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-4 text-center">
+                      No logos found. Upload logos to the Brand Media Library.
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-24">
+                      <div className="flex gap-2 pb-2">
+                        {logos.map((logo) => (
+                          <button
+                            key={logo.id}
+                            type="button"
+                            onClick={() => onChange({
+                              ...config,
+                              logo: { ...config.logo, logoUrl: logo.url, logoName: logo.name }
+                            })}
+                            className={`relative flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
+                              config.logo.logoUrl === logo.url 
+                                ? 'border-primary ring-2 ring-primary/30' 
+                                : 'border-muted hover:border-muted-foreground/50'
+                            }`}
+                            data-testid={`button-select-logo-${logo.id}`}
+                          >
+                            <img 
+                              src={logo.thumbnailUrl || logo.url} 
+                              alt={logo.name}
+                              className="w-full h-full object-contain bg-white p-1"
+                            />
+                            {config.logo.logoUrl === logo.url && (
+                              <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                                <Check className="h-5 w-5 text-primary" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                  {config.logo.logoName && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Selected: {config.logo.logoName}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -390,6 +468,56 @@ export function OverlayEditor({
           {config.watermark.enabled && (
             <Card>
               <CardContent className="p-4 space-y-4">
+                <div>
+                  <Label className="text-xs mb-2 block">Select Watermark</Label>
+                  {brandMediaLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : watermarks.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-4 text-center">
+                      No watermarks found. Upload watermarks to the Brand Media Library.
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-24">
+                      <div className="flex gap-2 pb-2">
+                        {watermarks.map((wm) => (
+                          <button
+                            key={wm.id}
+                            type="button"
+                            onClick={() => onChange({
+                              ...config,
+                              watermark: { ...config.watermark, watermarkUrl: wm.url, watermarkName: wm.name }
+                            })}
+                            className={`relative flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
+                              config.watermark.watermarkUrl === wm.url 
+                                ? 'border-primary ring-2 ring-primary/30' 
+                                : 'border-muted hover:border-muted-foreground/50'
+                            }`}
+                            data-testid={`button-select-watermark-${wm.id}`}
+                          >
+                            <img 
+                              src={wm.thumbnailUrl || wm.url} 
+                              alt={wm.name}
+                              className="w-full h-full object-contain bg-white p-1"
+                            />
+                            {config.watermark.watermarkUrl === wm.url && (
+                              <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                                <Check className="h-5 w-5 text-primary" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                  {config.watermark.watermarkName && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Selected: {config.watermark.watermarkName}
+                    </div>
+                  )}
+                </div>
+                
                 <div>
                   <Label className="text-xs">Position</Label>
                   <Select
