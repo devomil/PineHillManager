@@ -105,7 +105,7 @@ export interface Scene {
     includeWatermark?: boolean;
   };
   // Phase 11D: Brand media source and animation settings
-  mediaSource?: 'ai' | 'brand' | 'library';
+  mediaSource?: 'ai' | 'brand' | 'custom';
   brandAssetId?: number;
   brandAssetUrl?: string;
   brandAssetType?: 'image' | 'video';
