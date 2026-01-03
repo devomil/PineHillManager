@@ -241,8 +241,9 @@ class AIVideoService {
     
     // Adjust for specific scene/content needs
     if (contentType === 'person') {
-      // Runway and Kling handle people well
-      const personProviders = ['runway', 'kling'];
+      // Runway and Kling handle people well - process in REVERSE order
+      // so Runway ends up first (last unshift wins)
+      const personProviders = ['kling', 'runway'];
       personProviders.forEach(p => {
         const idx = providers.indexOf(p);
         if (idx > 0) {
