@@ -26,6 +26,8 @@ import { brandBibleService } from "./brand-bible-service";
 import { brandInjectionService, VideoBrandInstructions } from "./brand-injection-service";
 import { scriptParserService, ParsedScript } from "./script-parser-service";
 import { brandContextService } from "./brand-context-service";
+import { detectTextOverlayRequirements, TextOverlayRequirement } from "./text-overlay-detector";
+import { generateTextOverlays, RemotionTextOverlay } from "./text-overlay-generator";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -3479,6 +3481,61 @@ Total: 90 seconds` : ''}
           }
         }
       }
+      
+      // ===== PHASE 10E: SMART TEXT OVERLAY DETECTION =====
+      // Detect scenes requiring text overlays (CTA, bullet points, actionable steps)
+      const textRequirement = detectTextOverlayRequirements({
+        sceneIndex: i,
+        visualDirection: scene.visualDirection,
+        narration: scene.narration,
+        type: scene.type,
+      });
+      
+      if (textRequirement.required && textRequirement.textContent.length > 0) {
+        console.log(`[UniversalVideoService] Scene ${i} needs text overlay:`, {
+          type: textRequirement.overlayType,
+          source: textRequirement.source,
+          items: textRequirement.textContent.length,
+        });
+        
+        // Generate Remotion-compatible text overlays
+        const fps = preparedProject.outputFormat?.fps || 30;
+        const sceneDuration = scene.duration || 5;
+        const textOverlays = generateTextOverlays(textRequirement, sceneDuration, fps);
+        
+        // Convert to the format expected by Remotion composition
+        if (!preparedProject.scenes[i].textOverlays) {
+          preparedProject.scenes[i].textOverlays = [];
+        }
+        
+        // Add generated text overlays to scene
+        textOverlays.forEach((overlay) => {
+          // Map to the TextOverlay interface from shared/video-types.ts
+          const remotionOverlay: TextOverlay = {
+            id: overlay.id,
+            text: overlay.text,
+            style: overlay.type as TextOverlay['style'], // 'title' | 'subtitle' | 'headline' | 'body' | 'bullet' | 'caption' | 'cta' | 'quote'
+            position: {
+              vertical: overlay.position.y > 70 ? 'bottom' : overlay.position.y > 40 ? 'center' : 'top',
+              horizontal: overlay.position.x < 30 ? 'left' : overlay.position.x > 70 ? 'right' : 'center',
+              padding: 24,
+            },
+            animation: {
+              enter: overlay.animation === 'pop' ? 'scale' : overlay.animation as any,
+              exit: 'fade',
+              duration: (overlay.timing.fadeInFrames / fps),
+            },
+            timing: {
+              startAt: overlay.timing.startFrame / fps,
+              duration: (overlay.timing.endFrame - overlay.timing.startFrame) / fps,
+            },
+          };
+          preparedProject.scenes[i].textOverlays!.push(remotionOverlay);
+        });
+        
+        console.log(`[UniversalVideoService] Added ${textOverlays.length} text overlays to scene ${i}`);
+      }
+      // ===== END PHASE 10E =====
     }
 
     // Count scenes with valid video B-roll
