@@ -3671,17 +3671,15 @@ router.post('/projects/:projectId/scenes/:sceneIndex/analyze', isAuthenticated, 
     if (analysisResult.overallScore >= 70) {
       try {
         const { saveToLibrary } = await import('../services/asset-library-service');
-        await saveToLibrary({
-          projectId,
-          sceneId: scene.id,
-          assetUrl: imageUrl,
-          thumbnailUrl: imageUrl,
-          assetType: 'image',
-          provider: (scene.assets as any)?.imageProvider || 'unknown',
-          visualDirection: scene.visualDirection || '',
-          qualityScore: analysisResult.overallScore,
+        const sceneForLibrary = {
+          id: scene.id,
           type: scene.type || 'content',
-        });
+          visualDirection: scene.visualDirection || '',
+          imageUrl: imageUrl,
+          provider: (scene.assets as any)?.imageProvider || 'unknown',
+          analysisResult: analysisResult,
+        };
+        await saveToLibrary(sceneForLibrary, { projectId }, userId);
         console.log(`[Phase11E] Auto-saved scene ${sceneIdx + 1} image to asset library (score: ${analysisResult.overallScore})`);
       } catch (libErr) {
         console.error('[Phase11E] Failed to save to asset library:', libErr);
@@ -3807,17 +3805,15 @@ router.post('/projects/:projectId/analyze-all-scenes', isAuthenticated, async (r
         if (analysisResult.overallScore >= 70) {
           try {
             const { saveToLibrary } = await import('../services/asset-library-service');
-            await saveToLibrary({
-              projectId,
-              sceneId: scene.id,
-              assetUrl: imageUrl,
-              thumbnailUrl: imageUrl,
-              assetType: 'image',
-              provider: (scene.assets as any)?.imageProvider || 'unknown',
-              visualDirection: scene.visualDirection || '',
-              qualityScore: analysisResult.overallScore,
+            const sceneForLibrary = {
+              id: scene.id,
               type: scene.type || 'content',
-            });
+              visualDirection: scene.visualDirection || '',
+              imageUrl: imageUrl,
+              provider: (scene.assets as any)?.imageProvider || 'unknown',
+              analysisResult: analysisResult,
+            };
+            await saveToLibrary(sceneForLibrary, { projectId }, userId);
             console.log(`[Phase11E] Batch: Auto-saved scene ${i + 1} image to asset library`);
           } catch (libErr) {
             console.error('[Phase11E] Batch: Failed to save to asset library:', libErr);
