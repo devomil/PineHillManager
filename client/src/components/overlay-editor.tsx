@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, Eye, EyeOff, Type, Image, Droplet, User, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -122,18 +122,50 @@ export function OverlayEditor({
   });
 
   const logos = brandMedia.filter(a => 
-    a.mediaType === 'image' && 
-    (a.entityType === 'logo' || a.name?.toLowerCase().includes('logo'))
+    (a.mediaType === 'image' || a.mediaType === 'photo') && 
+    (a.entityType === 'logo' || a.entityType === 'brand' || a.name?.toLowerCase().includes('logo'))
   );
   
   const watermarks = brandMedia.filter(a => 
-    a.mediaType === 'image' && 
-    (a.entityType === 'watermark' || a.name?.toLowerCase().includes('watermark') || a.entityType === 'logo')
+    (a.mediaType === 'image' || a.mediaType === 'photo') && 
+    (a.entityType === 'watermark' || a.entityType === 'brand' || a.name?.toLowerCase().includes('watermark') || a.name?.toLowerCase().includes('logo'))
   );
   
   const suggestedTexts = extractedText.filter(
     text => !config.texts.some(t => t.text === text)
   );
+  
+  const [localTexts, setLocalTexts] = useState<Record<string, string>>({});
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  
+  useEffect(() => {
+    const textMap: Record<string, string> = {};
+    config.texts.forEach(t => {
+      textMap[t.id] = t.text;
+    });
+    setLocalTexts(textMap);
+  }, [config.texts.map(t => t.id).join(',')]);
+  
+  const handleTextChange = useCallback((id: string, newText: string) => {
+    setLocalTexts(prev => ({ ...prev, [id]: newText }));
+    
+    if (debounceTimers.current[id]) {
+      clearTimeout(debounceTimers.current[id]);
+    }
+    
+    debounceTimers.current[id] = setTimeout(() => {
+      onChange({
+        ...config,
+        texts: config.texts.map(t => t.id === id ? { ...t, text: newText } : t),
+      });
+    }, 500);
+  }, [config, onChange]);
+  
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+    };
+  }, []);
   
   const addTextOverlay = (text: string = 'New Text') => {
     const newText: TextOverlayItem = {
@@ -244,8 +276,8 @@ export function OverlayEditor({
                 <CardContent className="p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <Input
-                      value={text.text}
-                      onChange={(e) => updateTextOverlay(text.id, { text: e.target.value })}
+                      value={localTexts[text.id] ?? text.text}
+                      onChange={(e) => handleTextChange(text.id, e.target.value)}
                       className="flex-1 mr-2"
                       placeholder="Enter text..."
                       data-testid={`input-text-overlay-${idx}`}
