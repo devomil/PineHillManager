@@ -3667,6 +3667,27 @@ router.post('/projects/:projectId/scenes/:sceneIndex/analyze', isAuthenticated, 
     
     console.log(`[Phase8A] Scene ${sceneIdx + 1} analysis complete: score=${analysisResult.overallScore}, recommendation=${analysisResult.recommendation}`);
     
+    // Phase 11E: Auto-save to asset library if quality score >= 70
+    if (analysisResult.overallScore >= 70) {
+      try {
+        const { saveToLibrary } = await import('../services/asset-library-service');
+        await saveToLibrary({
+          projectId,
+          sceneId: scene.id,
+          assetUrl: imageUrl,
+          thumbnailUrl: imageUrl,
+          assetType: 'image',
+          provider: (scene.assets as any)?.imageProvider || 'unknown',
+          visualDirection: scene.visualDirection || '',
+          qualityScore: analysisResult.overallScore,
+          type: scene.type || 'content',
+        });
+        console.log(`[Phase11E] Auto-saved scene ${sceneIdx + 1} image to asset library (score: ${analysisResult.overallScore})`);
+      } catch (libErr) {
+        console.error('[Phase11E] Failed to save to asset library:', libErr);
+      }
+    }
+    
     return res.json({
       success: true,
       analysis: analysisResult,
@@ -3781,6 +3802,27 @@ router.post('/projects/:projectId/analyze-all-scenes', isAuthenticated, async (r
         scenes[i].analysisResult = analysisResult;
         scenes[i].qualityScore = analysisResult.overallScore;
         scenesAnalyzed++;
+        
+        // Phase 11E: Auto-save to asset library if quality score >= 70
+        if (analysisResult.overallScore >= 70) {
+          try {
+            const { saveToLibrary } = await import('../services/asset-library-service');
+            await saveToLibrary({
+              projectId,
+              sceneId: scene.id,
+              assetUrl: imageUrl,
+              thumbnailUrl: imageUrl,
+              assetType: 'image',
+              provider: (scene.assets as any)?.imageProvider || 'unknown',
+              visualDirection: scene.visualDirection || '',
+              qualityScore: analysisResult.overallScore,
+              type: scene.type || 'content',
+            });
+            console.log(`[Phase11E] Batch: Auto-saved scene ${i + 1} image to asset library`);
+          } catch (libErr) {
+            console.error('[Phase11E] Batch: Failed to save to asset library:', libErr);
+          }
+        }
         
         // Rate limiting: wait 500ms between Claude Vision calls to avoid overwhelming the API
         if (i < scenes.length - 1) {
