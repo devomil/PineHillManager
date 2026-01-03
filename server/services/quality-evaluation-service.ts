@@ -14,7 +14,9 @@ export interface QualityIssue {
     | 'ai-text-detected'      // Garbled AI text (Phase 4F)
     | 'ai-ui-detected'        // Fake UI elements (Phase 4F)
     | 'off-brand-content'     // Content doesn't match brand (Phase 4F)
-    | 'missing-brand-element'; // Expected brand element missing (Phase 4F)
+    | 'missing-brand-element' // Expected brand element missing (Phase 4F)
+    | 'wrong-framing'         // Shot type doesn't match expected (Phase 10B)
+    | 'missing-text-overlay'; // Expected text overlay not visible (Phase 10B)
   severity: 'critical' | 'major' | 'minor';
   description: string;
   timestamp?: number;
@@ -32,6 +34,19 @@ export interface SceneQualityScore {
     technicalQuality: number;
     contentMatch: number;
     professionalLook: number;
+    framingMatch?: number;  // Phase 10B: Shot type validation score
+  };
+  // Phase 10B: Text overlay verification
+  textOverlayCheck?: {
+    expectedVisible: boolean;
+    actuallyVisible: boolean;
+    textReadable: boolean;
+  };
+  // Phase 10B: Framing validation
+  framingCheck?: {
+    expectedType: string;
+    actualType: string;
+    matches: boolean;
   };
   issues: QualityIssue[];
   passesThreshold: boolean;
@@ -100,6 +115,8 @@ class QualityEvaluationService {
         narration: string;
         duration: number;
         textOverlays?: Array<{ text: string }>;
+        shotType?: string;  // Phase 10B: Expected shot type for framing validation
+        expectedShotType?: string;  // Alias for shotType
       }>;
     }
   ): Promise<VideoQualityReport> {
@@ -124,7 +141,12 @@ class QualityEvaluationService {
       const frameData = await videoFrameExtractor.extractFrameAsBase64(videoUrl, frameTime);
       
       if (frameData) {
-        const evaluation = await this.evaluateFrame(frameData.base64, scene, i);
+        // Phase 10B: Pass expectedShotType to evaluation
+        const sceneWithShotType = {
+          ...scene,
+          expectedShotType: scene.expectedShotType || scene.shotType,
+        };
+        const evaluation = await this.evaluateFrame(frameData.base64, sceneWithShotType, i);
         sceneScores.push(evaluation);
         allIssues.push(...evaluation.issues);
       } else {
@@ -163,6 +185,7 @@ class QualityEvaluationService {
       type: string;
       narration: string;
       textOverlays?: Array<{ text: string }>;
+      expectedShotType?: string;  // Phase 10B: Expected shot type for framing validation
     },
     sceneIndex: number
   ): Promise<SceneQualityScore> {
@@ -212,29 +235,63 @@ class QualityEvaluationService {
     type: string;
     narration: string;
     textOverlays?: Array<{ text: string }>;
+    expectedShotType?: string;
   }): string {
     const expectedText = scene.textOverlays?.map(t => t.text).join(', ') || 'None';
+    const expectedShot = scene.expectedShotType || 'not specified';
     
-    return `Evaluate this video frame for broadcast quality. Be critical but fair.
+    return `Evaluate this video frame for broadcast quality using STRICT content matching rules.
 
 SCENE CONTEXT:
 - Scene type: ${scene.type}
 - Expected narration topic: "${scene.narration.substring(0, 100)}..."
 - Expected text overlays: ${expectedText}
+- Expected shot type/framing: ${expectedShot}
 
-Rate each aspect 0-100 and identify any issues:
+=== STRICT CONTENT MATCHING RULES (Phase 10B) ===
+
+1. TEXT OVERLAY VERIFICATION:
+   - If expected text overlays are specified, they MUST be visible in the frame
+   - Score < 40 if expected text is missing entirely
+   - Score < 50 if text is present but unreadable or garbled
+
+2. FRAMING/SHOT TYPE VALIDATION:
+   - close-up: Subject fills most of the frame (head/product occupies >50% of frame)
+   - medium: Subject visible from waist up or product with context
+   - wide: Full environment/scene visible, subject is small portion
+   - aerial: Bird's eye or elevated perspective
+   - product-shot: Product is the clear focal point, clean background
+   - If actual framing doesn't match expected, score contentMatch < 50
+
+3. CONTENT MATCH REQUIREMENTS:
+   - Visual MUST relate to narration topic (e.g., "health benefits" needs health imagery)
+   - Wrong subject = critical failure (e.g., showing office when narration mentions nature)
+   - Generic stock footage that doesn't match specific topic = major issue
+
+Rate each aspect 0-100:
 
 {
   "scores": {
     "composition": <0-100 - Is the visual layout professional? Text placed well?>,
     "visibility": <0-100 - Is all text clearly readable? Good contrast?>,
     "technicalQuality": <0-100 - No blur, artifacts, good resolution?>,
-    "contentMatch": <0-100 - Does visual match the narration topic?>,
-    "professionalLook": <0-100 - Would this look good on TV?>
+    "contentMatch": <0-100 - Does visual STRICTLY match the narration topic?>,
+    "professionalLook": <0-100 - Would this look good on TV?>,
+    "framingMatch": <0-100 - Does shot type match expected framing?>
+  },
+  "textOverlayCheck": {
+    "expectedVisible": true/false,
+    "actuallyVisible": true/false,
+    "textReadable": true/false
+  },
+  "framingCheck": {
+    "expectedType": "${expectedShot}",
+    "actualType": "detected shot type",
+    "matches": true/false
   },
   "issues": [
     {
-      "type": "text-overlap | face-blocked | poor-visibility | bad-composition | technical | content-mismatch",
+      "type": "text-overlap | face-blocked | poor-visibility | bad-composition | technical | content-mismatch | wrong-framing | missing-text-overlay",
       "severity": "critical | major | minor",
       "description": "Specific description of the issue"
     }
@@ -242,12 +299,14 @@ Rate each aspect 0-100 and identify any issues:
   "notes": "Brief overall assessment"
 }
 
-CRITICAL ISSUES (score impact):
-- Text overlapping a face = critical, -30 points
-- Text unreadable = critical, -25 points
-- Content completely mismatched = critical, -40 points
-- Poor image quality = major, -15 points
-- Awkward composition = minor, -10 points
+SCORING RULES:
+- Missing expected text overlay = critical, contentMatch < 40
+- Wrong framing (e.g., wide when close-up expected) = major, framingMatch < 50
+- Content completely mismatched to narration = critical, contentMatch < 30
+- Text overlapping a face = critical, composition -= 30
+- Text unreadable = critical, visibility < 40
+- Poor image quality = major, technicalQuality -= 20
+- Awkward composition = minor, composition -= 10
 
 Return ONLY the JSON object.`;
   }
@@ -271,12 +330,16 @@ Return ONLY the JSON object.`;
         technicalQuality: parsed.scores?.technicalQuality || 70,
         contentMatch: parsed.scores?.contentMatch || 70,
         professionalLook: parsed.scores?.professionalLook || 70,
+        framingMatch: parsed.scores?.framingMatch,  // Phase 10B
       };
       
-      const overallScore = Math.round(
-        (scores.composition + scores.visibility + scores.technicalQuality + 
-         scores.contentMatch + scores.professionalLook) / 5
-      );
+      // Phase 10B: Include framingMatch in overall score if available
+      const scoreValues = [scores.composition, scores.visibility, scores.technicalQuality, 
+                          scores.contentMatch, scores.professionalLook];
+      if (scores.framingMatch !== undefined) {
+        scoreValues.push(scores.framingMatch);
+      }
+      const overallScore = Math.round(scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length);
       
       const issues: QualityIssue[] = (parsed.issues || []).map((issue: any) => ({
         type: issue.type || 'technical',
@@ -285,14 +348,54 @@ Return ONLY the JSON object.`;
         sceneIndex,
       }));
       
+      // Phase 10B: Extract text overlay and framing checks
+      const textOverlayCheck = parsed.textOverlayCheck ? {
+        expectedVisible: !!parsed.textOverlayCheck.expectedVisible,
+        actuallyVisible: !!parsed.textOverlayCheck.actuallyVisible,
+        textReadable: !!parsed.textOverlayCheck.textReadable,
+      } : undefined;
+      
+      const framingCheck = parsed.framingCheck ? {
+        expectedType: parsed.framingCheck.expectedType || 'not specified',
+        actualType: parsed.framingCheck.actualType || 'unknown',
+        matches: !!parsed.framingCheck.matches,
+      } : undefined;
+      
+      // Phase 10B: Add issues for failed checks
+      if (textOverlayCheck && textOverlayCheck.expectedVisible && !textOverlayCheck.actuallyVisible) {
+        issues.push({
+          type: 'missing-text-overlay',
+          severity: 'critical',
+          description: 'Expected text overlay is not visible in the frame',
+          sceneIndex,
+        });
+      }
+      
+      if (framingCheck && framingCheck.expectedType !== 'not specified' && !framingCheck.matches) {
+        issues.push({
+          type: 'wrong-framing',
+          severity: 'major',
+          description: `Wrong framing: expected ${framingCheck.expectedType}, got ${framingCheck.actualType}`,
+          sceneIndex,
+        });
+      }
+      
       const hasCriticalIssues = issues.some(i => i.severity === 'critical');
-      const passesThreshold = overallScore >= this.qualityThreshold && !hasCriticalIssues;
+      
+      // Phase 10B: Scenes with missing required elements score < 50 fail
+      const hasFailingScore = overallScore < 50 || scores.contentMatch < 50 || 
+                              (scores.framingMatch !== undefined && scores.framingMatch < 50);
+      const passesThreshold = overallScore >= this.qualityThreshold && !hasCriticalIssues && !hasFailingScore;
+      
+      console.log(`[QualityEval] Scene ${sceneIndex + 1}: Overall=${overallScore}, Content=${scores.contentMatch}, Framing=${scores.framingMatch || 'N/A'}, Pass=${passesThreshold}`);
       
       return {
         sceneId,
         sceneIndex,
         overallScore,
         scores,
+        textOverlayCheck,
+        framingCheck,
         issues,
         passesThreshold,
         needsRegeneration: !passesThreshold,
