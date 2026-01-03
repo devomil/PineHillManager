@@ -5564,3 +5564,63 @@ export const insertVideoGenerationJobSchema = createInsertSchema(videoGeneration
 
 export type VideoGenerationJob = typeof videoGenerationJobs.$inferSelect;
 export type InsertVideoGenerationJob = z.infer<typeof insertVideoGenerationJobSchema>;
+
+// Phase 11E: Asset Library - Stores AI-generated assets for reuse across projects
+export const assetLibrary = pgTable("asset_library", {
+  id: serial("id").primaryKey(),
+  
+  // Project association (optional - some assets may be standalone)
+  projectId: varchar("project_id", { length: 100 }),
+  sceneId: varchar("scene_id", { length: 100 }),
+  
+  // Asset URLs
+  assetUrl: text("asset_url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  
+  // Asset type and provider
+  assetType: varchar("asset_type", { length: 20 }).notNull(), // 'image' | 'video'
+  provider: varchar("provider", { length: 50 }), // 'kling' | 'runway' | 'flux' | 'falai' | 'hunyuan' | 'veo' | 'luma' | 'hailuo'
+  
+  // Generation details
+  prompt: text("prompt"),
+  visualDirection: text("visual_direction"),
+  duration: decimal("duration", { precision: 10, scale: 2 }), // For videos, in seconds
+  width: integer("width"),
+  height: integer("height"),
+  
+  // Quality and usage tracking
+  qualityScore: integer("quality_score"), // 0-100 from QA system
+  isFavorite: boolean("is_favorite").default(false),
+  tags: text("tags").array().default([]),
+  contentType: varchar("content_type", { length: 50 }), // 'person' | 'product' | 'nature' | 'abstract' | 'other'
+  
+  // Usage statistics
+  useCount: integer("use_count").default(1),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  // Metadata
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  assetTypeIdx: index("idx_asset_library_type").on(table.assetType),
+  providerIdx: index("idx_asset_library_provider").on(table.provider),
+  isFavoriteIdx: index("idx_asset_library_favorite").on(table.isFavorite),
+  qualityScoreIdx: index("idx_asset_library_quality").on(table.qualityScore),
+  contentTypeIdx: index("idx_asset_library_content_type").on(table.contentType),
+  createdAtIdx: index("idx_asset_library_created_at").on(table.createdAt),
+  projectIdIdx: index("idx_asset_library_project_id").on(table.projectId),
+}));
+
+export const assetLibraryRelations = relations(assetLibrary, ({ one }) => ({
+  creator: one(users, { fields: [assetLibrary.createdBy], references: [users.id] }),
+}));
+
+export const insertAssetLibrarySchema = createInsertSchema(assetLibrary).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AssetLibraryItem = typeof assetLibrary.$inferSelect;
+export type InsertAssetLibraryItem = z.infer<typeof insertAssetLibrarySchema>;
