@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Eye, Type, Image, Droplet, User, Check, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -123,25 +123,30 @@ export function OverlayEditor({
   const { toast } = useToast();
   const { data: brandMedia = [], isLoading: brandMediaLoading } = useQuery<BrandMediaAsset[]>({
     queryKey: ['/api/brand-media'],
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  const logos = brandMedia.filter(a => 
+  const logos = useMemo(() => brandMedia.filter(a => 
     (a.mediaType === 'image' || a.mediaType === 'photo') && 
     (a.entityType === 'logo' || a.entityType === 'brand' || a.name?.toLowerCase().includes('logo'))
-  );
+  ), [brandMedia]);
   
-  const watermarks = brandMedia.filter(a => 
+  const watermarks = useMemo(() => brandMedia.filter(a => 
     (a.mediaType === 'image' || a.mediaType === 'photo') && 
     (a.entityType === 'watermark' || a.entityType === 'brand' || a.name?.toLowerCase().includes('watermark') || a.name?.toLowerCase().includes('logo'))
-  );
+  ), [brandMedia]);
   
   const [draft, setDraft] = useState<OverlayConfig>(config);
   const [hasChanges, setHasChanges] = useState(false);
   
+  const configString = useMemo(() => JSON.stringify(config), [config]);
+  
   useEffect(() => {
     setDraft(config);
     setHasChanges(false);
-  }, [JSON.stringify(config)]);
+  }, [configString]);
   
   const suggestedTexts = extractedText.filter(
     text => !draft.texts.some(t => t.text === text)

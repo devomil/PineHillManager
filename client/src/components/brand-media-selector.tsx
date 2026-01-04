@@ -55,11 +55,17 @@ export function BrandMediaSelector({
   const { data: brandAssets = [], isLoading: loadingBrand } = useQuery<BrandAsset[]>({
     queryKey: ['/api/brand-media'],
     enabled: isOpen,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   
   const { data: libraryAssets = [], isLoading: loadingLibrary } = useQuery<BrandAsset[]>({
     queryKey: ['/api/media-assets', { classification: 'general' }],
     enabled: isOpen && activeTab === 'library',
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   
   const assets = activeTab === 'brand' ? brandAssets : libraryAssets;

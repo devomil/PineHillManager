@@ -3106,12 +3106,18 @@ function MediaPickerDialog({
   const { data: brandMediaData } = useQuery<{ success: boolean; assets: any[] }>({
     queryKey: ['/api/brand-media-library'],
     enabled: open && source === 'brand',
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   
   // Fetch asset library (Phase 11E - AI-generated assets)
   const { data: assetLibraryData } = useQuery<any[]>({
     queryKey: ['/api/asset-library', { type: mediaType }],
     enabled: open && source === 'library',
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   
   const brandAssets = brandMediaData?.assets || [];
