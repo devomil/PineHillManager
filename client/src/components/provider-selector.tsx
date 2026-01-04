@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Sparkles, Folder, Archive } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -93,14 +94,14 @@ function determineRecommended(providers: typeof VIDEO_PROVIDERS, contentType?: s
   return providers[0].id;
 }
 
-export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
+export const ProviderSelector = memo(function ProviderSelector({
   type,
   selectedProvider,
   onSelectProvider,
   recommendedProvider,
   sceneContentType,
   disabled = false,
-}) => {
+}: ProviderSelectorProps) {
   const providers = type === 'video' ? VIDEO_PROVIDERS : IMAGE_PROVIDERS;
   
   const recommended = recommendedProvider || determineRecommended(providers, sceneContentType);
@@ -213,7 +214,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
       </RadioGroup>
     </div>
   );
-};
+});
 
 export function getRecommendedProvider(
   type: 'image' | 'video', 

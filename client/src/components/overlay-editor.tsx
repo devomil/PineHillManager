@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { Plus, Trash2, Eye, Type, Image, Droplet, User, Check, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,7 +113,7 @@ export function getDefaultOverlayConfig(sceneType: string): OverlayConfig {
   return config;
 }
 
-export function OverlayEditor({
+export const OverlayEditor = memo(function OverlayEditor({
   config,
   onChange,
   onPreview,
@@ -684,4 +684,4 @@ export function OverlayEditor({
       </div>
     </div>
   );
-}
+});

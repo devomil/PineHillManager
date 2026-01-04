@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import type { OverlayConfig } from './overlay-editor';
 
 interface OverlayPreviewProps {
@@ -9,7 +9,7 @@ interface OverlayPreviewProps {
   convertUrl?: (url: string) => string;
 }
 
-export function OverlayPreview({ 
+export const OverlayPreview = memo(function OverlayPreview({ 
   mediaUrl, 
   mediaType, 
   config,
@@ -169,4 +169,4 @@ export function OverlayPreview({
       </div>
     </div>
   );
-}
+});
