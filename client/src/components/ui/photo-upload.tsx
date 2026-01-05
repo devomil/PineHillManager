@@ -48,7 +48,6 @@ export function PhotoUpload({
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [uploadedPdfs, setUploadedPdfs] = useState<UploadedPdf[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pdfInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -262,23 +261,6 @@ export function PhotoUpload({
     });
   }, [onPdfsUploaded]);
 
-  const handlePdfSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      processPdfFile(files[0]);
-    }
-    // Reset input so same file can be selected again
-    if (pdfInputRef.current) {
-      pdfInputRef.current.value = '';
-    }
-  }, [processPdfFile]);
-
-  const handlePdfClick = useCallback(() => {
-    if (!disabled && pdfInputRef.current) {
-      pdfInputRef.current.click();
-    }
-  }, [disabled]);
-
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -332,15 +314,28 @@ export function PhotoUpload({
     }
   }, [disabled, processFiles, allowPdf, processPdfFile]);
 
-  // File input handler
+  // Unified file input handler - routes files to appropriate handlers based on type
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
-    if (files.length > 0) {
-      processFiles(files);
+    if (files.length === 0) return;
+    
+    // Separate images and PDFs
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+    
+    // Process image files
+    if (imageFiles.length > 0) {
+      processFiles(imageFiles);
     }
+    
+    // Process PDF files if allowed
+    if (allowPdf && pdfFiles.length > 0) {
+      pdfFiles.forEach(pdfFile => processPdfFile(pdfFile));
+    }
+    
     // Reset input value to allow selecting the same file again
     e.target.value = '';
-  }, [processFiles]);
+  }, [processFiles, allowPdf, processPdfFile]);
 
   // Paste handler
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -367,12 +362,7 @@ export function PhotoUpload({
     }
   }, [disabled, processFiles, allowPdf, processPdfFile]);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    // Don't open image picker if the click originated from the PDF button or its children
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-testid="button-upload-pdf"]')) {
-      return;
-    }
+  const handleClick = useCallback(() => {
     if (!disabled && fileInputRef.current) {
       fileInputRef.current.click();
     }
@@ -413,23 +403,12 @@ export function PhotoUpload({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
+            accept={allowPdf ? "image/*,.pdf,application/pdf" : "image/*"}
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled}
-            data-testid="input-image-upload"
+            data-testid="input-file-upload"
           />
-          {allowPdf && (
-            <input
-              ref={pdfInputRef}
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handlePdfSelect}
-              className="hidden"
-              disabled={disabled}
-              data-testid="input-pdf-upload"
-            />
-          )}
           
           {isUploading ? (
             <div className="flex flex-col items-center space-y-2">
@@ -441,41 +420,26 @@ export function PhotoUpload({
               <div className="flex space-x-2">
                 <Upload className="h-8 w-8 text-muted-foreground" />
                 <Camera className="h-8 w-8 text-muted-foreground" />
-                <Paperclip className="h-8 w-8 text-muted-foreground" />
+                {allowPdf && <FileText className="h-8 w-8 text-muted-foreground" />}
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">
-                  {allowPdf ? "Add photos to your message (drag, paste, or click)" : placeholder}
+                  {allowPdf ? "Add files (drag, paste, or click)" : placeholder}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Supports JPG, PNG, GIF, WebP • Max {maxSizeMB}MB • Up to {maxFiles} images
+                  {allowPdf 
+                    ? `Images (JPG, PNG, GIF, WebP) up to ${maxSizeMB}MB • PDFs up to ${maxPdfSizeMB}MB`
+                    : `Supports JPG, PNG, GIF, WebP • Max ${maxSizeMB}MB • Up to ${maxFiles} images`
+                  }
                 </p>
-                {uploadedImages.length > 0 && (
+                {(uploadedImages.length > 0 || uploadedPdfs.length > 0) && (
                   <p className="text-xs text-primary">
-                    {uploadedImages.length}/{maxFiles} images selected
+                    {uploadedImages.length > 0 && `${uploadedImages.length}/${maxFiles} images`}
+                    {uploadedImages.length > 0 && uploadedPdfs.length > 0 && ' • '}
+                    {uploadedPdfs.length > 0 && `${uploadedPdfs.length} PDF(s)`}
                   </p>
                 )}
               </div>
-              {allowPdf && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handlePdfClick();
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  disabled={disabled || isUploading}
-                  className="mt-2"
-                  data-testid="button-upload-pdf"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Attach PDF (Max {maxPdfSizeMB}MB)
-                </Button>
-              )}
             </div>
           )}
         </CardContent>
