@@ -22587,6 +22587,146 @@ Respond in JSON format:
     }
   });
 
+  // Upload PDF attachments for communications (messages/announcements)
+  app.post('/api/communications/upload-pdf', isAuthenticated, upload.single('pdf'), async (req, res) => {
+    try {
+      const file = req.file as Express.Multer.File;
+      const user = req.user as any;
+      const { ownerType, ownerId } = req.body;
+
+      if (!file) {
+        return res.status(400).json({ error: 'No PDF file uploaded' });
+      }
+
+      // Validate file type (only PDFs)
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (ext !== '.pdf' || file.mimetype !== 'application/pdf') {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        return res.status(400).json({ error: 'Only PDF files are allowed' });
+      }
+
+      // Validate file size (max 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        return res.status(400).json({ error: 'PDF file size must be less than 10MB' });
+      }
+
+      // Generate unique filename and move to uploads directory
+      const newFileName = `pdf_${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
+      const newPath = path.join(uploadsDir, newFileName);
+      fs.renameSync(file.path, newPath);
+      const fileUrl = `/uploads/${newFileName}`;
+
+      // If ownerType and ownerId are provided, create attachment record
+      let attachment = null;
+      if (ownerType && ownerId) {
+        attachment = await storage.createCommunicationAttachment({
+          ownerType,
+          ownerId: parseInt(ownerId),
+          fileUrl,
+          fileType: 'pdf',
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          uploadedBy: user.id,
+        });
+      }
+
+      console.log(`📄 PDF uploaded by ${user.firstName} ${user.lastName}: ${file.originalname}`);
+
+      res.json({
+        success: true,
+        fileUrl,
+        fileName: file.originalname,
+        fileSize: file.size,
+        attachment,
+        message: 'PDF uploaded successfully'
+      });
+
+    } catch (error) {
+      console.error('Error uploading PDF:', error);
+      res.status(500).json({ error: 'Failed to upload PDF' });
+    }
+  });
+
+  // Create communication attachment record (for linking files to messages/announcements)
+  app.post('/api/communications/attachments', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { ownerType, ownerId, fileUrl, fileType, fileName, fileSize, mimeType } = req.body;
+
+      if (!ownerType || !ownerId || !fileUrl || !fileType || !fileName) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const attachment = await storage.createCommunicationAttachment({
+        ownerType,
+        ownerId: parseInt(ownerId),
+        fileUrl,
+        fileType,
+        fileName,
+        fileSize: fileSize ? parseInt(fileSize) : null,
+        mimeType,
+        uploadedBy: user.id,
+      });
+
+      res.json(attachment);
+    } catch (error) {
+      console.error('Error creating attachment:', error);
+      res.status(500).json({ error: 'Failed to create attachment' });
+    }
+  });
+
+  // Get attachments for a message or announcement
+  app.get('/api/communications/attachments/:ownerType/:ownerId', isAuthenticated, async (req, res) => {
+    try {
+      const { ownerType, ownerId } = req.params;
+      const attachments = await storage.getCommunicationAttachments(ownerType, parseInt(ownerId));
+      res.json(attachments);
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
+      res.status(500).json({ error: 'Failed to fetch attachments' });
+    }
+  });
+
+  // Delete a communication attachment
+  app.delete('/api/communications/attachments/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const attachmentId = parseInt(req.params.id);
+
+      // Get the attachment to verify ownership or admin access
+      const attachment = await storage.getCommunicationAttachmentById(attachmentId);
+      if (!attachment) {
+        return res.status(404).json({ error: 'Attachment not found' });
+      }
+
+      // Only allow deletion by the uploader or admin/manager
+      if (attachment.uploadedBy !== user.id && !['admin', 'manager'].includes(user.role)) {
+        return res.status(403).json({ error: 'Not authorized to delete this attachment' });
+      }
+
+      // Delete the file from disk if it exists
+      if (attachment.fileUrl.startsWith('/uploads/')) {
+        const filePath = path.join(uploadsDir, path.basename(attachment.fileUrl));
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+
+      await storage.deleteCommunicationAttachment(attachmentId);
+      res.json({ success: true, message: 'Attachment deleted' });
+    } catch (error) {
+      console.error('Error deleting attachment:', error);
+      res.status(500).json({ error: 'Failed to delete attachment' });
+    }
+  });
+
   // ================================
   // OBJECT STORAGE ENDPOINTS
   // ================================
