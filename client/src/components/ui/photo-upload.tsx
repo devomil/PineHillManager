@@ -315,11 +315,22 @@ export function PhotoUpload({
 
     if (disabled) return;
 
-    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-    if (files.length > 0) {
-      processFiles(files);
+    const allFiles = Array.from(e.dataTransfer.files);
+    
+    // Separate images and PDFs
+    const imageFiles = allFiles.filter(file => file.type.startsWith('image/'));
+    const pdfFiles = allFiles.filter(file => file.type === 'application/pdf');
+    
+    // Process image files
+    if (imageFiles.length > 0) {
+      processFiles(imageFiles);
     }
-  }, [disabled, processFiles]);
+    
+    // Process PDF files if allowed
+    if (allowPdf && pdfFiles.length > 0) {
+      pdfFiles.forEach(pdfFile => processPdfFile(pdfFile));
+    }
+  }, [disabled, processFiles, allowPdf, processPdfFile]);
 
   // File input handler
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -341,10 +352,20 @@ export function PhotoUpload({
       .map(item => item.getAsFile())
       .filter((file): file is File => file !== null);
 
+    const pdfFiles = items
+      .filter(item => item.type === 'application/pdf')
+      .map(item => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
     if (imageFiles.length > 0) {
       processFiles(imageFiles);
     }
-  }, [disabled, processFiles]);
+    
+    // Process PDF files if allowed
+    if (allowPdf && pdfFiles.length > 0) {
+      pdfFiles.forEach(pdfFile => processPdfFile(pdfFile));
+    }
+  }, [disabled, processFiles, allowPdf, processPdfFile]);
 
   const handleClick = useCallback(() => {
     if (!disabled && fileInputRef.current) {
