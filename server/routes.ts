@@ -23189,8 +23189,11 @@ Respond in JSON format:
             storage.getMessageRecipients(message.id)
           ]);
 
+          // Extract image and PDF URLs from content using sentinel pattern
+          const messageWithAttachments = addImageUrlsToItem(message);
+
           return {
-            ...message,
+            ...messageWithAttachments,
             reactions: reactions.reduce((acc: any, reaction) => {
               acc[reaction.reactionType] = (acc[reaction.reactionType] || 0) + 1;
               return acc;
