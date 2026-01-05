@@ -638,6 +638,24 @@ export const voiceMessages = pgTable("voice_messages", {
   uploadedAtIdx: index("idx_voice_messages_uploaded").on(table.uploadedAt),
 }));
 
+// Communication Attachments (PDFs and other files for announcements/messages)
+export const communicationAttachments = pgTable("communication_attachments", {
+  id: serial("id").primaryKey(),
+  ownerType: varchar("owner_type").notNull(), // 'announcement' or 'message'
+  ownerId: integer("owner_id").notNull(), // ID of the announcement or message
+  fileUrl: text("file_url").notNull(), // URL to the file in object storage
+  fileType: varchar("file_type").notNull(), // 'pdf', 'image', etc.
+  fileName: varchar("file_name").notNull(), // Original filename
+  fileSize: integer("file_size"), // File size in bytes
+  mimeType: varchar("mime_type"), // MIME type of the file
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  ownerIdx: index("idx_comm_attachments_owner").on(table.ownerType, table.ownerId),
+  uploadedByIdx: index("idx_comm_attachments_uploaded_by").on(table.uploadedBy),
+  fileTypeIdx: index("idx_comm_attachments_file_type").on(table.fileType),
+}));
+
 // Phase 3: Message Templates
 export const messageTemplates = pgTable("message_templates", {
   id: serial("id").primaryKey(),
@@ -1738,6 +1756,11 @@ export const insertVoiceMessageSchema = createInsertSchema(voiceMessages).omit({
   uploadedAt: true,
 });
 
+export const insertCommunicationAttachmentSchema = createInsertSchema(communicationAttachments).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).omit({
   id: true,
   createdAt: true,
@@ -1753,6 +1776,8 @@ export type ReadReceipt = typeof readReceipts.$inferSelect;
 export type InsertReadReceipt = typeof readReceipts.$inferInsert;
 export type VoiceMessage = typeof voiceMessages.$inferSelect;
 export type InsertVoiceMessage = typeof voiceMessages.$inferInsert;
+export type CommunicationAttachment = typeof communicationAttachments.$inferSelect;
+export type InsertCommunicationAttachment = z.infer<typeof insertCommunicationAttachmentSchema>;
 export type MessageTemplate = typeof messageTemplates.$inferSelect;
 export type InsertMessageTemplate = typeof messageTemplates.$inferInsert;
 
