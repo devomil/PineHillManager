@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import UserAvatar from "@/components/user-avatar";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check, FileText, Download } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -2025,6 +2025,37 @@ function CommunicationsContent() {
                             </div>
                           </div>
                         )}
+
+                        {/* PDF Attachments */}
+                        {'pdfUrls' in announcement && Array.isArray(announcement.pdfUrls) && announcement.pdfUrls.length > 0 && (
+                          <div className="mt-4">
+                            <div className="space-y-2">
+                              {(announcement.pdfUrls as { url: string; fileName: string; fileSize: number }[]).map((pdf, index) => (
+                                <a
+                                  key={index}
+                                  href={pdf.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                                  data-testid={`pdf-announcement-${announcement.id}-${index}`}
+                                >
+                                  <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                                    <FileText className="h-5 w-5 text-red-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {pdf.fileName || 'Document.pdf'}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {pdf.fileSize ? `${(pdf.fileSize / 1024 / 1024).toFixed(2)} MB` : 'PDF Document'}
+                                    </p>
+                                  </div>
+                                  <Download className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Message Reactions */}
                         {typeof announcement.id === 'number' && announcement.id > 0 && (
@@ -2237,6 +2268,37 @@ function CommunicationsContent() {
                                   }}
                                 />
                               </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* PDF Attachments */}
+                      {message.pdfUrls && message.pdfUrls.length > 0 && (
+                        <div className="mt-4">
+                          <div className="space-y-2">
+                            {message.pdfUrls.map((pdf: { url: string; fileName: string; fileSize: number }, index: number) => (
+                              <a
+                                key={index}
+                                href={pdf.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                                data-testid={`pdf-message-${message.id}-${index}`}
+                              >
+                                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                                  <FileText className="h-5 w-5 text-red-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {pdf.fileName || 'Document.pdf'}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {pdf.fileSize ? `${(pdf.fileSize / 1024 / 1024).toFixed(2)} MB` : 'PDF Document'}
+                                  </p>
+                                </div>
+                                <Download className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                              </a>
                             ))}
                           </div>
                         </div>
