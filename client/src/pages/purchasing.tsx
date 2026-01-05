@@ -2434,10 +2434,12 @@ function ReportsTab() {
 
     // Status filter
     // Check if this is a prepaid/credit card term (considered complete) OR manually marked as paid
+    // IMPORTANT: Scheduled payments should NOT be considered complete even if prepaid term
     const isPrepaid = prepaidTerms.some(t => payable.paymentTerms?.toLowerCase().includes(t.toLowerCase()));
     const isManuallyPaid = payable.paymentStatus === 'paid';
     const isScheduled = payable.paymentStatus === 'scheduled';
-    const isComplete = isPrepaid || isManuallyPaid;
+    // Only mark as complete if paid OR (prepaid term AND not scheduled for future payment)
+    const isComplete = isManuallyPaid || (isPrepaid && !isScheduled);
     
     let statusMatch = true;
     if (statusFilter === 'overdue') {
@@ -2786,7 +2788,8 @@ function ReportsTab() {
                       const isPrepaid = isPrepaidTerm(payable.paymentTerms);
                       const isManuallyPaid = payable.paymentStatus === 'paid';
                       const isScheduled = payable.paymentStatus === 'scheduled';
-                      const isComplete = isPrepaid || isManuallyPaid;
+                      // Only mark as complete if paid OR (prepaid term AND not scheduled)
+                      const isComplete = isManuallyPaid || (isPrepaid && !isScheduled);
                       
                       return (
                         <TableRow key={index} data-testid={`row-payable-${index}`}>
