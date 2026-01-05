@@ -201,12 +201,12 @@ const vendorFormSchema = z.object({
   creditCardLastFour: z.string().optional(),
   profileNotes: z.string().optional(),
 }).refine((data) => {
-  if (data.paymentTerms === 'Credit Card') {
+  if (data.paymentTerms === 'Credit Card' || data.paymentTerms === 'Bank of Lake-9187') {
     return data.creditCardLastFour && /^\d{4}$/.test(data.creditCardLastFour);
   }
   return true;
 }, {
-  message: 'Credit card last 4 digits are required when payment terms is Credit Card',
+  message: 'Last 4 digits are required for Credit Card and Bank of Lake-9187 payment terms',
   path: ['creditCardLastFour'],
 });
 
@@ -294,10 +294,10 @@ function VendorsTab() {
     },
   });
 
-  // Clear credit card last four when payment terms changes away from Credit Card
+  // Clear credit card last four when payment terms changes away from Credit Card or Bank of Lake-9187
   const paymentTerms = vendorForm.watch('paymentTerms');
   useEffect(() => {
-    if (paymentTerms !== 'Credit Card') {
+    if (paymentTerms !== 'Credit Card' && paymentTerms !== 'Bank of Lake-9187') {
       vendorForm.setValue('creditCardLastFour', '');
     }
   }, [paymentTerms, vendorForm]);
@@ -514,7 +514,7 @@ function VendorsTab() {
                       name="creditCardLastFour"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Card Last 4 Digits</FormLabel>
+                          <FormLabel>Account Last 4 Digits</FormLabel>
                           <FormControl>
                             <Input placeholder="1234" maxLength={4} {...field} data-testid="input-credit-card-last-four" />
                           </FormControl>
