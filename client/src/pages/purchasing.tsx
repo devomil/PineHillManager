@@ -222,6 +222,7 @@ const purchaseOrderFormSchema = z.object({
   poNumber: z.string().min(1, 'PO Number is required'),
   vendorId: z.string().min(1, 'Vendor is required'),
   paymentTerms: z.string().default('Net 30'),
+  expectedChargeDate: z.string().optional(),
   locationId: z.string().optional(),
   expenseAccountId: z.string().optional(),
   orderDate: z.string().optional(),
@@ -231,6 +232,15 @@ const purchaseOrderFormSchema = z.object({
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   lineItems: z.array(lineItemSchema).min(1, 'At least one line item is required'),
+}).refine((data) => {
+  // Require expected charge date for Credit Card and Bank of Lake-9187
+  if (data.paymentTerms === 'Credit Card' || data.paymentTerms === 'Bank of Lake-9187') {
+    return data.expectedChargeDate && data.expectedChargeDate.length > 0;
+  }
+  return true;
+}, {
+  message: 'Expected charge date is required for Credit Card and Bank of Lake-9187 payment terms',
+  path: ['expectedChargeDate'],
 });
 
 const poTrackingFormSchema = z.object({
@@ -491,13 +501,14 @@ function VendorsTab() {
                             <SelectItem value="Due on Receipt">Due on Receipt</SelectItem>
                             <SelectItem value="COD">COD</SelectItem>
                             <SelectItem value="Credit Card">Credit Card</SelectItem>
+                            <SelectItem value="Bank of Lake-9187">Bank of Lake-9187</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  {vendorForm.watch('paymentTerms') === 'Credit Card' && (
+                  {(vendorForm.watch('paymentTerms') === 'Credit Card' || vendorForm.watch('paymentTerms') === 'Bank of Lake-9187') && (
                     <FormField
                       control={vendorForm.control}
                       name="creditCardLastFour"
@@ -755,12 +766,21 @@ function PurchaseOrdersTab() {
     defaultValues: {
       poNumber: '',
       paymentTerms: 'Net 30',
+      expectedChargeDate: '',
       orderDate: '',
       shippingAmount: '',
       taxAmount: '',
       lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     },
   });
+  
+  // Clear expected charge date when payment terms changes to a non-charge term
+  const poPaymentTerms = poForm.watch('paymentTerms');
+  useEffect(() => {
+    if (poPaymentTerms !== 'Credit Card' && poPaymentTerms !== 'Bank of Lake-9187') {
+      poForm.setValue('expectedChargeDate', '');
+    }
+  }, [poPaymentTerms, poForm]);
 
   const trackingForm = useForm<z.infer<typeof poTrackingFormSchema>>({
     resolver: zodResolver(poTrackingFormSchema),
@@ -1082,11 +1102,11 @@ function PurchaseOrdersTab() {
                           <SelectContent>
                             <SelectItem value="COD">Cash on Delivery (COD)</SelectItem>
                             <SelectItem value="Net 15">Net 15</SelectItem>
-                            <SelectItem value="Net 16">Net 16</SelectItem>
                             <SelectItem value="Net 30">Net 30</SelectItem>
                             <SelectItem value="Net 60">Net 60</SelectItem>
                             <SelectItem value="Net 90">Net 90</SelectItem>
                             <SelectItem value="Credit Card">Credit Card</SelectItem>
+                            <SelectItem value="Bank of Lake-9187">Bank of Lake-9187</SelectItem>
                             <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
                             <SelectItem value="Check">Check</SelectItem>
                           </SelectContent>
@@ -1095,6 +1115,27 @@ function PurchaseOrdersTab() {
                       </FormItem>
                     )}
                   />
+                  
+                  {/* Expected Charge Date for Credit Card and Bank of Lake-9187 */}
+                  {(poForm.watch('paymentTerms') === 'Credit Card' || poForm.watch('paymentTerms') === 'Bank of Lake-9187') && (
+                    <FormField
+                      control={poForm.control}
+                      name="expectedChargeDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Expected Charge Date *</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="date" 
+                              {...field} 
+                              data-testid="input-expected-charge-date"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <FormField
                     control={poForm.control}
@@ -2173,6 +2214,7 @@ function InvoiceScannerDialog({
                     <SelectItem value="Net 45">Net 45</SelectItem>
                     <SelectItem value="Net 60">Net 60</SelectItem>
                     <SelectItem value="Credit Card">Credit Card</SelectItem>
+                    <SelectItem value="Bank of Lake-9187">Bank of Lake-9187</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -2007,6 +2007,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   paymentStatus: varchar("payment_status").default("unpaid"), // unpaid, scheduled, paid
   paymentDate: date("payment_date"),
   scheduledPaymentDate: date("scheduled_payment_date"),
+  expectedChargeDate: date("expected_charge_date"), // For Credit Card and Bank of Lake-9187 payment terms
   paymentMethod: varchar("payment_method"), // check, ach, wire, credit_card, cash
   paymentReference: varchar("payment_reference"), // check number, transaction ID, etc.
   quickbooksPaymentId: varchar("quickbooks_payment_id"), // for QB reconciliation
@@ -2745,6 +2746,7 @@ export const purchaseOrderPayloadSchema = z.object({
   createdById: z.string().optional().nullable(),
   status: z.string().default('draft'),
   paymentTerms: z.string().default('Net 30'),
+  expectedChargeDate: z.string().optional().nullable(), // For Credit Card and Bank of Lake-9187 payment terms
   locationId: z.number().optional().nullable(),
   expenseAccountId: z.number().optional().nullable(),
   orderDate: z.string().optional().nullable(),
