@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -630,6 +630,7 @@ function InventoryAutocomplete({
 }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const { data: searchResults = [], isLoading } = useQuery<InventoryItem[]>({
     queryKey: ['/api/inventory/search-text', searchQuery],
@@ -668,9 +669,6 @@ function InventoryAutocomplete({
                 setOpen(true);
               }
             }}
-            onBlur={() => {
-              setTimeout(() => setOpen(false), 200);
-            }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setOpen(false);
@@ -683,7 +681,19 @@ function InventoryAutocomplete({
           )}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent 
+        ref={popoverRef}
+        className="w-[400px] p-0" 
+        align="start" 
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          // Only close if clicking outside both the input and popover content
+          const target = e.target as HTMLElement;
+          if (target.closest('[data-testid^="input-line-item-description"]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <Command>
           <CommandList>
             {searchResults.length === 0 && searchQuery.length >= 2 && !isLoading && (
