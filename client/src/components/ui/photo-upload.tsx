@@ -454,9 +454,12 @@ export function PhotoUpload({
                   variant="outline"
                   size="sm"
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
                     handlePdfClick();
                   }}
+                  onMouseDown={(e) => e.stopPropagation()}
                   disabled={disabled || isUploading}
                   className="mt-2"
                   data-testid="button-upload-pdf"
