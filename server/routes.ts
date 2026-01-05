@@ -121,28 +121,39 @@ const parseMerchantId = (merchantId: string | undefined): number | undefined => 
   return parsed;
 };
 
-// Helper functions for imageUrls parsing (shared across endpoints)
-const parseImageUrls = (content: string): string[] => {
+// Helper functions for attachments parsing (shared across endpoints)
+const parseAttachmentsFromContent = (content: string): { images: string[], pdfs: any[] } => {
   const match = content.match(/<!--attachments:(.*?)-->/);
   if (match) {
     try {
       const attachments = JSON.parse(match[1]);
-      return attachments.images || [];
+      return { 
+        images: attachments.images || [], 
+        pdfs: attachments.pdfs || [] 
+      };
     } catch (e) {
-      return [];
+      return { images: [], pdfs: [] };
     }
   }
-  return [];
+  return { images: [], pdfs: [] };
+};
+
+// Legacy function for backwards compatibility
+const parseImageUrls = (content: string): string[] => {
+  return parseAttachmentsFromContent(content).images;
 };
 
 const addImageUrlsToItem = (item: any): any => {
   if (!item.content) return item;
   
-  const imageUrls = parseImageUrls(item.content);
+  const attachments = parseAttachmentsFromContent(item.content);
   
   // Debug logging
-  if (imageUrls.length > 0) {
-    console.log(`🖼️ Extracted ${imageUrls.length} imageUrls from message "${item.subject}":`, imageUrls);
+  if (attachments.images.length > 0) {
+    console.log(`🖼️ Extracted ${attachments.images.length} imageUrls from message "${item.subject}":`, attachments.images);
+  }
+  if (attachments.pdfs.length > 0) {
+    console.log(`📎 Extracted ${attachments.pdfs.length} pdfUrls from message "${item.subject}":`, attachments.pdfs);
   }
   
   // Remove sentinel from content for display
@@ -151,7 +162,8 @@ const addImageUrlsToItem = (item: any): any => {
   return {
     ...item,
     content: cleanContent,
-    imageUrls
+    imageUrls: attachments.images,
+    pdfUrls: attachments.pdfs
   };
 };
 
@@ -2540,7 +2552,8 @@ Output the script with section markers in brackets.`;
         expiresAt: req.body.expiresAt,
         action: req.body.action || 'publish',
         smsEnabled: req.body.smsEnabled || false,
-        imageUrls: req.body.imageUrls
+        imageUrls: req.body.imageUrls,
+        pdfUrls: req.body.pdfUrls
       };
       
       const {
@@ -2552,18 +2565,23 @@ Output the script with section markers in brackets.`;
         expiresAt,
         action,
         smsEnabled,
-        imageUrls
+        imageUrls,
+        pdfUrls
       } = validationResult;
       
-      // Helper function to embed imageUrls in content using sentinel pattern
-      const embedImageUrls = (content: string, imageUrls: string[]): string => {
-        if (!imageUrls || imageUrls.length === 0) return content;
+      // Helper function to embed attachments (images and PDFs) in content using sentinel pattern
+      const embedAttachments = (content: string, imageUrls: string[], pdfUrls: any[]): string => {
+        if ((!imageUrls || imageUrls.length === 0) && (!pdfUrls || pdfUrls.length === 0)) return content;
         
         // Remove existing sentinel if present
         const cleanContent = content.replace(/\n\n<!--attachments:.*?-->/g, '');
         
-        // Add new sentinel with image URLs
-        const sentinel = `\n\n<!--attachments:${JSON.stringify({ images: imageUrls })}-->`;
+        // Add new sentinel with both image and PDF URLs
+        const attachments: any = {};
+        if (imageUrls && imageUrls.length > 0) attachments.images = imageUrls;
+        if (pdfUrls && pdfUrls.length > 0) attachments.pdfs = pdfUrls;
+        
+        const sentinel = `\n\n<!--attachments:${JSON.stringify(attachments)}-->`;
         return cleanContent + sentinel;
       };
       
@@ -2582,8 +2600,8 @@ Output the script with section markers in brackets.`;
         reqBodyKeys: Object.keys(req.body)
       });
       
-      // Embed imageUrls in content if provided
-      const contentWithImages = embedImageUrls(content.trim(), imageUrls);
+      // Embed attachments (images and PDFs) in content if provided
+      const contentWithAttachments = embedAttachments(content.trim(), imageUrls, pdfUrls);
       
       // Validate required fields
       if (!title?.trim() || !content?.trim()) {
@@ -2614,7 +2632,7 @@ Output the script with section markers in brackets.`;
       // Create announcement in database
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
-        content: contentWithImages,
+        content: contentWithAttachments,
         authorId,
         priority,
         targetAudience: processedAudience,
@@ -2741,6 +2759,29 @@ Output the script with section markers in brackets.`;
         }
       } else {
         console.log('🚫 SMS notifications not sent - either not enabled or announcement not published');
+      }
+
+      // Persist PDF attachments to database if any
+      if (pdfUrls && Array.isArray(pdfUrls) && pdfUrls.length > 0) {
+        try {
+          console.log('📎 Saving PDF attachments for announcement:', announcement.id);
+          for (const pdf of pdfUrls) {
+            await storage.createCommunicationAttachment({
+              ownerType: 'announcement',
+              ownerId: announcement.id,
+              fileUrl: pdf.url,
+              fileType: 'pdf',
+              fileName: pdf.fileName || 'attachment.pdf',
+              fileSize: pdf.fileSize || null,
+              mimeType: 'application/pdf',
+              uploadedBy: authorId
+            });
+          }
+          console.log(`✅ Saved ${pdfUrls.length} PDF attachment(s) for announcement ${announcement.id}`);
+        } catch (attachmentError) {
+          console.error('❌ Error saving PDF attachments:', attachmentError);
+          // Don't fail the whole request if attachment persistence fails
+        }
       }
 
       res.status(201).json({ success: true, announcement });
@@ -22893,7 +22934,8 @@ Respond in JSON format:
         recipientMode = 'audience',
         targetAudience = 'all',
         recipients = [],
-        imageUrls = []
+        imageUrls = [],
+        pdfUrls = []
       } = req.body;
       
       const senderId = req.user!.id;
@@ -22904,34 +22946,38 @@ Respond in JSON format:
         return res.status(400).json({ error: 'Subject and content are required' });
       }
 
-      // Helper function to embed imageUrls in content using sentinel pattern
-      const embedImageUrls = (content: string, imageUrls: string[]): string => {
-        if (!imageUrls || imageUrls.length === 0) return content;
+      // Helper function to embed attachments (images and PDFs) in content using sentinel pattern
+      const embedAttachments = (content: string, imageUrls: string[], pdfUrls: any[]): string => {
+        if ((!imageUrls || imageUrls.length === 0) && (!pdfUrls || pdfUrls.length === 0)) return content;
         
         // Remove existing sentinel if present
         const cleanContent = content.replace(/\n\n<!--attachments:.*?-->/g, '');
         
-        // Add new sentinel with image URLs
-        const sentinel = `\n\n<!--attachments:${JSON.stringify({ images: imageUrls })}-->`;
+        // Add new sentinel with both image and PDF URLs
+        const attachments: any = {};
+        if (imageUrls && imageUrls.length > 0) attachments.images = imageUrls;
+        if (pdfUrls && pdfUrls.length > 0) attachments.pdfs = pdfUrls;
+        
+        const sentinel = `\n\n<!--attachments:${JSON.stringify(attachments)}-->`;
         return cleanContent + sentinel;
       };
 
-      // Helper function to parse imageUrls from content
-      const parseImageUrls = (content: string): string[] => {
+      // Helper function to parse attachments from content
+      const parseAttachments = (content: string): { images: string[], pdfs: any[] } => {
         const match = content.match(/<!--attachments:(.*?)-->/);
         if (match) {
           try {
             const attachments = JSON.parse(match[1]);
-            return attachments.images || [];
+            return { images: attachments.images || [], pdfs: attachments.pdfs || [] };
           } catch (e) {
-            return [];
+            return { images: [], pdfs: [] };
           }
         }
-        return [];
+        return { images: [], pdfs: [] };
       };
 
-      // Embed imageUrls in content if provided
-      const contentWithImages = embedImageUrls(content.trim(), imageUrls);
+      // Embed attachments in content if provided
+      const contentWithAttachments = embedAttachments(content.trim(), imageUrls, pdfUrls);
 
       // Role-based permission checks (relaxed to allow all employees broader access)
       const isAdminOrManager = senderUser.role === 'admin' || senderUser.role === 'manager';
@@ -22997,7 +23043,7 @@ Respond in JSON format:
           senderId,
           recipientId: targetUsers[0].id, // Set recipient for direct messages
           subject,
-          content: contentWithImages,
+          content: contentWithAttachments,
           priority,
           messageType,
           imageUrls: imageUrls || [],
@@ -23009,7 +23055,7 @@ Respond in JSON format:
         messageRecord = await storage.createMessage({
           senderId,
           subject,
-          content: contentWithImages,
+          content: contentWithAttachments,
           priority,
           messageType,
           imageUrls: imageUrls || [],
@@ -23059,12 +23105,39 @@ Respond in JSON format:
       );
       await Promise.all(readReceiptPromises);
 
+      // Persist PDF attachments to database if any
+      if (pdfUrls && Array.isArray(pdfUrls) && pdfUrls.length > 0) {
+        try {
+          console.log('📎 Saving PDF attachments for message:', messageRecord.id);
+          for (const pdf of pdfUrls) {
+            await storage.createCommunicationAttachment({
+              ownerType: 'message',
+              ownerId: messageRecord.id,
+              fileUrl: pdf.url,
+              fileType: 'pdf',
+              fileName: pdf.fileName || 'attachment.pdf',
+              fileSize: pdf.fileSize || null,
+              mimeType: 'application/pdf',
+              uploadedBy: senderId
+            });
+          }
+          console.log(`✅ Saved ${pdfUrls.length} PDF attachment(s) for message ${messageRecord.id}`);
+        } catch (attachmentError) {
+          console.error('❌ Error saving PDF attachments:', attachmentError);
+          // Don't fail the whole request if attachment persistence fails
+        }
+      }
+
+      // Parse both images and PDFs from the content
+      const parsedAttachments = parseAttachmentsFromContent(contentWithAttachments);
+      
       const response = {
         success: true,
         messageId: messageRecord.id,
         subject,
         content: content.trim(), // Clean content without sentinel
-        imageUrls: parseImageUrls(contentWithImages), // Parsed image URLs
+        imageUrls: parsedAttachments.images,
+        pdfUrls: parsedAttachments.pdfs,
         recipients: {
           total: targetUsers.length,
           appNotifications: notificationResult.appNotifications,

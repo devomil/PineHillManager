@@ -867,7 +867,8 @@ function CommunicationsContent() {
     targetEmployees: [] as string[],
     smsEnabled: true,
     scheduledFor: '',
-    imageUrls: [] as string[]
+    imageUrls: [] as string[],
+    pdfUrls: [] as { url: string; fileName: string; fileSize: number }[]
   });
   
   // Form state for direct messages (available to all employees)
@@ -877,7 +878,8 @@ function CommunicationsContent() {
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     targetEmployees: [] as string[],
     smsEnabled: true,
-    imageUrls: [] as string[]
+    imageUrls: [] as string[],
+    pdfUrls: [] as { url: string; fileName: string; fileSize: number }[]
   });
   
   // Dialog states
@@ -1018,6 +1020,7 @@ function CommunicationsContent() {
           targetEmployees: data.targetEmployees,
           smsEnabled: data.smsEnabled,
           imageUrls: data.imageUrls || [],
+          pdfUrls: data.pdfUrls || [],  // Include PDF attachments
           action: 'publish'  // Auto-publish announcements for SMS threading
         };
         return apiRequest('POST', '/api/announcements', announcementData);
@@ -1032,7 +1035,8 @@ function CommunicationsContent() {
           recipientMode: data.targetEmployees?.length > 0 ? 'individual' : 'audience',
           targetAudience: data.targetAudience,
           recipients: data.targetEmployees || [],  // Server expects 'recipients' not 'targetEmployees'
-          imageUrls: data.imageUrls || []
+          imageUrls: data.imageUrls || [],
+          pdfUrls: data.pdfUrls || []  // Include PDF attachments
         };
         return apiRequest('POST', '/api/communications/send', mappedData);
       }
@@ -1056,7 +1060,8 @@ function CommunicationsContent() {
         targetEmployees: [],
         smsEnabled: true,
         scheduledFor: '',
-        imageUrls: []
+        imageUrls: [],
+        pdfUrls: []
       });
     },
     onError: (error: any) => {
@@ -1079,7 +1084,8 @@ function CommunicationsContent() {
         smsEnabled: data.smsEnabled,
         recipientMode: 'individual',
         recipients: data.targetEmployees,
-        imageUrls: data.imageUrls || []
+        imageUrls: data.imageUrls || [],
+        pdfUrls: data.pdfUrls || []  // Include PDF attachments
       };
       return apiRequest('POST', '/api/communications/send', mappedData);
     },
@@ -1094,7 +1100,8 @@ function CommunicationsContent() {
         priority: 'normal',
         targetEmployees: [],
         smsEnabled: true,
-        imageUrls: []
+        imageUrls: [],
+        pdfUrls: []
       });
       setShowDirectMessageEmployeeSelector(false);
       setDirectMessageSearchQuery('');
@@ -1126,7 +1133,8 @@ function CommunicationsContent() {
         targetEmployees: [],
         smsEnabled: true,
         scheduledFor: '',
-        imageUrls: []
+        imageUrls: [],
+        pdfUrls: []
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduled-messages"] });
     },
@@ -1289,12 +1297,17 @@ function CommunicationsContent() {
                   />
                 </div>
 
-                {/* Photo Upload - Available to all users for messages */}
+                {/* Photo/PDF Upload - Available to all users for messages */}
                 <div>
-                  <Label>📷 Attach Photos</Label>
+                  <Label>📎 Attach Files</Label>
                   <PhotoUpload
                     onPhotosUploaded={(imageUrls) => setDirectMessageData(prev => ({ ...prev, imageUrls }))}
+                    onPdfsUploaded={(pdfs) => setDirectMessageData(prev => ({ 
+                      ...prev, 
+                      pdfUrls: pdfs.map(p => ({ url: p.url, fileName: p.fileName, fileSize: p.fileSize }))
+                    }))}
                     maxFiles={5}
+                    allowPdf={true}
                     placeholder="Add photos to your message (drag, paste, or click)"
                     className="mt-2"
                   />
@@ -1460,13 +1473,18 @@ function CommunicationsContent() {
                   />
                 </div>
 
-                {/* Photo Upload - Only for Admin/Manager users in announcements */}
+                {/* Photo/PDF Upload - Only for Admin/Manager users in announcements */}
                 {(user?.role === 'admin' || user?.role === 'manager') && (
                   <div>
-                    <Label>📷 Attach Photos</Label>
+                    <Label>📎 Attach Files</Label>
                     <PhotoUpload
                       onPhotosUploaded={(imageUrls) => setFormData(prev => ({ ...prev, imageUrls }))}
+                      onPdfsUploaded={(pdfs) => setFormData(prev => ({ 
+                        ...prev, 
+                        pdfUrls: pdfs.map(p => ({ url: p.url, fileName: p.fileName, fileSize: p.fileSize }))
+                      }))}
                       maxFiles={5}
+                      allowPdf={true}
                       placeholder="Add photos to your announcement (drag, paste, or click)"
                       className="mt-2"
                     />

@@ -3,16 +3,26 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, X, Image, Camera, Paperclip } from 'lucide-react';
+import { Upload, X, Image, Camera, Paperclip, FileText, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+interface UploadedPdf {
+  id: string;
+  url: string;
+  fileName: string;
+  fileSize: number;
+}
 
 interface PhotoUploadProps {
   onPhotosUploaded: (imageUrls: string[]) => void;
+  onPdfsUploaded?: (pdfs: UploadedPdf[]) => void;
   maxFiles?: number;
   maxSizeMB?: number;
+  maxPdfSizeMB?: number;
   disabled?: boolean;
   className?: string;
   placeholder?: string;
+  allowPdf?: boolean;
 }
 
 interface UploadedImage {
@@ -24,16 +34,21 @@ interface UploadedImage {
 
 export function PhotoUpload({
   onPhotosUploaded,
+  onPdfsUploaded,
   maxFiles = 5,
   maxSizeMB = 5,
+  maxPdfSizeMB = 10,
   disabled = false,
   className,
-  placeholder = "Drag photos here, paste from clipboard, or click to select"
+  placeholder = "Drag photos here, paste from clipboard, or click to select",
+  allowPdf = false
 }: PhotoUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [uploadedPdfs, setUploadedPdfs] = useState<UploadedPdf[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -162,6 +177,114 @@ export function PhotoUpload({
     });
   }, [onPhotosUploaded]);
 
+  // PDF upload handling
+  const processPdfFile = useCallback(async (file: File) => {
+    if (disabled || isUploading) return;
+
+    // Validate file type
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast({
+        title: "Invalid file type",
+        description: "Only PDF files are allowed",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file size
+    const maxSizeBytes = maxPdfSizeMB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      toast({
+        title: "File too large",
+        description: `PDF must be less than ${maxPdfSizeMB}MB`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Create FormData for PDF upload
+      const formData = new FormData();
+      formData.append('pdf', file);
+
+      const response = await fetch('/api/communications/upload-pdf', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        const newPdf: UploadedPdf = {
+          id: `pdf-${Date.now()}`,
+          url: result.fileUrl,
+          fileName: result.fileName,
+          fileSize: result.fileSize
+        };
+
+        const updatedPdfs = [...uploadedPdfs, newPdf];
+        setUploadedPdfs(updatedPdfs);
+        
+        // Notify parent component
+        if (onPdfsUploaded) {
+          onPdfsUploaded(updatedPdfs);
+        }
+
+        toast({
+          title: "PDF uploaded",
+          description: `${file.name} uploaded successfully`
+        });
+      } else {
+        throw new Error(result.error || 'PDF upload failed');
+      }
+    } catch (error) {
+      console.error('PDF upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : 'Failed to upload PDF',
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [disabled, isUploading, uploadedPdfs, maxPdfSizeMB, onPdfsUploaded, toast]);
+
+  const removePdf = useCallback((pdfId: string) => {
+    setUploadedPdfs(prev => {
+      const updated = prev.filter(pdf => pdf.id !== pdfId);
+      if (onPdfsUploaded) {
+        onPdfsUploaded(updated);
+      }
+      return updated;
+    });
+  }, [onPdfsUploaded]);
+
+  const handlePdfSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      processPdfFile(files[0]);
+    }
+    // Reset input so same file can be selected again
+    if (pdfInputRef.current) {
+      pdfInputRef.current.value = '';
+    }
+  }, [processPdfFile]);
+
+  const handlePdfClick = useCallback(() => {
+    if (!disabled && pdfInputRef.current) {
+      pdfInputRef.current.click();
+    }
+  }, [disabled]);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   // Drag and drop handlers
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -240,7 +363,7 @@ export function PhotoUpload({
             ? "border-primary bg-primary/5 scale-[1.02]" 
             : "border-muted-foreground/25 hover:border-primary/50",
           disabled && "opacity-50 cursor-not-allowed",
-          uploadedImages.length > 0 && "border-solid"
+          (uploadedImages.length > 0 || uploadedPdfs.length > 0) && "border-solid"
         )}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -265,12 +388,24 @@ export function PhotoUpload({
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled}
+            data-testid="input-image-upload"
           />
+          {allowPdf && (
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={handlePdfSelect}
+              className="hidden"
+              disabled={disabled}
+              data-testid="input-pdf-upload"
+            />
+          )}
           
           {isUploading ? (
             <div className="flex flex-col items-center space-y-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p className="text-sm text-muted-foreground">Uploading images...</p>
+              <p className="text-sm text-muted-foreground">Uploading...</p>
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-4">
@@ -280,7 +415,9 @@ export function PhotoUpload({
                 <Paperclip className="h-8 w-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
-                <p className="text-sm font-medium">{placeholder}</p>
+                <p className="text-sm font-medium">
+                  {allowPdf ? "Add photos to your message (drag, paste, or click)" : placeholder}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Supports JPG, PNG, GIF, WebP • Max {maxSizeMB}MB • Up to {maxFiles} images
                 </p>
@@ -290,16 +427,33 @@ export function PhotoUpload({
                   </p>
                 )}
               </div>
+              {allowPdf && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePdfClick();
+                  }}
+                  disabled={disabled || isUploading}
+                  className="mt-2"
+                  data-testid="button-upload-pdf"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Attach PDF (Max {maxPdfSizeMB}MB)
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Preview Grid */}
+      {/* Image Preview Grid */}
       {uploadedImages.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {uploadedImages.map((image) => (
-            <div key={image.id} className="relative group">
+            <div key={image.id} className="relative group" data-testid={`image-preview-${image.id}`}>
               <div className="aspect-square bg-muted rounded-lg overflow-hidden">
                 <img
                   src={image.preview}
@@ -316,6 +470,7 @@ export function PhotoUpload({
                   removeImage(image.id);
                 }}
                 disabled={disabled}
+                data-testid={`button-remove-image-${image.id}`}
               >
                 <X className="h-3 w-3" />
               </Button>
@@ -326,6 +481,55 @@ export function PhotoUpload({
           ))}
         </div>
       )}
+
+      {/* PDF Preview List */}
+      {uploadedPdfs.length > 0 && (
+        <div className="space-y-2">
+          {uploadedPdfs.map((pdf) => (
+            <div 
+              key={pdf.id} 
+              className="flex items-center justify-between p-3 bg-muted rounded-lg group"
+              data-testid={`pdf-preview-${pdf.id}`}
+            >
+              <div className="flex items-center space-x-3">
+                <FileText className="h-8 w-8 text-red-500" />
+                <div>
+                  <p className="text-sm font-medium truncate max-w-[200px]">{pdf.fileName}</p>
+                  <p className="text-xs text-muted-foreground">{formatFileSize(pdf.fileSize)}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <a
+                  href={pdf.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={`link-download-pdf-${pdf.id}`}
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removePdf(pdf.id);
+                  }}
+                  disabled={disabled}
+                  data-testid={`button-remove-pdf-${pdf.id}`}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
+// Export the UploadedPdf type for use in parent components
+export type { UploadedPdf };
