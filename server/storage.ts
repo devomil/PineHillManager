@@ -213,6 +213,7 @@ import {
   // Phase 3: Enhanced Messaging
   voiceMessages,
   messageTemplates,
+  communicationAttachments,
   type MessageReaction,
   type InsertMessageReaction,
   type AnnouncementReaction,
@@ -221,6 +222,8 @@ import {
   type InsertReadReceipt,
   type VoiceMessage,
   type InsertVoiceMessage,
+  type CommunicationAttachment,
+  type InsertCommunicationAttachment,
   type MessageTemplate,
   type InsertMessageTemplate,
   type SelectResponse,
@@ -10005,6 +10008,55 @@ export class DatabaseStorage implements IStorage {
       return voiceMessage;
     } catch (error) {
       console.error('Error fetching voice message:', error);
+      return undefined;
+    }
+  }
+
+  // Communication Attachments (PDFs and other files)
+  async createCommunicationAttachment(attachment: InsertCommunicationAttachment): Promise<CommunicationAttachment> {
+    try {
+      const [created] = await db.insert(communicationAttachments).values(attachment).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating communication attachment:', error);
+      throw error;
+    }
+  }
+
+  async getCommunicationAttachments(ownerType: string, ownerId: number): Promise<CommunicationAttachment[]> {
+    try {
+      return await db.select()
+        .from(communicationAttachments)
+        .where(
+          and(
+            eq(communicationAttachments.ownerType, ownerType),
+            eq(communicationAttachments.ownerId, ownerId)
+          )
+        )
+        .orderBy(asc(communicationAttachments.createdAt));
+    } catch (error) {
+      console.error('Error fetching communication attachments:', error);
+      return [];
+    }
+  }
+
+  async deleteCommunicationAttachment(id: number): Promise<void> {
+    try {
+      await db.delete(communicationAttachments).where(eq(communicationAttachments.id, id));
+    } catch (error) {
+      console.error('Error deleting communication attachment:', error);
+      throw error;
+    }
+  }
+
+  async getCommunicationAttachmentById(id: number): Promise<CommunicationAttachment | undefined> {
+    try {
+      const [attachment] = await db.select()
+        .from(communicationAttachments)
+        .where(eq(communicationAttachments.id, id));
+      return attachment;
+    } catch (error) {
+      console.error('Error fetching communication attachment:', error);
       return undefined;
     }
   }
