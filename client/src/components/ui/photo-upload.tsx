@@ -367,7 +367,12 @@ export function PhotoUpload({
     }
   }, [disabled, processFiles, allowPdf, processPdfFile]);
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    // Don't open image picker if the click originated from the PDF button or its children
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-testid="button-upload-pdf"]')) {
+      return;
+    }
     if (!disabled && fileInputRef.current) {
       fileInputRef.current.click();
     }
@@ -396,7 +401,10 @@ export function PhotoUpload({
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            handleClick();
+            // Directly trigger image file input for keyboard events on the card
+            if (!disabled && fileInputRef.current) {
+              fileInputRef.current.click();
+            }
           }
         }}
       >
