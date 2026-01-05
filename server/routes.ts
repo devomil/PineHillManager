@@ -24303,8 +24303,31 @@ Respond in JSON format:
         return res.status(404).json({ message: 'Purchase order not found' });
       }
 
+      // Determine payment status based on payment terms and expected charge date
+      let paymentStatus = 'unpaid';
+      let scheduledPaymentDate = null;
+      
+      // For Credit Card and Bank of Lake-9187 with future expectedChargeDate, set as scheduled
+      if ((existingPO.paymentTerms === 'Credit Card' || existingPO.paymentTerms === 'Bank of Lake-9187') && existingPO.expectedChargeDate) {
+        const chargeDate = new Date(existingPO.expectedChargeDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        chargeDate.setHours(0, 0, 0, 0);
+        
+        if (chargeDate > today) {
+          paymentStatus = 'scheduled';
+          scheduledPaymentDate = existingPO.expectedChargeDate;
+        } else if (chargeDate <= today) {
+          // If charge date is today or in the past, mark as paid
+          paymentStatus = 'paid';
+        }
+      }
+
       const purchaseOrder = await storage.updatePurchaseOrder(poId, {
         status: 'approved',
+        paymentStatus,
+        scheduledPaymentDate,
+        paymentDate: paymentStatus === 'paid' ? new Date().toISOString().split('T')[0] : null,
       });
 
       await storage.createPurchaseOrderApproval({
@@ -25138,6 +25161,71 @@ Important:
   // ================================
   const marketplaceRoutes = await import('./routes/marketplace-routes');
   app.use('/api/marketplace', marketplaceRoutes.default);
+
+  // ================================
+  // SCHEDULED PAYMENT PROCESSOR
+  // ================================
+  // Process scheduled payments that have reached their charge date
+  // Use a global flag to prevent duplicate schedulers on hot reload
+  if (!(global as any).scheduledPaymentProcessorStarted) {
+    (global as any).scheduledPaymentProcessorStarted = true;
+    
+    async function processScheduledPayments() {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        console.log(`💳 Processing scheduled payments for ${today}...`);
+        
+        // Find all POs with status 'scheduled' and expectedChargeDate/scheduledPaymentDate <= today
+        const scheduledPOs = await storage.getPurchaseOrders({
+          paymentStatus: 'scheduled',
+        });
+        
+        let processedCount = 0;
+        for (const po of scheduledPOs) {
+          const chargeDate = po.scheduledPaymentDate || po.expectedChargeDate;
+          if (chargeDate) {
+            const chargeDateObj = new Date(chargeDate);
+            const todayObj = new Date(today);
+            chargeDateObj.setHours(0, 0, 0, 0);
+            todayObj.setHours(0, 0, 0, 0);
+            
+            if (chargeDateObj <= todayObj) {
+              // Mark as paid
+              await storage.updatePurchaseOrder(po.id, {
+                paymentStatus: 'paid',
+                paymentDate: today,
+              });
+              
+              // Create audit event
+              await storage.createPurchaseOrderEvent({
+                purchaseOrderId: po.id,
+                eventType: 'payment_auto_processed',
+                userId: 'system',
+                description: `Scheduled payment automatically processed on ${today}`,
+              });
+              
+              processedCount++;
+              console.log(`  ✅ PO #${po.poNumber} marked as paid`);
+            }
+          }
+        }
+        
+        if (processedCount > 0) {
+          console.log(`💳 Processed ${processedCount} scheduled payment(s)`);
+        }
+      } catch (error) {
+        console.error('Error processing scheduled payments:', error);
+      }
+    }
+    
+    // Run scheduled payment processor every hour (checks if any scheduled payments are due)
+    setInterval(processScheduledPayments, 60 * 60 * 1000); // Every hour
+    
+    // Also run on startup after a short delay
+    setTimeout(processScheduledPayments, 10000);
+    
+    console.log('💳 Scheduled payment processor initialized');
+  }
 
   return httpServer;
 }

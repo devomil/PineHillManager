@@ -2578,12 +2578,33 @@ function ReportsTab() {
   const prepaidAmount = prepaidItems.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   
   // Calculate "Due Soon" amounts (within 7 days and within 14 days) - exclude prepaid terms
+  // Also include scheduled payments based on expectedChargeDate/scheduledPaymentDate
   const dueThisWeek = filteredPayables.filter(item => {
     const daysUntilDue = parseFloat(item.daysUntilDue);
+    // Check if this is a scheduled payment with a charge date this week
+    if (item.paymentStatus === 'scheduled') {
+      const chargeDate = item.scheduledPaymentDate || item.expectedChargeDate;
+      if (chargeDate) {
+        const today = new Date();
+        const chargeDateObj = new Date(chargeDate);
+        const daysUntilCharge = Math.ceil((chargeDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return daysUntilCharge >= 0 && daysUntilCharge <= 7;
+      }
+    }
     return !item.isOverdue && daysUntilDue >= 0 && daysUntilDue <= 7 && !isPrepaidTerm(item.paymentTerms);
   });
   const dueNextWeek = filteredPayables.filter(item => {
     const daysUntilDue = parseFloat(item.daysUntilDue);
+    // Check if this is a scheduled payment with a charge date next week
+    if (item.paymentStatus === 'scheduled') {
+      const chargeDate = item.scheduledPaymentDate || item.expectedChargeDate;
+      if (chargeDate) {
+        const today = new Date();
+        const chargeDateObj = new Date(chargeDate);
+        const daysUntilCharge = Math.ceil((chargeDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return daysUntilCharge > 7 && daysUntilCharge <= 14;
+      }
+    }
     return !item.isOverdue && daysUntilDue > 7 && daysUntilDue <= 14 && !isPrepaidTerm(item.paymentTerms);
   });
   const dueThisWeekAmount = dueThisWeek.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
