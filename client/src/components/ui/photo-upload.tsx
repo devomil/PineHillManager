@@ -37,7 +37,7 @@ export function PhotoUpload({
   onPdfsUploaded,
   maxFiles = 5,
   maxSizeMB = 5,
-  maxPdfSizeMB = 10,
+  maxPdfSizeMB = 30,
   disabled = false,
   className,
   placeholder = "Drag photos here, paste from clipboard, or click to select",
