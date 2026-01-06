@@ -219,25 +219,54 @@ export const ProviderSelector = memo(function ProviderSelector({
 export function getRecommendedProvider(
   type: 'image' | 'video', 
   sceneType?: string,
-  contentType?: string
+  visualDirection?: string
 ): string {
-  const content = `${sceneType || ''} ${contentType || ''}`.toLowerCase();
+  const content = `${sceneType || ''} ${visualDirection || ''}`.toLowerCase();
   
   if (type === 'video') {
-    if (content.includes('person') || content.includes('testimonial') || content.includes('lifestyle')) {
+    // Check for human faces, people, lifestyle content first - Kling 1.6 excels at these
+    const hasHumanContent = 
+      content.includes('person') || 
+      content.includes('woman') || 
+      content.includes('man ') ||
+      content.includes('human') ||
+      content.includes('face') ||
+      content.includes('people') ||
+      content.includes('testimonial') || 
+      content.includes('lifestyle') ||
+      content.includes('conversation') ||
+      content.includes('authentic') ||
+      content.includes('expression') ||
+      /\b(her|his|she|he)\b/.test(content);
+    
+    if (hasHumanContent) {
       return 'kling';
     }
     if (content.includes('product') || content.includes('reveal')) {
       return 'luma';
     }
-    if (content.includes('broll') || content.includes('nature')) {
+    if (content.includes('broll') || content.includes('nature') || content.includes('ambient')) {
       return 'hailuo';
     }
-    if (content.includes('cinematic') || content.includes('dramatic') || content.includes('hook')) {
+    if (content.includes('cinematic') || content.includes('dramatic')) {
       return 'runway';
     }
+    // Default to Kling for most scenes as it handles people well
     return 'kling';
   } else {
+    // For images with people, use fal.ai
+    const hasHumanContent = 
+      content.includes('person') || 
+      content.includes('woman') || 
+      content.includes('man ') ||
+      content.includes('human') ||
+      content.includes('face') ||
+      content.includes('people') ||
+      content.includes('lifestyle');
+    
+    if (hasHumanContent) {
+      return 'falai';
+    }
     if (content.includes('product') || content.includes('food') || content.includes('object')) {
       return 'flux';
     }

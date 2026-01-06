@@ -1489,7 +1489,8 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Scene Approved', description: 'Scene manually approved for final render.' });
-        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1517,7 +1518,8 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Scene Rejected', description: 'Scene marked for regeneration.' });
-        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1555,7 +1557,8 @@ function ScenePreview({
           title: 'Quality Analysis Complete', 
           description: `Scene ${sceneIndex + 1} scored ${score}/100` 
         });
-        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
         onSceneUpdate?.();
       } else {
         toast({ 
@@ -2478,7 +2481,7 @@ function ScenePreview({
                       {/* Image Providers */}
                       <ProviderSelector
                         type="image"
-                        selectedProvider={sceneMediaType[scene.id] === 'image' ? (selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type)) : undefined}
+                        selectedProvider={sceneMediaType[scene.id] === 'image' ? (selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type, scene.visualDirection)) : undefined}
                         onSelectProvider={(provider) => {
                           const newProviders = { ...selectedProviders };
                           newProviders[`image-${scene.id}`] = provider;
@@ -2491,15 +2494,15 @@ function ScenePreview({
                             openMediaPicker(scene.id, 'image', 'library');
                           }
                         }}
-                        recommendedProvider={getRecommendedProvider('image', scene.type)}
-                        sceneContentType={scene.type}
+                        recommendedProvider={getRecommendedProvider('image', scene.type, scene.visualDirection)}
+                        sceneContentType={scene.visualDirection || scene.type}
                         disabled={!!regenerating || !!applyingMedia}
                       />
                       
                       {/* Video Providers */}
                       <ProviderSelector
                         type="video"
-                        selectedProvider={sceneMediaType[scene.id] === 'video' ? (selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type)) : undefined}
+                        selectedProvider={sceneMediaType[scene.id] === 'video' ? (selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type, scene.visualDirection)) : undefined}
                         onSelectProvider={(provider) => {
                           const newProviders = { ...selectedProviders };
                           newProviders[`video-${scene.id}`] = provider;
@@ -2512,8 +2515,8 @@ function ScenePreview({
                             openMediaPicker(scene.id, 'video', 'library');
                           }
                         }}
-                        recommendedProvider={getRecommendedProvider('video', scene.type)}
-                        sceneContentType={scene.type}
+                        recommendedProvider={getRecommendedProvider('video', scene.type, scene.visualDirection)}
+                        sceneContentType={scene.visualDirection || scene.type}
                         disabled={!!regenerating || !!applyingMedia}
                       />
                     </div>
@@ -2523,7 +2526,7 @@ function ScenePreview({
                       <Button
                         onClick={() => {
                           const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type);
+                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
                           console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'projectId:', projectId, 'sceneMediaType:', sceneMediaType, 'selectedProviders:', selectedProviders);
                           if (mediaType === 'video') {
                             regenerateVideo(scene.id, provider);
@@ -2540,7 +2543,7 @@ function ScenePreview({
                         ) : (
                           <><Sparkles className="w-4 h-4 mr-2" /> Generate with {getProviderName(
                             selectedProviders[`${sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}-${scene.id}`] || 
-                            getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type)
+                            getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type, scene.visualDirection)
                           )}</>
                         )}
                       </Button>
@@ -2551,14 +2554,14 @@ function ScenePreview({
                       <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
                         Selected: {getProviderName(
                           selectedProviders[`${sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}-${scene.id}`] || 
-                          getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type)
+                          getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type, scene.visualDirection)
                         )}
                       </div>
                       <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
                         {(() => {
                           const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type);
-                          const recommended = getRecommendedProvider(mediaType, scene.type);
+                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
+                          const recommended = getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
                           return provider === recommended 
                             ? "This is the recommended provider for this scene type"
                             : "You can override the recommended provider if needed";
