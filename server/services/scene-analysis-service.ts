@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { brandContextService } from './brand-context-service';
 import { projectInstructionsService } from './project-instructions-service';
 import type { Phase8AnalysisResult, Phase8AnalysisIssue } from '../../shared/video-types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('SceneAnalysis');
 
 // Re-export the shared type for backwards compatibility
 export type { Phase8AnalysisResult, Phase8AnalysisIssue };
@@ -120,10 +123,10 @@ class SceneAnalysisService {
       const keyPrefix = apiKey.substring(0, 15);
       const keyLength = apiKey.length;
       const hasWhitespace = /\s/.test(apiKey);
-      console.log(`[SceneAnalysis] Initializing Anthropic client`);
-      console.log(`[SceneAnalysis] API Key prefix: ${keyPrefix}...`);
-      console.log(`[SceneAnalysis] API Key length: ${keyLength} chars`);
-      console.log(`[SceneAnalysis] API Key has whitespace: ${hasWhitespace}`);
+      log.debug(` Initializing Anthropic client`);
+      log.debug(` API Key prefix: ${keyPrefix}...`);
+      log.debug(` API Key length: ${keyLength} chars`);
+      log.debug(` API Key has whitespace: ${hasWhitespace}`);
       
       const cleanedKey = apiKey.trim();
       this.anthropic = new Anthropic({
@@ -138,7 +141,7 @@ class SceneAnalysisService {
       this.initializeClient();
     }
     const available = !!this.anthropic;
-    console.log(`[SceneAnalysis] isAvailable() = ${available}, ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
+    log.debug(` isAvailable() = ${available}, ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
     return available;
   }
 
@@ -151,10 +154,10 @@ class SceneAnalysisService {
       hasProductOverlay: boolean;
     }
   ): Promise<SceneAnalysis> {
-    console.log(`[SceneAnalysis] Analyzing scene: ${context.sceneType}`);
+    log.debug(` Analyzing scene: ${context.sceneType}`);
     
     if (!this.anthropic) {
-      console.warn(`[SceneAnalysis] Anthropic not configured, using defaults`);
+      log.warn(` Anthropic not configured, using defaults`);
       return this.getDefaultAnalysis();
     }
 
@@ -162,7 +165,7 @@ class SceneAnalysisService {
       const imageData = await this.fetchAndEncodeImage(imageUrl);
       
       if (!imageData) {
-        console.warn(`[SceneAnalysis] Could not fetch image, using defaults`);
+        log.warn(` Could not fetch image, using defaults`);
         return this.getDefaultAnalysis();
       }
 
@@ -197,7 +200,7 @@ class SceneAnalysisService {
 
       const analysis = this.parseAnalysisResponse(content.text);
       
-      console.log(`[SceneAnalysis] Complete:`, {
+      log.debug(` Complete:`, {
         faces: analysis.faces.count,
         focalPoint: analysis.composition.focalPoint,
         recommendedTextPos: analysis.recommendations.textPosition,
@@ -207,7 +210,7 @@ class SceneAnalysisService {
       return analysis;
 
     } catch (error: any) {
-      console.error(`[SceneAnalysis] Failed:`, error.message);
+      log.error(` Failed:`, error.message);
       return this.getDefaultAnalysis();
     }
   }
@@ -224,7 +227,7 @@ class SceneAnalysisService {
   ): Promise<Map<string, SceneAnalysis>> {
     const results = new Map<string, SceneAnalysis>();
     
-    console.log(`[SceneAnalysis] Analyzing ${scenes.length} scenes...`);
+    log.debug(` Analyzing ${scenes.length} scenes...`);
     
     for (const scene of scenes) {
       const analysis = await this.analyzeScene(scene.imageUrl, {
@@ -254,10 +257,10 @@ class SceneAnalysisService {
       expectedContentType: string;
     }
   ): Promise<BrandAwareSceneAnalysis> {
-    console.log(`[SceneAnalysis] Analyzing scene ${context.sceneIndex + 1} with brand context...`);
+    log.debug(` Analyzing scene ${context.sceneIndex + 1} with brand context...`);
     
     if (!this.anthropic) {
-      console.warn(`[SceneAnalysis] Anthropic not configured, using defaults`);
+      log.warn(` Anthropic not configured, using defaults`);
       return this.getDefaultBrandAwareAnalysis();
     }
 
@@ -265,7 +268,7 @@ class SceneAnalysisService {
       const imageData = await this.fetchAndEncodeImage(imageUrl);
       
       if (!imageData) {
-        console.warn(`[SceneAnalysis] Could not fetch image, using defaults`);
+        log.warn(` Could not fetch image, using defaults`);
         return this.getDefaultBrandAwareAnalysis();
       }
 
@@ -303,28 +306,28 @@ class SceneAnalysisService {
 
       const analysis = this.parseBrandAwareAnalysisResponse(content.text);
       
-      console.log(`[SceneAnalysis] Brand alignment: ${analysis.brandAlignment.totalScore}/100 - ${analysis.brandAlignment.overallAssessment}`);
+      log.debug(` Brand alignment: ${analysis.brandAlignment.totalScore}/100 - ${analysis.brandAlignment.overallAssessment}`);
       
       if (analysis.brandAlignment.totalScore < 70) {
-        console.log(`[SceneAnalysis] Brand issues:`);
+        log.debug(` Brand issues:`);
         if (analysis.brandAlignment.lighting.score < 20) {
-          console.log(`  - Lighting: ${analysis.brandAlignment.lighting.issue}`);
+          log.debug(`  - Lighting: ${analysis.brandAlignment.lighting.issue}`);
         }
         if (analysis.brandAlignment.colorPalette.score < 20) {
-          console.log(`  - Colors: ${analysis.brandAlignment.colorPalette.issue}`);
+          log.debug(`  - Colors: ${analysis.brandAlignment.colorPalette.issue}`);
         }
         if (analysis.brandAlignment.setting.score < 20) {
-          console.log(`  - Setting: ${analysis.brandAlignment.setting.issue}`);
+          log.debug(`  - Setting: ${analysis.brandAlignment.setting.issue}`);
         }
         if (analysis.brandAlignment.authenticity.score < 20) {
-          console.log(`  - Feel: ${analysis.brandAlignment.authenticity.issue}`);
+          log.debug(`  - Feel: ${analysis.brandAlignment.authenticity.issue}`);
         }
       }
 
       return analysis;
 
     } catch (error: any) {
-      console.error(`[SceneAnalysis] Brand-aware analysis failed:`, error.message);
+      log.error(` Brand-aware analysis failed:`, error.message);
       return this.getDefaultBrandAwareAnalysis();
     }
   }
@@ -510,7 +513,7 @@ IMPORTANT RULES:
       const modelRecommendation = parsed.recommendation;
       
       if (modelRecommendation && modelRecommendation !== computedRecommendation) {
-        console.log(`[SceneAnalysis] Overriding model recommendation "${modelRecommendation}" with computed "${computedRecommendation}" based on brand score ${brandAlignment.totalScore}`);
+        log.debug(` Overriding model recommendation "${modelRecommendation}" with computed "${computedRecommendation}" based on brand score ${brandAlignment.totalScore}`);
       }
 
       return {
@@ -562,7 +565,7 @@ IMPORTANT RULES:
       };
 
     } catch (error: any) {
-      console.error(`[SceneAnalysis] Parse error:`, error.message);
+      log.error(` Parse error:`, error.message);
       return this.getDefaultBrandAwareAnalysis();
     }
   }
@@ -620,7 +623,7 @@ IMPORTANT RULES:
   ): Promise<{ base64: string; mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' } | null> {
     try {
       if (imageUrl.includes('.mp4') || imageUrl.includes('.webm') || imageUrl.includes('video')) {
-        console.log(`[SceneAnalysis] Video URL detected, attempting frame extraction...`);
+        log.debug(` Video URL detected, attempting frame extraction...`);
         
         const { videoFrameExtractor } = await import('./video-frame-extractor');
         const frameData = await videoFrameExtractor.extractFrameAsBase64(imageUrl, 2);
@@ -629,7 +632,7 @@ IMPORTANT RULES:
           return frameData;
         }
         
-        console.warn(`[SceneAnalysis] Frame extraction failed, skipping analysis`);
+        log.warn(` Frame extraction failed, skipping analysis`);
         return null;
       }
 
@@ -652,7 +655,7 @@ IMPORTANT RULES:
       return { base64, mediaType };
 
     } catch (error: any) {
-      console.error(`[SceneAnalysis] Image fetch failed:`, error.message);
+      log.error(` Image fetch failed:`, error.message);
       return null;
     }
   }
@@ -776,7 +779,7 @@ Return ONLY the JSON object.`;
       };
 
     } catch (error: any) {
-      console.error(`[SceneAnalysis] Parse error:`, error.message);
+      log.error(` Parse error:`, error.message);
       return this.getDefaultAnalysis();
     }
   }
@@ -842,29 +845,29 @@ Return ONLY the JSON object.`;
     if (dataUriMatch) {
       declaredType = dataUriMatch[1].toLowerCase();
       rawBase64 = dataUriMatch[2];
-      console.log(`[SceneAnalysis] Data URI detected, declared type: ${declaredType}`);
+      log.debug(` Data URI detected, declared type: ${declaredType}`);
     }
     
     // Check the first few characters of base64 which represent the magic bytes
     // Base64 encoding is case-sensitive, so these magic bytes are always the same
     // PNG starts with iVBORw0KGgo (base64 of 89 50 4E 47 0D 0A 1A 0A)
     if (rawBase64.startsWith('iVBORw0KGgo') || rawBase64.startsWith('iVBORw0K')) {
-      console.log('[SceneAnalysis] Detected PNG from magic bytes');
+      log.debug('[SceneAnalysis] Detected PNG from magic bytes');
       return 'image/png';
     }
     // JPEG starts with /9j/ (base64 of FF D8 FF)
     if (rawBase64.startsWith('/9j/')) {
-      console.log('[SceneAnalysis] Detected JPEG from magic bytes');
+      log.debug('[SceneAnalysis] Detected JPEG from magic bytes');
       return 'image/jpeg';
     }
     // WebP starts with UklGR (base64 of RIFF header)
     if (rawBase64.startsWith('UklGR')) {
-      console.log('[SceneAnalysis] Detected WebP from magic bytes');
+      log.debug('[SceneAnalysis] Detected WebP from magic bytes');
       return 'image/webp';
     }
     // GIF starts with R0lGOD (base64 of GIF89a or GIF87a)
     if (rawBase64.startsWith('R0lGOD')) {
-      console.log('[SceneAnalysis] Detected GIF from magic bytes');
+      log.debug('[SceneAnalysis] Detected GIF from magic bytes');
       return 'image/gif';
     }
     
@@ -873,13 +876,13 @@ Return ONLY the JSON object.`;
     if (declaredType) {
       const normalizedType = declaredType === 'image/jpg' ? 'image/jpeg' : declaredType;
       if (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(normalizedType)) {
-        console.log(`[SceneAnalysis] Using declared type from data URI: ${normalizedType}`);
+        log.debug(` Using declared type from data URI: ${normalizedType}`);
         return normalizedType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
       }
     }
     
     // Default to JPEG if unknown
-    console.warn('[SceneAnalysis] Could not detect media type from base64, defaulting to image/jpeg');
+    log.warn('Could not detect media type from base64, defaulting to image/jpeg');
     return 'image/jpeg';
   }
 
@@ -891,29 +894,29 @@ Return ONLY the JSON object.`;
     imageBase64: string,
     context: SceneContext
   ): Promise<Phase8AnalysisResult> {
-    console.log('═══════════════════════════════════════════════════════════════════════════════');
-    console.log('[Phase10A] SCENE ANALYSIS STARTED');
-    console.log('═══════════════════════════════════════════════════════════════════════════════');
-    console.log(`[Phase10A] Scene: ${context.sceneIndex + 1}/${context.totalScenes}`);
-    console.log(`[Phase10A] Scene Type: ${context.sceneType}`);
-    console.log(`[Phase10A] Visual Direction: "${context.visualDirection?.substring(0, 120)}..."`);
-    console.log(`[Phase10A] Narration: "${context.narration?.substring(0, 100)}..."`);
-    console.log(`[Phase10A] Image data size: ${imageBase64.length} chars`);
-    console.log(`[Phase10A] Anthropic client available: ${!!this.anthropic}`);
-    console.log(`[Phase10A] ANTHROPIC_API_KEY env: ${!!process.env.ANTHROPIC_API_KEY}`);
+    log.debug('═══════════════════════════════════════════════════════════════════════════════');
+    log.debug('[Phase10A] SCENE ANALYSIS STARTED');
+    log.debug('═══════════════════════════════════════════════════════════════════════════════');
+    log.debug(`[Phase10A] Scene: ${context.sceneIndex + 1}/${context.totalScenes}`);
+    log.debug(`[Phase10A] Scene Type: ${context.sceneType}`);
+    log.debug(`[Phase10A] Visual Direction: "${context.visualDirection?.substring(0, 120)}..."`);
+    log.debug(`[Phase10A] Narration: "${context.narration?.substring(0, 100)}..."`);
+    log.debug(`[Phase10A] Image data size: ${imageBase64.length} chars`);
+    log.debug(`[Phase10A] Anthropic client available: ${!!this.anthropic}`);
+    log.debug(`[Phase10A] ANTHROPIC_API_KEY env: ${!!process.env.ANTHROPIC_API_KEY}`);
     
     // Re-check in case the key was loaded after construction
     if (!this.anthropic && process.env.ANTHROPIC_API_KEY) {
-      console.log('[Phase10A] Re-initializing Anthropic client...');
+      log.debug('[Phase10A] Re-initializing Anthropic client...');
       this.initializeClient();
     }
     
     if (!this.anthropic) {
-      console.warn('═══════════════════════════════════════════════════════════════════════════════');
-      console.warn('[Phase10A] WARNING: ANTHROPIC NOT CONFIGURED');
-      console.warn('[Phase10A] Returning SIMULATED result with FAKE scores (75-90 range)');
-      console.warn('[Phase10A] This is why quality scores appear incorrect!');
-      console.warn('═══════════════════════════════════════════════════════════════════════════════');
+      log.warn('═══════════════════════════════════════════════════════════════════════════════');
+      log.warn('[Phase10A] WARNING: ANTHROPIC NOT CONFIGURED');
+      log.warn('[Phase10A] Returning SIMULATED result with FAKE scores (75-90 range)');
+      log.warn('[Phase10A] This is why quality scores appear incorrect!');
+      log.warn('═══════════════════════════════════════════════════════════════════════════════');
       return this.createSimulatedPhase8Result(context);
     }
     
@@ -922,7 +925,7 @@ Return ONLY the JSON object.`;
     
     // Detect the actual media type from the base64 data
     const detectedMediaType = this.detectMediaTypeFromBase64(imageBase64);
-    console.log(`[Phase10A] Detected media type: ${detectedMediaType}`);
+    log.debug(`[Phase10A] Detected media type: ${detectedMediaType}`);
     
     try {
       const response = await this.anthropic.messages.create({
@@ -953,34 +956,34 @@ Return ONLY the JSON object.`;
         ? response.content[0].text 
         : '';
       
-      console.log('[Phase10A] Claude Vision API call SUCCESSFUL');
-      console.log('[Phase10A] Raw response length:', analysisText.length, 'chars');
+      log.debug('[Phase10A] Claude Vision API call SUCCESSFUL');
+      log.debug('[Phase10A] Raw response length:', analysisText.length, 'chars');
       
       const result = this.parsePhase8AnalysisResponse(analysisText, context);
       
-      console.log('═══════════════════════════════════════════════════════════════════════════════');
-      console.log('[Phase10A] REAL ANALYSIS RESULT (from Claude Vision)');
-      console.log('═══════════════════════════════════════════════════════════════════════════════');
-      console.log(`[Phase10A] Scene ${context.sceneIndex + 1} Overall Score: ${result.overallScore}/100`);
-      console.log(`[Phase10A] Technical: ${result.technicalScore}, Content Match: ${result.contentMatchScore}`);
-      console.log(`[Phase10A] Brand: ${result.brandComplianceScore}, Composition: ${result.compositionScore}`);
-      console.log(`[Phase10A] Recommendation: ${result.recommendation}`);
-      console.log(`[Phase10A] Content Match Details: ${result.contentMatchDetails}`);
-      console.log(`[Phase10A] Issues: ${result.issues.length > 0 ? result.issues.map(i => i.description).join('; ') : 'None'}`);
+      log.debug('═══════════════════════════════════════════════════════════════════════════════');
+      log.debug('[Phase10A] REAL ANALYSIS RESULT (from Claude Vision)');
+      log.debug('═══════════════════════════════════════════════════════════════════════════════');
+      log.debug(`[Phase10A] Scene ${context.sceneIndex + 1} Overall Score: ${result.overallScore}/100`);
+      log.debug(`[Phase10A] Technical: ${result.technicalScore}, Content Match: ${result.contentMatchScore}`);
+      log.debug(`[Phase10A] Brand: ${result.brandComplianceScore}, Composition: ${result.compositionScore}`);
+      log.debug(`[Phase10A] Recommendation: ${result.recommendation}`);
+      log.debug(`[Phase10A] Content Match Details: ${result.contentMatchDetails}`);
+      log.debug(`[Phase10A] Issues: ${result.issues.length > 0 ? result.issues.map(i => i.description).join('; ') : 'None'}`);
       if (result.aiArtifactsDetected) {
-        console.log(`[Phase10A] AI Artifacts: ${result.aiArtifactDetails.join(', ')}`);
+        log.debug(`[Phase10A] AI Artifacts: ${result.aiArtifactDetails.join(', ')}`);
       }
-      console.log(`[Phase10A] Analysis Model: ${result.analysisModel}`);
-      console.log('═══════════════════════════════════════════════════════════════════════════════');
+      log.debug(`[Phase10A] Analysis Model: ${result.analysisModel}`);
+      log.debug('═══════════════════════════════════════════════════════════════════════════════');
       
       return result;
       
     } catch (error: any) {
-      console.error('═══════════════════════════════════════════════════════════════════════════════');
-      console.error('[Phase10A] CLAUDE VISION API CALL FAILED');
-      console.error('[Phase10A] Error:', error.message);
-      console.error('[Phase10A] Returning FAILED result with score 0');
-      console.error('═══════════════════════════════════════════════════════════════════════════════');
+      log.error('═══════════════════════════════════════════════════════════════════════════════');
+      log.error('[Phase10A] CLAUDE VISION API CALL FAILED');
+      log.error('[Phase10A] Error:', error.message);
+      log.error('[Phase10A] Returning FAILED result with score 0');
+      log.error('═══════════════════════════════════════════════════════════════════════════════');
       return this.createFailedPhase8Result(context, error.message);
     }
   }
@@ -1351,7 +1354,7 @@ Respond ONLY with the JSON, no other text.`;
       const textOverlayPresent = analysis.contentMatch?.textOverlayPresent ?? false;
       
       if (requiresText && !textOverlayPresent) {
-        console.log('[Phase10B] FORCING LOW SCORE: Text overlay required but not detected');
+        log.debug('[Phase10B] FORCING LOW SCORE: Text overlay required but not detected');
         overallScore = Math.min(overallScore, 40);
       }
       
@@ -1361,7 +1364,7 @@ Respond ONLY with the JSON, no other text.`;
       const detectedFraming = analysis.contentMatch?.detectedFraming || '';
       
       if (requiresEnvironment && (detectedFraming === 'extreme-close-up' || !environmentVisible)) {
-        console.log('[Phase10B] FORCING LOW SCORE: Environment required but not visible (framing: ' + detectedFraming + ')');
+        log.debug('[Phase10B] FORCING LOW SCORE: Environment required but not visible (framing: ' + detectedFraming + ')');
         overallScore = Math.min(overallScore, 45);
       }
       
@@ -1476,7 +1479,7 @@ Respond ONLY with the JSON, no other text.`;
       };
       
     } catch (error: any) {
-      console.error('[SceneAnalysis Phase8] Parse error:', error.message);
+      log.error('[Phase8] Parse error:', error.message);
       return this.createFailedPhase8Result(context, `Parse error: ${error.message}`);
     }
   }
@@ -1518,7 +1521,7 @@ Respond ONLY with the JSON, no other text.`;
    * NO FAKE SCORES - UI should show "Analysis Pending" state.
    */
   private createSimulatedPhase8Result(context: SceneContext): Phase8AnalysisResult {
-    console.warn(`[Phase10C] Scene ${context.sceneIndex + 1} requires Claude Vision analysis - returning pending status`);
+    log.warn(`Scene ${context.sceneIndex + 1} requires Claude Vision analysis - returning pending status`);
     
     // Phase 10C: Return null/0 scores to indicate no real analysis performed
     return {
