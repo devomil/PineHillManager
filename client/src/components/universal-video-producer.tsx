@@ -4502,14 +4502,29 @@ export default function UniversalVideoProducer() {
             onRegenerateScene={async (sceneIndex) => {
               if (!project) return;
               try {
-                const res = await fetch(`/api/universal-video/${project.id}/regenerate-scene/${sceneIndex}`, {
+                toast({ title: "Starting Regeneration", description: `Scene ${sceneIndex + 1} is being regenerated...` });
+                const res = await fetch(`/api/universal-video/projects/${project.id}/scenes/${sceneIndex}/auto-regenerate`, {
                   method: 'POST',
                   credentials: 'include'
                 });
                 const data = await res.json();
                 if (data.success) {
                   if (data.project) setProject(data.project);
-                  toast({ title: "Scene Regenerating" });
+                  if (data.isVideoRegeneration) {
+                    toast({ title: "Video Regenerating", description: `Job started: ${data.jobId}` });
+                  } else {
+                    toast({ title: "Scene Regenerated", description: "Image has been regenerated" });
+                  }
+                  queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] });
+                  setTimeout(async () => {
+                    try {
+                      const refreshRes = await fetch(`/api/universal-video/projects/${project.id}`, { credentials: 'include' });
+                      const refreshData = await refreshRes.json();
+                      if (refreshData.project) setProject(refreshData.project);
+                    } catch {}
+                  }, 2000);
+                } else {
+                  toast({ title: "Regeneration Failed", description: data.error || "Unknown error", variant: "destructive" });
                 }
               } catch (err) {
                 toast({
@@ -4540,6 +4555,37 @@ export default function UniversalVideoProducer() {
             onProceedToRender={() => {
               setShowQADashboard(false);
               renderMutation.mutate();
+            }}
+            onFixAllIssues={async () => {
+              if (!project || !qaReport) return;
+              const rejectedScenes = qaReport.sceneStatuses.filter(
+                s => s.status === 'rejected' || (s.score < 50 && !s.userApproved)
+              );
+              if (rejectedScenes.length === 0) {
+                toast({ title: "No Issues to Fix", description: "All scenes are approved" });
+                return;
+              }
+              toast({ 
+                title: "Fixing All Issues", 
+                description: `Regenerating ${rejectedScenes.length} scene(s)...` 
+              });
+              for (const scene of rejectedScenes) {
+                try {
+                  await fetch(`/api/universal-video/projects/${project.id}/scenes/${scene.sceneIndex}/auto-regenerate`, {
+                    method: 'POST',
+                    credentials: 'include'
+                  });
+                } catch {}
+              }
+              toast({ title: "Regeneration Started", description: `${rejectedScenes.length} scenes queued for regeneration` });
+              queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] });
+              setTimeout(async () => {
+                try {
+                  const refreshRes = await fetch(`/api/universal-video/projects/${project.id}`, { credentials: 'include' });
+                  const refreshData = await refreshRes.json();
+                  if (refreshData.project) setProject(refreshData.project);
+                } catch {}
+              }, 3000);
             }}
           />
           </div>

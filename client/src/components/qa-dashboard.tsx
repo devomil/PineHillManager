@@ -56,6 +56,7 @@ interface QADashboardProps {
   onRegenerateScene: (sceneIndex: number) => void;
   onApproveAll: () => void;
   onProceedToRender: () => void;
+  onFixAllIssues?: () => void;
 }
 
 export function QADashboard({
@@ -67,6 +68,7 @@ export function QADashboard({
   onRegenerateScene,
   onApproveAll,
   onProceedToRender,
+  onFixAllIssues,
 }: QADashboardProps) {
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set());
   const [filter, setFilter] = useState<'all' | 'needs_review' | 'rejected' | 'approved'>('all');
@@ -195,6 +197,16 @@ export function QADashboard({
                 Approve All ({report.needsReviewCount})
               </Button>
             )}
+            {report.rejectedCount > 0 && onFixAllIssues && (
+              <Button 
+                variant="destructive"
+                onClick={onFixAllIssues}
+                data-testid="btn-fix-issues"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Fix Issues First
+              </Button>
+            )}
             <Button 
               onClick={onProceedToRender}
               disabled={!report.canRender || report.blockingReasons.length > 0}
@@ -202,7 +214,7 @@ export function QADashboard({
               data-testid="btn-proceed-render"
             >
               <Play className="h-4 w-4 mr-2" />
-              {report.canRender && report.blockingReasons.length === 0 ? 'Proceed to Render' : 'Fix Issues First'}
+              Proceed to Render
             </Button>
           </div>
         </CardContent>
