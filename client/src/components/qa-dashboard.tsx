@@ -50,6 +50,8 @@ interface ProjectQualityReport {
 interface QADashboardProps {
   report: ProjectQualityReport | null;
   isLoading: boolean;
+  isFixingIssues?: boolean;
+  fixingProgress?: { current: number; total: number };
   onRunAnalysis: () => void;
   onApproveScene: (sceneIndex: number) => void;
   onRejectScene: (sceneIndex: number, reason: string) => void;
@@ -62,6 +64,8 @@ interface QADashboardProps {
 export function QADashboard({
   report,
   isLoading,
+  isFixingIssues = false,
+  fixingProgress,
   onRunAnalysis,
   onApproveScene,
   onRejectScene,
@@ -201,10 +205,15 @@ export function QADashboard({
               <Button 
                 variant="destructive"
                 onClick={onFixAllIssues}
+                disabled={isFixingIssues}
                 data-testid="btn-fix-issues"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Fix Issues First
+                <RefreshCw className={`h-4 w-4 mr-2 ${isFixingIssues ? 'animate-spin' : ''}`} />
+                {isFixingIssues 
+                  ? fixingProgress 
+                    ? `Fixing ${fixingProgress.current}/${fixingProgress.total}...`
+                    : 'Fixing Issues...'
+                  : 'Fix Issues First'}
               </Button>
             )}
             <Button 

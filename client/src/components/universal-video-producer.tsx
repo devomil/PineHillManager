@@ -3494,6 +3494,8 @@ export default function UniversalVideoProducer() {
     lastAnalyzedAt: string;
   } | null>(null);
   const [isAnalyzingQA, setIsAnalyzingQA] = useState(false);
+  const [isFixingIssues, setIsFixingIssues] = useState(false);
+  const [fixingProgress, setFixingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   const previewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const createProductMutation = useMutation({
@@ -4410,6 +4412,8 @@ export default function UniversalVideoProducer() {
           <QADashboard
             report={qaReport}
             isLoading={isAnalyzingQA}
+            isFixingIssues={isFixingIssues}
+            fixingProgress={fixingProgress}
             onRunAnalysis={async () => {
               if (!project) return;
               setIsAnalyzingQA(true);
@@ -4565,27 +4569,57 @@ export default function UniversalVideoProducer() {
                 toast({ title: "No Issues to Fix", description: "All scenes are approved" });
                 return;
               }
-              toast({ 
-                title: "Fixing All Issues", 
-                description: `Regenerating ${rejectedScenes.length} scene(s)...` 
-              });
-              for (const scene of rejectedScenes) {
+              
+              setIsFixingIssues(true);
+              setFixingProgress({ current: 0, total: rejectedScenes.length });
+              
+              let successCount = 0;
+              let failCount = 0;
+              
+              for (let i = 0; i < rejectedScenes.length; i++) {
+                const scene = rejectedScenes[i];
+                setFixingProgress({ current: i + 1, total: rejectedScenes.length });
+                
                 try {
-                  await fetch(`/api/universal-video/projects/${project.id}/scenes/${scene.sceneIndex}/auto-regenerate`, {
+                  const res = await fetch(`/api/universal-video/projects/${project.id}/scenes/${scene.sceneIndex}/auto-regenerate`, {
                     method: 'POST',
                     credentials: 'include'
                   });
-                } catch {}
+                  const data = await res.json();
+                  if (data.success) {
+                    successCount++;
+                  } else {
+                    failCount++;
+                  }
+                } catch {
+                  failCount++;
+                }
               }
-              toast({ title: "Regeneration Started", description: `${rejectedScenes.length} scenes queued for regeneration` });
+              
+              setIsFixingIssues(false);
+              setFixingProgress(undefined);
+              
+              if (successCount > 0) {
+                toast({ 
+                  title: "Issues Fixed", 
+                  description: `Successfully regenerated ${successCount} scene(s)${failCount > 0 ? `, ${failCount} failed` : ''}. Click Re-Analyze to verify.`
+                });
+              } else {
+                toast({ 
+                  title: "Regeneration Failed", 
+                  description: "Could not regenerate any scenes", 
+                  variant: "destructive" 
+                });
+              }
+              
               queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] });
-              setTimeout(async () => {
-                try {
-                  const refreshRes = await fetch(`/api/universal-video/projects/${project.id}`, { credentials: 'include' });
-                  const refreshData = await refreshRes.json();
-                  if (refreshData.project) setProject(refreshData.project);
-                } catch {}
-              }, 3000);
+              
+              // Refresh project data
+              try {
+                const refreshRes = await fetch(`/api/universal-video/projects/${project.id}`, { credentials: 'include' });
+                const refreshData = await refreshRes.json();
+                if (refreshData.project) setProject(refreshData.project);
+              } catch {}
             }}
           />
           </div>
