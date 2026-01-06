@@ -21,16 +21,23 @@ class VideoFrameExtractor {
 
   private async downloadVideo(url: string, outputPath: string): Promise<boolean> {
     return new Promise((resolve) => {
+      console.log(`[FrameExtractor] Starting download from: ${url.substring(0, 100)}...`);
       const protocol = url.startsWith('https') ? https : http;
       const file = fs.createWriteStream(outputPath);
       
       const request = protocol.get(url, { timeout: 60000 }, (response) => {
-        if (response.statusCode === 301 || response.statusCode === 302) {
+        console.log(`[FrameExtractor] Response status: ${response.statusCode}`);
+        
+        if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 303 || response.statusCode === 307) {
           const redirectUrl = response.headers.location;
+          console.log(`[FrameExtractor] Following redirect to: ${redirectUrl?.substring(0, 100)}...`);
           if (redirectUrl) {
             file.close();
-            fs.unlinkSync(outputPath);
-            this.downloadVideo(redirectUrl, outputPath).then(resolve);
+            if (fs.existsSync(outputPath)) {
+              try { fs.unlinkSync(outputPath); } catch (e) { /* ignore */ }
+            }
+            const fullRedirectUrl = redirectUrl.startsWith('http') ? redirectUrl : new URL(redirectUrl, url).href;
+            this.downloadVideo(fullRedirectUrl, outputPath).then(resolve);
             return;
           }
         }
@@ -42,10 +49,21 @@ class VideoFrameExtractor {
           return;
         }
         
+        let downloadedBytes = 0;
+        response.on('data', (chunk) => {
+          downloadedBytes += chunk.length;
+        });
+        
         response.pipe(file);
         file.on('finish', () => {
           file.close();
+          console.log(`[FrameExtractor] Download complete: ${downloadedBytes} bytes`);
           resolve(true);
+        });
+        file.on('error', (err) => {
+          console.error(`[FrameExtractor] File write error:`, err.message);
+          file.close();
+          resolve(false);
         });
       });
       
@@ -53,17 +71,17 @@ class VideoFrameExtractor {
         console.error(`[FrameExtractor] Download error:`, err.message);
         file.close();
         if (fs.existsSync(outputPath)) {
-          fs.unlinkSync(outputPath);
+          try { fs.unlinkSync(outputPath); } catch (e) { /* ignore */ }
         }
         resolve(false);
       });
       
       request.on('timeout', () => {
-        console.error(`[FrameExtractor] Download timeout`);
+        console.error(`[FrameExtractor] Download timeout after 60s`);
         request.destroy();
         file.close();
         if (fs.existsSync(outputPath)) {
-          fs.unlinkSync(outputPath);
+          try { fs.unlinkSync(outputPath); } catch (e) { /* ignore */ }
         }
         resolve(false);
       });
@@ -89,24 +107,35 @@ class VideoFrameExtractor {
       const isRemoteUrl = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
       let inputPath = videoUrl;
       
+      console.log(`[FrameExtractor] Processing video URL (remote: ${isRemoteUrl}): ${videoUrl.substring(0, 100)}...`);
+      
       if (isRemoteUrl) {
-        console.log(`[FrameExtractor] Downloading video from: ${videoUrl.substring(0, 100)}...`);
         const downloaded = await this.downloadVideo(videoUrl, videoPath);
-        if (!downloaded || !fs.existsSync(videoPath)) {
-          console.error(`[FrameExtractor] Failed to download video`);
+        if (!downloaded) {
+          console.error(`[FrameExtractor] Download returned false`);
           return null;
         }
+        if (!fs.existsSync(videoPath)) {
+          console.error(`[FrameExtractor] Video file does not exist after download`);
+          return null;
+        }
+        const stats = fs.statSync(videoPath);
+        console.log(`[FrameExtractor] Video downloaded successfully: ${stats.size} bytes at ${videoPath}`);
         inputPath = videoPath;
-        console.log(`[FrameExtractor] Video downloaded to: ${videoPath}`);
       }
       
-      const command = `ffmpeg -ss ${timestampSeconds} -i "${inputPath}" -vframes 1 -q:v 2 "${outputPath}" -y 2>/dev/null`;
+      const command = `ffmpeg -ss ${timestampSeconds} -i "${inputPath}" -vframes 1 -q:v 2 "${outputPath}" -y`;
+      console.log(`[FrameExtractor] Executing FFmpeg command...`);
       
-      await execAsync(command, { timeout: 30000 });
+      const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
+      if (stderr) {
+        console.log(`[FrameExtractor] FFmpeg stderr: ${stderr.substring(0, 200)}`);
+      }
       
       if (fs.existsSync(outputPath)) {
         const buffer = fs.readFileSync(outputPath);
         const base64 = buffer.toString('base64');
+        console.log(`[FrameExtractor] Frame extracted successfully: ${buffer.length} bytes`);
         
         fs.unlinkSync(outputPath);
         if (isRemoteUrl && fs.existsSync(videoPath)) {
@@ -116,6 +145,7 @@ class VideoFrameExtractor {
         return `data:image/jpeg;base64,${base64}`;
       }
       
+      console.error(`[FrameExtractor] FFmpeg did not produce output file`);
       if (isRemoteUrl && fs.existsSync(videoPath)) {
         fs.unlinkSync(videoPath);
       }
@@ -123,7 +153,7 @@ class VideoFrameExtractor {
       return null;
 
     } catch (error: any) {
-      console.error(`[FrameExtractor] Failed:`, error.message);
+      console.error(`[FrameExtractor] Exception:`, error.message);
       
       if (fs.existsSync(outputPath)) {
         fs.unlinkSync(outputPath);
