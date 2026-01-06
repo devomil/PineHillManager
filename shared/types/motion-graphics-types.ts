@@ -57,7 +57,7 @@ export interface MotionGraphicBaseConfig {
 export interface KineticTypographyConfig extends MotionGraphicBaseConfig {
   type: 'kinetic-typography';
   text: string;
-  animationStyle: 'word-by-word' | 'character' | 'line-by-line' | 'bounce' | 'wave' | 'reveal' | 'split' | 'typewriter';
+  animationStyle: 'word-by-word' | 'character' | 'line-by-line' | 'bounce' | 'wave' | 'reveal' | 'split' | 'typewriter' | 'slide-up' | 'slide-down' | 'scale-in' | 'blur-in' | 'fade';
   fontSize: number;
   fontFamily: string;
   fontWeight: string;
