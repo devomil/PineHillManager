@@ -275,9 +275,15 @@ export default function EmployeeSupport() {
   };
   
   // Quick ticket submission helpers
-  const openQuickTicket = (category: string, title: string = "") => {
+  const openQuickTicket = (category: string) => {
     setTicketCategory(category);
-    setTicketTitle(title);
+    // Pre-fill title based on category to speed up submission
+    const defaultTitles: Record<string, string> = {
+      feature_request: "Feature Request: ",
+      bug_report: "Bug Report: ",
+      question: "Question: "
+    };
+    setTicketTitle(defaultTitles[category] || "");
     setTicketDescription("");
     setTicketPriority(category === "bug_report" ? "high" : "normal");
     setShowTicketModal(true);
@@ -395,7 +401,7 @@ export default function EmployeeSupport() {
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-4 cursor-pointer shadow-lg"
-              onClick={() => openQuickTicket("feature_request", "")}
+              onClick={() => openQuickTicket("feature_request")}
               data-testid="quick-card-feature"
             >
               <div className="flex items-center gap-3">
@@ -413,7 +419,7 @@ export default function EmployeeSupport() {
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               className="bg-gradient-to-br from-red-500 to-orange-500 rounded-xl p-4 cursor-pointer shadow-lg"
-              onClick={() => openQuickTicket("bug_report", "")}
+              onClick={() => openQuickTicket("bug_report")}
               data-testid="quick-card-bug"
             >
               <div className="flex items-center gap-3">
@@ -431,7 +437,7 @@ export default function EmployeeSupport() {
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 cursor-pointer shadow-lg"
-              onClick={() => openQuickTicket("question", "")}
+              onClick={() => openQuickTicket("question")}
               data-testid="quick-card-question"
             >
               <div className="flex items-center gap-3">
@@ -924,6 +930,20 @@ export default function EmployeeSupport() {
         </DialogContent>
       </Dialog>
 
+      {/* Click-away backdrop for FAB */}
+      <AnimatePresence>
+        {fabOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40"
+            onClick={() => setFabOpen(false)}
+            data-testid="fab-backdrop"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Floating Action Button for Quick Actions */}
       <div className="fixed bottom-6 right-6 z-50">
         <AnimatePresence>
@@ -939,7 +959,7 @@ export default function EmployeeSupport() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 h-12 text-left hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                  onClick={() => openQuickTicket("feature_request", "")}
+                  onClick={() => openQuickTicket("feature_request")}
                   data-testid="fab-request-feature"
                 >
                   <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
@@ -954,7 +974,7 @@ export default function EmployeeSupport() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 h-12 text-left hover:bg-red-50 dark:hover:bg-red-900/20"
-                  onClick={() => openQuickTicket("bug_report", "")}
+                  onClick={() => openQuickTicket("bug_report")}
                   data-testid="fab-report-bug"
                 >
                   <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
@@ -969,7 +989,7 @@ export default function EmployeeSupport() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 h-12 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                  onClick={() => openQuickTicket("question", "")}
+                  onClick={() => openQuickTicket("question")}
                   data-testid="fab-ask-question"
                 >
                   <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
@@ -995,6 +1015,8 @@ export default function EmployeeSupport() {
               : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
           }`}
           data-testid="fab-toggle"
+          aria-label={fabOpen ? "Close quick actions menu" : "Open quick actions menu"}
+          aria-expanded={fabOpen}
         >
           <motion.div
             animate={{ rotate: fabOpen ? 45 : 0 }}
