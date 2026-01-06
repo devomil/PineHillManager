@@ -13,6 +13,8 @@ import { autoRegenerationService, SceneForRegeneration, RegenerationResult } fro
 import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
 import { imageProviderSelector } from '../services/image-provider-selector';
+import { motionGraphicsRouter } from '../services/motion-graphics-router';
+import { motionGraphicsGenerator } from '../services/motion-graphics-generator';
 import { soundDesignService } from '../services/sound-design-service';
 import { transitionService, TransitionPlan, SceneTransition } from '../services/transition-service';
 import { textPlacementService, TextOverlay as TextOverlayType, TextPlacement } from '../services/text-placement-service';
@@ -1657,6 +1659,63 @@ router.get('/service-status', isAuthenticated, async (req: Request, res: Respons
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// ===== PHASE 12A: Motion Graphics Router Test Endpoint =====
+router.post('/test-motion-graphics-routing', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { visualDirection, narration, sceneType, duration } = req.body;
+    
+    if (!visualDirection) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'visualDirection is required' 
+      });
+    }
+    
+    // Test the routing decision
+    const routingDecision = motionGraphicsRouter.analyzeVisualDirection(
+      visualDirection,
+      narration || '',
+      sceneType || 'content'
+    );
+    
+    // If routing to motion graphics, generate config
+    let motionGraphicsConfig = null;
+    if (routingDecision.useMotionGraphics && routingDecision.suggestedType) {
+      const result = await motionGraphicsGenerator.generateMotionGraphic(
+        visualDirection,
+        narration || '',
+        sceneType || 'content',
+        duration || 5
+      );
+      
+      if (result.success) {
+        motionGraphicsConfig = {
+          config: result.config,
+          renderInstructions: result.renderInstructions,
+        };
+      }
+    }
+    
+    res.json({
+      success: true,
+      routing: {
+        useMotionGraphics: routingDecision.useMotionGraphics,
+        confidence: routingDecision.confidence,
+        confidencePercent: `${(routingDecision.confidence * 100).toFixed(0)}%`,
+        detectedKeywords: routingDecision.detectedKeywords,
+        suggestedType: routingDecision.suggestedType,
+        reasoning: routingDecision.reasoning,
+        fallbackToAI: routingDecision.fallbackToAI,
+      },
+      motionGraphicsConfig,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Motion graphics routing test error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+// ===== END PHASE 12A =====
 
 router.post('/upload-url', isAuthenticated, async (req: Request, res: Response) => {
   try {

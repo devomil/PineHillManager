@@ -29,6 +29,9 @@ import { brandContextService } from "./brand-context-service";
 import { detectTextOverlayRequirements, TextOverlayRequirement } from "./text-overlay-detector";
 import { generateTextOverlays, RemotionTextOverlay } from "./text-overlay-generator";
 import { sanitizePromptForAI, SanitizedPrompt } from "./prompt-sanitizer";
+import { motionGraphicsRouter } from "./motion-graphics-router";
+import { motionGraphicsGenerator } from "./motion-graphics-generator";
+import { MotionGraphicConfig, RoutingDecision } from "../../shared/types/motion-graphics-types";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2704,13 +2707,59 @@ Total: 90 seconds` : ''}
         const isHeroScene = heroSceneTypes.includes(scene.type);
         let videoResult: { url: string; source: string; duration?: number } | null = null;
         
+        // ===== PHASE 12A: MOTION GRAPHICS ROUTING =====
+        // Check if visual direction calls for motion graphics instead of AI video
+        const visualPrompt = scene.visualDirection || 
+                             scene.background?.source || 
+                             `Professional wellness video for: ${scene.narration?.substring(0, 100)}`;
+        
+        const routingDecision = motionGraphicsRouter.analyzeVisualDirection(
+          visualPrompt,
+          scene.narration,
+          scene.type
+        );
+        
+        // Update scene index for motion graphics storage
+        const mgSceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
+        
+        if (routingDecision.useMotionGraphics && routingDecision.suggestedType) {
+          console.log(`[Assets] Motion graphics route for scene ${scene.id}: ${routingDecision.suggestedType} (confidence: ${(routingDecision.confidence * 100).toFixed(0)}%)`);
+          
+          const motionResult = await motionGraphicsGenerator.generateMotionGraphic(
+            visualPrompt,
+            scene.narration || '',
+            scene.type,
+            scene.duration || 5
+          );
+          
+          if (motionResult.success) {
+            // Store motion graphics config in scene for Remotion rendering
+            if (mgSceneIndex >= 0) {
+              if (!updatedProject.scenes[mgSceneIndex].assets) {
+                updatedProject.scenes[mgSceneIndex].assets = {};
+              }
+              (updatedProject.scenes[mgSceneIndex].assets as any).motionGraphics = {
+                enabled: true,
+                config: motionResult.config,
+                renderInstructions: motionResult.renderInstructions,
+              };
+              updatedProject.scenes[mgSceneIndex].background = {
+                type: 'motion-graphic' as any,
+                source: visualPrompt,
+              };
+            }
+            console.log(`[Assets] Motion graphics config generated for scene ${scene.id}: ${motionResult.config.type}`);
+            videosGenerated++;
+            continue; // Skip AI video generation for this scene
+          } else {
+            console.warn(`[Assets] Motion graphics generation failed for scene ${scene.id}: ${motionResult.error} - falling back to AI video`);
+          }
+        }
+        // ===== END PHASE 12A MOTION GRAPHICS ROUTING =====
+        
         // Try AI video generation for hero scenes if any provider is available
         if (isHeroScene && aiVideoService.isAvailable()) {
           console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id}...`);
-          
-          const visualPrompt = scene.visualDirection || 
-                               scene.background?.source || 
-                               `Professional wellness video for: ${scene.narration?.substring(0, 100)}`;
           
           const aiResult = await aiVideoService.generateVideo({
             prompt: visualPrompt,
