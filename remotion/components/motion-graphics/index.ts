@@ -6,3 +6,6 @@ export { PresetText, getPreset, PRESET_NAMES, getPresetsByCategory, type TextPre
 export { StatCounter, type StatCounterProps, type StatItem } from './StatCounter';
 export { ProgressBar, type ProgressBarProps, type ProgressBarItem } from './ProgressBar';
 export { ProcessFlow, type ProcessFlowProps, type ProcessStep } from './ProcessFlow';
+
+export { TreeGrowth, type TreeGrowthProps, type TreeLabel } from './TreeGrowth';
+export { NetworkVisualization, type NetworkVisualizationProps, type NetworkNode, type NetworkConnection } from './NetworkVisualization';
