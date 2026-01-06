@@ -1,6 +1,9 @@
 import { storage } from '../storage';
 import { CloverIntegration } from '../integrations/clover';
 import { db } from '../db';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('CloverSync');
 import { 
   InsertOrder,
   InsertOrderLineItem,
@@ -181,7 +184,7 @@ export class CloverSyncService {
    * Start incremental sync for all active Clover merchants
    */
   async syncAllMerchants(options: SyncOptions = {}): Promise<SyncResult[]> {
-    console.log('🔄 Starting sync for all Clover merchants');
+    log.info('🔄 Starting sync for all Clover merchants');
     
     const merchants = await storage.getAllCloverConfigs();
     const results: SyncResult[] = [];
@@ -190,11 +193,11 @@ export class CloverSyncService {
       if (!merchant.isActive) continue;
       
       try {
-        console.log(`🏪 Syncing merchant: ${merchant.merchantName} (${merchant.merchantId})`);
+        log.info(`🏪 Syncing merchant: ${merchant.merchantName} (${merchant.merchantId})`);
         const result = await this.syncMerchant(merchant.id, options);
         results.push(result);
       } catch (error) {
-        console.error(`❌ Failed to sync merchant ${merchant.merchantName}:`, error);
+        log.error(`❌ Failed to sync merchant ${merchant.merchantName}:`, error);
         results.push({
           success: false,
           ordersProcessed: 0,
@@ -208,7 +211,7 @@ export class CloverSyncService {
       }
     }
 
-    console.log(`✅ Completed sync for ${merchants.length} merchants`);
+    log.info(`✅ Completed sync for ${merchants.length} merchants`);
     return results;
   }
 
@@ -238,7 +241,7 @@ export class CloverSyncService {
         throw new Error(`Merchant configuration not found for ID: ${merchantDbId}`);
       }
 
-      console.log(`🔧 Configuring Clover integration for merchant: ${merchantConfig.merchantName}`);
+      log.debug(`🔧 Configuring Clover integration for merchant: ${merchantConfig.merchantName}`);
       this.cloverIntegration.setConfig({
         merchantId: merchantConfig.merchantId,
         accessToken: merchantConfig.apiToken || '',
@@ -248,7 +251,7 @@ export class CloverSyncService {
       // Get or create sync cursor for this merchant
       let syncCursor = await storage.getSyncCursor('clover', merchantDbId, 'orders');
       if (!syncCursor) {
-        console.log(`📍 Creating new sync cursor for merchant ${merchantConfig.merchantName}`);
+        log.debug(`📍 Creating new sync cursor for merchant ${merchantConfig.merchantName}`);
         syncCursor = await storage.createSyncCursor({
           system: 'clover',
           merchantId: merchantDbId,
@@ -263,14 +266,14 @@ export class CloverSyncService {
       // This ensures we fetch ALL orders from the requested startDate, not just orders
       // modified after the last incremental sync
       if (options.forceFullSync || options.historicalSyncMode === 'full') {
-        console.log(`🔄 Forcing full sync - resetting cursor to ignore previous sync state`);
+        log.debug(`🔄 Forcing full sync - resetting cursor to ignore previous sync state`);
         syncCursor.lastModifiedMs = null;
       }
 
       // Determine sync time range
       const { startTimestamp, endTimestamp } = this.calculateSyncTimeRange(syncCursor, options);
       
-      console.log(`📅 Syncing orders from ${new Date(startTimestamp).toISOString()} to ${new Date(endTimestamp).toISOString()}`);
+      log.debug(`📅 Syncing orders from ${new Date(startTimestamp).toISOString()} to ${new Date(endTimestamp).toISOString()}`);
 
       // Update sync cursor to indicate sync in progress
       await storage.updateSyncCursor(syncCursor.id, {
@@ -285,7 +288,7 @@ export class CloverSyncService {
       let maxModifiedTime = syncCursor.lastModifiedMs ? parseInt(syncCursor.lastModifiedMs) : 0;
 
       while (hasMore && this.isRunning) {
-        console.log(`📦 Fetching batch: offset=${offset}, limit=${batchSize}`);
+        log.debug(`📦 Fetching batch: offset=${offset}, limit=${batchSize}`);
         
         const ordersResponse = await this.cloverIntegration.fetchOrders({
           limit: batchSize,
@@ -302,14 +305,14 @@ export class CloverSyncService {
         }
 
         const orders = ordersResponse.elements;
-        console.log(`📦 Processing ${orders.length} orders in batch`);
+        log.debug(`📦 Processing ${orders.length} orders in batch`);
 
         // Process each order
         for (const order of orders) {
           if (!this.isRunning) break;
           
           try {
-            console.log(`📦 Processing order ${order.id} for merchant ${merchantConfig.merchantName}`);
+            log.debug(`📦 Processing order ${order.id} for merchant ${merchantConfig.merchantName}`);
             const processResult = await this.processOrder(order as any, merchantDbId, merchantConfig);
             
             // ARCHITECT'S FIX: Validate return value before counting as processed
@@ -323,10 +326,10 @@ export class CloverSyncService {
             // Increment appropriate counters based on operation type
             if (processResult.op === 'created') {
               result.ordersCreated++;
-              console.log(`✅ Order ${order.id}: CREATED (DB persisted)`);
+              log.debug(`✅ Order ${order.id}: CREATED (DB persisted)`);
             } else {
               result.ordersUpdated++;
-              console.log(`✅ Order ${order.id}: UPDATED (DB persisted)`);
+              log.debug(`✅ Order ${order.id}: UPDATED (DB persisted)`);
             }
             
             // Track the latest modified time for cursor updates
@@ -351,8 +354,8 @@ export class CloverSyncService {
             }
             
           } catch (orderError) {
-            console.error(`❌ CRITICAL: Order processing failed for ${order.id}:`, orderError);
-            console.error(`❌ Full error details:`, {
+            log.error(`❌ CRITICAL: Order processing failed for ${order.id}:`, orderError);
+            log.error(`❌ Full error details:`, {
               orderId: order.id,
               merchantId: merchantConfig.merchantId,
               merchantName: merchantConfig.merchantName,
@@ -369,8 +372,8 @@ export class CloverSyncService {
 
         // Add critical validation: if no orders persisted after processing, log high-severity warning
         if (result.ordersProcessed > 0 && (result.ordersCreated + result.ordersUpdated) === 0) {
-          console.error(`🚨 CRITICAL DATABASE PERSISTENCE FAILURE: Processed ${result.ordersProcessed} orders but ZERO were persisted to database!`);
-          console.error(`🚨 This indicates silent database write failures. Check database connectivity and constraints.`);
+          log.error(`🚨 CRITICAL DATABASE PERSISTENCE FAILURE: Processed ${result.ordersProcessed} orders but ZERO were persisted to database!`);
+          log.error(`🚨 This indicates silent database write failures. Check database connectivity and constraints.`);
         }
 
         // Check if we have more data
@@ -379,7 +382,7 @@ export class CloverSyncService {
 
         // Rate limiting - wait between batches
         if (hasMore) {
-          console.log('⏱️ Rate limiting - waiting 100ms between batches');
+          log.debug('⏱️ Rate limiting - waiting 100ms between batches');
           await this.sleep(100);
         }
       }
@@ -400,19 +403,19 @@ export class CloverSyncService {
       result.success = true;
       result.duration = Date.now() - startTime;
 
-      console.log(`✅ Sync completed for merchant ${merchantConfig.merchantName}:`);
-      console.log(`   📊 Orders processed: ${result.ordersProcessed}`);
-      console.log(`   ➕ Orders created: ${result.ordersCreated}`);
-      console.log(`   🔄 Orders updated: ${result.ordersUpdated}`);
-      console.log(`   📦 Line items processed: ${result.lineItemsProcessed}`);
-      console.log(`   💳 Payments processed: ${result.paymentsProcessed}`);
-      console.log(`   ⏱️ Duration: ${result.duration}ms`);
+      log.info(`✅ Sync completed for merchant ${merchantConfig.merchantName}:`);
+      log.info(`   📊 Orders processed: ${result.ordersProcessed}`);
+      log.info(`   ➕ Orders created: ${result.ordersCreated}`);
+      log.info(`   🔄 Orders updated: ${result.ordersUpdated}`);
+      log.info(`   📦 Line items processed: ${result.lineItemsProcessed}`);
+      log.info(`   💳 Payments processed: ${result.paymentsProcessed}`);
+      log.debug(`   ⏱️ Duration: ${result.duration}ms`);
       if (result.errors.length > 0) {
-        console.log(`   ⚠️ Errors encountered: ${result.errors.length}`);
+        log.debug(`   ⚠️ Errors encountered: ${result.errors.length}`);
       }
 
     } catch (error) {
-      console.error('❌ Sync failed:', error);
+      log.error('❌ Sync failed:', error);
       
       // Update sync cursor with error
       const syncCursor = await storage.getSyncCursor('clover', merchantDbId, 'orders');
@@ -441,10 +444,10 @@ export class CloverSyncService {
    * @returns Object indicating whether order was created or updated
    */
   private async processOrder(cloverOrder: CloverOrder, merchantDbId: number, merchantConfig: any): Promise<{ op: 'created' | 'updated' }> {
-    console.log(`🔄 Processing order ${cloverOrder.id}`);
+    log.debug(`🔄 Processing order ${cloverOrder.id}`);
 
     // ARCHITECT'S FIX: Resolve merchant record - merchantDbId is cloverConfig.id, not merchants.id
-    console.log(`🔍 Resolving merchant ID: cloverConfig.id=${merchantDbId}, clover merchant ID=${merchantConfig.merchantId}`);
+    log.debug(`🔍 Resolving merchant ID: cloverConfig.id=${merchantDbId}, clover merchant ID=${merchantConfig.merchantId}`);
     
     // Get or create merchant record in merchants table using Clover merchant data
     let actualMerchantId: number;
@@ -453,7 +456,7 @@ export class CloverSyncService {
       let merchantRecord = await storage.getMerchantByExternalId(merchantConfig.merchantId, 'clover');
       
       if (!merchantRecord) {
-        console.log(`🏪 Creating new merchant record for ${merchantConfig.merchantName} (${merchantConfig.merchantId})`);
+        log.debug(`🏪 Creating new merchant record for ${merchantConfig.merchantName} (${merchantConfig.merchantId})`);
         
         // Create merchant data from clover config
         const merchantData = {
@@ -480,21 +483,21 @@ export class CloverSyncService {
         // Use upsert to handle race conditions
         const upsertResult = await storage.upsertMerchant(merchantData);
         merchantRecord = upsertResult.merchant;
-        console.log(`✅ Merchant record ${upsertResult.operation}: ${merchantRecord.name} (DB ID: ${merchantRecord.id})`);
+        log.debug(`✅ Merchant record ${upsertResult.operation}: ${merchantRecord.name} (DB ID: ${merchantRecord.id})`);
       } else {
-        console.log(`✅ Using existing merchant record: ${merchantRecord.name} (DB ID: ${merchantRecord.id})`);
+        log.debug(`✅ Using existing merchant record: ${merchantRecord.name} (DB ID: ${merchantRecord.id})`);
       }
       
       actualMerchantId = merchantRecord.id;
-      console.log(`🎯 Using merchants.id=${actualMerchantId} for order foreign key (not cloverConfig.id=${merchantDbId})`);
+      log.debug(`🎯 Using merchants.id=${actualMerchantId} for order foreign key (not cloverConfig.id=${merchantDbId})`);
       
     } catch (merchantError) {
-      console.error(`❌ CRITICAL: Failed to resolve merchant record for ${merchantConfig.merchantName}:`, merchantError);
+      log.error(`❌ CRITICAL: Failed to resolve merchant record for ${merchantConfig.merchantName}:`, merchantError);
       throw new Error(`Merchant resolution failed for ${merchantConfig.merchantName}: ${merchantError instanceof Error ? merchantError.message : 'Unknown error'}`);
     }
 
     // Use atomic upsert instead of check-then-create/update pattern
-    console.log(`💾 Using atomic upsert for order ${cloverOrder.id} with resolved merchantId=${actualMerchantId}`);
+    log.debug(`💾 Using atomic upsert for order ${cloverOrder.id} with resolved merchantId=${actualMerchantId}`);
     
     // Map Clover order to our schema with CORRECT merchant ID
     const orderData: InsertOrder = {
@@ -526,7 +529,7 @@ export class CloverSyncService {
     let orderId: number;
     let operationType: 'created' | 'updated';
 
-    console.log(`💾 Performing atomic upsert for ${cloverOrder.id}`);
+    log.debug(`💾 Performing atomic upsert for ${cloverOrder.id}`);
     
     try {
       // Use atomic upsert with unique constraint (merchantId, externalOrderId, channel)
@@ -534,9 +537,9 @@ export class CloverSyncService {
       orderId = upsertResult.order.id;
       operationType = upsertResult.operation;
       
-      console.log(`✅ Atomic upsert completed: order ${cloverOrder.id} was ${operationType} (DB ID: ${orderId})`);
+      log.debug(`✅ Atomic upsert completed: order ${cloverOrder.id} was ${operationType} (DB ID: ${orderId})`);
     } catch (dbError) {
-      console.error(`❌ Atomic upsert failed for order ${cloverOrder.id}:`, dbError);
+      log.error(`❌ Atomic upsert failed for order ${cloverOrder.id}:`, dbError);
       throw new Error(`Order persistence failed for ${cloverOrder.id}: ${dbError instanceof Error ? dbError.message : 'Database operation failed'}`);
     }
 
@@ -546,9 +549,9 @@ export class CloverSyncService {
       if (!verificationOrder) {
         throw new Error(`Order persistence verification failed for ${cloverOrder.id}: Order not found in database after upsert`);
       }
-      console.log(`🔍 Database persistence verified for order ${cloverOrder.id} (DB ID: ${orderId})`);
+      log.debug(`🔍 Database persistence verified for order ${cloverOrder.id} (DB ID: ${orderId})`);
     } catch (verificationError) {
-      console.error(`❌ Database persistence verification failed for order ${cloverOrder.id}:`, verificationError);
+      log.error(`❌ Database persistence verification failed for order ${cloverOrder.id}:`, verificationError);
       throw new Error(`Database persistence verification failed for ${cloverOrder.id}: ${verificationError instanceof Error ? verificationError.message : 'Verification failed'}`);
     }
 
@@ -556,46 +559,46 @@ export class CloverSyncService {
     try {
       // Process line items within the same transaction
       if (cloverOrder.lineItems?.elements && cloverOrder.lineItems.elements.length > 0) {
-        console.log(`📦 Processing ${cloverOrder.lineItems.elements.length} line items for order ${cloverOrder.id}`);
+        log.debug(`📦 Processing ${cloverOrder.lineItems.elements.length} line items for order ${cloverOrder.id}`);
         await this.processLineItems(cloverOrder.lineItems.elements, orderId, merchantDbId);
-        console.log(`✅ Successfully processed line items for order ${cloverOrder.id}`);
+        log.debug(`✅ Successfully processed line items for order ${cloverOrder.id}`);
       }
 
       // Process payments within the same transaction
       if (cloverOrder.payments?.elements && cloverOrder.payments.elements.length > 0) {
-        console.log(`💳 Processing ${cloverOrder.payments.elements.length} payments for order ${cloverOrder.id}`);
+        log.debug(`💳 Processing ${cloverOrder.payments.elements.length} payments for order ${cloverOrder.id}`);
         await this.processPayments(cloverOrder.payments.elements, orderId, merchantDbId);
-        console.log(`✅ Successfully processed payments for order ${cloverOrder.id}`);
+        log.debug(`✅ Successfully processed payments for order ${cloverOrder.id}`);
       }
 
       // Process discounts within the same transaction
       if (cloverOrder.discounts?.elements && cloverOrder.discounts.elements.length > 0) {
-        console.log(`🏷️ Processing ${cloverOrder.discounts.elements.length} discounts for order ${cloverOrder.id}`);
+        log.debug(`🏷️ Processing ${cloverOrder.discounts.elements.length} discounts for order ${cloverOrder.id}`);
         await this.processDiscounts(cloverOrder.discounts.elements, orderId, merchantDbId);
-        console.log(`✅ Successfully processed discounts for order ${cloverOrder.id}`);
+        log.debug(`✅ Successfully processed discounts for order ${cloverOrder.id}`);
       }
 
       // Process refunds within the same transaction
       if (cloverOrder.refunds?.elements && cloverOrder.refunds.elements.length > 0) {
-        console.log(`🔁 Processing ${cloverOrder.refunds.elements.length} refunds for order ${cloverOrder.id}`);
+        log.debug(`🔁 Processing ${cloverOrder.refunds.elements.length} refunds for order ${cloverOrder.id}`);
         await this.processRefunds(cloverOrder.refunds.elements, orderId, merchantDbId);
-        console.log(`✅ Successfully processed refunds for order ${cloverOrder.id}`);
+        log.debug(`✅ Successfully processed refunds for order ${cloverOrder.id}`);
       }
 
       // Calculate and update financial totals within the same transaction
-      console.log(`🧮 Calculating financial totals for order ${cloverOrder.id}`);
+      log.debug(`🧮 Calculating financial totals for order ${cloverOrder.id}`);
       await this.calculateOrderFinancials(orderId);
-      console.log(`✅ Successfully calculated financials for order ${cloverOrder.id}`);
+      log.debug(`✅ Successfully calculated financials for order ${cloverOrder.id}`);
 
-      console.log(`🎉 Order processing completed successfully for ${cloverOrder.id}: ${operationType}`);
+      log.debug(`🎉 Order processing completed successfully for ${cloverOrder.id}: ${operationType}`);
     } catch (relatedDataError) {
       // ARCHITECT'S FIX: Log but DO NOT rethrow - order is already persisted
-      console.error(`⚠️ Related data processing failed for order ${cloverOrder.id}, but order was successfully persisted:`, relatedDataError);
-      console.error(`⚠️ Continuing sync - order ${cloverOrder.id} will be counted as ${operationType}`);
+      log.error(`⚠️ Related data processing failed for order ${cloverOrder.id}, but order was successfully persisted:`, relatedDataError);
+      log.error(`⚠️ Continuing sync - order ${cloverOrder.id} will be counted as ${operationType}`);
     }
 
     // ARCHITECT'S FIX: ALWAYS return operation type - order is persisted
-    console.log(`✅ Guaranteed return for order ${cloverOrder.id}: ${operationType}`);
+    log.debug(`✅ Guaranteed return for order ${cloverOrder.id}: ${operationType}`);
     return { op: operationType };
   }
 
@@ -644,7 +647,7 @@ export class CloverSyncService {
         }
 
       } catch (error) {
-        console.error(`❌ Error processing line item ${lineItem.id}:`, error);
+        log.error(`❌ Error processing line item ${lineItem.id}:`, error);
       }
     }
   }
@@ -681,7 +684,7 @@ export class CloverSyncService {
         }
 
       } catch (error) {
-        console.error(`❌ Error processing payment ${payment.id}:`, error);
+        log.error(`❌ Error processing payment ${payment.id}:`, error);
       }
     }
   }
@@ -709,7 +712,7 @@ export class CloverSyncService {
         }
 
       } catch (error) {
-        console.error(`❌ Error processing discount ${discount.id}:`, error);
+        log.error(`❌ Error processing discount ${discount.id}:`, error);
       }
     }
   }
@@ -739,7 +742,7 @@ export class CloverSyncService {
         }
 
       } catch (error) {
-        console.error(`❌ Error processing refund ${refund.id}:`, error);
+        log.error(`❌ Error processing refund ${refund.id}:`, error);
       }
     }
   }
@@ -794,7 +797,7 @@ export class CloverSyncService {
       });
 
     } catch (error) {
-      console.error(`❌ Error calculating order financials for order ${orderId}:`, error);
+      log.error(`❌ Error calculating order financials for order ${orderId}:`, error);
     }
   }
 
@@ -820,7 +823,7 @@ export class CloverSyncService {
 
       return '0.00';
     } catch (error) {
-      console.error(`⚠️ Error getting unit cost for item ${itemId}:`, error);
+      log.error(`⚠️ Error getting unit cost for item ${itemId}:`, error);
       return '0.00';
     }
   }
@@ -832,10 +835,10 @@ export class CloverSyncService {
     try {
       // Note: Item cost history tracking not implemented yet
       // This would require adding an itemCostHistory table to the schema
-      console.log(`📝 Would record cost history for item ${itemId}: ${unitCost}`);
+      log.debug(`📝 Would record cost history for item ${itemId}: ${unitCost}`);
     } catch (error) {
       // Don't fail the sync for cost history errors
-      console.warn(`⚠️ Could not record cost history for item ${itemId}:`, error);
+      log.warn(`⚠️ Could not record cost history for item ${itemId}:`, error);
     }
   }
 
@@ -843,7 +846,7 @@ export class CloverSyncService {
    * Aggregate daily sales for the synced period
    */
   private async aggregateDailySales(merchantDbId: number, startDate: Date, endDate: Date): Promise<void> {
-    console.log(`📊 Aggregating daily sales for merchant ${merchantDbId} from ${startDate.toDateString()} to ${endDate.toDateString()}`);
+    log.debug(`📊 Aggregating daily sales for merchant ${merchantDbId} from ${startDate.toDateString()} to ${endDate.toDateString()}`);
 
     const merchantConfig = await storage.getCloverConfigById(merchantDbId);
     if (!merchantConfig) return;
@@ -874,9 +877,9 @@ export class CloverSyncService {
           await storage.createDailySales(dailySalesData);
         }
 
-        console.log(`📈 Aggregated daily sales for ${dateKey}: ${dayOrders.length} orders, $${dailySalesData.totalRevenue} revenue`);
+        log.debug(`📈 Aggregated daily sales for ${dateKey}: ${dayOrders.length} orders, $${dailySalesData.totalRevenue} revenue`);
       } catch (error) {
-        console.error(`❌ Error aggregating daily sales for ${dateKey}:`, error);
+        log.error(`❌ Error aggregating daily sales for ${dateKey}:`, error);
       }
     }
   }
@@ -970,16 +973,16 @@ export class CloverSyncService {
       // Full sync - use historical sync depth or configured start date
       const historicalDepthMs = (options.historicalSyncDepthDays || 365) * 24 * 60 * 60 * 1000; // Default 1 year
       startTimestamp = options.startDate?.getTime() || (now - historicalDepthMs);
-      console.log(`📅 Full historical sync: going back ${options.historicalSyncDepthDays || 365} days`);
+      log.debug(`📅 Full historical sync: going back ${options.historicalSyncDepthDays || 365} days`);
     } else if (options.historicalSyncMode === 'backfill') {
       // Backfill mode - sync missing historical data
       startTimestamp = this.calculateBackfillStartTime(syncCursor, options);
-      console.log(`🔄 Backfill sync: filling gaps in historical data`);
+      log.debug(`🔄 Backfill sync: filling gaps in historical data`);
     } else {
       // Incremental sync - start from last modified time with buffer
       const incrementalBuffer = 60 * 60 * 1000; // 1 hour buffer to catch late updates
       startTimestamp = parseInt(syncCursor.lastModifiedMs) - incrementalBuffer;
-      console.log(`⏩ Incremental sync with 1-hour buffer`);
+      log.debug(`⏩ Incremental sync with 1-hour buffer`);
     }
 
     if (options.endDate) {
@@ -988,7 +991,7 @@ export class CloverSyncService {
 
     // Validate time range
     if (startTimestamp >= endTimestamp) {
-      console.warn(`⚠️ Invalid time range: start ${new Date(startTimestamp).toISOString()} >= end ${new Date(endTimestamp).toISOString()}`);
+      log.warn(`⚠️ Invalid time range: start ${new Date(startTimestamp).toISOString()} >= end ${new Date(endTimestamp).toISOString()}`);
       startTimestamp = endTimestamp - (24 * 60 * 60 * 1000); // Default to last 24 hours
     }
 
@@ -1026,7 +1029,7 @@ export class CloverSyncService {
     batchSize?: number;
     enableOptimization?: boolean;
   }): Promise<SyncResult[]> {
-    console.log(`🏛️ Starting historical data sync from ${options.startDate.toISOString()} to ${options.endDate.toISOString()}`);
+    log.debug(`🏛️ Starting historical data sync from ${options.startDate.toISOString()} to ${options.endDate.toISOString()}`);
     
     const historicalOptions: SyncOptions = {
       ...options,
@@ -1055,7 +1058,7 @@ export class CloverSyncService {
     const merchants = await storage.getAllCloverConfigs();
     const activeMerchants = merchants.filter(m => m.isActive);
     
-    console.log(`🏪 Syncing historical data for ${activeMerchants.length} merchants`);
+    log.debug(`🏪 Syncing historical data for ${activeMerchants.length} merchants`);
     
     if (options.parallelMerchantSync && activeMerchants.length > 1) {
       // Parallel sync with concurrency control
@@ -1143,7 +1146,7 @@ export class CloverSyncService {
    * Stop running sync
    */
   stopSync(): void {
-    console.log('🛑 Stopping sync service');
+    log.info('🛑 Stopping sync service');
     this.isRunning = false;
     if (this.abortController) {
       this.abortController.abort();

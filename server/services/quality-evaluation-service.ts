@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { videoFrameExtractor } from './video-frame-extractor';
 import { brandContextService } from './brand-context-service';
 import { projectInstructionsService } from './project-instructions-service';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('QualityEval');
 
 export interface QualityIssue {
   type: 
@@ -120,10 +123,10 @@ class QualityEvaluationService {
       }>;
     }
   ): Promise<VideoQualityReport> {
-    console.log(`[QualityEval] Starting evaluation for project ${projectData.projectId}`);
+    log.debug(` Starting evaluation for project ${projectData.projectId}`);
     
     if (!this.anthropic) {
-      console.warn(`[QualityEval] Anthropic not configured, using default scores`);
+      log.warn(` Anthropic not configured, using default scores`);
       return this.getDefaultReport(projectData.projectId, projectData.scenes);
     }
     
@@ -136,7 +139,7 @@ class QualityEvaluationService {
       const scene = projectData.scenes[i];
       
       const frameTime = currentTime + (scene.duration / 2);
-      console.log(`[QualityEval] Evaluating scene ${i + 1} at ${frameTime.toFixed(1)}s...`);
+      log.debug(` Evaluating scene ${i + 1} at ${frameTime.toFixed(1)}s...`);
       
       const frameData = await videoFrameExtractor.extractFrameAsBase64(videoUrl, frameTime);
       
@@ -173,7 +176,7 @@ class QualityEvaluationService {
       evaluatedAt: new Date().toISOString(),
     };
     
-    console.log(`[QualityEval] Complete: Score ${overallScore}/100, ${passesQuality ? 'PASSED' : 'NEEDS REVIEW'}`);
+    log.debug(` Complete: Score ${overallScore}/100, ${passesQuality ? 'PASSED' : 'NEEDS REVIEW'}`);
     
     return report;
   }
@@ -226,7 +229,7 @@ class QualityEvaluationService {
       return this.parseEvaluationResponse(content.text, scene.id, sceneIndex);
 
     } catch (error: any) {
-      console.error(`[QualityEval] Frame evaluation failed:`, error.message);
+      log.error(`[QualityEval] Frame evaluation failed:`, error.message);
       return this.getPlaceholderScore(scene.id, sceneIndex);
     }
   }
@@ -387,7 +390,7 @@ Return ONLY the JSON object.`;
                               (scores.framingMatch !== undefined && scores.framingMatch < 50);
       const passesThreshold = overallScore >= this.qualityThreshold && !hasCriticalIssues && !hasFailingScore;
       
-      console.log(`[QualityEval] Scene ${sceneIndex + 1}: Overall=${overallScore}, Content=${scores.contentMatch}, Framing=${scores.framingMatch || 'N/A'}, Pass=${passesThreshold}`);
+      log.debug(` Scene ${sceneIndex + 1}: Overall=${overallScore}, Content=${scores.contentMatch}, Framing=${scores.framingMatch || 'N/A'}, Pass=${passesThreshold}`);
       
       return {
         sceneId,
@@ -402,7 +405,7 @@ Return ONLY the JSON object.`;
       };
 
     } catch (error: any) {
-      console.error(`[QualityEval] Parse error:`, error.message);
+      log.error(`[QualityEval] Parse error:`, error.message);
       return this.getPlaceholderScore(sceneId, sceneIndex);
     }
   }
@@ -568,10 +571,10 @@ Return ONLY the JSON.`,
     score: number;
     issues: QualityIssue[];
   }> {
-    console.log(`[QualityEval] Checking brand compliance...`);
+    log.debug(` Checking brand compliance...`);
     
     if (!this.anthropic) {
-      console.warn(`[QualityEval] Anthropic not configured, skipping brand compliance check`);
+      log.warn(` Anthropic not configured, skipping brand compliance check`);
       return { score: 70, issues: [] };
     }
 
@@ -608,7 +611,7 @@ Return ONLY the JSON.`,
       return this.parseBrandComplianceResponse(content.text);
 
     } catch (error: any) {
-      console.error(`[QualityEval] Brand compliance check failed:`, error.message);
+      log.error(`[QualityEval] Brand compliance check failed:`, error.message);
       return { score: 70, issues: [] };
     }
   }
@@ -713,7 +716,7 @@ Return ONLY the JSON object, no other text.`;
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.warn('[QualityEval] No JSON found in brand compliance response');
+        log.warn('[QualityEval] No JSON found in brand compliance response');
         return { score: 70, issues: [] };
       }
 
@@ -728,7 +731,7 @@ Return ONLY the JSON object, no other text.`;
           examples: parsed.aiTextDetected.examples || [],
         });
         score -= 40;
-        console.log(`[QualityEval] AI text detected: ${parsed.aiTextDetected.examples?.join(', ')}`);
+        log.debug(` AI text detected: ${parsed.aiTextDetected.examples?.join(', ')}`);
       }
 
       // Process AI UI detection
@@ -739,7 +742,7 @@ Return ONLY the JSON object, no other text.`;
           description: `AI-generated UI elements detected: ${parsed.aiUIDetected.description}`,
         });
         score -= 25;
-        console.log(`[QualityEval] AI UI detected: ${parsed.aiUIDetected.description}`);
+        log.debug(` AI UI detected: ${parsed.aiUIDetected.description}`);
       }
 
       // Process off-brand content
@@ -750,7 +753,7 @@ Return ONLY the JSON object, no other text.`;
           description: `Off-brand content: ${parsed.offBrandContent.description}`,
         });
         score -= 20;
-        console.log(`[QualityEval] Off-brand content: ${parsed.offBrandContent.description}`);
+        log.debug(` Off-brand content: ${parsed.offBrandContent.description}`);
       }
 
       // Process missing brand elements
@@ -766,9 +769,9 @@ Return ONLY the JSON object, no other text.`;
       // Use parsed score if available, otherwise use calculated
       const finalScore = parsed.brandComplianceScore ?? Math.max(0, score);
       
-      console.log(`[QualityEval] Brand compliance score: ${finalScore}/100`);
+      log.debug(` Brand compliance score: ${finalScore}/100`);
       if (issues.length > 0) {
-        console.log(`[QualityEval] Issues: ${issues.map(i => `${i.type} (${i.severity})`).join(', ')}`);
+        log.debug(` Issues: ${issues.map(i => `${i.type} (${i.severity})`).join(', ')}`);
       }
 
       return {
@@ -777,7 +780,7 @@ Return ONLY the JSON object, no other text.`;
       };
 
     } catch (parseError: any) {
-      console.error('[QualityEval] Failed to parse brand compliance response:', parseError.message);
+      log.error(' Failed to parse brand compliance response:', parseError.message);
       return { score: 70, issues: [] };
     }
   }
@@ -801,7 +804,7 @@ Return ONLY the JSON object, no other text.`;
     issues: QualityIssue[];
     recommendation: 'pass' | 'regenerate' | 'adjust';
   }> {
-    console.log(`[QualityEval] Starting complete evaluation for scene ${sceneData.sceneIndex + 1}...`);
+    log.debug(` Starting complete evaluation for scene ${sceneData.sceneIndex + 1}...`);
 
     // Run composition evaluation (existing Phase 3 logic)
     const compositionResult = await this.evaluateFrame(
@@ -850,7 +853,7 @@ Return ONLY the JSON object, no other text.`;
       recommendation = 'adjust';
     }
 
-    console.log(`[QualityEval] Complete - Overall: ${Math.round(overallScore)}, Recommendation: ${recommendation}`);
+    log.debug(` Complete - Overall: ${Math.round(overallScore)}, Recommendation: ${recommendation}`);
 
     return {
       overallScore: Math.round(overallScore),
@@ -877,7 +880,7 @@ Return ONLY the JSON object, no other text.`;
     criticalIssues: QualityIssue[];
     recommendation: 'approved' | 'needs-regeneration' | 'needs-review';
   }> {
-    console.log(`[QualityEval] Starting brand compliance check for ${scenes.length} scenes...`);
+    log.debug(` Starting brand compliance check for ${scenes.length} scenes...`);
 
     const sceneScores: Array<{ sceneIndex: number; score: number; issues: QualityIssue[] }> = [];
     const criticalIssues: QualityIssue[] = [];
@@ -922,7 +925,7 @@ Return ONLY the JSON object, no other text.`;
       recommendation = 'approved';
     }
 
-    console.log(`[QualityEval] Brand check complete - Score: ${overallBrandScore}, Critical issues: ${criticalIssues.length}`);
+    log.debug(` Brand check complete - Score: ${overallBrandScore}, Critical issues: ${criticalIssues.length}`);
 
     return {
       overallBrandScore,
@@ -950,10 +953,10 @@ Return ONLY the JSON object, no other text.`;
       expectedContentType: string;
     }
   ): Promise<ComprehensiveQualityResult> {
-    console.log(`[QualityEval] Starting comprehensive evaluation for scene ${sceneContext.sceneIndex + 1}...`);
+    log.debug(` Starting comprehensive evaluation for scene ${sceneContext.sceneIndex + 1}...`);
 
     if (!this.anthropic) {
-      console.warn(`[QualityEval] Anthropic not configured, using default comprehensive result`);
+      log.warn(` Anthropic not configured, using default comprehensive result`);
       return this.getDefaultComprehensiveResult();
     }
 
@@ -992,7 +995,7 @@ Return ONLY the JSON object, no other text.`;
       return this.parseComprehensiveEvalResponse(content.text, sceneContext);
 
     } catch (error: any) {
-      console.error(`[QualityEval] Comprehensive evaluation failed:`, error.message);
+      log.error(`[QualityEval] Comprehensive evaluation failed:`, error.message);
       return this.getDefaultComprehensiveResult();
     }
   }
@@ -1183,22 +1186,22 @@ IMPORTANT:
         });
       }
 
-      console.log(`[QualityEval] Comprehensive scores - Technical: ${technicalScore}, Composition: ${compositionScore}, AI: ${aiArtifactsScore}, Brand: ${brandTotal}`);
-      console.log(`[QualityEval] Weighted overall: ${weightedScore}, Recommendation: ${recommendation}`);
+      log.debug(` Comprehensive scores - Technical: ${technicalScore}, Composition: ${compositionScore}, AI: ${aiArtifactsScore}, Brand: ${brandTotal}`);
+      log.debug(` Weighted overall: ${weightedScore}, Recommendation: ${recommendation}`);
 
       if (brandTotal < 70) {
-        console.log(`[QualityEval] Brand issues:`);
+        log.debug(` Brand issues:`);
         if (brandScores.lighting < 20) {
-          console.log(`  - Lighting: ${parsed.brandScores?.lighting?.assessment} (${brandScores.lighting}/25)`);
+          log.debug(`  - Lighting: ${parsed.brandScores?.lighting?.assessment} (${brandScores.lighting}/25)`);
         }
         if (brandScores.colors < 20) {
-          console.log(`  - Colors: ${parsed.brandScores?.colors?.assessment} (${brandScores.colors}/25)`);
+          log.debug(`  - Colors: ${parsed.brandScores?.colors?.assessment} (${brandScores.colors}/25)`);
         }
         if (brandScores.setting < 20) {
-          console.log(`  - Setting: ${parsed.brandScores?.setting?.assessment} (${brandScores.setting}/25)`);
+          log.debug(`  - Setting: ${parsed.brandScores?.setting?.assessment} (${brandScores.setting}/25)`);
         }
         if (brandScores.authenticity < 20) {
-          console.log(`  - Authenticity: ${parsed.brandScores?.authenticity?.assessment} (${brandScores.authenticity}/25)`);
+          log.debug(`  - Authenticity: ${parsed.brandScores?.authenticity?.assessment} (${brandScores.authenticity}/25)`);
         }
       }
 
@@ -1229,7 +1232,7 @@ IMPORTANT:
       };
 
     } catch (error: any) {
-      console.error(`[QualityEval] Parse comprehensive response error:`, error.message);
+      log.error(`[QualityEval] Parse comprehensive response error:`, error.message);
       return this.getDefaultComprehensiveResult();
     }
   }
@@ -1244,17 +1247,17 @@ IMPORTANT:
     hasAiUI: boolean
   ): 'pass' | 'adjust' | 'regenerate' {
     if (hasAiText || hasAiUI) {
-      console.log(`[QualityEval] AI artifacts found - forcing regeneration`);
+      log.debug(` AI artifacts found - forcing regeneration`);
       return 'regenerate';
     }
     
     if (brandScore < 50) {
-      console.log(`[QualityEval] Brand score ${brandScore} < 50 - forcing regeneration`);
+      log.debug(` Brand score ${brandScore} < 50 - forcing regeneration`);
       return 'regenerate';
     }
     
     if (brandScore < 70 || weightedScore < 70) {
-      console.log(`[QualityEval] Brand ${brandScore} or weighted ${weightedScore} < 70 - needs adjustment`);
+      log.debug(` Brand ${brandScore} or weighted ${weightedScore} < 70 - needs adjustment`);
       return 'adjust';
     }
     

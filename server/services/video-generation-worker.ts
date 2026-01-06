@@ -2,6 +2,9 @@ import { storage } from '../storage';
 import { aiVideoService } from './ai-video-service';
 import { nanoid } from 'nanoid';
 import type { VideoGenerationJob } from '@shared/schema';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('VideoWorker');
 
 interface VideoGenerationRequest {
   projectId: string;
@@ -41,7 +44,7 @@ class VideoGenerationWorker {
       try {
         callback(job);
       } catch (error) {
-        console.error('[VideoWorker] Error in job update callback:', error);
+        log.error(' Error in job update callback:', error);
       }
     }
   }
@@ -49,7 +52,7 @@ class VideoGenerationWorker {
   async createJob(request: VideoGenerationRequest): Promise<VideoGenerationJob> {
     const jobId = `vj_${nanoid(16)}`;
     
-    console.log(`[VideoWorker] Creating job ${jobId} for scene ${request.sceneId}`);
+    log.debug(` Creating job ${jobId} for scene ${request.sceneId}`);
     
     const job = await storage.createVideoGenerationJob({
       jobId,
@@ -69,7 +72,7 @@ class VideoGenerationWorker {
       maxRetries: 3,
     });
     
-    console.log(`[VideoWorker] Job ${jobId} created successfully`);
+    log.debug(` Job ${jobId} created successfully`);
     
     this.notifyJobUpdate(job);
     
@@ -91,11 +94,11 @@ class VideoGenerationWorker {
 
   startWorker(intervalMs: number = 3000) {
     if (this.workerInterval) {
-      console.log('[VideoWorker] Worker already running');
+      log.debug('Worker already running');
       return;
     }
 
-    console.log(`🎬 [VideoWorker] Starting video generation worker (interval: ${intervalMs}ms)`);
+    log.debug(`🎬 [VideoWorker] Starting video generation worker (interval: ${intervalMs}ms)`);
 
     this.workerInterval = setInterval(async () => {
       await this.processNextJob();
@@ -103,10 +106,10 @@ class VideoGenerationWorker {
 
     storage.recoverStuckVideoGenerationJobs(10).then(recovered => {
       if (recovered > 0) {
-        console.log(`[VideoWorker] Recovered ${recovered} stuck jobs`);
+        log.debug(` Recovered ${recovered} stuck jobs`);
       }
     }).catch(error => {
-      console.error('[VideoWorker] Error recovering stuck jobs:', error);
+      log.error(' Error recovering stuck jobs:', error);
     });
   }
 
@@ -114,7 +117,7 @@ class VideoGenerationWorker {
     if (this.workerInterval) {
       clearInterval(this.workerInterval);
       this.workerInterval = null;
-      console.log('[VideoWorker] Worker stopped');
+      log.debug('Worker stopped');
     }
   }
 
@@ -138,12 +141,12 @@ class VideoGenerationWorker {
       }
 
       this.processingJobIds.add(job.jobId);
-      console.log(`[VideoWorker] Processing job ${job.jobId} for scene ${job.sceneId}`);
+      log.debug(` Processing job ${job.jobId} for scene ${job.sceneId}`);
 
       await this.processJob(job);
 
     } catch (error) {
-      console.error('[VideoWorker] Error in worker loop:', error);
+      log.error(' Error in worker loop:', error);
     } finally {
       this.isProcessing = false;
     }
@@ -158,8 +161,8 @@ class VideoGenerationWorker {
       });
       this.notifyJobUpdate(updatedJob);
 
-      console.log(`[VideoWorker] Starting video generation for job ${job.jobId}`);
-      console.log(`[VideoWorker] Provider: ${job.provider}, Duration: ${job.duration}s, Aspect: ${job.aspectRatio}`);
+      log.debug(` Starting video generation for job ${job.jobId}`);
+      log.debug(` Provider: ${job.provider}, Duration: ${job.duration}s, Aspect: ${job.aspectRatio}`);
 
       const provider = job.provider as 'runway' | 'kling' | 'luma' | 'hailuo' | 'hunyuan' | 'veo';
       
@@ -185,7 +188,7 @@ class VideoGenerationWorker {
 
         // Log which provider actually fulfilled the request
         const actualProvider = result.provider || provider;
-        console.log(`[VideoWorker] Job ${job.jobId} fulfilled by provider: ${actualProvider}`);
+        log.debug(` Job ${job.jobId} fulfilled by provider: ${actualProvider}`);
 
         if (result.success && result.videoUrl) {
           videoUrl = result.videoUrl;
@@ -201,7 +204,7 @@ class VideoGenerationWorker {
         this.notifyJobUpdate(progressJob2);
 
       } catch (genError: any) {
-        console.error(`[VideoWorker] Video generation error for job ${job.jobId}:`, genError);
+        log.error(`Video generation error for job ${job.jobId}:`, genError);
         
         if (job.retryCount !== null && job.maxRetries !== null && job.retryCount < job.maxRetries) {
           const retryJob = await storage.updateVideoGenerationJob(job.jobId, {
@@ -210,7 +213,7 @@ class VideoGenerationWorker {
             errorMessage: genError.message || 'Generation failed, will retry',
           });
           this.notifyJobUpdate(retryJob);
-          console.log(`[VideoWorker] Job ${job.jobId} will retry (attempt ${(job.retryCount || 0) + 1}/${job.maxRetries})`);
+          log.debug(` Job ${job.jobId} will retry (attempt ${(job.retryCount || 0) + 1}/${job.maxRetries})`);
         } else {
           const failedJob = await storage.updateVideoGenerationJob(job.jobId, {
             status: 'failed',
@@ -219,7 +222,7 @@ class VideoGenerationWorker {
             errorMessage: genError.message || 'Video generation failed after max retries',
           });
           this.notifyJobUpdate(failedJob);
-          console.log(`[VideoWorker] Job ${job.jobId} failed permanently`);
+          log.debug(` Job ${job.jobId} failed permanently`);
         }
         
         return;
@@ -233,7 +236,7 @@ class VideoGenerationWorker {
           videoUrl,
         });
         this.notifyJobUpdate(completedJob);
-        console.log(`[VideoWorker] Job ${job.jobId} completed successfully: ${videoUrl}`);
+        log.debug(` Job ${job.jobId} completed successfully: ${videoUrl}`);
       } else {
         const failedJob = await storage.updateVideoGenerationJob(job.jobId, {
           status: 'failed',
@@ -242,11 +245,11 @@ class VideoGenerationWorker {
           errorMessage: 'No video URL returned from generation',
         });
         this.notifyJobUpdate(failedJob);
-        console.log(`[VideoWorker] Job ${job.jobId} failed - no video URL returned`);
+        log.debug(` Job ${job.jobId} failed - no video URL returned`);
       }
 
     } catch (error: any) {
-      console.error(`[VideoWorker] Error processing job ${job.jobId}:`, error);
+      log.error(`Error processing job ${job.jobId}:`, error);
       
       try {
         const failedJob = await storage.updateVideoGenerationJob(job.jobId, {
@@ -257,7 +260,7 @@ class VideoGenerationWorker {
         });
         this.notifyJobUpdate(failedJob);
       } catch (updateError) {
-        console.error(`[VideoWorker] Failed to update job status:`, updateError);
+        log.error(`Failed to update job status:`, updateError);
       }
     } finally {
       this.processingJobIds.delete(job.jobId);
