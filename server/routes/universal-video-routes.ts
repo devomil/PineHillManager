@@ -3731,7 +3731,14 @@ router.post('/projects/:projectId/scenes/:sceneIndex/analyze', isAuthenticated, 
           visualDirection: scene.visualDirection || '',
           imageUrl: imageUrl,
           provider: (scene.assets as any)?.imageProvider || 'unknown',
-          analysisResult: analysisResult,
+          analysisResult: {
+            overallScore: analysisResult.overallScore,
+            contentMatchDetails: {
+              presentElements: typeof analysisResult.contentMatchDetails === 'string' 
+                ? [analysisResult.contentMatchDetails]
+                : [],
+            },
+          },
         };
         await saveToLibrary(sceneForLibrary, { projectId }, userId);
         console.log(`[Phase11E] Auto-saved scene ${sceneIdx + 1} image to asset library (score: ${analysisResult.overallScore})`);
@@ -3865,7 +3872,14 @@ router.post('/projects/:projectId/analyze-all-scenes', isAuthenticated, async (r
               visualDirection: scene.visualDirection || '',
               imageUrl: imageUrl,
               provider: (scene.assets as any)?.imageProvider || 'unknown',
-              analysisResult: analysisResult,
+              analysisResult: {
+                overallScore: analysisResult.overallScore,
+                contentMatchDetails: {
+                  presentElements: typeof analysisResult.contentMatchDetails === 'string' 
+                    ? [analysisResult.contentMatchDetails]
+                    : [],
+                },
+              },
             };
             await saveToLibrary(sceneForLibrary, { projectId }, userId);
             console.log(`[Phase11E] Batch: Auto-saved scene ${i + 1} image to asset library`);
@@ -4099,25 +4113,27 @@ router.post('/projects/:projectId/run-qa', isAuthenticated, async (req: Request,
       const sceneScores = scenes.map((scene, i) => ({
         sceneId: scene.id,
         sceneIndex: i,
-        overallScore: null,  // Phase 10C: No fake score
-        scores: null,  // Phase 10C: No fake scores
-        issues: [],
+        overallScore: 0,  // Phase 10C: Zero indicates pending (no fake score)
+        scores: {
+          composition: 0,
+          visibility: 0,
+          technicalQuality: 0,
+          contentMatch: 0,
+          professionalLook: 0,
+        },
+        issues: [] as QualityIssue[],
         passesThreshold: false,  // Cannot pass without real analysis
         needsRegeneration: false,
-        status: 'pending',
-        hasRealAnalysis: false,
       }));
       
       qualityReport = {
         projectId,
-        overallScore: null,  // Phase 10C: No fake overall score
+        overallScore: 0,  // Phase 10C: Zero indicates pending
         passesQuality: false,  // Cannot pass without real analysis
         sceneScores,
         criticalIssues: [],
         recommendations: ['Configure ANTHROPIC_API_KEY to enable real quality analysis'],
         evaluatedAt: new Date().toISOString(),
-        status: 'analysis_pending',
-        hasRealAnalysis: false,
       };
     }
     
@@ -5441,7 +5457,11 @@ router.get('/api/debug/score-integrity', isAuthenticated, async (req, res) => {
     const userId = (req.user as any).id || '';
     
     // Get all video projects for this user
-    const projectIds = await listUserProjects(userId);
+    const userProjects = await db.select({ projectId: universalVideoProjects.projectId })
+      .from(universalVideoProjects)
+      .where(eq(universalVideoProjects.ownerId, userId))
+      .limit(50);
+    const projectIds = userProjects.map(p => p.projectId);
     
     const report = {
       totalProjects: projectIds.length,
