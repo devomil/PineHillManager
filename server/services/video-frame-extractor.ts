@@ -88,10 +88,80 @@ class VideoFrameExtractor {
     });
   }
 
+  private isImageUrl(url: string): boolean {
+    const lowerUrl = url.toLowerCase();
+    return lowerUrl.includes('/images/') || 
+           lowerUrl.endsWith('.jpg') || 
+           lowerUrl.endsWith('.jpeg') || 
+           lowerUrl.endsWith('.png') || 
+           lowerUrl.endsWith('.gif') ||
+           lowerUrl.endsWith('.webp');
+  }
+
+  private async downloadAsBase64(url: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      console.log(`[FrameExtractor] Downloading image directly: ${url.substring(0, 100)}...`);
+      const protocol = url.startsWith('https') ? https : http;
+      const chunks: Buffer[] = [];
+      
+      const request = protocol.get(url, { timeout: 60000 }, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 303 || response.statusCode === 307) {
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            const fullRedirectUrl = redirectUrl.startsWith('http') ? redirectUrl : new URL(redirectUrl, url).href;
+            this.downloadAsBase64(fullRedirectUrl).then(resolve);
+            return;
+          }
+        }
+        
+        if (response.statusCode !== 200) {
+          console.error(`[FrameExtractor] Image download failed with status: ${response.statusCode}`);
+          resolve(null);
+          return;
+        }
+        
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          const contentType = response.headers['content-type'] || 'image/jpeg';
+          const mediaType = contentType.split(';')[0].trim();
+          console.log(`[FrameExtractor] Image downloaded: ${buffer.length} bytes, type: ${mediaType}`);
+          resolve(`data:${mediaType};base64,${buffer.toString('base64')}`);
+        });
+      });
+      
+      request.on('error', (err) => {
+        console.error(`[FrameExtractor] Image download error:`, err.message);
+        resolve(null);
+      });
+      
+      request.on('timeout', () => {
+        console.error(`[FrameExtractor] Image download timeout`);
+        request.destroy();
+        resolve(null);
+      });
+    });
+  }
+
   async extractFrame(
     videoUrl: string,
     timestampSeconds: number = 1
   ): Promise<string | null> {
+    const isRemoteUrl = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
+    
+    console.log(`[FrameExtractor] Processing URL (remote: ${isRemoteUrl}): ${videoUrl.substring(0, 100)}...`);
+    
+    if (this.isImageUrl(videoUrl)) {
+      console.log(`[FrameExtractor] URL is an image, downloading directly instead of extracting frame`);
+      if (isRemoteUrl) {
+        return await this.downloadAsBase64(videoUrl);
+      } else if (fs.existsSync(videoUrl)) {
+        const buffer = fs.readFileSync(videoUrl);
+        return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+      }
+      return null;
+    }
+    
     const hasFFmpeg = await this.isFFmpegAvailable();
     
     if (!hasFFmpeg) {
@@ -104,10 +174,7 @@ class VideoFrameExtractor {
     const outputPath = path.join(tempDir, `frame_${Date.now()}.jpg`);
 
     try {
-      const isRemoteUrl = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
       let inputPath = videoUrl;
-      
-      console.log(`[FrameExtractor] Processing video URL (remote: ${isRemoteUrl}): ${videoUrl.substring(0, 100)}...`);
       
       if (isRemoteUrl) {
         const downloaded = await this.downloadVideo(videoUrl, videoPath);
@@ -121,6 +188,25 @@ class VideoFrameExtractor {
         }
         const stats = fs.statSync(videoPath);
         console.log(`[FrameExtractor] Video downloaded successfully: ${stats.size} bytes at ${videoPath}`);
+        
+        const magicBuffer = Buffer.alloc(12);
+        const fd = fs.openSync(videoPath, 'r');
+        fs.readSync(fd, magicBuffer, 0, 12, 0);
+        fs.closeSync(fd);
+        
+        if (magicBuffer[0] === 0xFF && magicBuffer[1] === 0xD8) {
+          console.log(`[FrameExtractor] Downloaded file is actually a JPEG image, returning directly`);
+          const buffer = fs.readFileSync(videoPath);
+          fs.unlinkSync(videoPath);
+          return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+        }
+        if (magicBuffer[0] === 0x89 && magicBuffer[1] === 0x50 && magicBuffer[2] === 0x4E && magicBuffer[3] === 0x47) {
+          console.log(`[FrameExtractor] Downloaded file is actually a PNG image, returning directly`);
+          const buffer = fs.readFileSync(videoPath);
+          fs.unlinkSync(videoPath);
+          return `data:image/png;base64,${buffer.toString('base64')}`;
+        }
+        
         inputPath = videoPath;
       }
       
