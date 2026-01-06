@@ -34,7 +34,10 @@ import {
   ArrowRight,
   Loader2,
   MapPin,
-  FileText
+  FileText,
+  Zap,
+  HelpCircle,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -132,6 +135,9 @@ export default function EmployeeSupport() {
   const [ticketDescription, setTicketDescription] = useState("");
   const [ticketCategory, setTicketCategory] = useState("question");
   const [ticketPriority, setTicketPriority] = useState("normal");
+  
+  // Floating action button state
+  const [fabOpen, setFabOpen] = useState(false);
 
   // Check if user can manage articles
   const { data: canManageData } = useQuery<{ canManage: boolean }>({
@@ -267,6 +273,16 @@ export default function EmployeeSupport() {
     setTicketCategory("question");
     setTicketPriority("normal");
   };
+  
+  // Quick ticket submission helpers
+  const openQuickTicket = (category: string, title: string = "") => {
+    setTicketCategory(category);
+    setTicketTitle(title);
+    setTicketDescription("");
+    setTicketPriority(category === "bug_report" ? "high" : "normal");
+    setShowTicketModal(true);
+    setFabOpen(false);
+  };
 
   const handleEditArticle = (article: Article) => {
     setEditingArticle(article);
@@ -367,6 +383,90 @@ export default function EmployeeSupport() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section with Quick Actions */}
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            {/* Quick Action Cards */}
+            <motion.div
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-4 cursor-pointer shadow-lg"
+              onClick={() => openQuickTicket("feature_request", "")}
+              data-testid="quick-card-feature"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Rocket className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Request Feature</h3>
+                  <p className="text-xs text-white/80">Got an idea? Share it!</p>
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-br from-red-500 to-orange-500 rounded-xl p-4 cursor-pointer shadow-lg"
+              onClick={() => openQuickTicket("bug_report", "")}
+              data-testid="quick-card-bug"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Bug className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Report Bug</h3>
+                  <p className="text-xs text-white/80">Something broken?</p>
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 cursor-pointer shadow-lg"
+              onClick={() => openQuickTicket("question", "")}
+              data-testid="quick-card-question"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <HelpCircle className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Ask Question</h3>
+                  <p className="text-xs text-white/80">Need help?</p>
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-4 cursor-pointer shadow-lg"
+              onClick={() => setActiveTab("tickets")}
+              data-testid="quick-card-tickets"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <MessageSquare className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">My Tickets</h3>
+                  <p className="text-xs text-white/80">
+                    {tickets.filter(t => t.status !== 'completed').length} open
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+
         {/* Search */}
         <div className="relative mb-6">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -374,7 +474,7 @@ export default function EmployeeSupport() {
             placeholder="Search articles..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 w-full max-w-md"
+            className="pl-10 w-full max-w-md bg-white dark:bg-slate-800"
             data-testid="input-search-articles"
           />
         </div>
@@ -823,6 +923,91 @@ export default function EmployeeSupport() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Floating Action Button for Quick Actions */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <AnimatePresence>
+          {fabOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-16 right-0 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border overflow-hidden"
+            >
+              <div className="p-2 space-y-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 h-12 text-left hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                  onClick={() => openQuickTicket("feature_request", "")}
+                  data-testid="fab-request-feature"
+                >
+                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
+                    <Rocket className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Request Feature</p>
+                    <p className="text-xs text-gray-500">Suggest an improvement</p>
+                  </div>
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 h-12 text-left hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={() => openQuickTicket("bug_report", "")}
+                  data-testid="fab-report-bug"
+                >
+                  <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                    <Bug className="h-4 w-4 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Report Bug</p>
+                    <p className="text-xs text-gray-500">Something not working?</p>
+                  </div>
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 h-12 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  onClick={() => openQuickTicket("question", "")}
+                  data-testid="fab-ask-question"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                    <HelpCircle className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Ask Question</p>
+                    <p className="text-xs text-gray-500">Get help with something</p>
+                  </div>
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setFabOpen(!fabOpen)}
+          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+            fabOpen 
+              ? 'bg-gray-700 hover:bg-gray-800' 
+              : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+          }`}
+          data-testid="fab-toggle"
+        >
+          <motion.div
+            animate={{ rotate: fabOpen ? 45 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {fabOpen ? (
+              <X className="h-6 w-6 text-white" />
+            ) : (
+              <Zap className="h-6 w-6 text-white" />
+            )}
+          </motion.div>
+        </motion.button>
+      </div>
     </div>
   );
 }
