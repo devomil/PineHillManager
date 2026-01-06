@@ -173,62 +173,67 @@ function getAnimationTransforms(
   style: AnimationStyle,
   progress: number,
   frame: number,
-  _fps: number
+  _fps: number,
+  index: number = 0
 ): { opacity: number; transform: string } {
+  const clampedProgress = Math.min(1, Math.max(0, progress));
+  
   switch (style) {
     case 'bounce':
       return {
-        opacity: progress,
-        transform: `translateY(${(1 - progress) * -30}px) scale(${0.5 + progress * 0.5})`,
+        opacity: clampedProgress,
+        transform: `translateY(${(1 - clampedProgress) * -30}px) scale(${0.5 + clampedProgress * 0.5})`,
       };
       
     case 'wave': {
-      const waveOffset = Math.sin(frame * 0.2) * 10 * (1 - progress);
+      const waveOffset = Math.sin(frame * 0.2) * 10 * (1 - clampedProgress);
       return {
-        opacity: progress,
+        opacity: clampedProgress,
         transform: `translateY(${waveOffset}px)`,
       };
     }
       
     case 'reveal':
       return {
-        opacity: progress,
-        transform: `scaleX(${progress})`,
+        opacity: clampedProgress,
+        transform: `scaleX(${clampedProgress})`,
       };
       
-    case 'split':
+    case 'split': {
+      const direction = index % 2 === 0 ? 1 : -1;
       return {
-        opacity: progress,
-        transform: `translateX(${(1 - progress) * (Math.random() > 0.5 ? 50 : -50)}px)`,
+        opacity: clampedProgress,
+        transform: `translateX(${(1 - clampedProgress) * 50 * direction}px)`,
       };
+    }
       
     case 'slide-up':
       return {
-        opacity: progress,
-        transform: `translateY(${(1 - progress) * 40}px)`,
+        opacity: clampedProgress,
+        transform: `translateY(${(1 - clampedProgress) * 40}px)`,
       };
       
     case 'slide-down':
       return {
-        opacity: progress,
-        transform: `translateY(${(1 - progress) * -40}px)`,
+        opacity: clampedProgress,
+        transform: `translateY(${(1 - clampedProgress) * -40}px)`,
       };
       
     case 'scale-in':
       return {
-        opacity: progress,
-        transform: `scale(${0.3 + progress * 0.7})`,
+        opacity: clampedProgress,
+        transform: `scale(${0.3 + clampedProgress * 0.7})`,
       };
       
     case 'blur-in':
       return {
-        opacity: progress,
-        transform: `scale(${0.9 + progress * 0.1})`,
+        opacity: clampedProgress,
+        transform: `scale(${0.9 + clampedProgress * 0.1})`,
       };
       
     case 'typewriter':
       return {
-        opacity: progress >= 1 ? 1 : 0,
+        opacity: clampedProgress >= 1 ? 1 : 0,
         transform: 'none',
       };
       
@@ -238,8 +243,8 @@ function getAnimationTransforms(
     case 'line-by-line':
     default:
       return {
-        opacity: progress,
-        transform: `translateY(${(1 - progress) * 20}px)`,
+        opacity: clampedProgress,
+        transform: `translateY(${(1 - clampedProgress) * 20}px)`,
       };
   }
 }
@@ -258,6 +263,9 @@ const AnimatedUnit: React.FC<{
   localFrame: number;
   staggerDelay: number;
   entranceDuration: number;
+  holdDuration: number;
+  exitDuration: number;
+  totalUnits: number;
   easing: EasingType;
   fps: number;
   isCharacter: boolean;
@@ -268,27 +276,41 @@ const AnimatedUnit: React.FC<{
   localFrame,
   staggerDelay,
   entranceDuration,
+  holdDuration,
+  exitDuration,
+  totalUnits,
   easing,
   fps,
   isCharacter,
 }) => {
   const unitStartFrame = index * staggerDelay;
+  const totalEntranceTime = entranceDuration + (totalUnits - 1) * staggerDelay;
+  const exitStartFrame = totalEntranceTime + holdDuration;
   const unitFrame = localFrame - unitStartFrame;
   
   if (unitFrame < 0) {
     return <span style={{ opacity: 0 }}>{text}{!isCharacter && ' '}</span>;
   }
   
-  const progress = Math.min(unitFrame / entranceDuration, 1);
-  const easedProgress = applyEasing(progress, easing, fps, unitFrame);
-  const transforms = getAnimationTransforms(style, easedProgress, unitFrame, fps);
+  const entranceProgress = Math.min(unitFrame / entranceDuration, 1);
+  const easedProgress = applyEasing(entranceProgress, easing, fps, unitFrame);
+  const transforms = getAnimationTransforms(style, easedProgress, unitFrame, fps, index);
+  
+  let finalOpacity = transforms.opacity;
+  let finalTransform = transforms.transform;
+  
+  if (localFrame >= exitStartFrame && exitDuration > 0) {
+    const exitProgress = Math.min((localFrame - exitStartFrame) / exitDuration, 1);
+    finalOpacity = transforms.opacity * (1 - exitProgress);
+    finalTransform = `${transforms.transform} translateY(${exitProgress * 20}px)`;
+  }
   
   return (
     <span
       style={{
         display: 'inline-block',
-        opacity: transforms.opacity,
-        transform: transforms.transform,
+        opacity: finalOpacity,
+        transform: finalTransform,
         whiteSpace: isCharacter ? 'pre' : 'normal',
       }}
     >
@@ -402,6 +424,9 @@ export const KineticText: React.FC<KineticTextProps> = ({
             localFrame={localFrame}
             staggerDelay={staggerDelay}
             entranceDuration={entranceDuration}
+            holdDuration={holdDuration}
+            exitDuration={exitDuration}
+            totalUnits={units.length}
             easing={easing}
             fps={fps}
             isCharacter={style === 'character'}

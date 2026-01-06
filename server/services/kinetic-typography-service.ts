@@ -7,12 +7,17 @@ const log = createLogger('KineticTypography');
 type TextAnimationStyle = 
   | 'word-by-word'
   | 'character'
+  | 'line-by-line'
   | 'bounce'
   | 'wave'
   | 'reveal'
+  | 'split'
   | 'typewriter'
+  | 'fade'
   | 'slide-up'
-  | 'scale-in';
+  | 'slide-down'
+  | 'scale-in'
+  | 'blur-in';
 
 interface ContentAnalysis {
   wordCount: number;
