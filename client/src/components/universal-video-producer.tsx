@@ -1536,122 +1536,37 @@ function ScenePreview({
     
     setSceneActionPending(scene.id);
     try {
-      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneIndex}/auto-regenerate`, {
+      toast({ 
+        title: 'Running Quality Analysis', 
+        description: `Analyzing scene ${sceneIndex + 1} with Claude Vision...` 
+      });
+      
+      const res = await fetch(`/api/universal-video/${projectId}/analyze-quality`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include'
       });
       const data = await res.json();
+      
       if (data.success) {
-        if (data.isVideoRegeneration && data.jobId) {
-          toast({ 
-            title: 'Video Regeneration Started', 
-            description: `Scene ${sceneIndex + 1} is being regenerated. This may take 3-5 minutes.` 
-          });
-          
-          setActiveJobPolling(prev => ({ 
-            ...prev, 
-            [scene.id]: { jobId: data.jobId, progress: 0 } 
-          }));
-          
-          if (pollingTimeoutRefs.current[scene.id]) {
-            clearTimeout(pollingTimeoutRefs.current[scene.id]);
-          }
-          
-          const pollJobStatus = () => {
-            const maxPolls = 120;
-            let pollCount = 0;
-            
-            const cleanupPolling = () => {
-              delete pollingTimeoutRefs.current[scene.id];
-              setActiveJobPolling(prev => {
-                const next = { ...prev };
-                delete next[scene.id];
-                return next;
-              });
-              setSceneActionPending(null);
-            };
-            
-            const poll = async (): Promise<void> => {
-              pollCount++;
-              if (pollCount > maxPolls) {
-                toast({ 
-                  title: 'Video generation timeout', 
-                  description: 'The job is taking longer than expected. It may still complete.', 
-                  variant: 'destructive' 
-                });
-                cleanupPolling();
-                return;
-              }
-              
-              try {
-                const statusRes = await fetch(
-                  `/api/universal-video/${projectId}/scenes/${scene.id}/video-job/${data.jobId}`,
-                  { credentials: 'include' }
-                );
-                const statusData = await statusRes.json();
-                
-                if (statusData.success && statusData.job) {
-                  const job = statusData.job;
-                  console.log(`[handleSceneRegenerate] Job ${data.jobId} status: ${job.status}, progress: ${job.progress}%`);
-                  
-                  setActiveJobPolling(prev => ({ 
-                    ...prev, 
-                    [scene.id]: { jobId: data.jobId, progress: job.progress } 
-                  }));
-                  
-                  if (job.status === 'succeeded' && job.videoUrl) {
-                    toast({ 
-                      title: 'Video Generated', 
-                      description: `Scene ${sceneIndex + 1} has been regenerated successfully.` 
-                    });
-                    queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
-                    onSceneUpdate?.();
-                    cleanupPolling();
-                    return;
-                  } else if (job.status === 'failed') {
-                    toast({ 
-                      title: 'Regeneration Failed', 
-                      description: job.errorMessage || 'Video generation failed. Please try again.', 
-                      variant: 'destructive' 
-                    });
-                    cleanupPolling();
-                    return;
-                  } else if (job.status === 'cancelled') {
-                    toast({ title: 'Regeneration cancelled' });
-                    cleanupPolling();
-                    return;
-                  }
-                  
-                  pollingTimeoutRefs.current[scene.id] = setTimeout(poll, 5000);
-                } else {
-                  pollingTimeoutRefs.current[scene.id] = setTimeout(poll, 5000);
-                }
-              } catch (pollError) {
-                console.error('[handleSceneRegenerate] Polling error:', pollError);
-                pollingTimeoutRefs.current[scene.id] = setTimeout(poll, 5000);
-              }
-            };
-            
-            poll();
-          };
-          
-          pollJobStatus();
-        } else {
-          toast({ 
-            title: 'Regeneration Started', 
-            description: `Regenerating scene ${sceneIndex + 1} with improved prompt.` 
-          });
-          queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
-          onSceneUpdate?.();
-          setSceneActionPending(null);
-        }
+        const sceneResult = data.sceneReports?.[sceneIndex];
+        const score = sceneResult?.analysis?.overallScore ?? data.overallScore ?? 0;
+        toast({ 
+          title: 'Quality Analysis Complete', 
+          description: `Scene ${sceneIndex + 1} scored ${score}/100` 
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+        onSceneUpdate?.();
       } else {
-        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
-        setSceneActionPending(null);
+        toast({ 
+          title: 'Analysis Failed', 
+          description: data.error || 'Quality analysis failed. Please try again.', 
+          variant: 'destructive' 
+        });
       }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
       setSceneActionPending(null);
     }
   };
@@ -3068,7 +2983,7 @@ function ScenePreview({
                     <Alert variant="destructive" className="flex-1">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-sm">
-                        This scene requires regeneration. Click to generate a new version.
+                        Quality analysis failed. Use AI providers above to generate video, then re-analyze.
                       </AlertDescription>
                     </Alert>
                     <Button
@@ -3083,7 +2998,7 @@ function ScenePreview({
                       ) : (
                         <RefreshCw className="w-4 h-4 mr-1" />
                       )}
-                      Regenerate Now
+                      Re-analyze
                     </Button>
                   </div>
                 )}
