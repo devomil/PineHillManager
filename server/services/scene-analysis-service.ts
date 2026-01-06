@@ -1533,7 +1533,7 @@ Respond ONLY with the JSON, no other text.`;
       contentMatchDetails: '⚠️ ANALYSIS PENDING - Configure ANTHROPIC_API_KEY for real quality analysis.',
       brandComplianceDetails: '⚠️ ANALYSIS PENDING - No Anthropic API key configured',
       frameAnalysis: {
-        subjectPosition: 'unknown',
+        subjectPosition: 'none',
         faceDetected: false,
         busyRegions: [],
         dominantColors: [],
