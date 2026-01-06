@@ -25373,6 +25373,371 @@ Important:
   app.use('/api/universal-video', universalVideoRoutes.default);
 
   // ================================
+  // SUPPORT CENTER ROUTES
+  // ================================
+  
+  // Middleware to check if user is Ryan Sorensen (for article management)
+  const isRyanSorensen = (req: any, res: any, next: any) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    // Check by email or specific user ID pattern
+    const ryanEmails = ['ryan@pinehillfarm.co', 'ryansorensen@pinehillfarm.co'];
+    if (!ryanEmails.includes(req.user.email?.toLowerCase()) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only Ryan Sorensen can perform this action' });
+    }
+    next();
+  };
+
+  // Get all support articles (public for all authenticated users)
+  app.get('/api/support/articles', isAuthenticated, async (req, res) => {
+    try {
+      const { category, published = 'true' } = req.query;
+      const articles = await storage.getSupportArticles({
+        category: category as string,
+        published: published === 'true',
+      });
+      
+      // Get reaction counts for each article
+      const articlesWithReactions = await Promise.all(
+        articles.map(async (article) => {
+          const reactions = await storage.getArticleReactions(article.id);
+          const reactionCounts = reactions.reduce((acc: any, r) => {
+            acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
+            return acc;
+          }, {});
+          
+          // Check user's reactions
+          const userReactions = reactions
+            .filter(r => r.userId === req.user!.id)
+            .map(r => r.reactionType);
+          
+          // Get user's feedback
+          const userFeedback = await storage.getArticleFeedback(article.id, req.user!.id);
+          
+          return {
+            ...article,
+            reactionCounts,
+            userReactions,
+            userFeedback: userFeedback?.isHelpful,
+          };
+        })
+      );
+      
+      res.json(articlesWithReactions);
+    } catch (error) {
+      console.error('Error fetching support articles:', error);
+      res.status(500).json({ error: 'Failed to fetch articles' });
+    }
+  });
+
+  // Get single article and increment view count
+  app.get('/api/support/articles/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const article = await storage.getSupportArticle(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+      
+      // Increment view count
+      await storage.incrementArticleViewCount(id);
+      
+      // Get reactions
+      const reactions = await storage.getArticleReactions(id);
+      const reactionCounts = reactions.reduce((acc: any, r) => {
+        acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
+        return acc;
+      }, {});
+      
+      const userReactions = reactions
+        .filter(r => r.userId === req.user!.id)
+        .map(r => r.reactionType);
+      
+      const userFeedback = await storage.getArticleFeedback(id, req.user!.id);
+      
+      res.json({
+        ...article,
+        viewCount: (article.viewCount || 0) + 1,
+        reactionCounts,
+        userReactions,
+        userFeedback: userFeedback?.isHelpful,
+      });
+    } catch (error) {
+      console.error('Error fetching article:', error);
+      res.status(500).json({ error: 'Failed to fetch article' });
+    }
+  });
+
+  // Create article (Ryan only)
+  app.post('/api/support/articles', isAuthenticated, isRyanSorensen, async (req, res) => {
+    try {
+      const { title, content, excerpt, category, isPinned, isPublished } = req.body;
+      
+      if (!title?.trim() || !content?.trim() || !category) {
+        return res.status(400).json({ error: 'Title, content, and category are required' });
+      }
+      
+      const article = await storage.createSupportArticle({
+        title: title.trim(),
+        content: content.trim(),
+        excerpt: excerpt?.trim() || content.trim().substring(0, 200),
+        category,
+        authorId: req.user!.id,
+        isPinned: isPinned || false,
+        isPublished: isPublished !== false,
+        publishedAt: isPublished !== false ? new Date() : null,
+      });
+      
+      res.status(201).json(article);
+    } catch (error) {
+      console.error('Error creating article:', error);
+      res.status(500).json({ error: 'Failed to create article' });
+    }
+  });
+
+  // Update article (Ryan only)
+  app.put('/api/support/articles/:id', isAuthenticated, isRyanSorensen, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const article = await storage.updateSupportArticle(id, updates);
+      res.json(article);
+    } catch (error) {
+      console.error('Error updating article:', error);
+      res.status(500).json({ error: 'Failed to update article' });
+    }
+  });
+
+  // Delete article (Ryan only)
+  app.delete('/api/support/articles/:id', isAuthenticated, isRyanSorensen, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteSupportArticle(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting article:', error);
+      res.status(500).json({ error: 'Failed to delete article' });
+    }
+  });
+
+  // Add reaction to article
+  app.post('/api/support/articles/:id/reactions', isAuthenticated, async (req, res) => {
+    try {
+      const articleId = parseInt(req.params.id);
+      const { reactionType } = req.body;
+      
+      if (!['celebrate', 'helpful', 'lightbulb', 'bug'].includes(reactionType)) {
+        return res.status(400).json({ error: 'Invalid reaction type' });
+      }
+      
+      await storage.addArticleReaction({
+        articleId,
+        userId: req.user!.id,
+        reactionType,
+      });
+      
+      const reactions = await storage.getArticleReactions(articleId);
+      const reactionCounts = reactions.reduce((acc: any, r) => {
+        acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
+        return acc;
+      }, {});
+      
+      res.json({ reactionCounts });
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+      res.status(500).json({ error: 'Failed to add reaction' });
+    }
+  });
+
+  // Remove reaction from article
+  app.delete('/api/support/articles/:id/reactions/:reactionType', isAuthenticated, async (req, res) => {
+    try {
+      const articleId = parseInt(req.params.id);
+      const { reactionType } = req.params;
+      
+      await storage.removeArticleReaction(articleId, req.user!.id, reactionType);
+      
+      const reactions = await storage.getArticleReactions(articleId);
+      const reactionCounts = reactions.reduce((acc: any, r) => {
+        acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
+        return acc;
+      }, {});
+      
+      res.json({ reactionCounts });
+    } catch (error) {
+      console.error('Error removing reaction:', error);
+      res.status(500).json({ error: 'Failed to remove reaction' });
+    }
+  });
+
+  // Submit helpful/not helpful feedback
+  app.post('/api/support/articles/:id/feedback', isAuthenticated, async (req, res) => {
+    try {
+      const articleId = parseInt(req.params.id);
+      const { isHelpful } = req.body;
+      
+      if (typeof isHelpful !== 'boolean') {
+        return res.status(400).json({ error: 'isHelpful must be a boolean' });
+      }
+      
+      await storage.submitArticleFeedback({
+        articleId,
+        userId: req.user!.id,
+        isHelpful,
+      });
+      
+      const article = await storage.getSupportArticle(articleId);
+      res.json({
+        helpfulCount: article?.helpfulCount || 0,
+        notHelpfulCount: article?.notHelpfulCount || 0,
+        userFeedback: isHelpful,
+      });
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      res.status(500).json({ error: 'Failed to submit feedback' });
+    }
+  });
+
+  // ================================
+  // SUPPORT TICKETS
+  // ================================
+
+  // Get tickets (employees see their own, Ryan/admins see all)
+  app.get('/api/support/tickets', isAuthenticated, async (req, res) => {
+    try {
+      const { status, category } = req.query;
+      const user = req.user!;
+      
+      const ryanEmails = ['ryan@pinehillfarm.co', 'ryansorensen@pinehillfarm.co'];
+      const isRyan = ryanEmails.includes(user.email?.toLowerCase()) || user.role === 'admin';
+      
+      const tickets = await storage.getSupportTickets({
+        status: status as string,
+        category: category as string,
+        submittedById: isRyan ? undefined : user.id, // Non-admins only see their own
+      });
+      
+      // Enrich with submitter info
+      const enrichedTickets = await Promise.all(
+        tickets.map(async (ticket) => {
+          const submitter = await storage.getUser(ticket.submittedById);
+          const assignee = ticket.assignedToId ? await storage.getUser(ticket.assignedToId) : null;
+          return {
+            ...ticket,
+            submitterName: submitter ? `${submitter.firstName} ${submitter.lastName}` : 'Unknown',
+            assigneeName: assignee ? `${assignee.firstName} ${assignee.lastName}` : null,
+          };
+        })
+      );
+      
+      res.json(enrichedTickets);
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+      res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+  });
+
+  // Get single ticket
+  app.get('/api/support/tickets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ticket = await storage.getSupportTicket(id);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: 'Ticket not found' });
+      }
+      
+      const user = req.user!;
+      const ryanEmails = ['ryan@pinehillfarm.co', 'ryansorensen@pinehillfarm.co'];
+      const isRyan = ryanEmails.includes(user.email?.toLowerCase()) || user.role === 'admin';
+      
+      // Only allow owner or admins to view
+      if (!isRyan && ticket.submittedById !== user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      const submitter = await storage.getUser(ticket.submittedById);
+      const assignee = ticket.assignedToId ? await storage.getUser(ticket.assignedToId) : null;
+      
+      res.json({
+        ...ticket,
+        submitterName: submitter ? `${submitter.firstName} ${submitter.lastName}` : 'Unknown',
+        assigneeName: assignee ? `${assignee.firstName} ${assignee.lastName}` : null,
+      });
+    } catch (error) {
+      console.error('Error fetching ticket:', error);
+      res.status(500).json({ error: 'Failed to fetch ticket' });
+    }
+  });
+
+  // Create ticket (any authenticated user)
+  app.post('/api/support/tickets', isAuthenticated, async (req, res) => {
+    try {
+      const { title, description, category, priority } = req.body;
+      
+      if (!title?.trim() || !description?.trim() || !category) {
+        return res.status(400).json({ error: 'Title, description, and category are required' });
+      }
+      
+      const ticket = await storage.createSupportTicket({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        priority: priority || 'normal',
+        submittedById: req.user!.id,
+      });
+      
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      res.status(500).json({ error: 'Failed to create ticket' });
+    }
+  });
+
+  // Update ticket status (Ryan/admins only)
+  app.put('/api/support/tickets/:id/status', isAuthenticated, isRyanSorensen, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, resolutionNotes } = req.body;
+      
+      if (!['submitted', 'in_review', 'in_progress', 'completed', 'closed'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      
+      const ticket = await storage.updateTicketStatus(id, status, resolutionNotes);
+      res.json(ticket);
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+      res.status(500).json({ error: 'Failed to update ticket status' });
+    }
+  });
+
+  // Assign ticket (Ryan/admins only)
+  app.put('/api/support/tickets/:id/assign', isAuthenticated, isRyanSorensen, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { assignedToId } = req.body;
+      
+      const ticket = await storage.updateSupportTicket(id, { assignedToId });
+      res.json(ticket);
+    } catch (error) {
+      console.error('Error assigning ticket:', error);
+      res.status(500).json({ error: 'Failed to assign ticket' });
+    }
+  });
+
+  // Check if current user can manage articles (for UI)
+  app.get('/api/support/can-manage', isAuthenticated, async (req, res) => {
+    const user = req.user!;
+    const ryanEmails = ['ryan@pinehillfarm.co', 'ryansorensen@pinehillfarm.co'];
+    const canManage = ryanEmails.includes(user.email?.toLowerCase()) || user.role === 'admin';
+    res.json({ canManage });
+  });
+
+  // ================================
   // MARKETPLACE FULFILLMENT ROUTES
   // ================================
   const marketplaceRoutes = await import('./routes/marketplace-routes');

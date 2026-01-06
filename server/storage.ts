@@ -340,6 +340,19 @@ import {
   videoGenerationJobs,
   type VideoGenerationJob,
   type InsertVideoGenerationJob,
+  // Support Center
+  supportArticles,
+  supportArticleReactions,
+  supportArticleFeedback,
+  supportTickets,
+  type SupportArticle,
+  type InsertSupportArticle,
+  type SupportArticleReaction,
+  type InsertSupportArticleReaction,
+  type SupportArticleFeedback,
+  type InsertSupportArticleFeedback,
+  type SupportTicket,
+  type InsertSupportTicket,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, ilike, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
@@ -1879,6 +1892,32 @@ export interface IStorage {
   updateVideoGenerationJob(jobId: string, updates: Partial<InsertVideoGenerationJob>): Promise<VideoGenerationJob>;
   deleteVideoGenerationJob(jobId: string): Promise<void>;
   recoverStuckVideoGenerationJobs(stuckThresholdMinutes?: number): Promise<number>;
+  
+  // Support Center - Articles
+  createSupportArticle(article: InsertSupportArticle): Promise<SupportArticle>;
+  getSupportArticle(id: number): Promise<SupportArticle | undefined>;
+  getSupportArticles(options?: { category?: string; published?: boolean; limit?: number }): Promise<SupportArticle[]>;
+  updateSupportArticle(id: number, updates: Partial<InsertSupportArticle>): Promise<SupportArticle>;
+  deleteSupportArticle(id: number): Promise<void>;
+  incrementArticleViewCount(id: number): Promise<void>;
+  
+  // Support Center - Article Reactions
+  addArticleReaction(reaction: InsertSupportArticleReaction): Promise<SupportArticleReaction>;
+  removeArticleReaction(articleId: number, userId: string, reactionType: string): Promise<void>;
+  getArticleReactions(articleId: number): Promise<SupportArticleReaction[]>;
+  
+  // Support Center - Article Feedback
+  submitArticleFeedback(feedback: InsertSupportArticleFeedback): Promise<SupportArticleFeedback>;
+  getArticleFeedback(articleId: number, userId: string): Promise<SupportArticleFeedback | undefined>;
+  updateArticleFeedbackCounts(articleId: number): Promise<void>;
+  
+  // Support Center - Tickets
+  createSupportTicket(ticket: InsertSupportTicket): Promise<SupportTicket>;
+  getSupportTicket(id: number): Promise<SupportTicket | undefined>;
+  getSupportTickets(options?: { status?: string; category?: string; submittedById?: string; limit?: number }): Promise<SupportTicket[]>;
+  updateSupportTicket(id: number, updates: Partial<SupportTicket>): Promise<SupportTicket>;
+  updateTicketStatus(id: number, status: string, resolutionNotes?: string): Promise<SupportTicket>;
+  getNextTicketNumber(): Promise<string>;
 }
 
 // @ts-ignore
@@ -15801,6 +15840,265 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return result.length;
+  }
+
+  // ========================================
+  // SUPPORT CENTER - Articles
+  // ========================================
+  
+  async createSupportArticle(article: InsertSupportArticle): Promise<SupportArticle> {
+    const [newArticle] = await db
+      .insert(supportArticles)
+      .values({
+        ...article,
+        publishedAt: article.isPublished ? new Date() : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newArticle;
+  }
+
+  async getSupportArticle(id: number): Promise<SupportArticle | undefined> {
+    const [article] = await db
+      .select()
+      .from(supportArticles)
+      .where(eq(supportArticles.id, id));
+    return article;
+  }
+
+  async getSupportArticles(options?: { category?: string; published?: boolean; limit?: number }): Promise<SupportArticle[]> {
+    const conditions = [];
+    
+    if (options?.category) {
+      conditions.push(eq(supportArticles.category, options.category));
+    }
+    if (options?.published !== undefined) {
+      conditions.push(eq(supportArticles.isPublished, options.published));
+    }
+    
+    let query = db
+      .select()
+      .from(supportArticles)
+      .orderBy(desc(supportArticles.isPinned), desc(supportArticles.createdAt));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    if (options?.limit) {
+      query = query.limit(options.limit) as any;
+    }
+    
+    return query;
+  }
+
+  async updateSupportArticle(id: number, updates: Partial<InsertSupportArticle>): Promise<SupportArticle> {
+    const [updated] = await db
+      .update(supportArticles)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+        ...(updates.isPublished && !updates.publishedAt ? { publishedAt: new Date() } : {}),
+      })
+      .where(eq(supportArticles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSupportArticle(id: number): Promise<void> {
+    await db.delete(supportArticles).where(eq(supportArticles.id, id));
+  }
+
+  async incrementArticleViewCount(id: number): Promise<void> {
+    await db
+      .update(supportArticles)
+      .set({ viewCount: sql`${supportArticles.viewCount} + 1` })
+      .where(eq(supportArticles.id, id));
+  }
+
+  // ========================================
+  // SUPPORT CENTER - Article Reactions
+  // ========================================
+  
+  async addArticleReaction(reaction: InsertSupportArticleReaction): Promise<SupportArticleReaction> {
+    const [newReaction] = await db
+      .insert(supportArticleReactions)
+      .values({
+        ...reaction,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning();
+    return newReaction;
+  }
+
+  async removeArticleReaction(articleId: number, userId: string, reactionType: string): Promise<void> {
+    await db
+      .delete(supportArticleReactions)
+      .where(
+        and(
+          eq(supportArticleReactions.articleId, articleId),
+          eq(supportArticleReactions.userId, userId),
+          eq(supportArticleReactions.reactionType, reactionType)
+        )
+      );
+  }
+
+  async getArticleReactions(articleId: number): Promise<SupportArticleReaction[]> {
+    return db
+      .select()
+      .from(supportArticleReactions)
+      .where(eq(supportArticleReactions.articleId, articleId));
+  }
+
+  // ========================================
+  // SUPPORT CENTER - Article Feedback
+  // ========================================
+  
+  async submitArticleFeedback(feedback: InsertSupportArticleFeedback): Promise<SupportArticleFeedback> {
+    const [result] = await db
+      .insert(supportArticleFeedback)
+      .values({
+        ...feedback,
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [supportArticleFeedback.articleId, supportArticleFeedback.userId],
+        set: { isHelpful: feedback.isHelpful },
+      })
+      .returning();
+    
+    // Update the article's helpful counts
+    await this.updateArticleFeedbackCounts(feedback.articleId);
+    
+    return result;
+  }
+
+  async getArticleFeedback(articleId: number, userId: string): Promise<SupportArticleFeedback | undefined> {
+    const [feedback] = await db
+      .select()
+      .from(supportArticleFeedback)
+      .where(
+        and(
+          eq(supportArticleFeedback.articleId, articleId),
+          eq(supportArticleFeedback.userId, userId)
+        )
+      );
+    return feedback;
+  }
+
+  async updateArticleFeedbackCounts(articleId: number): Promise<void> {
+    const feedback = await db
+      .select()
+      .from(supportArticleFeedback)
+      .where(eq(supportArticleFeedback.articleId, articleId));
+    
+    const helpfulCount = feedback.filter(f => f.isHelpful).length;
+    const notHelpfulCount = feedback.filter(f => !f.isHelpful).length;
+    
+    await db
+      .update(supportArticles)
+      .set({ helpfulCount, notHelpfulCount })
+      .where(eq(supportArticles.id, articleId));
+  }
+
+  // ========================================
+  // SUPPORT CENTER - Tickets
+  // ========================================
+  
+  async getNextTicketNumber(): Promise<string> {
+    const [result] = await db
+      .select({ maxId: sql<number>`COALESCE(MAX(id), 0)` })
+      .from(supportTickets);
+    const nextNum = (result?.maxId || 0) + 1;
+    return `TKT-${String(nextNum).padStart(4, '0')}`;
+  }
+
+  async createSupportTicket(ticket: InsertSupportTicket): Promise<SupportTicket> {
+    const ticketNumber = await this.getNextTicketNumber();
+    const [newTicket] = await db
+      .insert(supportTickets)
+      .values({
+        ...ticket,
+        ticketNumber,
+        status: 'submitted',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newTicket;
+  }
+
+  async getSupportTicket(id: number): Promise<SupportTicket | undefined> {
+    const [ticket] = await db
+      .select()
+      .from(supportTickets)
+      .where(eq(supportTickets.id, id));
+    return ticket;
+  }
+
+  async getSupportTickets(options?: { status?: string; category?: string; submittedById?: string; limit?: number }): Promise<SupportTicket[]> {
+    const conditions = [];
+    
+    if (options?.status) {
+      conditions.push(eq(supportTickets.status, options.status));
+    }
+    if (options?.category) {
+      conditions.push(eq(supportTickets.category, options.category));
+    }
+    if (options?.submittedById) {
+      conditions.push(eq(supportTickets.submittedById, options.submittedById));
+    }
+    
+    let query = db
+      .select()
+      .from(supportTickets)
+      .orderBy(desc(supportTickets.createdAt));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    if (options?.limit) {
+      query = query.limit(options.limit) as any;
+    }
+    
+    return query;
+  }
+
+  async updateSupportTicket(id: number, updates: Partial<SupportTicket>): Promise<SupportTicket> {
+    const [updated] = await db
+      .update(supportTickets)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(supportTickets.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateTicketStatus(id: number, status: string, resolutionNotes?: string): Promise<SupportTicket> {
+    const updateData: any = {
+      status,
+      updatedAt: new Date(),
+    };
+    
+    if (status === 'completed' || status === 'closed') {
+      updateData.resolvedAt = new Date();
+    }
+    
+    if (resolutionNotes) {
+      updateData.resolutionNotes = resolutionNotes;
+    }
+    
+    const [updated] = await db
+      .update(supportTickets)
+      .set(updateData)
+      .where(eq(supportTickets.id, id))
+      .returning();
+    return updated;
   }
 }
 

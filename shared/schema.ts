@@ -5651,3 +5651,165 @@ export const insertAssetLibrarySchema = createInsertSchema(assetLibrary).omit({
 
 export type AssetLibraryItem = typeof assetLibrary.$inferSelect;
 export type InsertAssetLibraryItem = z.infer<typeof insertAssetLibrarySchema>;
+
+// ============================================
+// SUPPORT CENTER
+// Support articles, tickets, and reactions
+// ============================================
+
+// Support articles for blog-style updates (Helpful Tips, What's New, Bug Fixes, Enhancements)
+export const supportArticles = pgTable("support_articles", {
+  id: serial("id").primaryKey(),
+  
+  // Content
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"), // Short preview text
+  
+  // Categorization
+  category: varchar("category", { length: 50 }).notNull(), // helpful_tips, whats_new, bug_fixes, enhancements
+  
+  // Author (only Ryan Sorensen can create/edit)
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  
+  // Display options
+  isPinned: boolean("is_pinned").default(false),
+  isPublished: boolean("is_published").default(true),
+  
+  // Engagement metrics
+  viewCount: integer("view_count").default(0),
+  helpfulCount: integer("helpful_count").default(0),
+  notHelpfulCount: integer("not_helpful_count").default(0),
+  
+  // Timestamps
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  categoryIdx: index("idx_support_articles_category").on(table.category),
+  authorIdx: index("idx_support_articles_author").on(table.authorId),
+  publishedIdx: index("idx_support_articles_published").on(table.isPublished),
+  pinnedIdx: index("idx_support_articles_pinned").on(table.isPinned),
+  createdAtIdx: index("idx_support_articles_created_at").on(table.createdAt),
+}));
+
+export const supportArticlesRelations = relations(supportArticles, ({ one, many }) => ({
+  author: one(users, { fields: [supportArticles.authorId], references: [users.id] }),
+  reactions: many(supportArticleReactions),
+}));
+
+export const insertSupportArticleSchema = createInsertSchema(supportArticles).omit({
+  id: true,
+  viewCount: true,
+  helpfulCount: true,
+  notHelpfulCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SupportArticle = typeof supportArticles.$inferSelect;
+export type InsertSupportArticle = z.infer<typeof insertSupportArticleSchema>;
+
+// Article reactions (emoji reactions on articles)
+export const supportArticleReactions = pgTable("support_article_reactions", {
+  id: serial("id").primaryKey(),
+  articleId: integer("article_id").notNull().references(() => supportArticles.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reactionType: varchar("reaction_type", { length: 20 }).notNull(), // celebrate, helpful, lightbulb, bug
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  articleUserIdx: unique("support_article_reaction_unique").on(table.articleId, table.userId, table.reactionType),
+  articleIdx: index("idx_support_article_reactions_article").on(table.articleId),
+  userIdx: index("idx_support_article_reactions_user").on(table.userId),
+}));
+
+export const supportArticleReactionsRelations = relations(supportArticleReactions, ({ one }) => ({
+  article: one(supportArticles, { fields: [supportArticleReactions.articleId], references: [supportArticles.id] }),
+  user: one(users, { fields: [supportArticleReactions.userId], references: [users.id] }),
+}));
+
+export const insertSupportArticleReactionSchema = createInsertSchema(supportArticleReactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SupportArticleReaction = typeof supportArticleReactions.$inferSelect;
+export type InsertSupportArticleReaction = z.infer<typeof insertSupportArticleReactionSchema>;
+
+// "Was this helpful?" feedback on articles
+export const supportArticleFeedback = pgTable("support_article_feedback", {
+  id: serial("id").primaryKey(),
+  articleId: integer("article_id").notNull().references(() => supportArticles.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  isHelpful: boolean("is_helpful").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  articleUserIdx: unique("support_article_feedback_unique").on(table.articleId, table.userId),
+  articleIdx: index("idx_support_article_feedback_article").on(table.articleId),
+}));
+
+export const supportArticleFeedbackRelations = relations(supportArticleFeedback, ({ one }) => ({
+  article: one(supportArticles, { fields: [supportArticleFeedback.articleId], references: [supportArticles.id] }),
+  user: one(users, { fields: [supportArticleFeedback.userId], references: [users.id] }),
+}));
+
+export const insertSupportArticleFeedbackSchema = createInsertSchema(supportArticleFeedback).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SupportArticleFeedback = typeof supportArticleFeedback.$inferSelect;
+export type InsertSupportArticleFeedback = z.infer<typeof insertSupportArticleFeedbackSchema>;
+
+// Support tickets for bug reports and feature requests
+export const supportTickets = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  ticketNumber: varchar("ticket_number", { length: 20 }).notNull().unique(), // e.g., TKT-001
+  
+  // Ticket content
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // bug_report, feature_request, question, other
+  
+  // Priority and status
+  priority: varchar("priority", { length: 20 }).default("normal"), // low, normal, high, urgent
+  status: varchar("status", { length: 30 }).notNull().default("submitted"), // submitted, in_review, in_progress, completed, closed
+  
+  // Submitter
+  submittedById: varchar("submitted_by_id").notNull().references(() => users.id),
+  
+  // Assignee (typically Ryan)
+  assignedToId: varchar("assigned_to_id").references(() => users.id),
+  
+  // Resolution
+  resolutionNotes: text("resolution_notes"),
+  resolvedAt: timestamp("resolved_at"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  ticketNumberIdx: index("idx_support_tickets_number").on(table.ticketNumber),
+  statusIdx: index("idx_support_tickets_status").on(table.status),
+  submittedByIdx: index("idx_support_tickets_submitted_by").on(table.submittedById),
+  categoryIdx: index("idx_support_tickets_category").on(table.category),
+  createdAtIdx: index("idx_support_tickets_created_at").on(table.createdAt),
+}));
+
+export const supportTicketsRelations = relations(supportTickets, ({ one }) => ({
+  submittedBy: one(users, { fields: [supportTickets.submittedById], references: [users.id] }),
+  assignedTo: one(users, { fields: [supportTickets.assignedToId], references: [users.id] }),
+}));
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({
+  id: true,
+  ticketNumber: true,
+  status: true,
+  resolutionNotes: true,
+  resolvedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
