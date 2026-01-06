@@ -133,6 +133,18 @@ const AI_VIDEO_KEYWORDS: string[] = [
  */
 const ROUTING_THRESHOLD = 0.6;
 
+/**
+ * Check if a keyword matches as a whole word (not as substring)
+ * Uses word boundary matching to avoid false positives like "graph" in "photography"
+ */
+function matchesWholeWord(text: string, keyword: string): boolean {
+  // Escape special regex characters in the keyword
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Create regex with word boundaries - matches the keyword as a standalone word/phrase
+  const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+  return regex.test(text);
+}
+
 class MotionGraphicsRouter {
   
   /**
@@ -143,19 +155,18 @@ class MotionGraphicsRouter {
     narration?: string,
     sceneType?: string
   ): RoutingDecision {
-    const lowerDirection = visualDirection.toLowerCase();
-    const lowerNarration = (narration || '').toLowerCase();
+    const combinedText = `${visualDirection} ${narration || ''}`.toLowerCase();
     
     log.debug(`Analyzing: "${visualDirection.substring(0, 100)}..."`);
     
-    // Detect motion graphic keywords
+    // Detect motion graphic keywords using whole-word matching
     const detectedKeywords: string[] = [];
     let totalWeight = 0;
     let suggestedType: MotionGraphicType | null = null;
     let highestWeight = 0;
     
     for (const [keyword, config] of Object.entries(MOTION_GRAPHIC_KEYWORDS)) {
-      if (lowerDirection.includes(keyword) || lowerNarration.includes(keyword)) {
+      if (matchesWholeWord(combinedText, keyword)) {
         detectedKeywords.push(keyword);
         totalWeight += config.weight;
         
@@ -166,10 +177,10 @@ class MotionGraphicsRouter {
       }
     }
     
-    // Check for AI video indicators (negative weight)
+    // Check for AI video indicators (negative weight) - also using whole-word matching
     let aiVideoScore = 0;
     for (const keyword of AI_VIDEO_KEYWORDS) {
-      if (lowerDirection.includes(keyword)) {
+      if (matchesWholeWord(combinedText, keyword)) {
         aiVideoScore += 0.3;
       }
     }
@@ -180,9 +191,9 @@ class MotionGraphicsRouter {
     const confidence = Math.max(0, Math.min(1, netScore));
     
     // Special case: if "text overlay with" is mentioned, it's likely motion graphics
-    if (lowerDirection.includes('text overlay with') || 
-        lowerDirection.includes('text overlay showing') ||
-        lowerDirection.includes('overlay with')) {
+    if (combinedText.includes('text overlay with') || 
+        combinedText.includes('text overlay showing') ||
+        combinedText.includes('overlay with')) {
       if (!suggestedType) suggestedType = 'bullet-list-animated';
       if (confidence < 0.7) {
         return {
