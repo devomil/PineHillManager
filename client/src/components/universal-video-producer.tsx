@@ -1543,18 +1543,115 @@ function ScenePreview({
       });
       const data = await res.json();
       if (data.success) {
-        toast({ 
-          title: 'Regeneration Started', 
-          description: `Regenerating scene ${sceneIndex + 1} with improved prompt.` 
-        });
-        queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
-        onSceneUpdate?.();
+        if (data.isVideoRegeneration && data.jobId) {
+          toast({ 
+            title: 'Video Regeneration Started', 
+            description: `Scene ${sceneIndex + 1} is being regenerated. This may take 3-5 minutes.` 
+          });
+          
+          setActiveJobPolling(prev => ({ 
+            ...prev, 
+            [scene.id]: { jobId: data.jobId, progress: 0 } 
+          }));
+          
+          if (pollingTimeoutRefs.current[scene.id]) {
+            clearTimeout(pollingTimeoutRefs.current[scene.id]);
+          }
+          
+          const pollJobStatus = () => {
+            const maxPolls = 120;
+            let pollCount = 0;
+            
+            const cleanupPolling = () => {
+              delete pollingTimeoutRefs.current[scene.id];
+              setActiveJobPolling(prev => {
+                const next = { ...prev };
+                delete next[scene.id];
+                return next;
+              });
+              setSceneActionPending(null);
+            };
+            
+            const poll = async (): Promise<void> => {
+              pollCount++;
+              if (pollCount > maxPolls) {
+                toast({ 
+                  title: 'Video generation timeout', 
+                  description: 'The job is taking longer than expected. It may still complete.', 
+                  variant: 'destructive' 
+                });
+                cleanupPolling();
+                return;
+              }
+              
+              try {
+                const statusRes = await fetch(
+                  `/api/universal-video/${projectId}/scenes/${scene.id}/video-job/${data.jobId}`,
+                  { credentials: 'include' }
+                );
+                const statusData = await statusRes.json();
+                
+                if (statusData.success && statusData.job) {
+                  const job = statusData.job;
+                  console.log(`[handleSceneRegenerate] Job ${data.jobId} status: ${job.status}, progress: ${job.progress}%`);
+                  
+                  setActiveJobPolling(prev => ({ 
+                    ...prev, 
+                    [scene.id]: { jobId: data.jobId, progress: job.progress } 
+                  }));
+                  
+                  if (job.status === 'succeeded' && job.videoUrl) {
+                    toast({ 
+                      title: 'Video Generated', 
+                      description: `Scene ${sceneIndex + 1} has been regenerated successfully.` 
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+                    onSceneUpdate?.();
+                    cleanupPolling();
+                    return;
+                  } else if (job.status === 'failed') {
+                    toast({ 
+                      title: 'Regeneration Failed', 
+                      description: job.errorMessage || 'Video generation failed. Please try again.', 
+                      variant: 'destructive' 
+                    });
+                    cleanupPolling();
+                    return;
+                  } else if (job.status === 'cancelled') {
+                    toast({ title: 'Regeneration cancelled' });
+                    cleanupPolling();
+                    return;
+                  }
+                  
+                  pollingTimeoutRefs.current[scene.id] = setTimeout(poll, 5000);
+                } else {
+                  pollingTimeoutRefs.current[scene.id] = setTimeout(poll, 5000);
+                }
+              } catch (pollError) {
+                console.error('[handleSceneRegenerate] Polling error:', pollError);
+                pollingTimeoutRefs.current[scene.id] = setTimeout(poll, 5000);
+              }
+            };
+            
+            poll();
+          };
+          
+          pollJobStatus();
+        } else {
+          toast({ 
+            title: 'Regeneration Started', 
+            description: `Regenerating scene ${sceneIndex + 1} with improved prompt.` 
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+          onSceneUpdate?.();
+          setSceneActionPending(null);
+        }
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+        setSceneActionPending(null);
       }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
-    } finally {
       setSceneActionPending(null);
     }
   };
