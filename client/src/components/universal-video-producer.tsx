@@ -2997,13 +2997,17 @@ function ScenePreview({
                     </Button>
                     <Button
                       size="sm"
-                      variant="default"
+                      variant="outline"
                       onClick={() => handleSceneRegenerate(index)}
                       disabled={!!sceneActionPending}
-                      data-testid={`button-regenerate-scene-${scene.id}`}
+                      data-testid={`button-reanalyze-scene-${scene.id}`}
                     >
-                      <RefreshCw className="w-4 h-4 mr-1" />
-                      Regenerate
+                      {sceneActionPending === scene.id ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <Eye className="w-4 h-4 mr-1" />
+                      )}
+                      Re-analyze
                     </Button>
                   </div>
                 )}
