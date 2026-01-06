@@ -2692,16 +2692,30 @@ router.post('/:projectId/analyze-quality', isAuthenticated, async (req: Request,
           fullUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
         }
         
-        console.log(`[Phase10A] Scene ${i + 1}: Fetching image from ${fullUrl.substring(0, 80)}...`);
+        // Detect if this is a video file
+        const isVideo = /\.(mp4|webm|mov|avi|mkv)$/i.test(imageUrl) || scene.assets?.videoUrl;
+        let base64: string;
         
-        const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
-        if (!response.ok) {
-          console.warn(`[Phase10A] Failed to fetch scene ${i + 1} image: ${response.status}`);
-          throw new Error(`Failed to fetch image: ${response.status}`);
+        if (isVideo) {
+          console.log(`[Phase10A] Scene ${i + 1}: Extracting frame from video ${fullUrl.substring(0, 80)}...`);
+          const frameResult = await videoFrameExtractor.extractFrameAsBase64(fullUrl, 1);
+          if (!frameResult) {
+            throw new Error('Failed to extract frame from video');
+          }
+          base64 = frameResult.base64;
+          console.log(`[Phase10A] Scene ${i + 1}: Frame extracted successfully`);
+        } else {
+          console.log(`[Phase10A] Scene ${i + 1}: Fetching image from ${fullUrl.substring(0, 80)}...`);
+          
+          const response = await fetch(fullUrl, { headers: { 'Accept': 'image/*' } });
+          if (!response.ok) {
+            console.warn(`[Phase10A] Failed to fetch scene ${i + 1} image: ${response.status}`);
+            throw new Error(`Failed to fetch image: ${response.status}`);
+          }
+          
+          const buffer = Buffer.from(await response.arrayBuffer());
+          base64 = buffer.toString('base64');
         }
-        
-        const buffer = Buffer.from(await response.arrayBuffer());
-        const base64 = buffer.toString('base64');
         
         const context: SceneContext = {
           sceneIndex: i,
@@ -2760,6 +2774,7 @@ router.post('/:projectId/analyze-quality', isAuthenticated, async (req: Request,
         };
         analyses.push(fallbackAnalysis);
         scenes[i].analysisResult = fallbackAnalysis;
+        scenes[i].qualityScore = fallbackAnalysis.overallScore;
       }
     }
     

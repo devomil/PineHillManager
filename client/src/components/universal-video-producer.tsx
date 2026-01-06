@@ -37,7 +37,7 @@ import {
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
   FolderOpen, Plus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
-  Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck
+  Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -2709,6 +2709,32 @@ function ScenePreview({
                     </div>
                   ) : (
                     <p className="text-sm bg-muted/50 p-3 rounded">{scene.background.source}</p>
+                  )}
+                  
+                  {/* Suggested Improved Prompt from Claude Vision */}
+                  {scene.analysisResult?.improvedPrompt && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-amber-600" />
+                          <span className="text-sm font-medium text-amber-800">Suggested Improvement</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-700"
+                          onClick={() => {
+                            navigator.clipboard.writeText(scene.analysisResult?.improvedPrompt || '');
+                            toast({ title: 'Copied!', description: 'Suggested prompt copied to clipboard.' });
+                          }}
+                          data-testid={`button-copy-suggested-prompt-${scene.id}`}
+                        >
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-sm text-amber-900">{scene.analysisResult.improvedPrompt}</p>
+                    </div>
                   )}
                 </div>
                 
