@@ -5624,7 +5624,7 @@ router.get('/api/debug/score-integrity', isAuthenticated, async (req, res) => {
 import { VIDEO_PROVIDERS as PHASE13_PROVIDERS, getAllVideoProviders, getProvidersByStrength } from '../config/video-providers';
 import { selectProvidersForSceneSmart, analyzePromptComplexity, mapToLegacyProviderId, isProviderExecutable } from '../config/ai-video-providers';
 
-router.get('/api/universal-video/provider-registry', isAuthenticated, async (req, res) => {
+router.get('/provider-registry', isAuthenticated, async (req, res) => {
   try {
     const providers = Object.values(PHASE13_PROVIDERS).map(p => ({
       id: p.id,
@@ -5683,7 +5683,7 @@ router.get('/api/universal-video/provider-registry', isAuthenticated, async (req
 });
 
 // Phase 13: Smart provider routing endpoint
-router.post('/api/universal-video/smart-route', isAuthenticated, async (req, res) => {
+router.post('/smart-route', isAuthenticated, async (req, res) => {
   try {
     const { visualPrompt, sceneType } = req.body;
     
