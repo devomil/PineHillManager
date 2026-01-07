@@ -1,4 +1,4 @@
-// shared/provider-config.ts - Phase 7A: Multi-Provider Video Selection
+// shared/provider-config.ts - Phase 13: Unified Provider Registry (17 providers)
 
 export interface VideoProvider {
   id: string;
@@ -9,15 +9,21 @@ export interface VideoProvider {
   strengths: string[];
   weaknesses: string[];
   bestFor: string[];
+  family?: string;
+  tier?: 'premium' | 'standard' | 'budget';
+  specialization?: string;
 }
 
 export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
+  // Runway Family
   runway: {
     id: 'runway',
     name: 'runway',
     displayName: 'Runway Gen-3',
     costPerSecond: 0.05,
     maxDuration: 10,
+    family: 'runway',
+    tier: 'premium',
     strengths: [
       'Cinematic quality',
       'Dramatic lighting',
@@ -39,12 +45,15 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
     ],
   },
   
+  // Kling Family (6 variants)
   kling: {
     id: 'kling',
     name: 'kling',
     displayName: 'Kling AI',
     costPerSecond: 0.03,
     maxDuration: 10,
+    family: 'kling',
+    tier: 'standard',
     strengths: [
       'Excellent human rendering',
       'Natural expressions',
@@ -65,12 +74,95 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
     ],
   },
   
+  'kling-1.6': {
+    id: 'kling-1.6',
+    name: 'kling-1.6',
+    displayName: 'Kling 1.6',
+    costPerSecond: 0.025,
+    maxDuration: 10,
+    family: 'kling',
+    tier: 'budget',
+    strengths: ['Good value', 'Reliable', 'Fast generation'],
+    weaknesses: ['Older model', 'Less detail'],
+    bestFor: ['general', 'lifestyle', 'simple-motion'],
+  },
+  
+  'kling-2.0': {
+    id: 'kling-2.0',
+    name: 'kling-2.0',
+    displayName: 'Kling 2.0',
+    costPerSecond: 0.03,
+    maxDuration: 10,
+    family: 'kling',
+    tier: 'standard',
+    strengths: ['Improved motion', 'Better faces', 'Natural movement'],
+    weaknesses: ['Moderate cost'],
+    bestFor: ['people', 'lifestyle', 'testimonials'],
+  },
+  
+  'kling-2.1': {
+    id: 'kling-2.1',
+    name: 'kling-2.1',
+    displayName: 'Kling 2.1',
+    costPerSecond: 0.035,
+    maxDuration: 10,
+    family: 'kling',
+    tier: 'standard',
+    strengths: ['Enhanced realism', 'Better expressions', 'Smooth motion'],
+    weaknesses: ['Higher cost than 2.0'],
+    bestFor: ['people', 'emotional', 'close-ups'],
+  },
+  
+  'kling-2.5-turbo': {
+    id: 'kling-2.5-turbo',
+    name: 'kling-2.5-turbo',
+    displayName: 'Kling 2.5 Turbo',
+    costPerSecond: 0.04,
+    maxDuration: 10,
+    family: 'kling',
+    tier: 'premium',
+    strengths: ['Fast generation', 'High quality', 'Best-in-class motion'],
+    weaknesses: ['Premium pricing'],
+    bestFor: ['complex-motion', 'action', 'dynamic-scenes'],
+  },
+  
+  'kling-avatar': {
+    id: 'kling-avatar',
+    name: 'kling-avatar',
+    displayName: 'Kling Avatar',
+    costPerSecond: 0.045,
+    maxDuration: 60,
+    family: 'kling',
+    tier: 'premium',
+    specialization: 'talking-head',
+    strengths: ['Lip sync', 'Long duration', 'Consistent identity'],
+    weaknesses: ['Specialized use', 'Less versatile'],
+    bestFor: ['talking-head', 'presenter', 'avatar', 'spokesperson'],
+  },
+  
+  'kling-effects': {
+    id: 'kling-effects',
+    name: 'kling-effects',
+    displayName: 'Kling Effects',
+    costPerSecond: 0.02,
+    maxDuration: 5,
+    family: 'kling',
+    tier: 'budget',
+    specialization: 'effects',
+    strengths: ['VFX overlays', 'Fast rendering', 'Low cost'],
+    weaknesses: ['Short duration', 'Effects only'],
+    bestFor: ['effects', 'transitions', 'overlays', 'particles'],
+  },
+  
+  // Luma Family
   luma: {
     id: 'luma',
     name: 'luma',
     displayName: 'Luma Dream Machine',
     costPerSecond: 0.04,
     maxDuration: 5,
+    family: 'luma',
+    tier: 'standard',
     strengths: [
       'Smooth reveals',
       'Product animations',
@@ -92,12 +184,15 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
     ],
   },
   
+  // Hailuo Family
   hailuo: {
     id: 'hailuo',
     name: 'hailuo',
     displayName: 'Hailuo MiniMax',
     costPerSecond: 0.02,
     maxDuration: 6,
+    family: 'hailuo',
+    tier: 'budget',
     strengths: [
       'Cost effective',
       'Good for B-roll',
@@ -120,12 +215,15 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
     ],
   },
   
+  // Hunyuan
   hunyuan: {
     id: 'hunyuan',
     name: 'hunyuan',
     displayName: 'Hunyuan',
     costPerSecond: 0.025,
     maxDuration: 5,
+    family: 'hunyuan',
+    tier: 'budget',
     strengths: [
       'Good for nature',
       'Abstract scenes',
@@ -143,12 +241,15 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
     ],
   },
   
+  // Veo Family (Google)
   veo: {
     id: 'veo',
     name: 'veo',
-    displayName: 'Veo 3.1',
+    displayName: 'Veo',
     costPerSecond: 0.06,
     maxDuration: 8,
+    family: 'veo',
+    tier: 'premium',
     strengths: [
       'High quality output',
       'Cinematic results',
@@ -163,6 +264,89 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
       'dramatic',
       'hook',
     ],
+  },
+  
+  'veo-2': {
+    id: 'veo-2',
+    name: 'veo-2',
+    displayName: 'Veo 2',
+    costPerSecond: 0.055,
+    maxDuration: 8,
+    family: 'veo',
+    tier: 'premium',
+    strengths: ['Cinematic quality', 'Good motion', 'Reliable'],
+    weaknesses: ['Premium pricing'],
+    bestFor: ['cinematic', 'dramatic', 'professional'],
+  },
+  
+  'veo-3.1': {
+    id: 'veo-3.1',
+    name: 'veo-3.1',
+    displayName: 'Veo 3.1',
+    costPerSecond: 0.065,
+    maxDuration: 8,
+    family: 'veo',
+    tier: 'premium',
+    strengths: ['Latest model', 'Best quality', 'Advanced physics'],
+    weaknesses: ['Highest cost'],
+    bestFor: ['hero-shots', 'cinematic', 'premium-content'],
+  },
+  
+  // Wan Family (Alibaba)
+  'wan-2.1': {
+    id: 'wan-2.1',
+    name: 'wan-2.1',
+    displayName: 'Wan 2.1',
+    costPerSecond: 0.025,
+    maxDuration: 5,
+    family: 'wan',
+    tier: 'budget',
+    strengths: ['Fast generation', 'Cost effective', 'Reliable'],
+    weaknesses: ['Shorter duration', 'Basic motion'],
+    bestFor: ['broll', 'simple-scenes', 'quick-generation'],
+  },
+  
+  'wan-2.6': {
+    id: 'wan-2.6',
+    name: 'wan-2.6',
+    displayName: 'Wan 2.6',
+    costPerSecond: 0.03,
+    maxDuration: 5,
+    family: 'wan',
+    tier: 'standard',
+    strengths: ['Improved quality', 'Better motion', 'Good value'],
+    weaknesses: ['Short duration'],
+    bestFor: ['lifestyle', 'nature', 'products'],
+  },
+  
+  // Seedance
+  'seedance-1.0': {
+    id: 'seedance-1.0',
+    name: 'seedance-1.0',
+    displayName: 'Seedance 1.0',
+    costPerSecond: 0.035,
+    maxDuration: 5,
+    family: 'seedance',
+    tier: 'standard',
+    specialization: 'dance',
+    strengths: ['Dance motion', 'Character animation', 'Expressive'],
+    weaknesses: ['Specialized', 'Short duration'],
+    bestFor: ['dance', 'character', 'expressive-motion'],
+  },
+  
+  // Remotion (Motion Graphics)
+  'remotion-motion-graphics': {
+    id: 'remotion-motion-graphics',
+    name: 'remotion-motion-graphics',
+    displayName: 'Remotion (Motion Graphics)',
+    costPerSecond: 0.001,
+    maxDuration: 60,
+    family: 'remotion',
+    tier: 'budget',
+    specialization: 'motion-graphics',
+    strengths: ['Free/cheap', 'Programmatic', 'Consistent', 'No AI artifacts'],
+    weaknesses: ['Template-based', 'Less organic'],
+    bestFor: ['text-animations', 'charts', 'infographics', 'lower-thirds', 'cta-overlays'],
   },
 };
 
@@ -185,6 +369,15 @@ export const IMAGE_PROVIDERS: Record<string, ImageProvider> = {
     bestFor: ['product', 'food', 'object', 'still-life'],
   },
   
+  'flux-1-dev': {
+    id: 'flux-1-dev',
+    name: 'flux-1-dev',
+    displayName: 'Flux.1 Dev',
+    costPerImage: 0.025,
+    strengths: ['Development version', 'Experimental features'],
+    bestFor: ['testing', 'experimental'],
+  },
+  
   falai: {
     id: 'falai',
     name: 'fal.ai',
@@ -192,6 +385,15 @@ export const IMAGE_PROVIDERS: Record<string, ImageProvider> = {
     costPerImage: 0.02,
     strengths: ['Lifestyle images', 'Natural feel', 'People'],
     bestFor: ['lifestyle', 'person', 'scene', 'environment'],
+  },
+  
+  'stable-diffusion-3': {
+    id: 'stable-diffusion-3',
+    name: 'stable-diffusion-3',
+    displayName: 'Stable Diffusion 3',
+    costPerImage: 0.02,
+    strengths: ['Versatile', 'Good text rendering', 'Fast'],
+    bestFor: ['general', 'text-in-image', 'artistic'],
   },
 };
 
@@ -239,8 +441,24 @@ export function getAllVideoProviders(): VideoProvider[] {
   return Object.values(VIDEO_PROVIDERS);
 }
 
+export function getVideoProvidersByFamily(family: string): VideoProvider[] {
+  return Object.values(VIDEO_PROVIDERS).filter(p => p.family === family);
+}
+
+export function getVideoProviderFamilies(): string[] {
+  const families = new Set<string>();
+  Object.values(VIDEO_PROVIDERS).forEach(p => {
+    if (p.family) families.add(p.family);
+  });
+  return Array.from(families);
+}
+
 export function getImageProvider(id: string): ImageProvider | undefined {
   return IMAGE_PROVIDERS[id];
+}
+
+export function getAllImageProviders(): ImageProvider[] {
+  return Object.values(IMAGE_PROVIDERS);
 }
 
 export function getSoundProvider(id: string): SoundProvider | undefined {
