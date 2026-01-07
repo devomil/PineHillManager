@@ -2610,36 +2610,61 @@ function ScenePreview({
                     <RegenerationOptions
                       sceneId={scene.id}
                       currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
+                      mediaType={sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}
                       qualityIssues={scene.analysisResult?.issues?.map(issue => issue.description) || []}
                       suggestedImprovement={scene.analysisResult?.improvedPrompt}
-                      complexity={scene.visualDirection && scene.visualDirection.length > 500 ? {
-                        category: 'complex' as const,
-                        warning: 'This prompt is quite detailed. Consider simplifying for better results.',
-                        simplifiedPrompt: scene.visualDirection.substring(0, 200) + '...',
-                      } : undefined}
+                      referenceMode={scene.referenceConfig?.mode || 'none'}
+                      complexity={(() => {
+                        const prompt = scene.visualDirection || '';
+                        const wordCount = prompt.split(/\s+/).length;
+                        const hasMultipleSubjects = /\b(and|with|plus|also|including)\b/gi.test(prompt);
+                        const hasComplexActions = /\b(while|simultaneously|together|both|multiple)\b/gi.test(prompt);
+                        const hasNegatives = /\b(not|no|without|never|don't|doesn't)\b/gi.test(prompt);
+                        
+                        if (wordCount > 100 || (hasMultipleSubjects && hasComplexActions)) {
+                          return {
+                            category: 'impossible' as const,
+                            warning: 'This prompt is extremely complex with multiple subjects and actions. AI may struggle to render this accurately.',
+                            simplifiedPrompt: prompt.split('.')[0] + '.',
+                          };
+                        } else if (wordCount > 50 || hasNegatives || hasComplexActions) {
+                          return {
+                            category: 'complex' as const,
+                            warning: 'This prompt contains complex elements. Consider simplifying for more predictable results.',
+                            simplifiedPrompt: prompt.substring(0, 150).trim() + '...',
+                          };
+                        } else if (wordCount > 30) {
+                          return {
+                            category: 'moderate' as const,
+                            warning: undefined,
+                            simplifiedPrompt: undefined,
+                          };
+                        }
+                        return {
+                          category: 'simple' as const,
+                          warning: undefined,
+                          simplifiedPrompt: undefined,
+                        };
+                      })()}
                       onRegenerate={async (options: RegenerateOptions) => {
                         const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                        if (options.mode === 'standard') {
-                          if (mediaType === 'video') {
-                            regenerateVideo(scene.id);
-                          } else {
-                            regenerateImage(scene.id);
-                          }
-                        } else if (options.mode === 'with-reference' && scene.assets?.backgroundUrl) {
-                          regenerateImage(scene.id);
-                        } else if (options.mode === 'simplified-prompt' && options.newPrompt) {
+                        
+                        if (options.newPrompt) {
                           setCustomPrompt(prev => ({ ...prev, [scene.id]: options.newPrompt! }));
-                          if (mediaType === 'video') {
-                            regenerateVideo(scene.id);
-                          } else {
-                            regenerateImage(scene.id);
-                          }
-                        } else if (options.mode === 'different-provider') {
-                          if (mediaType === 'video') {
-                            regenerateVideo(scene.id);
-                          } else {
-                            regenerateImage(scene.id);
-                          }
+                        }
+                        
+                        if (options.newProvider) {
+                          setSelectedProviders(prev => ({ ...prev, [`${mediaType}-${scene.id}`]: options.newProvider! }));
+                        }
+                        
+                        if (options.mode === 'stock-search') {
+                          toast({ title: 'Searching stock footage...', description: 'Looking for matching stock content.' });
+                        }
+                        
+                        if (mediaType === 'video') {
+                          regenerateVideo(scene.id, options.newProvider);
+                        } else {
+                          regenerateImage(scene.id, options.newProvider);
                         }
                       }}
                     />
