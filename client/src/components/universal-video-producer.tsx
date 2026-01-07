@@ -2311,8 +2311,8 @@ function ScenePreview({
       
       return (
         <Dialog open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="w-[calc(100vw-4rem)] h-[calc(100vh-4rem)] max-w-[1920px] max-h-[1080px] flex flex-col overflow-hidden">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle className="flex items-center gap-2">
                 <Badge variant="outline" className="text-xs capitalize">
                   {scene.type}
@@ -2334,7 +2334,8 @@ function ScenePreview({
               </DialogDescription>
             </DialogHeader>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+            <div className="flex-1 overflow-y-auto mt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Column: Large Media Preview */}
               <div className="space-y-4">
                 {/* Preview Mode Toggle */}
@@ -3072,6 +3073,7 @@ function ScenePreview({
                 )}
               </div>
             )}
+            </div>
           </DialogContent>
         </Dialog>
       );
