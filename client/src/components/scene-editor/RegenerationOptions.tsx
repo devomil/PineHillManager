@@ -26,26 +26,26 @@ interface ProviderInfo {
 }
 
 const IMAGE_PROVIDERS: ProviderInfo[] = [
-  { id: 'flux', name: 'Flux.1', description: 'Product shots, food, objects', icon: '📸', supportsI2I: true, supportsStyle: true },
-  { id: 'falai', name: 'fal.ai', description: 'Lifestyle, people, natural scenes', icon: '🎨', supportsI2I: true, supportsStyle: true },
-  { id: 'stability', name: 'Stability AI', description: 'SDXL, versatile generation', icon: '🖼️', supportsI2I: true, supportsStyle: true },
-  { id: 'ideogram', name: 'Ideogram', description: 'Text rendering, logos', icon: '✏️', supportsI2I: true },
-  { id: 'midjourney', name: 'Midjourney', description: 'Artistic, stylized imagery', icon: '🎭', supportsStyle: true },
-  { id: 'dalle3', name: 'DALL-E 3', description: 'Diverse styles, text understanding', icon: '🌈', supportsI2I: false },
+  { id: 'flux', name: 'Flux.1', description: 'Product shots, food, objects', icon: '📸', supportsI2I: true, supportsI2V: false, supportsStyle: true },
+  { id: 'falai', name: 'fal.ai', description: 'Lifestyle, people, natural scenes', icon: '🎨', supportsI2I: true, supportsI2V: false, supportsStyle: true },
+  { id: 'stability', name: 'Stability AI', description: 'SDXL, versatile generation', icon: '🖼️', supportsI2I: true, supportsI2V: false, supportsStyle: true },
+  { id: 'ideogram', name: 'Ideogram', description: 'Text rendering, logos', icon: '✏️', supportsI2I: true, supportsI2V: false, supportsStyle: false },
+  { id: 'midjourney', name: 'Midjourney', description: 'Artistic, stylized imagery', icon: '🎭', supportsI2I: false, supportsI2V: false, supportsStyle: true },
+  { id: 'dalle3', name: 'DALL-E 3', description: 'Diverse styles, text understanding', icon: '🌈', supportsI2I: false, supportsI2V: false, supportsStyle: false },
 ];
 
 const VIDEO_PROVIDERS: ProviderInfo[] = [
-  { id: 'kling-2.0', name: 'Kling 2.0', description: 'Native audio, motion control', icon: '🎬', supportsI2V: true, supportsStyle: true },
-  { id: 'kling-2.6-master', name: 'Kling 2.6 Master', description: 'Top quality, cinematic', icon: '👑', supportsI2V: true, supportsStyle: true },
-  { id: 'kling-2.6-pro', name: 'Kling 2.6 Pro', description: 'Professional quality', icon: '⭐', supportsI2V: true, supportsStyle: true },
-  { id: 'kling-2.6-standard', name: 'Kling 2.6 Standard', description: 'Fast, cost-effective', icon: '🚀', supportsI2V: true },
-  { id: 'kling-1.6', name: 'Kling 1.6', description: 'Human faces, lifestyle', icon: '🎭', supportsI2V: true },
-  { id: 'runway', name: 'Runway Gen-3', description: 'Cinematic, dramatic shots', icon: '🎥', supportsI2V: true, supportsStyle: true },
-  { id: 'luma', name: 'Luma Dream Machine', description: 'Product reveals, smooth motion', icon: '✨', supportsI2V: true },
-  { id: 'hailuo', name: 'Hailuo MiniMax', description: 'B-roll, nature, backgrounds', icon: '🌿', supportsI2V: true },
-  { id: 'pika', name: 'Pika Labs', description: 'Creative transitions', icon: '⚡', supportsI2V: true },
-  { id: 'genmo', name: 'Genmo', description: 'Long-form generation', icon: '🎞️', supportsI2V: true },
-  { id: 'veo2', name: 'Google Veo 2', description: 'High fidelity video', icon: '🔵', supportsI2V: true },
+  { id: 'kling-2.0', name: 'Kling 2.0', description: 'Native audio, motion control', icon: '🎬', supportsI2I: false, supportsI2V: true, supportsStyle: true },
+  { id: 'kling-2.6-master', name: 'Kling 2.6 Master', description: 'Top quality, cinematic', icon: '👑', supportsI2I: false, supportsI2V: true, supportsStyle: true },
+  { id: 'kling-2.6-pro', name: 'Kling 2.6 Pro', description: 'Professional quality', icon: '⭐', supportsI2I: false, supportsI2V: true, supportsStyle: true },
+  { id: 'kling-2.6-standard', name: 'Kling 2.6 Standard', description: 'Fast, cost-effective', icon: '🚀', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'kling-1.6', name: 'Kling 1.6', description: 'Human faces, lifestyle', icon: '🎭', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'runway', name: 'Runway Gen-3', description: 'Cinematic, dramatic shots', icon: '🎥', supportsI2I: false, supportsI2V: true, supportsStyle: true },
+  { id: 'luma', name: 'Luma Dream Machine', description: 'Product reveals, smooth motion', icon: '✨', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'hailuo', name: 'Hailuo MiniMax', description: 'B-roll, nature, backgrounds', icon: '🌿', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'pika', name: 'Pika Labs', description: 'Creative transitions', icon: '⚡', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'genmo', name: 'Genmo', description: 'Long-form generation', icon: '🎞️', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'veo2', name: 'Google Veo 2', description: 'High fidelity video', icon: '🔵', supportsI2I: false, supportsI2V: true, supportsStyle: false },
 ];
 
 interface RegenerationOptionsProps {
@@ -87,9 +87,9 @@ export const RegenerationOptions = ({
     if (referenceMode === 'none') return providers;
     
     return providers.filter(p => {
-      if (referenceMode === 'image-to-image') return p.supportsI2I !== false;
-      if (referenceMode === 'image-to-video') return p.supportsI2V !== false;
-      if (referenceMode === 'style-reference') return p.supportsStyle !== false;
+      if (referenceMode === 'image-to-image') return p.supportsI2I === true;
+      if (referenceMode === 'image-to-video') return p.supportsI2V === true;
+      if (referenceMode === 'style-reference') return p.supportsStyle === true;
       return true;
     });
   };
