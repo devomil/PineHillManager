@@ -28,6 +28,7 @@ import { ProviderSelector, getRecommendedProvider, getProviderName, VIDEO_PROVID
 import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { GenerationPreviewPanel } from "./generation-preview-panel";
+import { ProviderRegistryPanel } from "./provider-registry-panel";
 import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayConfig } from "./overlay-editor";
 import { OverlayPreview } from "./overlay-preview";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
@@ -3468,6 +3469,7 @@ export default function UniversalVideoProducer() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [showGenerationPreview, setShowGenerationPreview] = useState(false);
+  const [showProviderRegistry, setShowProviderRegistry] = useState(false);
   const [showQADashboard, setShowQADashboard] = useState(false);
   const [qaReport, setQAReport] = useState<{
     projectId: string;
@@ -3944,22 +3946,43 @@ export default function UniversalVideoProducer() {
               
               {/* Generation Preview Panel - Phase 5D + Phase 9E enhancements */}
               {showGenerationPreview && project.status === 'draft' && (
-                <GenerationPreviewPanel
-                  projectId={project.id}
-                  onGenerate={() => {
-                    setShowGenerationPreview(false);
-                    generateAssetsMutation.mutate();
-                  }}
-                  onCancel={() => setShowGenerationPreview(false)}
-                  isGenerating={generateAssetsMutation.isPending}
-                  qaStats={qaReport ? {
-                    approved: qaReport.approvedCount,
-                    needsReview: qaReport.needsReviewCount,
-                    rejected: qaReport.rejectedCount,
-                    score: qaReport.overallScore,
-                  } : null}
-                  onOpenQADashboard={() => setShowQADashboard(true)}
-                />
+                <div className="space-y-4">
+                  <GenerationPreviewPanel
+                    projectId={project.id}
+                    onGenerate={() => {
+                      setShowGenerationPreview(false);
+                      generateAssetsMutation.mutate();
+                    }}
+                    onCancel={() => setShowGenerationPreview(false)}
+                    isGenerating={generateAssetsMutation.isPending}
+                    qaStats={qaReport ? {
+                      approved: qaReport.approvedCount,
+                      needsReview: qaReport.needsReviewCount,
+                      rejected: qaReport.rejectedCount,
+                      score: qaReport.overallScore,
+                    } : null}
+                    onOpenQADashboard={() => setShowQADashboard(true)}
+                  />
+                  
+                  {/* Phase 13: Provider Registry Toggle */}
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowProviderRegistry(!showProviderRegistry)}
+                      className="text-muted-foreground hover:text-foreground"
+                      data-testid="button-toggle-provider-registry"
+                    >
+                      <Layers className="w-4 h-4 mr-2" />
+                      {showProviderRegistry ? 'Hide' : 'Show'} Provider Registry ({17} providers)
+                    </Button>
+                  </div>
+                  
+                  {/* Phase 13: Provider Registry Panel */}
+                  {showProviderRegistry && (
+                    <ProviderRegistryPanel />
+                  )}
+                </div>
               )}
               
               <div className="flex items-center justify-between">

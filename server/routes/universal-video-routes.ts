@@ -5620,4 +5620,89 @@ router.get('/api/debug/score-integrity', isAuthenticated, async (req, res) => {
   }
 });
 
+// Phase 13: Provider Registry API - Expose the updated provider registry to the UI
+import { VIDEO_PROVIDERS as PHASE13_PROVIDERS, getAllVideoProviders, getProvidersByStrength } from '../config/video-providers';
+import { selectProvidersForSceneSmart, analyzePromptComplexity, mapToLegacyProviderId, isProviderExecutable } from '../config/ai-video-providers';
+
+router.get('/api/universal-video/provider-registry', isAuthenticated, async (req, res) => {
+  try {
+    const providers = Object.values(PHASE13_PROVIDERS).map(p => ({
+      id: p.id,
+      name: p.name,
+      version: p.version,
+      costPer10Seconds: p.costPer10Seconds,
+      capabilities: {
+        imageToVideo: p.capabilities.imageToVideo,
+        textToVideo: p.capabilities.textToVideo,
+        imageToImage: p.capabilities.imageToImage,
+        maxResolution: p.capabilities.maxResolution,
+        maxFps: p.capabilities.maxFps,
+        maxDuration: p.capabilities.maxDuration,
+        strengths: p.capabilities.strengths,
+        weaknesses: p.capabilities.weaknesses,
+        motionQuality: p.capabilities.motionQuality,
+        temporalConsistency: p.capabilities.temporalConsistency,
+        nativeAudio: p.capabilities.nativeAudio,
+        lipSync: p.capabilities.lipSync,
+        effectsPresets: p.capabilities.effectsPresets,
+      },
+      apiProvider: p.apiProvider,
+      modelId: p.modelId,
+      isExecutable: isProviderExecutable(p.id),
+      legacyId: mapToLegacyProviderId(p.id),
+    }));
+
+    // Group by family
+    const families = {
+      kling: providers.filter(p => p.id.startsWith('kling')),
+      wan: providers.filter(p => p.id.startsWith('wan')),
+      veo: providers.filter(p => p.id.startsWith('veo')),
+      other: providers.filter(p => 
+        !p.id.startsWith('kling') && 
+        !p.id.startsWith('wan') && 
+        !p.id.startsWith('veo')
+      ),
+    };
+
+    res.json({
+      success: true,
+      totalProviders: providers.length,
+      providers,
+      families,
+      videoProviders: getAllVideoProviders().map(p => ({
+        id: p.id,
+        name: p.name,
+        costPer10Seconds: p.costPer10Seconds,
+        isExecutable: isProviderExecutable(p.id),
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Phase13] Provider registry fetch failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 13: Smart provider routing endpoint
+router.post('/api/universal-video/smart-route', isAuthenticated, async (req, res) => {
+  try {
+    const { visualPrompt, sceneType } = req.body;
+    
+    if (!visualPrompt) {
+      return res.status(400).json({ success: false, error: 'visualPrompt is required' });
+    }
+
+    const routingDecision = selectProvidersForSceneSmart(sceneType || 'b-roll', visualPrompt);
+    const complexityAnalysis = analyzePromptComplexity(visualPrompt);
+
+    res.json({
+      success: true,
+      routing: routingDecision,
+      complexity: complexityAnalysis,
+    });
+  } catch (error: any) {
+    console.error('[Phase13] Smart routing failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
