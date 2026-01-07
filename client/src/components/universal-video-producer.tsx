@@ -32,7 +32,8 @@ import { ProviderRegistryPanel } from "./provider-registry-panel";
 import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayConfig } from "./overlay-editor";
 import { OverlayPreview } from "./overlay-preview";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
-import type { AnimationSettings } from "@shared/video-types";
+import { ReferenceImageSection, RegenerationOptions } from "./scene-editor";
+import type { AnimationSettings, ReferenceConfig, RegenerateOptions, PromptComplexityAnalysis } from "@shared/video-types";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -2569,6 +2570,79 @@ function ScenePreview({
                         })()}
                       </div>
                     </div>
+                    
+                    {/* Phase 13D: Reference Image Section */}
+                    <ReferenceImageSection
+                      sceneId={scene.id}
+                      currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
+                      currentMediaType={scene.background?.type === 'video' ? 'video' : 'image'}
+                      onReferenceSet={async (config: ReferenceConfig) => {
+                        try {
+                          const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${scene.id}/reference-config`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(config),
+                          });
+                          if (res.ok) {
+                            toast({ title: 'Reference config applied', description: `${config.mode} mode configured for this scene.` });
+                            queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+                          }
+                        } catch (err) {
+                          console.error('Failed to apply reference config:', err);
+                        }
+                      }}
+                      onClear={async () => {
+                        try {
+                          const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${scene.id}/reference-config`, {
+                            method: 'DELETE',
+                          });
+                          if (res.ok) {
+                            toast({ title: 'Reference config cleared' });
+                            queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
+                          }
+                        } catch (err) {
+                          console.error('Failed to clear reference config:', err);
+                        }
+                      }}
+                    />
+                    
+                    {/* Phase 13D: Regeneration Options */}
+                    <RegenerationOptions
+                      sceneId={scene.id}
+                      currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
+                      qualityIssues={scene.analysisResult?.issues?.map(issue => issue.description) || []}
+                      suggestedImprovement={scene.analysisResult?.improvedPrompt}
+                      complexity={scene.visualDirection && scene.visualDirection.length > 500 ? {
+                        category: 'complex' as const,
+                        warning: 'This prompt is quite detailed. Consider simplifying for better results.',
+                        simplifiedPrompt: scene.visualDirection.substring(0, 200) + '...',
+                      } : undefined}
+                      onRegenerate={async (options: RegenerateOptions) => {
+                        const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
+                        if (options.mode === 'standard') {
+                          if (mediaType === 'video') {
+                            regenerateVideo(scene.id);
+                          } else {
+                            regenerateImage(scene.id);
+                          }
+                        } else if (options.mode === 'with-reference' && scene.assets?.backgroundUrl) {
+                          regenerateImage(scene.id);
+                        } else if (options.mode === 'simplified-prompt' && options.newPrompt) {
+                          setCustomPrompt(prev => ({ ...prev, [scene.id]: options.newPrompt! }));
+                          if (mediaType === 'video') {
+                            regenerateVideo(scene.id);
+                          } else {
+                            regenerateImage(scene.id);
+                          }
+                        } else if (options.mode === 'different-provider') {
+                          if (mediaType === 'video') {
+                            regenerateVideo(scene.id);
+                          } else {
+                            regenerateImage(scene.id);
+                          }
+                        }
+                      }}
+                    />
                   </div>
                 )}
               </div>
