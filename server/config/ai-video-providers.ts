@@ -1,5 +1,21 @@
 // server/config/ai-video-providers.ts
 
+// Motion graphic keywords that should route to Remotion instead of AI video providers
+const MOTION_GRAPHIC_KEYWORDS = [
+  'animated', 'animation', 'motion graphic', 'kinetic',
+  'split screen', 'montage', 'infographic', 'diagram',
+  'transformation', 'morph', 'data visualization',
+  'process flow', 'timeline', '2d', '3d animation',
+  'before and after', 'comparison', 'picture in picture',
+  'text overlay', 'typography', 'counter', 'progress bar',
+  'tree growth', 'network', 'statistics', 'chart'
+];
+
+export function shouldUseRemotionMotionGraphics(visualDirection: string): boolean {
+  const lower = visualDirection.toLowerCase();
+  return MOTION_GRAPHIC_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 export interface AIVideoProvider {
   name: string;
   type: 'direct' | 'piapi';
@@ -137,6 +153,12 @@ export function selectProvidersForScene(
   sceneType: string, 
   visualPrompt: string
 ): string[] {
+  // Check if this should be routed to Remotion motion graphics (cost: $0)
+  if (shouldUseRemotionMotionGraphics(visualPrompt)) {
+    console.log(`[ProviderSelect] Motion graphics detected, routing to Remotion: "${visualPrompt.substring(0, 50)}..."`);
+    return ['remotion-motion-graphics'];
+  }
+  
   const configuredProviders = getConfiguredProviders();
   
   if (configuredProviders.length === 0) {
