@@ -3965,16 +3965,19 @@ export default function UniversalVideoProducer() {
                   />
                   
                   {/* Phase 13: Provider Registry Toggle */}
-                  <div className="flex justify-center">
+                  <div className="flex flex-col items-center gap-2 p-3 bg-muted/30 rounded-lg border border-dashed">
+                    <p className="text-xs text-muted-foreground text-center">
+                      Above shows providers selected for this project. View all available AI providers:
+                    </p>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => setShowProviderRegistry(!showProviderRegistry)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="bg-background hover:bg-accent"
                       data-testid="button-toggle-provider-registry"
                     >
                       <Layers className="w-4 h-4 mr-2" />
-                      {showProviderRegistry ? 'Hide' : 'Show'} Provider Registry ({17} providers)
+                      {showProviderRegistry ? 'Hide' : 'View All'} Provider Registry (17 Video + 4 Image)
                     </Button>
                   </div>
                   
