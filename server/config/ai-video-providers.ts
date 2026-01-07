@@ -1,5 +1,12 @@
 // server/config/ai-video-providers.ts
 
+import { smartProviderRouter } from '../services/smart-provider-router';
+import { promptComplexityAnalyzer } from '../services/prompt-complexity-analyzer';
+import type { RoutingDecision, ComplexityAnalysis } from '@shared/types/video-providers';
+
+export { smartProviderRouter, promptComplexityAnalyzer };
+export type { RoutingDecision, ComplexityAnalysis };
+
 // Motion graphic keywords that should route to Remotion instead of AI video providers
 const MOTION_GRAPHIC_KEYWORDS = [
   'animated', 'animation', 'motion graphic', 'kinetic',
@@ -204,4 +211,97 @@ export function selectProvidersForScene(
   console.log(`[ProviderSelect] Scores:`, sorted.map(s => `${s.key}:${s.score}`).join(', '));
   
   return sorted.map(s => s.key);
+}
+
+const NEW_TO_LEGACY_PROVIDER_MAP: Record<string, string> = {
+  'kling-1.6': 'kling',
+  'kling-2.0': 'kling',
+  'kling-2.1': 'kling',
+  'kling-2.5-turbo': 'kling',
+  'kling-effects': 'kling',
+  'kling-avatar': 'kling',
+  'wan-2.1': 'hailuo',
+  'wan-2.6': 'hailuo',
+  'veo-2': 'veo',
+  'veo-3.1': 'veo',
+  'seedance-1.0': 'hailuo',
+  'hailuo-minimax': 'hailuo',
+  'runway-gen3': 'runway',
+  'luma-dream-machine': 'luma',
+  'hunyuan': 'hunyuan',
+  'flux-1-dev': 'flux-1-dev',
+  'stable-diffusion-3': 'stable-diffusion-3',
+  'remotion-motion-graphics': 'remotion-motion-graphics',
+};
+
+export function mapToLegacyProviderId(newProviderId: string): string {
+  return NEW_TO_LEGACY_PROVIDER_MAP[newProviderId] || newProviderId;
+}
+
+export function isProviderExecutable(providerId: string): boolean {
+  const legacyId = mapToLegacyProviderId(providerId);
+  if (legacyId === 'remotion-motion-graphics') return true;
+  return isProviderConfigured(legacyId);
+}
+
+export function getExecutableProviders(): string[] {
+  return Object.keys(providerConfigs).filter(key => isProviderConfigured(key));
+}
+
+export function selectProvidersForSceneSmart(
+  sceneType: string,
+  visualPrompt: string
+): RoutingDecision {
+  if (shouldUseRemotionMotionGraphics(visualPrompt)) {
+    return {
+      recommendedProvider: 'remotion-motion-graphics',
+      confidence: 1.0,
+      reasoning: ['Motion graphics detected, routing to Remotion ($0 cost)'],
+      alternatives: [],
+      warnings: [],
+      complexity: {
+        score: 0,
+        category: 'simple',
+        factors: {
+          specificAction: { detected: false, description: '', difficulty: 'easy' },
+          materialProperties: { detected: false, properties: [], difficulty: 'easy' },
+          motionRequirements: { detected: false, type: '', difficulty: 'easy' },
+          elementCount: 0,
+          temporalSequence: false,
+        },
+        recommendations: { bestProviders: ['remotion-motion-graphics'], avoidProviders: [] },
+      },
+    };
+  }
+  
+  const sceneTypeMap: Record<string, 'b-roll' | 'talking-head' | 'product' | 'lifestyle' | 'cinematic' | 'hook' | 'cta' | 'testimonial' | 'explanation'> = {
+    'broll': 'b-roll',
+    'b-roll': 'b-roll',
+    'talking-head': 'talking-head',
+    'testimonial': 'testimonial',
+    'product': 'product',
+    'lifestyle': 'lifestyle',
+    'cinematic': 'cinematic',
+    'hook': 'hook',
+    'cta': 'cta',
+    'explanation': 'explanation',
+  };
+  
+  const mappedSceneType = sceneTypeMap[sceneType.toLowerCase()] || 'b-roll';
+  
+  const decision = smartProviderRouter.route(visualPrompt, mappedSceneType);
+  
+  return {
+    ...decision,
+    recommendedProvider: mapToLegacyProviderId(decision.recommendedProvider),
+    alternatives: decision.alternatives.map(alt => ({
+      ...alt,
+      provider: mapToLegacyProviderId(alt.provider),
+    })),
+    originalProviderId: decision.recommendedProvider,
+  } as RoutingDecision & { originalProviderId: string };
+}
+
+export function analyzePromptComplexity(visualPrompt: string): ComplexityAnalysis {
+  return promptComplexityAnalyzer.analyze(visualPrompt);
 }
