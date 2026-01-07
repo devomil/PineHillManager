@@ -1,6 +1,6 @@
-// server/services/video-provider-selector.ts - Phase 7A: Intelligent Provider Selection
+// server/services/video-provider-selector.ts - Phase 13: Intelligent Provider Selection with Full Registry
 
-import { VIDEO_PROVIDERS, VideoProvider } from '../../shared/provider-config';
+import { VIDEO_PROVIDERS, VideoProvider, getVideoProvidersByFamily } from '../../shared/provider-config';
 import { VISUAL_STYLES } from '../../shared/visual-style-config';
 
 export interface ProviderSelection {
@@ -39,6 +39,8 @@ class VideoProviderSelectorService {
     this.scoreByVisualDirection(scene.visualDirection, scores, reasons);
     this.scoreByStylePreferences(styleConfig.preferredVideoProviders || [], scores, reasons);
     this.scoreByDuration(scene.duration, scores, reasons);
+    this.scoreByTier(scores, reasons);
+    this.scoreBySpecialization(scene, scores, reasons);
     
     const sortedProviders = Object.entries(scores)
       .sort(([, a], [, b]) => b - a);
@@ -79,6 +81,24 @@ class VideoProviderSelectorService {
     return selections;
   }
   
+  private scoreFamily(
+    family: string,
+    bonus: number,
+    reason: string,
+    scores: Record<string, number>,
+    reasons: Record<string, string[]>
+  ): void {
+    const providers = getVideoProvidersByFamily(family);
+    providers.forEach(p => {
+      if (scores[p.id] !== undefined) {
+        scores[p.id] += bonus;
+        if (reason && !reasons[p.id].includes(reason)) {
+          reasons[p.id].push(reason);
+        }
+      }
+    });
+  }
+  
   private scoreByContentType(
     contentType: string,
     scores: Record<string, number>,
@@ -86,37 +106,35 @@ class VideoProviderSelectorService {
   ): void {
     switch (contentType) {
       case 'person':
-        scores.kling += 30;
-        reasons.kling.push('Best for human subjects');
-        scores.runway += 15;
+        this.scoreFamily('kling', 30, 'Best for human subjects', scores, reasons);
+        this.scoreFamily('runway', 15, '', scores, reasons);
+        this.scoreFamily('veo', 10, '', scores, reasons);
         break;
         
       case 'product':
-        scores.luma += 30;
-        reasons.luma.push('Excellent product reveals');
-        scores.runway += 20;
-        reasons.runway.push('Premium product quality');
+        this.scoreFamily('luma', 30, 'Excellent product reveals', scores, reasons);
+        this.scoreFamily('runway', 20, 'Premium product quality', scores, reasons);
+        this.scoreFamily('veo', 15, '', scores, reasons);
         break;
         
       case 'nature':
-        scores.hailuo += 25;
-        reasons.hailuo.push('Cost-effective nature scenes');
-        scores.hunyuan += 20;
-        scores.runway += 20;
-        reasons.runway.push('Cinematic landscapes');
+        this.scoreFamily('hailuo', 25, 'Cost-effective nature scenes', scores, reasons);
+        this.scoreFamily('hunyuan', 20, '', scores, reasons);
+        this.scoreFamily('wan', 20, 'Natural landscapes', scores, reasons);
+        this.scoreFamily('runway', 20, 'Cinematic landscapes', scores, reasons);
         break;
         
       case 'abstract':
-        scores.kling += 20;
-        reasons.kling.push('Creative motion handling');
-        scores.hunyuan += 15;
-        scores.runway += 15;
+        this.scoreFamily('kling', 20, 'Creative motion handling', scores, reasons);
+        this.scoreFamily('hunyuan', 15, '', scores, reasons);
+        this.scoreFamily('runway', 15, '', scores, reasons);
+        this.scoreFamily('seedance', 15, 'Expressive motion', scores, reasons);
         break;
         
       case 'lifestyle':
-        scores.kling += 25;
-        reasons.kling.push('Natural lifestyle rendering');
-        scores.hailuo += 15;
+        this.scoreFamily('kling', 25, 'Natural lifestyle rendering', scores, reasons);
+        this.scoreFamily('wan', 20, 'Good lifestyle quality', scores, reasons);
+        this.scoreFamily('hailuo', 15, '', scores, reasons);
         break;
     }
   }
@@ -128,50 +146,52 @@ class VideoProviderSelectorService {
   ): void {
     switch (sceneType) {
       case 'hook':
-        scores.runway += 25;
-        reasons.runway.push('Cinematic hook impact');
-        scores.veo += 20;
-        reasons.veo.push('High-quality opening');
+        this.scoreFamily('runway', 25, 'Cinematic hook impact', scores, reasons);
+        this.scoreFamily('veo', 25, 'High-quality opening', scores, reasons);
+        if (scores['veo-3.1']) scores['veo-3.1'] += 5;
         break;
         
       case 'problem':
       case 'agitation':
-        scores.kling += 20;
-        reasons.kling.push('Authentic emotional expressions');
+        this.scoreFamily('kling', 20, 'Authentic emotional expressions', scores, reasons);
+        if (scores['kling-2.1']) scores['kling-2.1'] += 5;
         break;
         
       case 'solution':
-        scores.runway += 15;
-        scores.kling += 15;
+        this.scoreFamily('runway', 15, '', scores, reasons);
+        this.scoreFamily('kling', 15, '', scores, reasons);
+        this.scoreFamily('veo', 10, '', scores, reasons);
         break;
         
       case 'benefit':
-        scores.kling += 20;
-        reasons.kling.push('Lifestyle transformation scenes');
+        this.scoreFamily('kling', 20, 'Lifestyle transformation scenes', scores, reasons);
+        this.scoreFamily('wan', 15, '', scores, reasons);
         break;
         
       case 'product':
-        scores.luma += 30;
-        reasons.luma.push('Product showcase specialty');
-        scores.runway += 15;
+        this.scoreFamily('luma', 30, 'Product showcase specialty', scores, reasons);
+        this.scoreFamily('runway', 15, '', scores, reasons);
         break;
         
       case 'testimonial':
-        scores.kling += 30;
-        reasons.kling.push('Best for talking heads');
+        this.scoreFamily('kling', 30, 'Best for talking heads', scores, reasons);
+        if (scores['kling-avatar']) scores['kling-avatar'] += 20;
         break;
         
       case 'cta':
-        scores.runway += 20;
-        reasons.runway.push('Premium closing impact');
-        scores.veo += 15;
+        this.scoreFamily('runway', 20, 'Premium closing impact', scores, reasons);
+        this.scoreFamily('veo', 15, '', scores, reasons);
+        if (scores['remotion-motion-graphics']) {
+          scores['remotion-motion-graphics'] += 25;
+          reasons['remotion-motion-graphics'].push('CTA motion graphics');
+        }
         break;
         
       case 'broll':
       case 'explanation':
-        scores.hailuo += 25;
-        reasons.hailuo.push('Cost-effective B-roll');
-        scores.hunyuan += 15;
+        this.scoreFamily('hailuo', 25, 'Cost-effective B-roll', scores, reasons);
+        this.scoreFamily('wan', 20, 'Fast B-roll generation', scores, reasons);
+        this.scoreFamily('hunyuan', 15, '', scores, reasons);
         break;
     }
   }
@@ -186,30 +206,64 @@ class VideoProviderSelectorService {
     const lower = visualDirection.toLowerCase();
     
     if (/cinematic|dramatic|epic|film|movie|golden hour|sweeping/.test(lower)) {
-      scores.runway += 20;
-      reasons.runway.push('Cinematic visual direction');
-      scores.veo += 15;
+      this.scoreFamily('runway', 20, 'Cinematic visual direction', scores, reasons);
+      this.scoreFamily('veo', 20, 'Cinematic quality', scores, reasons);
+      if (scores['veo-3.1']) scores['veo-3.1'] += 5;
     }
     
     if (/person|woman|man|face|expression|people|customer|talking|smiling/.test(lower)) {
-      scores.kling += 25;
-      reasons.kling.push('Human subject in visual');
+      this.scoreFamily('kling', 25, 'Human subject in visual', scores, reasons);
+      if (scores['kling-2.5-turbo']) scores['kling-2.5-turbo'] += 5;
+    }
+    
+    if (/avatar|talking head|presenter|spokesperson/.test(lower)) {
+      if (scores['kling-avatar']) {
+        scores['kling-avatar'] += 30;
+        reasons['kling-avatar'].push('Avatar specialization');
+      }
     }
     
     if (/product|bottle|package|reveal|showcase|display|object/.test(lower)) {
-      scores.luma += 20;
-      reasons.luma.push('Product focus in visual');
+      this.scoreFamily('luma', 20, 'Product focus in visual', scores, reasons);
     }
     
     if (/nature|landscape|outdoor|garden|field|ambient|background|farm|natural/.test(lower)) {
-      scores.hailuo += 15;
-      reasons.hailuo.push('Nature/ambient scene');
-      scores.hunyuan += 10;
+      this.scoreFamily('hailuo', 15, 'Nature/ambient scene', scores, reasons);
+      this.scoreFamily('wan', 15, 'Natural scenes', scores, reasons);
+      this.scoreFamily('hunyuan', 10, '', scores, reasons);
     }
     
     if (/wellness|spa|calm|peaceful|serene|relaxing/.test(lower)) {
-      scores.kling += 15;
-      reasons.kling.push('Wellness atmosphere');
+      this.scoreFamily('kling', 15, 'Wellness atmosphere', scores, reasons);
+      this.scoreFamily('wan', 10, '', scores, reasons);
+    }
+    
+    if (/effects|particles|transition|overlay|vfx/.test(lower)) {
+      if (scores['kling-effects']) {
+        scores['kling-effects'] += 25;
+        reasons['kling-effects'].push('Effects specialization');
+      }
+    }
+    
+    if (/dance|dancing|movement|expressive|character/.test(lower)) {
+      if (scores['seedance-1.0']) {
+        scores['seedance-1.0'] += 25;
+        reasons['seedance-1.0'].push('Dance motion specialty');
+      }
+    }
+    
+    if (/text|infographic|chart|graph|motion graphic|lower.?third/.test(lower)) {
+      if (scores['remotion-motion-graphics']) {
+        scores['remotion-motion-graphics'] += 30;
+        reasons['remotion-motion-graphics'].push('Motion graphics specialty');
+      }
+    }
+    
+    if (/fast|action|dynamic|quick|speed/.test(lower)) {
+      if (scores['kling-2.5-turbo']) {
+        scores['kling-2.5-turbo'] += 15;
+        reasons['kling-2.5-turbo'].push('Fast turbo generation');
+      }
     }
   }
   
@@ -224,6 +278,10 @@ class VideoProviderSelectorService {
         scores[provider] += bonus;
         reasons[provider].push('Style preference');
       }
+      const family = VIDEO_PROVIDERS[provider]?.family;
+      if (family && bonus > 0) {
+        this.scoreFamily(family, Math.floor(bonus / 2), '', scores, reasons);
+      }
     });
   }
   
@@ -236,6 +294,62 @@ class VideoProviderSelectorService {
       if (duration > provider.maxDuration) {
         scores[id] -= 30;
         reasons[id].push(`Duration exceeds ${provider.maxDuration}s max`);
+      }
+      if (provider.maxDuration >= 60 && duration > 30) {
+        scores[id] += 10;
+        reasons[id].push('Supports long-form content');
+      }
+    });
+  }
+  
+  private scoreByTier(
+    scores: Record<string, number>,
+    reasons: Record<string, string[]>
+  ): void {
+    Object.entries(VIDEO_PROVIDERS).forEach(([id, provider]) => {
+      if (provider.tier === 'premium') {
+        scores[id] += 5;
+      } else if (provider.tier === 'budget') {
+        scores[id] += 3;
+        reasons[id].push('Cost-effective option');
+      }
+    });
+  }
+  
+  private scoreBySpecialization(
+    scene: SceneForSelection,
+    scores: Record<string, number>,
+    reasons: Record<string, string[]>
+  ): void {
+    Object.entries(VIDEO_PROVIDERS).forEach(([id, provider]) => {
+      if (!provider.specialization) return;
+      
+      const visual = scene.visualDirection?.toLowerCase() || '';
+      const narration = scene.narration?.toLowerCase() || '';
+      const combined = visual + ' ' + narration;
+      
+      switch (provider.specialization) {
+        case 'talking-head':
+          if (scene.sceneType === 'testimonial' || /talking|speaking|presenter/.test(combined)) {
+            scores[id] += 20;
+            reasons[id].push('Talking head specialization');
+          }
+          break;
+        case 'effects':
+          if (/effect|particle|transition|overlay/.test(combined)) {
+            scores[id] += 15;
+          }
+          break;
+        case 'dance':
+          if (/dance|dancing|move|groove/.test(combined)) {
+            scores[id] += 20;
+          }
+          break;
+        case 'motion-graphics':
+          if (/text|chart|info|graphic|animation/.test(combined) || scene.sceneType === 'cta') {
+            scores[id] += 15;
+          }
+          break;
       }
     });
   }
