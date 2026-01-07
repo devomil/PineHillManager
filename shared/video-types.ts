@@ -54,6 +54,29 @@ export interface BrandSettings {
   includeCTAOutro?: boolean;
 }
 
+// Phase 13: Audio Generation Settings for Kling 2.6+
+export interface AudioGenerationSettings {
+  enabled: boolean;
+  voiceGeneration: boolean;
+  soundEffects: boolean;
+  ambientSound: boolean;
+  language?: string;
+}
+
+// Phase 13: Motion Control Settings for Kling 2.6 Motion Control
+export interface MotionControlSettings {
+  enabled: boolean;
+  referenceVideoUrl?: string;
+  referenceVideoDuration?: number;
+}
+
+// Phase 13: Combined Generation Settings
+export interface GenerationSettings {
+  audio?: AudioGenerationSettings;
+  motionControl?: MotionControlSettings;
+  preferredProvider?: string;
+}
+
 // Phase 11D: Animation settings for brand media/static images
 export type AnimationType = 'ken-burns' | 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'static';
 export type AnimationIntensity = 'subtle' | 'medium' | 'dramatic';
@@ -111,6 +134,9 @@ export interface Scene {
   brandAssetType?: 'image' | 'video';
   animationSettings?: AnimationSettings;
   videoSettings?: VideoSettings;
+  // Phase 13: Audio and motion control settings
+  audioSettings?: AudioGenerationSettings;
+  motionControlSettings?: MotionControlSettings;
 }
 
 // Phase 8A: Scene analysis types

@@ -14,7 +14,10 @@ import {
   Film,
   Sparkles,
   Move,
+  Filter,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -291,7 +294,35 @@ function ProviderFamily({
   );
 }
 
+interface CapabilityFilters {
+  hasAudio: boolean;
+  hasMotionControl: boolean;
+  textToVideo: boolean;
+  imageToVideo: boolean;
+  activeOnly: boolean;
+}
+
+function applyFilters(providers: Provider[], filters: CapabilityFilters): Provider[] {
+  return providers.filter(provider => {
+    if (filters.activeOnly && !provider.isExecutable) return false;
+    if (filters.hasAudio && !provider.capabilities.nativeAudio && !provider.capabilities.audioCapabilities) return false;
+    if (filters.hasMotionControl && !provider.capabilities.motionControlCapabilities) return false;
+    if (filters.textToVideo && !provider.capabilities.textToVideo) return false;
+    if (filters.imageToVideo && !provider.capabilities.imageToVideo) return false;
+    return true;
+  });
+}
+
 export function ProviderRegistryPanel() {
+  const [filters, setFilters] = useState<CapabilityFilters>({
+    hasAudio: false,
+    hasMotionControl: false,
+    textToVideo: false,
+    imageToVideo: false,
+    activeOnly: false,
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  
   const { data, isLoading, error } = useQuery<ProviderRegistryResponse>({
     queryKey: ['/api/universal-video/provider-registry'],
     staleTime: 60 * 1000,
@@ -327,6 +358,16 @@ export function ProviderRegistryPanel() {
     min: Math.min(...data.providers.map(p => p.costPer10Seconds)),
     max: Math.max(...data.providers.map(p => p.costPer10Seconds)),
   };
+  
+  // Apply filters to each family
+  const filteredFamilies = {
+    kling: applyFilters(data.families.kling, filters),
+    wan: applyFilters(data.families.wan, filters),
+    veo: applyFilters(data.families.veo, filters),
+    other: applyFilters(data.families.other, filters),
+  };
+  
+  const activeFiltersCount = Object.values(filters).filter(Boolean).length;
 
   return (
     <Card data-testid="provider-registry-panel">
@@ -337,6 +378,21 @@ export function ProviderRegistryPanel() {
             Provider Registry
           </div>
           <div className="flex items-center gap-2 text-sm font-normal">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className={activeFiltersCount > 0 ? 'border-blue-400 bg-blue-50' : ''}
+              data-testid="toggle-filters-button"
+            >
+              <Filter className="h-3.5 w-3.5 mr-1" />
+              Filters
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs px-1.5">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </Button>
             <Badge variant="secondary">
               {data.totalProviders} total
             </Badge>
@@ -348,6 +404,81 @@ export function ProviderRegistryPanel() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Capability Filters */}
+        {showFilters && (
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-3" data-testid="capability-filters">
+            <div className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Filter by Capability</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-audio"
+                  checked={filters.hasAudio}
+                  onCheckedChange={(checked) => setFilters(f => ({ ...f, hasAudio: checked }))}
+                  data-testid="filter-audio-switch"
+                />
+                <Label htmlFor="filter-audio" className="text-sm flex items-center gap-1">
+                  <Volume2 className="h-3.5 w-3.5" /> Native Audio
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-motion"
+                  checked={filters.hasMotionControl}
+                  onCheckedChange={(checked) => setFilters(f => ({ ...f, hasMotionControl: checked }))}
+                  data-testid="filter-motion-switch"
+                />
+                <Label htmlFor="filter-motion" className="text-sm flex items-center gap-1">
+                  <Move className="h-3.5 w-3.5" /> Motion Control
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-text-to-video"
+                  checked={filters.textToVideo}
+                  onCheckedChange={(checked) => setFilters(f => ({ ...f, textToVideo: checked }))}
+                  data-testid="filter-t2v-switch"
+                />
+                <Label htmlFor="filter-text-to-video" className="text-sm flex items-center gap-1">
+                  <Film className="h-3.5 w-3.5" /> Text→Video
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-image-to-video"
+                  checked={filters.imageToVideo}
+                  onCheckedChange={(checked) => setFilters(f => ({ ...f, imageToVideo: checked }))}
+                  data-testid="filter-i2v-switch"
+                />
+                <Label htmlFor="filter-image-to-video" className="text-sm flex items-center gap-1">
+                  <Image className="h-3.5 w-3.5" /> Image→Video
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-active"
+                  checked={filters.activeOnly}
+                  onCheckedChange={(checked) => setFilters(f => ({ ...f, activeOnly: checked }))}
+                  data-testid="filter-active-switch"
+                />
+                <Label htmlFor="filter-active" className="text-sm flex items-center gap-1">
+                  <CheckCircle className="h-3.5 w-3.5" /> Active Only
+                </Label>
+              </div>
+            </div>
+            {activeFiltersCount > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setFilters({ hasAudio: false, hasMotionControl: false, textToVideo: false, imageToVideo: false, activeOnly: false })}
+                className="text-xs"
+                data-testid="clear-filters-button"
+              >
+                Clear all filters
+              </Button>
+            )}
+          </div>
+        )}
+        
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
             <div className="text-gray-500 text-xs mb-1">Video Providers</div>
@@ -372,22 +503,22 @@ export function ProviderRegistryPanel() {
         <div className="space-y-2">
           <ProviderFamily 
             name="kling" 
-            providers={data.families.kling} 
+            providers={filteredFamilies.kling} 
             colorClass={FAMILY_COLORS.kling}
           />
           <ProviderFamily 
             name="wan" 
-            providers={data.families.wan} 
+            providers={filteredFamilies.wan} 
             colorClass={FAMILY_COLORS.wan}
           />
           <ProviderFamily 
             name="veo" 
-            providers={data.families.veo} 
+            providers={filteredFamilies.veo} 
             colorClass={FAMILY_COLORS.veo}
           />
           <ProviderFamily 
             name="other" 
-            providers={data.families.other} 
+            providers={filteredFamilies.other} 
             colorClass={FAMILY_COLORS.other}
           />
         </div>

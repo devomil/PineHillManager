@@ -69,6 +69,29 @@ const productVideoInputSchema = z.object({
   voiceName: z.string().optional(),
 });
 
+// Phase 13: Audio generation settings schema
+const audioGenerationSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  voiceGeneration: z.boolean().default(true),
+  soundEffects: z.boolean().default(true),
+  ambientSound: z.boolean().default(true),
+  language: z.string().optional().default('en'),
+});
+
+// Phase 13: Motion control settings schema
+const motionControlSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  referenceVideoUrl: z.string().optional(),
+  referenceVideoDuration: z.number().optional(),
+});
+
+// Phase 13: Combined generation settings schema
+const generationSettingsSchema = z.object({
+  audio: audioGenerationSettingsSchema.optional(),
+  motionControl: motionControlSettingsSchema.optional(),
+  preferredProvider: z.string().optional(),
+});
+
 const scriptVideoInputSchema = z.object({
   title: z.string().min(1),
   script: z.string().min(10),
@@ -82,6 +105,8 @@ const scriptVideoInputSchema = z.object({
   }).optional(),
   musicEnabled: z.boolean().optional(),
   musicMood: z.string().optional(),
+  // Phase 13: Audio and motion control generation settings
+  generationSettings: generationSettingsSchema.optional(),
 });
 
 function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null; qualityReport?: VideoQualityReport } {
@@ -1735,6 +1760,88 @@ router.post('/upload-url', isAuthenticated, async (req: Request, res: Response) 
     });
   } catch (error: any) {
     console.error('[UniversalVideo] Error getting upload URL:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 13: Motion reference video upload endpoint
+router.post('/upload-motion-reference', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    console.log('[UniversalVideo] Getting presigned upload URL for motion reference video, user:', userId);
+    const { uploadUrl, objectPath } = await objectStorageService.getObjectEntityUploadURL(userId);
+    
+    res.json({
+      success: true,
+      uploadUrl,
+      objectPath,
+      message: 'Upload URL generated for motion reference video. Use PUT request to upload video (3-30 seconds, max 100MB).',
+      constraints: {
+        minDuration: 3,
+        maxDuration: 30,
+        maxSizeMB: 100,
+        supportedFormats: ['video/mp4', 'video/webm', 'video/quicktime'],
+      },
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error getting motion reference upload URL:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 13: Apply generation settings to project scenes
+router.post('/projects/:projectId/apply-generation-settings', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    const settings = generationSettingsSchema.parse(req.body);
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    // Apply audio and motion settings to all scenes
+    const updatedScenes = projectData.scenes.map((scene: any) => ({
+      ...scene,
+      audioSettings: settings.audio,
+      motionControlSettings: settings.motionControl,
+    }));
+    
+    projectData.scenes = updatedScenes;
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, userId);
+    
+    console.log('[UniversalVideo] Applied generation settings to project:', projectId, {
+      audioEnabled: settings.audio?.enabled,
+      motionControlEnabled: settings.motionControl?.enabled,
+      preferredProvider: settings.preferredProvider,
+    });
+    
+    res.json({
+      success: true,
+      message: 'Generation settings applied to all scenes',
+      appliedSettings: {
+        audio: settings.audio,
+        motionControl: settings.motionControl,
+        preferredProvider: settings.preferredProvider,
+      },
+      scenesUpdated: updatedScenes.length,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error applying generation settings:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
