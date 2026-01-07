@@ -13,6 +13,7 @@ import {
   Volume2,
   Film,
   Sparkles,
+  Move,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +29,7 @@ interface ProviderCapabilities {
   imageToVideo: boolean;
   textToVideo: boolean;
   imageToImage: boolean;
+  videoToVideo?: boolean;
   maxResolution: string;
   maxFps: number;
   maxDuration: number;
@@ -38,6 +40,20 @@ interface ProviderCapabilities {
   nativeAudio: boolean;
   lipSync: boolean;
   effectsPresets: string[];
+  audioCapabilities?: {
+    voiceGeneration: boolean;
+    soundEffects: boolean;
+    ambientSound: boolean;
+    audioVisualSync: boolean;
+    supportedLanguages?: string[];
+  };
+  motionControlCapabilities?: {
+    motionTransfer: boolean;
+    referenceVideoDuration: { min: number; max: number };
+    maxAnimatedElements: number;
+    audioPreservation: boolean;
+    supportedActions: string[];
+  };
 }
 
 interface Provider {
@@ -98,6 +114,18 @@ function ProviderCard({ provider, familyColor }: { provider: Provider; familyCol
                 <Badge variant="outline" className="text-xs">
                   v{provider.version}
                 </Badge>
+                {(provider.capabilities.nativeAudio || provider.capabilities.audioCapabilities) && (
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                    <Volume2 className="w-3 h-3 mr-0.5" />
+                    Audio
+                  </Badge>
+                )}
+                {provider.capabilities.motionControlCapabilities && (
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                    <Move className="w-3 h-3 mr-0.5" />
+                    Motion
+                  </Badge>
+                )}
                 {provider.isExecutable ? (
                   <CheckCircle className="h-3.5 w-3.5 text-green-500" />
                 ) : (
@@ -114,7 +142,7 @@ function ProviderCard({ provider, familyColor }: { provider: Provider; familyCol
 
         <CollapsibleContent>
           <div className="mt-3 pt-3 border-t border-current/10 space-y-2 text-xs">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               {provider.capabilities.textToVideo && (
                 <div className="flex items-center gap-1">
                   <Film className="h-3 w-3" />
@@ -125,6 +153,12 @@ function ProviderCard({ provider, familyColor }: { provider: Provider; familyCol
                 <div className="flex items-center gap-1">
                   <Image className="h-3 w-3" />
                   <span>Image→Video</span>
+                </div>
+              )}
+              {provider.capabilities.videoToVideo && (
+                <div className="flex items-center gap-1">
+                  <Move className="h-3 w-3" />
+                  <span>Video→Video</span>
                 </div>
               )}
               {provider.capabilities.nativeAudio && (
@@ -140,6 +174,33 @@ function ProviderCard({ provider, familyColor }: { provider: Provider; familyCol
                 </div>
               )}
             </div>
+            
+            {/* Motion Control capabilities */}
+            {provider.capabilities.motionControlCapabilities && (
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded p-2 text-xs">
+                <div className="font-medium text-purple-700 dark:text-purple-300 mb-1">Motion Control</div>
+                <div className="text-purple-600 dark:text-purple-400">
+                  Reference: {provider.capabilities.motionControlCapabilities.referenceVideoDuration.min}-{provider.capabilities.motionControlCapabilities.referenceVideoDuration.max}s
+                  • Up to {provider.capabilities.motionControlCapabilities.maxAnimatedElements} animated elements
+                </div>
+                <div className="text-purple-500 dark:text-purple-500 mt-1">
+                  Actions: {provider.capabilities.motionControlCapabilities.supportedActions.slice(0, 4).join(', ')}...
+                </div>
+              </div>
+            )}
+            
+            {/* Audio capabilities details */}
+            {provider.capabilities.audioCapabilities && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 text-xs">
+                <div className="font-medium text-blue-700 dark:text-blue-300 mb-1">Native Audio Generation</div>
+                <div className="flex gap-3 text-blue-600 dark:text-blue-400">
+                  {provider.capabilities.audioCapabilities.voiceGeneration && <span>Voice</span>}
+                  {provider.capabilities.audioCapabilities.soundEffects && <span>SFX</span>}
+                  {provider.capabilities.audioCapabilities.ambientSound && <span>Ambient</span>}
+                  {provider.capabilities.audioCapabilities.audioVisualSync && <span>A/V Sync</span>}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Motion:</span>

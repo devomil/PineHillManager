@@ -4,7 +4,37 @@ import { VideoProvider, ComplexityAnalysis, RoutingDecision, ProviderStrength } 
 
 type SceneType = 'b-roll' | 'talking-head' | 'product' | 'lifestyle' | 'cinematic' | 'hook' | 'cta' | 'testimonial' | 'explanation';
 
+export interface SceneRequirements {
+  needsAudio?: boolean;
+  needsVoice?: boolean;
+  hasMotionReference?: boolean;
+  qualityTier?: 'standard' | 'premium';
+  audioType?: string[];
+}
+
+export interface AudioRequirements {
+  needsAudio: boolean;
+  needsVoice: boolean;
+  audioType: string[];
+}
+
 class SmartProviderRouter {
+  
+  // Audio detection keywords
+  private readonly AUDIO_VOICE_KEYWORDS = [
+    'speaking', 'talking', 'says', 'dialogue', 'conversation',
+    'interview', 'narrator', 'announcer', 'presenter', 'host',
+  ];
+  
+  private readonly AUDIO_SFX_KEYWORDS = [
+    'splash', 'pour', 'sizzle', 'crunch', 'click', 'footsteps',
+    'door', 'applause', 'music', 'knock', 'bell', 'ring',
+  ];
+  
+  private readonly AUDIO_AMBIENT_KEYWORDS = [
+    'outdoor', 'forest', 'ocean', 'city', 'cafe', 'restaurant',
+    'office', 'nature', 'street', 'crowd', 'park', 'beach',
+  ];
   
   private readonly STRENGTH_KEYWORDS: Record<string, string[]> = {
     'human-faces': ['face', 'person', 'people', 'man', 'woman', 'portrait', 'expression'],
@@ -217,6 +247,131 @@ class SmartProviderRouter {
   
   getAllProviders(): VideoProvider[] {
     return getAllVideoProviders();
+  }
+  
+  /**
+   * Detect audio requirements from visual direction and narration
+   * Phase 13 Addendum: Routes to Kling 2.6 when audio needed
+   */
+  detectAudioRequirements(
+    visualDirection: string,
+    narration?: string
+  ): AudioRequirements {
+    const lower = visualDirection.toLowerCase();
+    const audioTypes: string[] = [];
+    
+    // Detect voice requirements
+    const needsVoice = this.AUDIO_VOICE_KEYWORDS.some(k => lower.includes(k));
+    if (needsVoice) audioTypes.push('voice');
+    
+    // Detect sound effect requirements
+    const hasSfx = this.AUDIO_SFX_KEYWORDS.some(k => lower.includes(k));
+    if (hasSfx) audioTypes.push('sound-effect');
+    
+    // Detect ambient requirements
+    const hasAmbient = this.AUDIO_AMBIENT_KEYWORDS.some(k => lower.includes(k));
+    if (hasAmbient) audioTypes.push('ambient');
+    
+    return {
+      needsAudio: audioTypes.length > 0,
+      needsVoice,
+      audioType: audioTypes,
+    };
+  }
+  
+  /**
+   * Route with scene requirements including audio/motion control needs
+   * Phase 13 Addendum: Smart routing to Kling 2.6 for audio-required scenes
+   */
+  routeWithRequirements(
+    visualDirection: string,
+    sceneType: SceneType = 'b-roll',
+    requirements?: SceneRequirements,
+    preferredProvider?: string
+  ): RoutingDecision {
+    
+    // If explicit audio requirements or motion reference provided
+    if (requirements?.needsAudio || requirements?.needsVoice) {
+      // Route to Kling 2.6 for native audio
+      const tier = requirements.qualityTier;
+      const providerId = tier === 'premium' ? 'kling-2.6-pro' : 'kling-2.6';
+      const provider = VIDEO_PROVIDERS[providerId];
+      
+      if (provider) {
+        console.log(`[SmartRouter] Routing to ${providerId} for audio requirements`);
+        // Build tier-appropriate alternatives
+        const alternatives = tier === 'premium' 
+          ? [
+              { provider: 'kling-2.6', reason: 'Standard audio quality at lower cost' },
+              { provider: 'kling-avatar', reason: 'For longer talking head content' },
+            ]
+          : [
+              { provider: 'kling-2.6-pro', reason: 'Premium audio quality' },
+              { provider: 'kling-avatar', reason: 'For longer talking head content' },
+            ];
+            
+        return {
+          recommendedProvider: providerId,
+          confidence: 0.95,
+          reasoning: [
+            `${provider.name} selected for native audio generation`,
+            `Audio requirements: ${requirements.audioType?.join(', ') || 'detected'}`,
+            'Eliminates need for separate audio sync',
+            `Cost: $${provider.costPer10Seconds.toFixed(2)}/10s`,
+          ],
+          alternatives,
+          warnings: [],
+          complexity: promptComplexityAnalyzer.analyze(visualDirection),
+        };
+      }
+    }
+    
+    // If motion reference video provided, route to Motion Control
+    if (requirements?.hasMotionReference) {
+      const tier = requirements.qualityTier;
+      const providerId = tier === 'premium' 
+        ? 'kling-2.6-motion-control-pro' 
+        : 'kling-2.6-motion-control';
+      const provider = VIDEO_PROVIDERS[providerId];
+      
+      if (provider) {
+        console.log(`[SmartRouter] Routing to ${providerId} for motion transfer`);
+        // Build tier-appropriate alternatives for motion control
+        const alternatives = tier === 'premium'
+          ? [
+              { provider: 'kling-2.6-motion-control', reason: 'Standard motion control at lower cost' },
+              { provider: 'kling-2.6-pro', reason: 'Standard video with audio (no motion transfer)' },
+            ]
+          : [
+              { provider: 'kling-2.6-motion-control-pro', reason: 'Premium motion control for complex choreography' },
+              { provider: 'kling-2.6', reason: 'Standard video with audio (no motion transfer)' },
+            ];
+            
+        return {
+          recommendedProvider: providerId,
+          confidence: 0.95,
+          reasoning: [
+            `${provider.name} selected for motion transfer`,
+            'Transfers motion from reference video to character',
+            'Supports up to 30 seconds duration',
+            `Cost: $${provider.costPer10Seconds.toFixed(2)}/10s`,
+          ],
+          alternatives,
+          warnings: ['Motion Control requires a reference video (3-30 seconds)'],
+          complexity: promptComplexityAnalyzer.analyze(visualDirection),
+        };
+      }
+    }
+    
+    // Auto-detect audio requirements from content
+    const audioReqs = this.detectAudioRequirements(visualDirection);
+    if (audioReqs.needsAudio && !preferredProvider) {
+      // Boost Kling 2.6 providers in the standard routing
+      console.log(`[SmartRouter] Audio detected: ${audioReqs.audioType.join(', ')}`);
+    }
+    
+    // Fall back to standard routing
+    return this.route(visualDirection, sceneType, preferredProvider);
   }
 }
 
