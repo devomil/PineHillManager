@@ -430,14 +430,39 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
   const filteredImageProviders = filterProvidersByMode(IMAGE_PROVIDERS, referenceMode);
   const filteredVideoProviders = filterProvidersByMode(VIDEO_PROVIDERS, referenceMode);
   
-  const imageRecommended = recommendedImageProvider || determineRecommended(filteredImageProviders, sceneContentType);
-  const videoRecommended = recommendedVideoProvider || determineRecommended(filteredVideoProviders, sceneContentType);
+  const validateRecommendation = (recommended: string | undefined, filteredProviders: ProviderInfo[]): string | undefined => {
+    if (!recommended) return filteredProviders[0]?.id;
+    if (filteredProviders.some(p => p.id === recommended)) return recommended;
+    return filteredProviders[0]?.id;
+  };
+  
+  const imageRecommended = validateRecommendation(
+    recommendedImageProvider || determineRecommended(IMAGE_PROVIDERS, sceneContentType),
+    filteredImageProviders
+  );
+  const videoRecommended = validateRecommendation(
+    recommendedVideoProvider || determineRecommended(VIDEO_PROVIDERS, sceneContentType),
+    filteredVideoProviders
+  );
+  
+  const isImageProviderValid = selectedImageProvider && 
+    (filteredImageProviders.some(p => p.id === selectedImageProvider) || 
+     selectedImageProvider === 'brand_media' || selectedImageProvider === 'asset_library');
+  const isVideoProviderValid = selectedVideoProvider && 
+    (filteredVideoProviders.some(p => p.id === selectedVideoProvider) || 
+     selectedVideoProvider === 'brand_media' || selectedVideoProvider === 'asset_library');
+  
+  const effectiveImageProvider = isImageProviderValid ? selectedImageProvider : imageRecommended;
+  const effectiveVideoProvider = isVideoProviderValid ? selectedVideoProvider : videoRecommended;
+  
+  const hasValidImageProviders = filteredImageProviders.length > 0;
+  const hasValidVideoProviders = filteredVideoProviders.length > 0;
   
   const currentProvider = activeMediaType === 'video' 
-    ? (selectedVideoProvider || videoRecommended)
-    : (selectedImageProvider || imageRecommended);
+    ? effectiveVideoProvider
+    : effectiveImageProvider;
   
-  const currentProviderName = getProviderName(currentProvider);
+  const currentProviderName = currentProvider ? getProviderName(currentProvider) : 'None';
   
   const colorClasses: Record<string, string> = {
     purple: 'border-purple-300 bg-purple-50 dark:border-purple-600 dark:bg-purple-900/30',
@@ -582,7 +607,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             <RadioGroup 
-              value={selectedImageProvider || ''} 
+              value={effectiveImageProvider || ''} 
               onValueChange={(value) => {
                 onSelectImageProvider(value);
                 onMediaTypeChange('image');
@@ -592,7 +617,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
               {filteredImageProviders.map((provider) => 
                 renderProviderCard(
                   provider,
-                  provider.id === selectedImageProvider,
+                  provider.id === effectiveImageProvider,
                   provider.id === imageRecommended,
                   () => {
                     onSelectImageProvider(provider.id);
@@ -607,7 +632,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
               {OTHER_SOURCES.map((source) => 
                 renderOtherSource(
                   source,
-                  selectedImageProvider === source.id,
+                  effectiveImageProvider === source.id,
                   () => {
                     onSelectImageProvider(source.id);
                     onMediaTypeChange('image');
@@ -634,7 +659,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             <RadioGroup 
-              value={selectedVideoProvider || ''} 
+              value={effectiveVideoProvider || ''} 
               onValueChange={(value) => {
                 onSelectVideoProvider(value);
                 onMediaTypeChange('video');
@@ -644,7 +669,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
               {filteredVideoProviders.map((provider) => 
                 renderProviderCard(
                   provider,
-                  provider.id === selectedVideoProvider,
+                  provider.id === effectiveVideoProvider,
                   provider.id === videoRecommended,
                   () => {
                     onSelectVideoProvider(provider.id);
@@ -659,7 +684,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
               {OTHER_SOURCES.map((source) => 
                 renderOtherSource(
                   source,
-                  selectedVideoProvider === source.id,
+                  effectiveVideoProvider === source.id,
                   () => {
                     onSelectVideoProvider(source.id);
                     onMediaTypeChange('video');
@@ -672,14 +697,27 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
         </Collapsible>
       </div>
       
+      {/* Warning when no providers available for current mode */}
+      {referenceMode !== 'none' && (
+        (activeMediaType === 'image' && !hasValidImageProviders) ||
+        (activeMediaType === 'video' && !hasValidVideoProviders)
+      ) && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            No {activeMediaType} providers support the current reference mode. 
+            {activeMediaType === 'image' ? ' Try video providers or change the reference mode.' : ' Try image providers or change the reference mode.'}
+          </p>
+        </div>
+      )}
+      
       <Button
         onClick={onGenerate}
-        disabled={disabled || isGenerating}
+        disabled={disabled || isGenerating || !currentProvider}
         className="w-full mt-4"
         data-testid="generate-with-provider"
       >
         <Wand2 className="h-4 w-4 mr-2" />
-        {isGenerating ? 'Generating...' : `Generate with ${currentProviderName}`}
+        {isGenerating ? 'Generating...' : currentProvider ? `Generate with ${currentProviderName}` : 'No provider available'}
       </Button>
     </div>
   );

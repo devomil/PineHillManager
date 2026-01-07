@@ -24,7 +24,7 @@ import { QualityReport } from "./quality-report";
 import { QADashboard } from "./qa-dashboard";
 import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-settings-panel";
 import { MusicStyleSelector } from "./music-style-selector";
-import { ProviderSelector, getRecommendedProvider, getProviderName, VIDEO_PROVIDERS, IMAGE_PROVIDERS } from "./provider-selector";
+import { ProviderSelector, ProviderSelectorPanel, getRecommendedProvider, getProviderName, VIDEO_PROVIDERS, IMAGE_PROVIDERS } from "./provider-selector";
 import { getAvailableStyles } from "@shared/visual-style-config";
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from "./content-type-selector";
 import { GenerationPreviewPanel } from "./generation-preview-panel";
@@ -2443,133 +2443,68 @@ function ScenePreview({
                 {/* Media Source Selector Controls */}
                 {projectId && (
                   <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
-                    <Label className="text-sm font-medium">Media Source Controls</Label>
-                    
-                    {/* Custom prompt and type toggles */}
-                    <div className="flex items-center gap-2 flex-wrap">
+                    {/* Custom prompt input */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Custom Prompt (optional)</Label>
                       <Input
-                        placeholder="Custom prompt (optional)"
+                        placeholder="Override the visual direction with a custom prompt..."
                         value={customPrompt[scene.id] || ''}
                         onChange={(e) => setCustomPrompt(prev => ({ ...prev, [scene.id]: e.target.value }))}
-                        className="text-sm h-9 flex-1 min-w-[150px]"
+                        className="text-sm"
                         data-testid={`input-custom-prompt-modal-${scene.id}`}
                       />
-                      <div className="flex border rounded-md overflow-hidden">
-                        <Button
-                          size="sm"
-                          variant={scene.background?.type !== 'video' ? 'default' : 'ghost'}
-                          className="h-9 text-sm rounded-none"
-                          onClick={() => switchBackground(scene.id, false)}
-                          disabled={!!regenerating}
-                          data-testid={`button-type-image-modal-${scene.id}`}
-                        >
-                          <ImageIcon className="w-4 h-4 mr-1" /> Image
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={scene.background?.type === 'video' ? 'default' : 'ghost'}
-                          className="h-9 text-sm rounded-none"
-                          onClick={() => switchBackground(scene.id, true)}
-                          disabled={!!regenerating}
-                          data-testid={`button-type-video-modal-${scene.id}`}
-                        >
-                          <Video className="w-4 h-4 mr-1" /> Video
-                        </Button>
-                      </div>
                     </div>
                     
-                    {/* Phase 9B: Provider Selector */}
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Image Providers */}
-                      <ProviderSelector
-                        type="image"
-                        selectedProvider={sceneMediaType[scene.id] === 'image' ? (selectedProviders[`image-${scene.id}`] || getRecommendedProvider('image', scene.type, scene.visualDirection)) : undefined}
-                        onSelectProvider={(provider) => {
-                          const newProviders = { ...selectedProviders };
-                          newProviders[`image-${scene.id}`] = provider;
-                          delete newProviders[`video-${scene.id}`];
-                          setSelectedProviders(newProviders);
-                          setSceneMediaType(prev => ({ ...prev, [scene.id]: 'image' }));
-                          if (provider === 'brand_media') {
-                            setBrandMediaSelectorOpen(scene.id);
-                          } else if (provider === 'asset_library') {
-                            openMediaPicker(scene.id, 'image', 'library');
-                          }
-                        }}
-                        recommendedProvider={getRecommendedProvider('image', scene.type, scene.visualDirection)}
-                        sceneContentType={scene.visualDirection || scene.type}
-                        disabled={!!regenerating || !!applyingMedia}
-                      />
-                      
-                      {/* Video Providers */}
-                      <ProviderSelector
-                        type="video"
-                        selectedProvider={sceneMediaType[scene.id] === 'video' ? (selectedProviders[`video-${scene.id}`] || getRecommendedProvider('video', scene.type, scene.visualDirection)) : undefined}
-                        onSelectProvider={(provider) => {
-                          const newProviders = { ...selectedProviders };
-                          newProviders[`video-${scene.id}`] = provider;
-                          delete newProviders[`image-${scene.id}`];
-                          setSelectedProviders(newProviders);
-                          setSceneMediaType(prev => ({ ...prev, [scene.id]: 'video' }));
-                          if (provider === 'brand_media') {
-                            setBrandMediaSelectorOpen(scene.id);
-                          } else if (provider === 'asset_library') {
-                            openMediaPicker(scene.id, 'video', 'library');
-                          }
-                        }}
-                        recommendedProvider={getRecommendedProvider('video', scene.type, scene.visualDirection)}
-                        sceneContentType={scene.visualDirection || scene.type}
-                        disabled={!!regenerating || !!applyingMedia}
-                      />
-                    </div>
-                    
-                    {/* Generate Button */}
-                    <div className="flex items-center gap-2 pt-2">
-                      <Button
-                        onClick={() => {
-                          const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
-                          console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'projectId:', projectId, 'sceneMediaType:', sceneMediaType, 'selectedProviders:', selectedProviders);
-                          if (mediaType === 'video') {
-                            regenerateVideo(scene.id, provider);
-                          } else {
-                            regenerateImage(scene.id, provider);
-                          }
-                        }}
-                        disabled={!!regenerating || !!applyingMedia}
-                        className="flex-1"
-                        data-testid={`button-generate-with-provider-${scene.id}`}
-                      >
-                        {regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}` ? (
-                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
-                        ) : (
-                          <><Sparkles className="w-4 h-4 mr-2" /> Generate with {getProviderName(
-                            selectedProviders[`${sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}-${scene.id}`] || 
-                            getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type, scene.visualDirection)
-                          )}</>
-                        )}
-                      </Button>
-                    </div>
-                    
-                    {/* Provider info */}
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                      <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                        Selected: {getProviderName(
-                          selectedProviders[`${sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}-${scene.id}`] || 
-                          getRecommendedProvider(sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'), scene.type, scene.visualDirection)
-                        )}
-                      </div>
-                      <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                        {(() => {
-                          const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                          const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
-                          const recommended = getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
-                          return provider === recommended 
-                            ? "This is the recommended provider for this scene type"
-                            : "You can override the recommended provider if needed";
-                        })()}
-                      </div>
-                    </div>
+                    {/* Phase 13D: Provider Selector Panel with dropdowns */}
+                    <ProviderSelectorPanel
+                      selectedImageProvider={selectedProviders[`image-${scene.id}`]}
+                      selectedVideoProvider={selectedProviders[`video-${scene.id}`]}
+                      onSelectImageProvider={(provider) => {
+                        const newProviders = { ...selectedProviders };
+                        newProviders[`image-${scene.id}`] = provider;
+                        delete newProviders[`video-${scene.id}`];
+                        setSelectedProviders(newProviders);
+                        setSceneMediaType(prev => ({ ...prev, [scene.id]: 'image' }));
+                        if (provider === 'brand_media') {
+                          setBrandMediaSelectorOpen(scene.id);
+                        } else if (provider === 'asset_library') {
+                          openMediaPicker(scene.id, 'image', 'library');
+                        }
+                      }}
+                      onSelectVideoProvider={(provider) => {
+                        const newProviders = { ...selectedProviders };
+                        newProviders[`video-${scene.id}`] = provider;
+                        delete newProviders[`image-${scene.id}`];
+                        setSelectedProviders(newProviders);
+                        setSceneMediaType(prev => ({ ...prev, [scene.id]: 'video' }));
+                        if (provider === 'brand_media') {
+                          setBrandMediaSelectorOpen(scene.id);
+                        } else if (provider === 'asset_library') {
+                          openMediaPicker(scene.id, 'video', 'library');
+                        }
+                      }}
+                      recommendedImageProvider={getRecommendedProvider('image', scene.type, scene.visualDirection)}
+                      recommendedVideoProvider={getRecommendedProvider('video', scene.type, scene.visualDirection)}
+                      sceneContentType={scene.visualDirection || scene.type}
+                      disabled={!!regenerating || !!applyingMedia}
+                      referenceMode={scene.referenceConfig?.mode || 'none'}
+                      activeMediaType={sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}
+                      onMediaTypeChange={(type) => {
+                        setSceneMediaType(prev => ({ ...prev, [scene.id]: type }));
+                        switchBackground(scene.id, type === 'video');
+                      }}
+                      onGenerate={() => {
+                        const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
+                        const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
+                        console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider);
+                        if (mediaType === 'video') {
+                          regenerateVideo(scene.id, provider);
+                        } else {
+                          regenerateImage(scene.id, provider);
+                        }
+                      }}
+                      isGenerating={regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`}
+                    />
                     
                     {/* Phase 13D: Reference Image Section */}
                     <ReferenceImageSection
