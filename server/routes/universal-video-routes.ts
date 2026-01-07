@@ -92,6 +92,35 @@ const generationSettingsSchema = z.object({
   preferredProvider: z.string().optional(),
 });
 
+// Phase 13D: Reference image configuration schema
+const i2iSettingsSchema = z.object({
+  strength: z.number().min(0).max(1).default(0.7),
+  preserveComposition: z.boolean().default(true),
+  preserveColors: z.boolean().default(true),
+});
+
+const i2vSettingsSchema = z.object({
+  motionStrength: z.number().min(0).max(1).default(0.5),
+  motionType: z.enum(['environmental', 'subtle', 'dynamic']).default('subtle'),
+  preserveSubject: z.boolean().default(true),
+});
+
+const styleSettingsSchema = z.object({
+  styleStrength: z.number().min(0).max(1).default(0.7),
+  applyColors: z.boolean().default(true),
+  applyLighting: z.boolean().default(true),
+  applyComposition: z.boolean().default(false),
+});
+
+const referenceConfigSchema = z.object({
+  mode: z.enum(['none', 'image-to-image', 'image-to-video', 'style-reference']),
+  sourceUrl: z.string().optional(),
+  sourceType: z.enum(['upload', 'current-media', 'asset-library', 'brand-media']),
+  i2iSettings: i2iSettingsSchema.optional(),
+  i2vSettings: i2vSettingsSchema.optional(),
+  styleSettings: styleSettingsSchema.optional(),
+});
+
 const scriptVideoInputSchema = z.object({
   title: z.string().min(1),
   script: z.string().min(10),
@@ -1764,6 +1793,34 @@ router.post('/upload-url', isAuthenticated, async (req: Request, res: Response) 
   }
 });
 
+// Phase 13D: Reference image upload endpoint for I2I, I2V, and Style Reference
+router.post('/upload-reference-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    console.log('[UniversalVideo] Getting presigned upload URL for reference image, user:', userId);
+    const { uploadUrl, objectPath } = await objectStorageService.getObjectEntityUploadURL(userId);
+    
+    res.json({
+      success: true,
+      uploadUrl,
+      objectPath,
+      message: 'Upload URL generated for reference image. Use PUT request to upload image.',
+      constraints: {
+        maxSizeMB: 20,
+        supportedFormats: ['image/jpeg', 'image/png', 'image/webp'],
+        recommendedResolution: '1024x1024 or higher',
+      },
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error getting reference image upload URL:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 13: Motion reference video upload endpoint
 router.post('/upload-motion-reference', isAuthenticated, async (req: Request, res: Response) => {
   try {
@@ -1842,6 +1899,95 @@ router.post('/projects/:projectId/apply-generation-settings', isAuthenticated, a
     });
   } catch (error: any) {
     console.error('[UniversalVideo] Error applying generation settings:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 13D: Apply reference config to a specific scene
+router.post('/projects/:projectId/scenes/:sceneId/reference-config', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    const referenceConfig = referenceConfigSchema.parse(req.body);
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex((s: any) => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    projectData.scenes[sceneIndex].referenceConfig = referenceConfig;
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, userId);
+    
+    console.log('[UniversalVideo] Applied reference config to scene:', sceneId, {
+      mode: referenceConfig.mode,
+      sourceType: referenceConfig.sourceType,
+      hasI2iSettings: !!referenceConfig.i2iSettings,
+      hasI2vSettings: !!referenceConfig.i2vSettings,
+      hasStyleSettings: !!referenceConfig.styleSettings,
+    });
+    
+    res.json({
+      success: true,
+      message: `Reference config applied to scene ${sceneId}`,
+      referenceConfig,
+      scene: projectData.scenes[sceneIndex],
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error applying reference config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 13D: Clear reference config from a scene
+router.delete('/projects/:projectId/scenes/:sceneId/reference-config', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex((s: any) => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    delete projectData.scenes[sceneIndex].referenceConfig;
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, userId);
+    
+    console.log('[UniversalVideo] Cleared reference config from scene:', sceneId);
+    
+    res.json({
+      success: true,
+      message: `Reference config cleared from scene ${sceneId}`,
+      scene: projectData.scenes[sceneIndex],
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error clearing reference config:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

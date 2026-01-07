@@ -77,6 +77,54 @@ export interface GenerationSettings {
   preferredProvider?: string;
 }
 
+// Phase 13D: Reference Image Configuration
+export type ReferenceMode = 'none' | 'image-to-image' | 'image-to-video' | 'style-reference';
+export type ReferenceSourceType = 'upload' | 'current-media' | 'asset-library' | 'brand-media';
+
+export interface ImageToImageSettings {
+  strength: number;           // 0-1, how much to change from reference
+  preserveComposition: boolean;
+  preserveColors: boolean;
+}
+
+export interface ImageToVideoSettings {
+  motionStrength: number;     // 0-1, amount of motion
+  motionType: 'environmental' | 'subtle' | 'dynamic';
+  preserveSubject: boolean;
+}
+
+export interface StyleReferenceSettings {
+  styleStrength: number;      // 0-1, how much to apply style
+  applyColors: boolean;
+  applyLighting: boolean;
+  applyComposition: boolean;
+}
+
+export interface ReferenceConfig {
+  mode: ReferenceMode;
+  sourceUrl?: string;
+  sourceType: ReferenceSourceType;
+  i2iSettings?: ImageToImageSettings;
+  i2vSettings?: ImageToVideoSettings;
+  styleSettings?: StyleReferenceSettings;
+}
+
+// Phase 13D: Regeneration Options
+export type RegenerateMode = 'standard' | 'with-reference' | 'simplified-prompt' | 'different-provider' | 'stock-search';
+
+export interface RegenerateOptions {
+  mode: RegenerateMode;
+  referenceUrl?: string;
+  newPrompt?: string;
+  newProvider?: string;
+}
+
+export interface PromptComplexityAnalysis {
+  category: 'simple' | 'moderate' | 'complex' | 'impossible';
+  warning?: string;
+  simplifiedPrompt?: string;
+}
+
 // Phase 11D: Animation settings for brand media/static images
 export type AnimationType = 'ken-burns' | 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'static';
 export type AnimationIntensity = 'subtle' | 'medium' | 'dramatic';
@@ -137,6 +185,8 @@ export interface Scene {
   // Phase 13: Audio and motion control settings
   audioSettings?: AudioGenerationSettings;
   motionControlSettings?: MotionControlSettings;
+  // Phase 13D: Reference image configuration
+  referenceConfig?: ReferenceConfig;
 }
 
 // Phase 8A: Scene analysis types
