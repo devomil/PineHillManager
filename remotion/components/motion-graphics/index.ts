@@ -9,3 +9,7 @@ export { ProcessFlow, type ProcessFlowProps, type ProcessStep } from './ProcessF
 
 export { TreeGrowth, type TreeGrowthProps, type TreeLabel } from './TreeGrowth';
 export { NetworkVisualization, type NetworkVisualizationProps, type NetworkNode, type NetworkConnection } from './NetworkVisualization';
+
+export { SplitScreen, type SplitScreenProps, type SplitPanel, type SplitLayout } from './SplitScreen';
+export { BeforeAfter, type BeforeAfterProps } from './BeforeAfter';
+export { PictureInPicture, type PictureInPictureProps } from './PictureInPicture';
