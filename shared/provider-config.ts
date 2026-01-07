@@ -42,7 +42,7 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
   kling: {
     id: 'kling',
     name: 'kling',
-    displayName: 'Kling 1.6',
+    displayName: 'Kling AI',
     costPerSecond: 0.03,
     maxDuration: 10,
     strengths: [
