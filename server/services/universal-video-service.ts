@@ -954,6 +954,94 @@ Total: 90 seconds` : ''}
     };
   }
 
+  // Phase 13D: Image-to-Image generation using reference image
+  async generateImageWithReference(
+    prompt: string,
+    referenceImageUrl: string,
+    settings: { strength?: number; preserveComposition?: boolean; preserveColors?: boolean },
+    sceneId: string
+  ): Promise<ImageGenerationResult> {
+    const falKey = process.env.FAL_KEY;
+    if (!falKey) {
+      console.warn('[I2I] FAL_KEY not configured - falling back to text-to-image');
+      return this.generateImage(prompt, sceneId, false);
+    }
+
+    fal.config({ credentials: falKey });
+    
+    // Convert relative path to absolute URL for fal.ai
+    let absoluteReferenceUrl = referenceImageUrl;
+    if (referenceImageUrl.startsWith('/')) {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
+      absoluteReferenceUrl = `${baseUrl}${referenceImageUrl}`;
+    }
+
+    console.log(`[I2I] Generating image-to-image for scene ${sceneId}`);
+    console.log(`[I2I] Reference URL: ${absoluteReferenceUrl}`);
+    console.log(`[I2I] Strength: ${settings.strength || 0.7}`);
+
+    // fal.ai flux-pro image-to-image endpoint
+    const i2iModels = [
+      {
+        id: "fal-ai/flux/dev/image-to-image",
+        name: "FLUX-Dev-I2I",
+        params: {
+          prompt,
+          image_url: absoluteReferenceUrl,
+          strength: settings.strength || 0.7,
+          image_size: { width: 1920, height: 1080 },
+          num_inference_steps: 28,
+        },
+      },
+      {
+        id: "fal-ai/flux/schnell/image-to-image",
+        name: "FLUX-Schnell-I2I",
+        params: {
+          prompt,
+          image_url: absoluteReferenceUrl,
+          strength: settings.strength || 0.7,
+          image_size: { width: 1920, height: 1080 },
+          num_inference_steps: 4,
+        },
+      },
+    ];
+
+    for (const model of i2iModels) {
+      try {
+        console.log(`[I2I] Trying fal.ai ${model.name}...`);
+
+        const result = await fal.subscribe(model.id, {
+          input: model.params,
+          logs: false,
+        }) as any;
+
+        const imageUrl =
+          result?.data?.images?.[0]?.url ||
+          result?.images?.[0]?.url ||
+          result?.data?.image?.url ||
+          result?.image?.url;
+
+        if (imageUrl) {
+          console.log(`[I2I] ${model.name} generated image successfully`);
+          return {
+            url: imageUrl,
+            source: `fal.ai ${model.name}`,
+            success: true,
+          };
+        }
+      } catch (e: any) {
+        const errorMessage = e.message || String(e);
+        console.warn(`[I2I] ${model.name} error:`, errorMessage.substring(0, 200));
+      }
+    }
+
+    // Fallback to text-to-image if I2I fails
+    console.warn('[I2I] All I2I models failed, falling back to text-to-image');
+    return this.generateImage(prompt, sceneId, false);
+  }
+
   private async generateImageWithHuggingFace(prompt: string): Promise<ImageGenerationResult> {
     const hfToken = process.env.HUGGINGFACE_API_TOKEN;
     if (!hfToken) {
@@ -2440,6 +2528,65 @@ Total: 90 seconds` : ''}
       if (!updatedProject.scenes[i].assets) {
         updatedProject.scenes[i].assets = {};
       }
+
+      // ===== PHASE 13D: IMAGE-TO-IMAGE REFERENCE PROCESSING =====
+      // Check if scene has referenceConfig with i2i mode (user uploaded a reference image)
+      const refConfig = (scene as any).referenceConfig;
+      if (refConfig?.mode === 'image-to-image' && refConfig?.sourceUrl) {
+        const i2iSettings = refConfig.i2iSettings || {};
+        const referenceUrl = refConfig.sourceUrl;
+        const prompt = scene.visualDirection || scene.background?.source || scene.narration || '';
+        
+        console.log(`[UniversalVideoService] Scene ${i} has I2I reference image: ${referenceUrl}`);
+        console.log(`[UniversalVideoService] I2I settings: strength=${i2iSettings.strength || 0.7}`);
+        
+        const i2iResult = await this.generateImageWithReference(
+          prompt,
+          referenceUrl,
+          {
+            strength: i2iSettings.strength,
+            preserveComposition: i2iSettings.preserveComposition,
+            preserveColors: i2iSettings.preserveColors,
+          },
+          scene.id
+        );
+        
+        if (i2iResult.success && i2iResult.url) {
+          updatedProject.assets.images.push({
+            sceneId: scene.id,
+            url: i2iResult.url,
+            prompt,
+            source: 'ai', // I2I uses AI generation
+          });
+          updatedProject.scenes[i].assets!.imageUrl = i2iResult.url;
+          updatedProject.scenes[i].assets!.backgroundUrl = i2iResult.url;
+          
+          // Set up product overlay if applicable (don't skip overlay setup for I2I scenes)
+          const productImages = project.assets.productImages || [];
+          if (productImages.length > 0 && productSceneTypes.includes(scene.type)) {
+            const imageIndex = i % productImages.length;
+            const productImage = productImages[imageIndex];
+            const useProductOverlay = scene.assets?.useProductOverlay !== undefined
+              ? scene.assets.useProductOverlay
+              : (SCENE_OVERLAY_DEFAULTS[scene.type] ?? true);
+            
+            if (useProductOverlay) {
+              const resolvedProductUrl = this.resolveProductImageUrl(productImage.url);
+              updatedProject.scenes[i].assets!.productOverlayUrl = resolvedProductUrl;
+              updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
+              updatedProject.scenes[i].assets!.useProductOverlay = true;
+              console.log(`[UniversalVideoService] Product overlay added to I2I scene ${scene.id}`);
+            }
+          }
+          
+          updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+          console.log(`[UniversalVideoService] I2I image generated for scene ${scene.id}: ${i2iResult.source}`);
+          continue; // Skip to next scene - we have I2I generated image with overlay setup
+        } else {
+          console.warn(`[UniversalVideoService] I2I failed for scene ${scene.id}: ${i2iResult.error || 'Unknown error'} - falling through to standard generation`);
+        }
+      }
+      // ===== END PHASE 13D =====
 
       // ===== BRAND ASSET RESOLUTION (BEFORE AI GENERATION) =====
       // Check if visual direction mentions brand assets (logos, Pine Hill Farm, etc.)
