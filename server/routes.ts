@@ -11148,7 +11148,7 @@ Output the script with section markers in brackets.`;
     }
   });
 
-  // Update a personal goal status
+  // Update a personal goal
   app.patch('/api/goals/my/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -11157,11 +11157,17 @@ Output the script with section markers in brackets.`;
       }
 
       const { id } = req.params;
-      const { status } = req.body;
+      const { title, description, targetDate, status } = req.body;
+
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (title !== undefined) updateData.title = title.trim();
+      if (description !== undefined) updateData.description = description?.trim() || null;
+      if (targetDate !== undefined) updateData.targetDate = targetDate || null;
+      if (status !== undefined) updateData.status = status;
 
       const [goal] = await db
         .update(goals)
-        .set({ status, updatedAt: new Date() })
+        .set(updateData)
         .where(and(
           eq(goals.id, parseInt(id)),
           eq(goals.createdBy, user.id),
@@ -11264,7 +11270,7 @@ Output the script with section markers in brackets.`;
     }
   });
 
-  // Update a company BHAG goal status
+  // Update a company BHAG goal
   app.patch('/api/goals/company/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -11273,11 +11279,17 @@ Output the script with section markers in brackets.`;
       }
 
       const { id } = req.params;
-      const { status } = req.body;
+      const { title, description, targetDate, status } = req.body;
+
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (title !== undefined) updateData.title = title.trim();
+      if (description !== undefined) updateData.description = description?.trim() || null;
+      if (targetDate !== undefined) updateData.targetDate = targetDate || null;
+      if (status !== undefined) updateData.status = status;
 
       const [goal] = await db
         .update(goals)
-        .set({ status, updatedAt: new Date() })
+        .set(updateData)
         .where(and(
           eq(goals.id, parseInt(id)),
           eq(goals.type, 'company')
@@ -11378,7 +11390,7 @@ Output the script with section markers in brackets.`;
     }
   });
 
-  // Update a team goal status
+  // Update a team goal
   app.patch('/api/goals/team/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -11387,11 +11399,17 @@ Output the script with section markers in brackets.`;
       }
 
       const { id } = req.params;
-      const { status } = req.body;
+      const { title, description, targetDate, status } = req.body;
+
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (title !== undefined) updateData.title = title.trim();
+      if (description !== undefined) updateData.description = description?.trim() || null;
+      if (targetDate !== undefined) updateData.targetDate = targetDate || null;
+      if (status !== undefined) updateData.status = status;
 
       const [goal] = await db
         .update(goals)
-        .set({ status, updatedAt: new Date() })
+        .set(updateData)
         .where(and(
           eq(goals.id, parseInt(id)),
           eq(goals.type, 'team')
