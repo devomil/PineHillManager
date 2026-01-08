@@ -2518,9 +2518,11 @@ function ScenePreview({
                       }}
                     />
                     
-                    {/* Phase 13D: Regeneration Options */}
+                    {/* Phase 13D: Regeneration Options with History */}
                     <RegenerationOptions
                       sceneId={scene.id}
+                      sceneIndex={index}
+                      projectId={projectId}
                       currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
                       mediaType={sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}
                       qualityIssues={scene.analysisResult?.issues?.map(issue => issue.description) || []}
