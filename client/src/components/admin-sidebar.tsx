@@ -76,11 +76,15 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Fetch pending support ticket count for badge
+  // Fetch pending support ticket count for badge (only for Ryan/admin users)
+  // This endpoint requires Ryan-level access, so we stop polling after first error
   const { data: pendingTicketData } = useQuery<{ pendingCount: number }>({
     queryKey: ['/api/support/tickets/pending-count'],
-    refetchInterval: 60000, // Refresh every minute
     staleTime: 30000, // Consider data fresh for 30 seconds
+    retry: false, // Don't retry on failure (user may not have access)
+    throwOnError: false, // Silently handle errors
+    // Only refetch every 60s if initial fetch succeeded
+    refetchInterval: (query) => query.state.data ? 60000 : false,
   });
 
   const pendingTicketCount = pendingTicketData?.pendingCount || 0;
