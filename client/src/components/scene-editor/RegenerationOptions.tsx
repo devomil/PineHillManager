@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, Image, Video, Wand2, FileQuestion, AlertTriangle, Zap, Settings2, Sparkles, Camera, Film, Palette } from 'lucide-react';
+import { RefreshCw, Image, Video, Wand2, FileQuestion, AlertTriangle, Zap, Settings2, Sparkles, Camera, Film, Palette, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,7 +13,10 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { RegenerateOptions, PromptComplexityAnalysis, ReferenceMode } from '@shared/video-types';
+import { RegenerationHistoryPanel } from './RegenerationHistoryPanel';
+import { StrategyPreviewCard } from './StrategyPreviewCard';
 
 interface ProviderInfo {
   id: string;
@@ -50,26 +53,37 @@ const VIDEO_PROVIDERS: ProviderInfo[] = [
 
 interface RegenerationOptionsProps {
   sceneId: string;
+  sceneIndex?: number;
+  projectId?: string;
   currentMediaUrl?: string;
+  currentPrompt?: string;
   mediaType?: 'image' | 'video';
   qualityIssues?: string[];
   suggestedImprovement?: string;
   complexity?: PromptComplexityAnalysis;
   referenceMode?: ReferenceMode;
+  showHistory?: boolean;
+  showStrategyPreview?: boolean;
   onRegenerate: (options: RegenerateOptions) => Promise<void>;
 }
 
 export const RegenerationOptions = ({
   sceneId,
+  sceneIndex = 0,
+  projectId,
   currentMediaUrl,
+  currentPrompt = '',
   mediaType = 'image',
   qualityIssues = [],
   suggestedImprovement,
   complexity,
   referenceMode = 'none',
+  showHistory = true,
+  showStrategyPreview = true,
   onRegenerate,
 }: RegenerationOptionsProps) => {
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('options');
   
   const hasQualityIssues = qualityIssues.length > 0;
   const isComplexPrompt = complexity?.category === 'complex' || complexity?.category === 'impossible';
@@ -98,8 +112,34 @@ export const RegenerationOptions = ({
   const videoProviders = getFilteredProviders(VIDEO_PROVIDERS);
   const currentProviders = mediaType === 'video' ? videoProviders : imageProviders;
   
+  const handleApplyStrategy = (strategy: { changes: { prompt?: string; provider?: string } }) => {
+    if (strategy.changes.prompt) {
+      handleRegenerate({ 
+        mode: 'simplified-prompt', 
+        newPrompt: strategy.changes.prompt 
+      });
+    } else if (strategy.changes.provider) {
+      handleRegenerate({ 
+        mode: 'different-provider', 
+        newProvider: strategy.changes.provider 
+      });
+    } else {
+      handleRegenerate({ mode: 'standard' });
+    }
+  };
+
   return (
     <div className="space-y-3" data-testid="container-regeneration-options">
+      {showStrategyPreview && currentPrompt && projectId && (
+        <StrategyPreviewCard
+          prompt={currentPrompt}
+          attemptCount={0}
+          currentMediaUrl={currentMediaUrl}
+          previousIssues={qualityIssues}
+          onApplyStrategy={handleApplyStrategy}
+        />
+      )}
+
       {isComplexPrompt && complexity?.warning && (
         <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
           <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -396,6 +436,14 @@ export const RegenerationOptions = ({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {showHistory && projectId && (
+        <RegenerationHistoryPanel
+          projectId={projectId}
+          sceneId={sceneId}
+          sceneIndex={sceneIndex}
+        />
+      )}
     </div>
   );
 };
