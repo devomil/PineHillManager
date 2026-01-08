@@ -2507,38 +2507,14 @@ function ScenePreview({
                       isGenerating={regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`}
                     />
                     
-                    {/* Phase 13D: Reference Image Section */}
+                    {/* Phase 13D: Reference Image Section - Phase 12 Addendum: Now persists to database */}
                     <ReferenceImageSection
+                      projectId={projectId}
                       sceneId={scene.id}
                       currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
                       currentMediaType={scene.background?.type === 'video' ? 'video' : 'image'}
-                      onReferenceSet={async (config: ReferenceConfig) => {
-                        try {
-                          const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${scene.id}/reference-config`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(config),
-                          });
-                          if (res.ok) {
-                            toast({ title: 'Reference config applied', description: `${config.mode} mode configured for this scene.` });
-                            queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
-                          }
-                        } catch (err) {
-                          console.error('Failed to apply reference config:', err);
-                        }
-                      }}
-                      onClear={async () => {
-                        try {
-                          const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${scene.id}/reference-config`, {
-                            method: 'DELETE',
-                          });
-                          if (res.ok) {
-                            toast({ title: 'Reference config cleared' });
-                            queryClient.invalidateQueries({ queryKey: ['/api/universal-video', projectId] });
-                          }
-                        } catch (err) {
-                          console.error('Failed to clear reference config:', err);
-                        }
+                      onReferenceApplied={() => {
+                        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
                       }}
                     />
                     
@@ -4070,6 +4046,13 @@ export default function UniversalVideoProducer() {
                       score: qaReport.overallScore,
                     } : null}
                     onOpenQADashboard={() => setShowQADashboard(true)}
+                    scenes={project.scenes.map((s, idx) => ({
+                      id: s.id,
+                      order: idx + 1,
+                      type: s.type,
+                      visualDirection: s.visualDirection,
+                      contentType: (s as any).contentType,
+                    }))}
                   />
                   
                   {/* Phase 13: Provider Registry Toggle */}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Video,
   Mic,
@@ -29,6 +29,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { ContentTypeWarning } from './scene-editor/ContentTypeWarning';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProviderCostBreakdown {
   displayName: string;
@@ -141,6 +144,14 @@ interface QAStats {
   score: number;
 }
 
+interface SceneForContentType {
+  id: string;
+  order: number;
+  type?: string;
+  visualDirection?: string;
+  contentType?: string;
+}
+
 interface GenerationPreviewPanelProps {
   projectId: string;
   onGenerate: () => void;
@@ -148,6 +159,7 @@ interface GenerationPreviewPanelProps {
   isGenerating: boolean;
   qaStats?: QAStats | null;
   onOpenQADashboard?: () => void;
+  scenes?: SceneForContentType[];
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -216,8 +228,42 @@ export function GenerationPreviewPanel({
   isGenerating,
   qaStats,
   onOpenQADashboard,
+  scenes,
 }: GenerationPreviewPanelProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showSceneDetails, setShowSceneDetails] = useState(false);
+
+  // Phase 12 Addendum: Mutation to update scene content type
+  const updateContentTypeMutation = useMutation({
+    mutationFn: async ({ sceneId, contentType }: { sceneId: string; contentType: string }) => {
+      const response = await apiRequest(
+        'PATCH',
+        `/api/universal-video/projects/${projectId}/scenes/${sceneId}/content-type`,
+        { contentType }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate'] });
+      toast({
+        title: "Content Type Updated",
+        description: "Scene content type has been set.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update content type",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleContentTypeChange = (sceneId: string, contentType: string) => {
+    updateContentTypeMutation.mutate({ sceneId, contentType });
+  };
 
   const { data: estimate, isLoading, error } = useQuery<GenerationEstimate>({
     queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate'],
@@ -734,15 +780,24 @@ export function GenerationPreviewPanel({
           </div>
         </div>
 
-        {/* Warnings */}
-        {estimate.warnings.length > 0 && (
+        {/* Phase 12 Addendum: Actionable Content Type Warning */}
+        {scenes && scenes.length > 0 && (
+          <ContentTypeWarning
+            scenes={scenes}
+            onContentTypeChange={handleContentTypeChange}
+            isPending={updateContentTypeMutation.isPending}
+          />
+        )}
+
+        {/* Generic Warnings (excluding content type warnings which are now actionable) */}
+        {estimate.warnings.filter(w => !w.toLowerCase().includes('content type')).length > 0 && (
           <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3" data-testid="warnings-section">
             <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 mb-2">
               <AlertTriangle className="h-4 w-4" />
               <span className="text-sm font-medium">Warnings</span>
             </div>
             <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-              {estimate.warnings.map((warning, idx) => (
+              {estimate.warnings.filter(w => !w.toLowerCase().includes('content type')).map((warning, idx) => (
                 <li key={idx} className="flex items-start gap-2" data-testid={`warning-${idx}`}>
                   <span className="text-yellow-500">•</span>
                   {warning}

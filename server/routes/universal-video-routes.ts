@@ -697,6 +697,141 @@ router.patch('/projects/:projectId/scenes/:sceneId/visual-direction', isAuthenti
   }
 });
 
+// Phase 12 Addendum: Get reference config for a scene
+router.get('/projects/:projectId/scenes/:sceneId/reference-config', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const scene = projectData.scenes.find(s => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const config = scene.referenceConfig || { mode: 'none', sourceType: 'upload' };
+    
+    res.json({ success: true, config });
+  } catch (error: any) {
+    console.error('[Phase12] Error getting reference config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 12 Addendum: Save reference config for a scene
+router.patch('/projects/:projectId/scenes/:sceneId/reference-config', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { mode, sourceUrl, sourceType, settings } = req.body;
+    
+    const validModes = ['none', 'image-to-image', 'image-to-video', 'style-reference'];
+    if (!validModes.includes(mode)) {
+      return res.status(400).json({ success: false, error: 'Invalid reference mode' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    // Build reference config
+    if (mode === 'none') {
+      projectData.scenes[sceneIndex].referenceConfig = { mode: 'none', sourceType: 'upload' };
+    } else {
+      projectData.scenes[sceneIndex].referenceConfig = {
+        mode,
+        sourceUrl,
+        sourceType: sourceType || 'upload',
+        ...(mode === 'image-to-image' && { i2iSettings: settings }),
+        ...(mode === 'image-to-video' && { i2vSettings: settings }),
+        ...(mode === 'style-reference' && { styleSettings: settings }),
+      };
+    }
+    
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[Phase12] Updated reference config for scene ${sceneId}: ${mode}`);
+    
+    res.json({ 
+      success: true, 
+      scene: projectData.scenes[sceneIndex],
+      message: mode === 'none' ? 'Reference config cleared' : `${mode} mode configured`
+    });
+  } catch (error: any) {
+    console.error('[Phase12] Error updating reference config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 12 Addendum: Update scene content type
+router.patch('/projects/:projectId/scenes/:sceneId/content-type', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { contentType } = req.body;
+    
+    const validTypes = [
+      'b-roll', 'product-shot', 'lifestyle', 'talking-head',
+      'testimonial', 'demo', 'cinematic', 'text-overlay'
+    ];
+    
+    if (!validTypes.includes(contentType)) {
+      return res.status(400).json({ success: false, error: 'Invalid content type' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    // Update content type with user source tracking
+    (projectData.scenes[sceneIndex] as any).contentType = contentType;
+    (projectData.scenes[sceneIndex] as any).contentTypeSource = 'user';
+    
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[Phase12] Updated content type for scene ${sceneId}: ${contentType}`);
+    
+    res.json({ 
+      success: true, 
+      scene: projectData.scenes[sceneIndex],
+      message: `Content type set to ${contentType}`
+    });
+  } catch (error: any) {
+    console.error('[Phase12] Error updating content type:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 8A: Background scene analysis helper (runs async without blocking response)
 // Updated to handle video scenes by extracting a thumbnail frame for analysis
 async function runBackgroundSceneAnalysis(projectId: string, userId: number | string) {

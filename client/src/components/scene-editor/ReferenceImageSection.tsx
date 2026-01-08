@@ -1,24 +1,30 @@
-import { useState, useCallback, type ChangeEvent } from 'react';
-import { Upload, Image, Video, X, Wand2, RefreshCw } from 'lucide-react';
+import { useState, useCallback, useEffect, type ChangeEvent } from 'react';
+import { Upload, Image, Video, X, Wand2, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 import type { ReferenceConfig, ReferenceMode, ReferenceSourceType } from '@shared/video-types';
 
 interface ReferenceImageSectionProps {
+  projectId: string;
   sceneId: string;
   currentMediaUrl?: string;
   currentMediaType: 'image' | 'video';
-  onReferenceSet: (config: ReferenceConfig) => void;
-  onClear: () => void;
+  onReferenceSet?: (config: ReferenceConfig) => void;
+  onClear?: () => void;
+  onReferenceApplied?: () => void;
 }
 
 interface ReferenceSourcePickerProps {
@@ -90,12 +96,17 @@ const ReferenceSourcePicker = ({
 };
 
 export const ReferenceImageSection = ({
+  projectId,
   sceneId,
   currentMediaUrl,
   currentMediaType,
   onReferenceSet,
   onClear,
+  onReferenceApplied,
 }: ReferenceImageSectionProps) => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
   const [isExpanded, setIsExpanded] = useState(false);
   const [mode, setMode] = useState<ReferenceMode>('none');
   const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
@@ -105,6 +116,62 @@ export const ReferenceImageSection = ({
   const [i2vMotion, setI2vMotion] = useState(0.5);
   const [i2vMotionType, setI2vMotionType] = useState<'environmental' | 'subtle' | 'dynamic'>('subtle');
   const [styleStrength, setStyleStrength] = useState(0.7);
+  
+  // Fetch existing reference config on mount
+  const { data: existingConfig, isLoading: isLoadingConfig } = useQuery<{ success: boolean; config: ReferenceConfig }>({
+    queryKey: ['/api/universal-video/projects', projectId, 'scenes', sceneId, 'reference-config'],
+    enabled: !!projectId && !!sceneId,
+  });
+  
+  // Initialize state from existing config
+  useEffect(() => {
+    if (existingConfig?.config && existingConfig.config.mode !== 'none') {
+      setMode(existingConfig.config.mode);
+      setReferenceUrl(existingConfig.config.sourceUrl || null);
+      setSourceType(existingConfig.config.sourceType || 'upload');
+      
+      if (existingConfig.config.i2iSettings) {
+        setI2iStrength(existingConfig.config.i2iSettings.strength || 0.7);
+      }
+      if (existingConfig.config.i2vSettings) {
+        setI2vMotion(existingConfig.config.i2vSettings.motionStrength || 0.5);
+        setI2vMotionType(existingConfig.config.i2vSettings.motionType || 'subtle');
+      }
+      if (existingConfig.config.styleSettings) {
+        setStyleStrength(existingConfig.config.styleSettings.styleStrength || 0.7);
+      }
+      
+      setIsExpanded(true);
+    }
+  }, [existingConfig]);
+  
+  // Mutation to save reference config
+  const saveConfigMutation = useMutation({
+    mutationFn: async (config: { mode: ReferenceMode; sourceUrl?: string; sourceType: ReferenceSourceType; settings?: any }) => {
+      const response = await apiRequest(
+        'PATCH', 
+        `/api/universal-video/projects/${projectId}/scenes/${sceneId}/reference-config`,
+        config
+      );
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'scenes', sceneId, 'reference-config'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+      toast({
+        title: "Reference Config Saved",
+        description: data.message || 'Configuration applied successfully',
+      });
+      onReferenceApplied?.();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || 'Failed to save reference configuration',
+        variant: "destructive",
+      });
+    },
+  });
   
   const handleFileUpload = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,16 +190,19 @@ export const ReferenceImageSection = ({
   }, [currentMediaUrl]);
   
   const handleApply = useCallback(() => {
-    if (!referenceUrl && mode !== 'none') return;
+    if (!referenceUrl && mode !== 'none') {
+      toast({
+        title: "No Reference Image",
+        description: "Please select a reference image first",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    const config: ReferenceConfig = {
-      mode,
-      sourceUrl: referenceUrl || undefined,
-      sourceType,
-    };
+    let settings: any = undefined;
     
     if (mode === 'image-to-image') {
-      config.i2iSettings = {
+      settings = {
         strength: i2iStrength,
         preserveComposition: true,
         preserveColors: true,
@@ -140,7 +210,7 @@ export const ReferenceImageSection = ({
     }
     
     if (mode === 'image-to-video') {
-      config.i2vSettings = {
+      settings = {
         motionStrength: i2vMotion,
         motionType: i2vMotionType,
         preserveSubject: true,
@@ -148,7 +218,7 @@ export const ReferenceImageSection = ({
     }
     
     if (mode === 'style-reference') {
-      config.styleSettings = {
+      settings = {
         styleStrength,
         applyColors: true,
         applyLighting: true,
@@ -156,14 +226,47 @@ export const ReferenceImageSection = ({
       };
     }
     
-    onReferenceSet(config);
-  }, [mode, referenceUrl, sourceType, i2iStrength, i2vMotion, i2vMotionType, styleStrength, onReferenceSet]);
+    // Save to backend
+    saveConfigMutation.mutate({
+      mode,
+      sourceUrl: referenceUrl || undefined,
+      sourceType,
+      settings,
+    });
+    
+    // Also call legacy callback if provided
+    if (onReferenceSet) {
+      const config: ReferenceConfig = {
+        mode,
+        sourceUrl: referenceUrl || undefined,
+        sourceType,
+      };
+      if (mode === 'image-to-image') config.i2iSettings = settings;
+      if (mode === 'image-to-video') config.i2vSettings = settings;
+      if (mode === 'style-reference') config.styleSettings = settings;
+      onReferenceSet(config);
+    }
+  }, [mode, referenceUrl, sourceType, i2iStrength, i2vMotion, i2vMotionType, styleStrength, onReferenceSet, saveConfigMutation, toast]);
   
   const handleClear = useCallback(() => {
+    // Clear from backend
+    saveConfigMutation.mutate({ mode: 'none', sourceType: 'upload' });
     setMode('none');
     setReferenceUrl(null);
-    onClear();
-  }, [onClear]);
+    onClear?.();
+  }, [onClear, saveConfigMutation]);
+  
+  // Show loading state while fetching existing config
+  if (isLoadingConfig) {
+    return (
+      <Card className="p-4 mb-4 border-dashed border-2 border-gray-200">
+        <div className="flex items-center gap-2">
+          <Skeleton className="w-4 h-4 rounded" />
+          <Skeleton className="w-32 h-4" />
+        </div>
+      </Card>
+    );
+  }
   
   return (
     <TooltipProvider>
@@ -360,12 +463,24 @@ export const ReferenceImageSection = ({
                 <Button 
                   className="flex-1" 
                   onClick={handleApply}
-                  disabled={!referenceUrl}
+                  disabled={!referenceUrl || saveConfigMutation.isPending}
                   data-testid="button-apply-reference"
                 >
-                  Apply Reference
+                  {saveConfigMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Apply Reference'
+                  )}
                 </Button>
-                <Button variant="outline" onClick={handleClear} data-testid="button-clear-all">
+                <Button 
+                  variant="outline" 
+                  onClick={handleClear}
+                  disabled={saveConfigMutation.isPending}
+                  data-testid="button-clear-all"
+                >
                   Clear
                 </Button>
               </div>
