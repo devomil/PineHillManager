@@ -969,34 +969,58 @@ Total: 90 seconds` : ''}
 
     fal.config({ credentials: falKey });
     
-    // Convert relative path to absolute URL for fal.ai
-    let absoluteReferenceUrl = referenceImageUrl;
-    if (referenceImageUrl.startsWith('/')) {
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : 'http://localhost:5000';
-      absoluteReferenceUrl = `${baseUrl}${referenceImageUrl}`;
-    }
-
     // User slider: 0 = "Closer to reference", 1 = "More variation"
     // fal.ai strength: 0 = full reference preservation, 1 = full prompt influence (complete remake)
     // fal.ai FLUX dev default is 0.95 - "higher strength values are better for this model"
-    // Default to 0.95 for significant transformation, user can reduce for more preservation
     const userStrength = settings.strength ?? 0.95;
     const falStrength = userStrength;
     
     console.log(`[I2I] Generating image-to-image for scene ${sceneId}`);
-    console.log(`[I2I] Reference URL: ${absoluteReferenceUrl}`);
+    console.log(`[I2I] Reference URL: ${referenceImageUrl}`);
     console.log(`[I2I] Strength: ${falStrength} (1.0=complete remake, 0.0=preserve original)`);
 
-    // fal.ai flux-pro image-to-image endpoint
+    // Fetch reference image and convert to base64 data URI
+    // This is necessary because our object storage URLs require authentication
+    let imageDataUri: string | null = null;
+    try {
+      let fetchUrl = referenceImageUrl;
+      if (referenceImageUrl.startsWith('/')) {
+        // For local paths, we need to use the internal server
+        const baseUrl = process.env.REPLIT_DEV_DOMAIN
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : 'http://localhost:5000';
+        fetchUrl = `${baseUrl}${referenceImageUrl}`;
+      }
+      
+      console.log(`[I2I] Fetching reference image from: ${fetchUrl}`);
+      const response = await fetch(fetchUrl);
+      
+      if (!response.ok) {
+        console.warn(`[I2I] Failed to fetch reference image: ${response.status} ${response.statusText}`);
+      } else {
+        const contentType = response.headers.get('content-type') || 'image/png';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        imageDataUri = `data:${contentType};base64,${base64}`;
+        console.log(`[I2I] Converted reference image to base64 (${Math.round(base64.length / 1024)}KB, ${contentType})`);
+      }
+    } catch (fetchError: any) {
+      console.warn(`[I2I] Error fetching reference image: ${fetchError.message}`);
+    }
+    
+    if (!imageDataUri) {
+      console.warn('[I2I] Could not load reference image - falling back to text-to-image');
+      return this.generateImage(prompt, sceneId, false);
+    }
+
+    // fal.ai flux image-to-image endpoints
     const i2iModels = [
       {
         id: "fal-ai/flux/dev/image-to-image",
         name: "FLUX-Dev-I2I",
         params: {
           prompt,
-          image_url: absoluteReferenceUrl,
+          image_url: imageDataUri,
           strength: falStrength,
           image_size: { width: 1920, height: 1080 },
           num_inference_steps: 28,
@@ -1007,7 +1031,7 @@ Total: 90 seconds` : ''}
         name: "FLUX-Schnell-I2I",
         params: {
           prompt,
-          image_url: absoluteReferenceUrl,
+          image_url: imageDataUri,
           strength: falStrength,
           image_size: { width: 1920, height: 1080 },
           num_inference_steps: 4,
