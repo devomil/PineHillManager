@@ -234,18 +234,30 @@ export function GenerationPreviewPanel({
   const { toast } = useToast();
   const [showSceneDetails, setShowSceneDetails] = useState(false);
 
-  // Phase 12 Addendum: Mutation to update scene content type
+  // State to track batch updates
+  const [batchUpdateCount, setBatchUpdateCount] = useState(0);
+  
+  // Phase 12 Addendum: Shared helper for content type API call
+  const updateContentTypeApi = async (sceneId: string, contentType: string) => {
+    const response = await apiRequest(
+      'PATCH',
+      `/api/universal-video/projects/${projectId}/scenes/${sceneId}/content-type`,
+      { contentType }
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update content type');
+    }
+    return response.json();
+  };
+  
+  // Single-item mutation with immediate feedback
   const updateContentTypeMutation = useMutation({
     mutationFn: async ({ sceneId, contentType }: { sceneId: string; contentType: string }) => {
-      const response = await apiRequest(
-        'PATCH',
-        `/api/universal-video/projects/${projectId}/scenes/${sceneId}/content-type`,
-        { contentType }
-      );
-      return response.json();
+      return updateContentTypeApi(sceneId, contentType);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
       queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate'] });
       toast({
         title: "Content Type Updated",
@@ -260,9 +272,54 @@ export function GenerationPreviewPanel({
       });
     },
   });
-
+  
+  // Handle single content type change
   const handleContentTypeChange = (sceneId: string, contentType: string) => {
     updateContentTypeMutation.mutate({ sceneId, contentType });
+  };
+
+  // Handle batch update for Accept All - executes sequentially using shared API helper
+  const handleBatchContentTypeChange = async (updates: { sceneId: string; contentType: string }[]) => {
+    if (updates.length === 0) return;
+    
+    setBatchUpdateCount(updates.length);
+    let successCount = 0;
+    const errors: string[] = [];
+    
+    // Execute updates sequentially using the shared API helper
+    for (const { sceneId, contentType } of updates) {
+      try {
+        await updateContentTypeApi(sceneId, contentType);
+        successCount++;
+      } catch (err: any) {
+        errors.push(err.message || `Scene ${sceneId} failed`);
+      }
+    }
+    
+    // Always refresh to show current state after all updates
+    await queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate'] });
+    
+    if (successCount === updates.length) {
+      toast({
+        title: "All Content Types Updated",
+        description: `${successCount} scene(s) updated successfully.`,
+      });
+    } else if (successCount > 0) {
+      toast({
+        title: "Partial Update",
+        description: `${successCount}/${updates.length} scenes updated. ${errors.length} failed.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Update Failed",
+        description: errors[0] || "All updates failed",
+        variant: "destructive",
+      });
+    }
+    
+    setBatchUpdateCount(0);
   };
 
   const { data: estimate, isLoading, error } = useQuery<GenerationEstimate>({
@@ -785,7 +842,8 @@ export function GenerationPreviewPanel({
           <ContentTypeWarning
             scenes={scenes}
             onContentTypeChange={handleContentTypeChange}
-            isPending={updateContentTypeMutation.isPending}
+            onBatchContentTypeChange={handleBatchContentTypeChange}
+            isPending={updateContentTypeMutation.isPending || batchUpdateCount > 0}
           />
         )}
 

@@ -4052,6 +4052,7 @@ export default function UniversalVideoProducer() {
                       type: s.type,
                       visualDirection: s.visualDirection,
                       contentType: (s as any).contentType,
+                      contentTypeSource: (s as any).contentTypeSource,
                     }))}
                   />
                   

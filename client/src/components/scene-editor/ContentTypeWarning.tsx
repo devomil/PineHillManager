@@ -22,6 +22,7 @@ interface Scene {
   type?: string;
   visualDirection?: string;
   contentType?: string;
+  contentTypeSource?: string;
   detectedContentType?: string;
   contentTypeConfidence?: number;
 }
@@ -29,6 +30,7 @@ interface Scene {
 interface ContentTypeWarningProps {
   scenes: Scene[];
   onContentTypeChange: (sceneId: string, contentType: string) => void;
+  onBatchContentTypeChange?: (updates: { sceneId: string; contentType: string }[]) => void;
   isPending?: boolean;
 }
 
@@ -184,12 +186,18 @@ const SceneContentTypeRow = ({
 export const ContentTypeWarning = ({
   scenes,
   onContentTypeChange,
+  onBatchContentTypeChange,
   isPending,
 }: ContentTypeWarningProps) => {
   const [isOpen, setIsOpen] = useState(false);
   
   const scenesNeedingAttention = scenes.filter(
-    s => !s.contentType || s.contentType === 'default' || s.contentType === 'auto'
+    s => {
+      // If user has explicitly set the content type, don't show warning
+      if (s.contentTypeSource === 'user') return false;
+      // Show warning if no content type or using default/auto values
+      return !s.contentType || s.contentType === 'default' || s.contentType === 'auto';
+    }
   );
   
   if (scenesNeedingAttention.length === 0) {
@@ -197,10 +205,20 @@ export const ContentTypeWarning = ({
   }
   
   const handleAcceptAll = () => {
-    scenesNeedingAttention.forEach(scene => {
+    // Build list of updates
+    const updates = scenesNeedingAttention.map(scene => {
       const detected = detectContentType(scene);
-      onContentTypeChange(scene.id, detected.type);
+      return { sceneId: scene.id, contentType: detected.type };
     });
+    
+    // Use batch handler if available, otherwise fall back to individual updates
+    if (onBatchContentTypeChange) {
+      onBatchContentTypeChange(updates);
+    } else {
+      updates.forEach(({ sceneId, contentType }) => {
+        onContentTypeChange(sceneId, contentType);
+      });
+    }
   };
   
   return (

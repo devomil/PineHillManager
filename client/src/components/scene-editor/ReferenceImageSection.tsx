@@ -116,6 +116,35 @@ export const ReferenceImageSection = ({
   const [i2vMotion, setI2vMotion] = useState(0.5);
   const [i2vMotionType, setI2vMotionType] = useState<'environmental' | 'subtle' | 'dynamic'>('subtle');
   const [styleStrength, setStyleStrength] = useState(0.7);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Mutation to upload file to object storage
+  const uploadFileMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload-object', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload file');
+      }
+      
+      return response.json();
+    },
+    onError: (error: any) => {
+      setIsUploading(false);
+      toast({
+        title: "Upload Failed",
+        description: error.message || 'Failed to upload reference image',
+        variant: "destructive",
+      });
+    },
+  });
   
   // Fetch existing reference config on mount
   const { data: existingConfig, isLoading: isLoadingConfig } = useQuery<{ success: boolean; config: ReferenceConfig }>({
@@ -157,7 +186,8 @@ export const ReferenceImageSection = ({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'scenes', sceneId, 'reference-config'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+      // Invalidate projects list so parent component updates
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
       toast({
         title: "Reference Config Saved",
         description: data.message || 'Configuration applied successfully',
@@ -173,14 +203,48 @@ export const ReferenceImageSection = ({
     },
   });
   
-  const handleFileUpload = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    const url = URL.createObjectURL(file);
-    setReferenceUrl(url);
+    // Show a temporary preview while uploading
+    const tempUrl = URL.createObjectURL(file);
+    setReferenceUrl(tempUrl);
     setSourceType('upload');
-  }, []);
+    setIsUploading(true);
+    
+    try {
+      // Upload to object storage
+      const result = await uploadFileMutation.mutateAsync(file);
+      
+      // Revoke the temporary blob URL
+      URL.revokeObjectURL(tempUrl);
+      
+      // Use the returned URL from object storage - must be a valid URL
+      if (result.url && typeof result.url === 'string' && result.url.startsWith('http')) {
+        setReferenceUrl(result.url);
+        toast({
+          title: "Image Uploaded",
+          description: "Reference image ready to apply",
+        });
+      } else {
+        // Server responded but didn't return a valid URL
+        setReferenceUrl(null);
+        toast({
+          title: "Upload Failed",
+          description: "Server did not return a valid image URL",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Clear the temp URL on upload failure to prevent blob URLs from being saved
+      URL.revokeObjectURL(tempUrl);
+      setReferenceUrl(null);
+      console.error('Upload failed:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [uploadFileMutation, toast]);
   
   const handleUseCurrentMedia = useCallback(() => {
     if (currentMediaUrl) {
@@ -194,6 +258,16 @@ export const ReferenceImageSection = ({
       toast({
         title: "No Reference Image",
         description: "Please select a reference image first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Prevent saving temporary blob URLs - require proper upload
+    if (referenceUrl?.startsWith('blob:')) {
+      toast({
+        title: "Upload In Progress",
+        description: "Please wait for the image to finish uploading",
         variant: "destructive",
       });
       return;
@@ -463,10 +537,15 @@ export const ReferenceImageSection = ({
                 <Button 
                   className="flex-1" 
                   onClick={handleApply}
-                  disabled={!referenceUrl || saveConfigMutation.isPending}
+                  disabled={!referenceUrl || saveConfigMutation.isPending || isUploading}
                   data-testid="button-apply-reference"
                 >
-                  {saveConfigMutation.isPending ? (
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : saveConfigMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Saving...
@@ -478,7 +557,7 @@ export const ReferenceImageSection = ({
                 <Button 
                   variant="outline" 
                   onClick={handleClear}
-                  disabled={saveConfigMutation.isPending}
+                  disabled={saveConfigMutation.isPending || isUploading}
                   data-testid="button-clear-all"
                 >
                   Clear
