@@ -29,21 +29,22 @@
       }
       
       .font-brand {
-        font-family: 'Great Vibes', cursive !important;
-        font-optical-sizing: auto;
+        font-family: 'Poppins', sans-serif !important;
+        font-weight: 600;
         font-style: normal;
       }
       
       /* Ensure brand font loads immediately */
       .pine-hill-brand {
-        font-family: 'Great Vibes', cursive !important;
-        font-weight: 400;
+        font-family: 'Poppins', sans-serif !important;
+        font-weight: 600;
         font-style: normal;
       }
       
       /* Force immediate font application */
       .brand-title, .pine-hill-title, [data-brand="pine-hill"] {
-        font-family: 'Great Vibes', cursive !important;
+        font-family: 'Poppins', sans-serif !important;
+        font-weight: 600;
       }
     </style>
     
@@ -53,11 +54,12 @@
       document.addEventListener('DOMContentLoaded', function() {
         // Create font loading promise
         if ('fonts' in document) {
-          document.fonts.load('400 1em "Great Vibes"').then(function() {
+          document.fonts.load('600 1em "Poppins"').then(function() {
             // Apply font to all brand elements immediately
             const brandElements = document.querySelectorAll('.brand-title, .pine-hill-title, [data-brand="pine-hill"]');
             brandElements.forEach(el => {
-              el.style.fontFamily = '"Great Vibes", cursive';
+              el.style.fontFamily = '"Poppins", sans-serif';
+              el.style.fontWeight = '600';
               el.style.fontDisplay = 'swap';
             });
           });
