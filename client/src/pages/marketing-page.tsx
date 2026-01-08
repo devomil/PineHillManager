@@ -173,7 +173,7 @@ export default function MarketingPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
+            <h1 className="text-3xl font-semibold tracking-tight text-gray-900" style={{ fontFamily: "'Poppins', sans-serif" }}>
               Marketing Tools
             </h1>
             <p className="text-gray-600">

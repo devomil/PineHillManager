@@ -10,7 +10,7 @@ export default function EmergencyContactPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <AlertTriangle className="h-10 w-10 text-red-600" />
-            <h1 className="text-4xl font-bold text-green-800" style={{ fontFamily: 'Great Vibes, cursive' }}>
+            <h1 className="text-4xl font-semibold text-green-800" style={{ fontFamily: "'Poppins', sans-serif" }}>
               Pine Hill Farm
             </h1>
           </div>

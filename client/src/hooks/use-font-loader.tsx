@@ -3,16 +3,17 @@ import { useEffect } from 'react';
 export function useFontLoader() {
   useEffect(() => {
     const ensureBrandFont = () => {
-      // Apply Great Vibes font to all brand elements
+      // Apply Poppins font to all brand elements
       const brandElements = document.querySelectorAll('.brand-title, .pine-hill-title, [data-brand="pine-hill"]');
       brandElements.forEach(el => {
-        (el as HTMLElement).style.fontFamily = '"Great Vibes", cursive';
+        (el as HTMLElement).style.fontFamily = '"Poppins", sans-serif';
+        (el as HTMLElement).style.fontWeight = '600';
       });
     };
 
     // Load font and apply immediately
     if ('fonts' in document) {
-      document.fonts.load('400 1em "Great Vibes"').then(ensureBrandFont);
+      document.fonts.load('600 1em "Poppins"').then(ensureBrandFont);
     }
 
     // Also apply on DOM changes (for dynamic content)

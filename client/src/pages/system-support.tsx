@@ -155,8 +155,8 @@ export default function SystemSupport() {
               </Link>
               <div className="h-6 w-px bg-gray-300"></div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 font-brand brand-title" 
-                    style={{ fontFamily: "'Great Vibes', cursive" }}>
+                <h1 className="text-3xl font-semibold text-gray-900" 
+                    style={{ fontFamily: "'Poppins', sans-serif" }}>
                   Pine Hill Farm
                 </h1>
                 <p className="text-sm text-gray-600">System Support</p>

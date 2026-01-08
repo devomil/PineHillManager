@@ -520,7 +520,7 @@ const IntegrationsPage = () => {
             Back to Dashboard
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
+            <h1 className="text-3xl font-semibold text-gray-900" style={{ fontFamily: "'Poppins', sans-serif" }}>
               External Integrations
             </h1>
             <p className="text-gray-600 mt-2">

@@ -65,7 +65,7 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         {/* Logo and Branding */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4" style={{ fontFamily: 'Great Vibes, cursive' }}>
+          <h1 className="text-3xl font-semibold text-gray-900 dark:text-white mb-4" style={{ fontFamily: "'Poppins', sans-serif" }}>
             Pine Hill Farm
           </h1>
           <p className="text-gray-600 dark:text-gray-400">Employee Management Portal</p>
