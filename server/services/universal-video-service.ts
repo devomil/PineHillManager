@@ -3845,6 +3845,38 @@ Total: 90 seconds` : ''}
       (scene.assets as any).requestedProvider = provider;
     }
     
+    // ===== PHASE 13D: IMAGE-TO-IMAGE REFERENCE SUPPORT FOR REGENERATION =====
+    const refConfig = (scene as any).referenceConfig;
+    if (refConfig?.mode === 'image-to-image' && refConfig?.sourceUrl) {
+      const i2iSettings = refConfig.i2iSettings || {};
+      const referenceUrl = refConfig.sourceUrl;
+      
+      console.log(`[Regenerate] Scene has I2I reference image: ${referenceUrl}`);
+      console.log(`[Regenerate] I2I settings: strength=${i2iSettings.strength || 0.7}`);
+      
+      try {
+        const i2iResult = await this.generateImageWithReference(
+          prompt,
+          referenceUrl,
+          {
+            strength: i2iSettings.strength,
+            preserveComposition: i2iSettings.preserveComposition,
+            preserveColors: i2iSettings.preserveColors,
+          },
+          sceneId
+        );
+        
+        if (i2iResult.success && i2iResult.url) {
+          console.log(`[Regenerate] I2I image generated successfully: ${i2iResult.source}`);
+          return { success: true, newImageUrl: i2iResult.url, source: i2iResult.source };
+        }
+        console.log(`[Regenerate] I2I generation failed: ${i2iResult.error || 'no URL'} - falling through to standard generation`);
+      } catch (err: any) {
+        console.error(`[Regenerate] I2I generation error:`, err.message);
+      }
+    }
+    // ===== END PHASE 13D =====
+    
     // Check if prompt requests people/persons - if so, use generateImage which allows people
     const promptLower = prompt.toLowerCase();
     const personIndicators = [' she ', ' her ', ' he ', ' his ', 'woman', 'man', 'person', 'people', 
