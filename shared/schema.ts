@@ -5592,6 +5592,41 @@ export const insertVideoGenerationJobSchema = createInsertSchema(videoGeneration
 export type VideoGenerationJob = typeof videoGenerationJobs.$inferSelect;
 export type InsertVideoGenerationJob = z.infer<typeof insertVideoGenerationJobSchema>;
 
+// ============================================
+// SCENE REGENERATION HISTORY
+// Phase 13E: Track regeneration attempts for intelligent retry
+// ============================================
+
+export const sceneRegenerationHistory = pgTable("scene_regeneration_history", {
+  id: serial("id").primaryKey(),
+  sceneId: varchar("scene_id", { length: 100 }).notNull(),
+  projectId: varchar("project_id", { length: 100 }),
+  attemptNumber: integer("attempt_number").notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  strategy: varchar("strategy", { length: 50 }).notNull(),
+  prompt: text("prompt"),
+  result: varchar("result", { length: 20 }).notNull(),
+  qualityScore: decimal("quality_score", { precision: 3, scale: 2 }),
+  issues: text("issues"),
+  claudeAnalysis: text("claude_analysis"),
+  reasoning: text("reasoning"),
+  confidenceScore: decimal("confidence_score", { precision: 3, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  sceneIdIdx: index("idx_scene_regen_history_scene").on(table.sceneId),
+  projectIdIdx: index("idx_scene_regen_history_project").on(table.projectId),
+  resultIdx: index("idx_scene_regen_history_result").on(table.result),
+  createdAtIdx: index("idx_scene_regen_history_created").on(table.createdAt),
+}));
+
+export const insertSceneRegenerationHistorySchema = createInsertSchema(sceneRegenerationHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SceneRegenerationHistory = typeof sceneRegenerationHistory.$inferSelect;
+export type InsertSceneRegenerationHistory = z.infer<typeof insertSceneRegenerationHistorySchema>;
+
 // Phase 11E: Asset Library - Stores AI-generated assets for reuse across projects
 export const assetLibrary = pgTable("asset_library", {
   id: serial("id").primaryKey(),
