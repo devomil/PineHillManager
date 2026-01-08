@@ -112,7 +112,7 @@ export const ReferenceImageSection = ({
   const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<ReferenceSourceType>('upload');
   
-  const [i2iStrength, setI2iStrength] = useState(0.7);
+  const [i2iStrength, setI2iStrength] = useState(0.95); // fal.ai FLUX dev recommends high strength (0.95) for best results
   const [i2vMotion, setI2vMotion] = useState(0.5);
   const [i2vMotionType, setI2vMotionType] = useState<'environmental' | 'subtle' | 'dynamic'>('subtle');
   const [styleStrength, setStyleStrength] = useState(0.7);
@@ -160,7 +160,7 @@ export const ReferenceImageSection = ({
       setSourceType(existingConfig.config.sourceType || 'upload');
       
       if (existingConfig.config.i2iSettings) {
-        setI2iStrength(existingConfig.config.i2iSettings.strength || 0.7);
+        setI2iStrength(existingConfig.config.i2iSettings.strength ?? 0.95);
       }
       if (existingConfig.config.i2vSettings) {
         setI2vMotion(existingConfig.config.i2vSettings.motionStrength || 0.5);

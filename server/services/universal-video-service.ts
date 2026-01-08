@@ -979,18 +979,15 @@ Total: 90 seconds` : ''}
     }
 
     // User slider: 0 = "Closer to reference", 1 = "More variation"
-    // fal.ai strength: 0 = full reference preservation, 1 = full prompt influence
-    // Since our slider is already 0-1 where higher = more variation, we use it directly
-    // But fal.ai interprets strength opposite to what users expect, so we keep high values
-    // to get more prompt influence and less reference preservation
-    const userStrength = settings.strength ?? 0.7;
-    // fal.ai strength: higher = more deviation from reference, lower = preserve reference
-    // We want the slider to be intuitive: higher user value = more variation
+    // fal.ai strength: 0 = full reference preservation, 1 = full prompt influence (complete remake)
+    // fal.ai FLUX dev default is 0.95 - "higher strength values are better for this model"
+    // Default to 0.95 for significant transformation, user can reduce for more preservation
+    const userStrength = settings.strength ?? 0.95;
     const falStrength = userStrength;
     
     console.log(`[I2I] Generating image-to-image for scene ${sceneId}`);
     console.log(`[I2I] Reference URL: ${absoluteReferenceUrl}`);
-    console.log(`[I2I] User strength: ${userStrength}, fal.ai strength: ${falStrength}`);
+    console.log(`[I2I] Strength: ${falStrength} (1.0=complete remake, 0.0=preserve original)`);
 
     // fal.ai flux-pro image-to-image endpoint
     const i2iModels = [
@@ -1035,6 +1032,7 @@ Total: 90 seconds` : ''}
 
         if (imageUrl) {
           console.log(`[I2I] ${model.name} generated image successfully`);
+          console.log(`[I2I] Generated URL: ${imageUrl}`);
           return {
             url: imageUrl,
             source: `fal.ai ${model.name}`,
