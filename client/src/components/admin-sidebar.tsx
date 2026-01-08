@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 import { 
   Users, 
   Calendar, 
@@ -24,7 +26,8 @@ import {
   BarChart,
   Target,
   ShoppingBag,
-  Store
+  Store,
+  LifeBuoy
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +61,7 @@ const navigationItems: NavItem[] = [
   { label: "Employee Content", icon: FileText, value: "employee-content", href: "/admin/employee-content", section: "tools" },
   { label: "Integrations", icon: Settings, value: "integrations", href: "/admin/integrations", section: "tools" },
   { label: "Communications", icon: MessageSquare, value: "communications", href: "/communications", section: "tools" },
+  { label: "Support", icon: LifeBuoy, value: "support", href: "/support", section: "tools" },
   { label: "Users", icon: Settings, value: "user-management", href: "/user-management", section: "tools" },
   { label: "Employee View", icon: Eye, value: "employee-view", href: "/dashboard", section: "tools" },
   { label: "Reports", icon: Clock, value: "reports", href: "/reports", section: "tools" },
@@ -71,6 +75,15 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Fetch pending support ticket count for badge
+  const { data: pendingTicketData } = useQuery<{ pendingCount: number }>({
+    queryKey: ['/api/support/tickets/pending-count'],
+    refetchInterval: 60000, // Refresh every minute
+    staleTime: 30000, // Consider data fresh for 30 seconds
+  });
+
+  const pendingTicketCount = pendingTicketData?.pendingCount || 0;
 
   // Load collapsed state from localStorage
   useEffect(() => {
@@ -193,6 +206,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
                 isActive={currentTab === item.value}
                 isCollapsed={isCollapsed && !isMobile}
                 onClick={() => handleNavigation(item.href)}
+                badgeCount={item.value === 'support' ? pendingTicketCount : undefined}
               />
             ))}
         </div>
@@ -238,9 +252,10 @@ interface NavButtonProps {
   isActive: boolean;
   isCollapsed: boolean;
   onClick: () => void;
+  badgeCount?: number;
 }
 
-function NavButton({ item, isActive, isCollapsed, onClick }: NavButtonProps) {
+function NavButton({ item, isActive, isCollapsed, onClick, badgeCount }: NavButtonProps) {
   const Icon = item.icon;
   
   return (
@@ -248,7 +263,7 @@ function NavButton({ item, isActive, isCollapsed, onClick }: NavButtonProps) {
       variant={isActive ? "default" : "ghost"}
       onClick={onClick}
       className={cn(
-        "w-full justify-start gap-3 h-11 transition-all duration-200",
+        "w-full justify-start gap-3 h-11 transition-all duration-200 relative",
         isActive 
           ? "bg-blue-600 text-white hover:bg-blue-700" 
           : "hover:bg-blue-50 hover:text-blue-700",
@@ -256,8 +271,25 @@ function NavButton({ item, isActive, isCollapsed, onClick }: NavButtonProps) {
       )}
       data-testid={`nav-${item.value}`}
     >
-      <Icon className={cn("h-5 w-5 flex-shrink-0", isCollapsed && "h-6 w-6")} />
-      {!isCollapsed && <span className="truncate">{item.label}</span>}
+      <div className="relative">
+        <Icon className={cn("h-5 w-5 flex-shrink-0", isCollapsed && "h-6 w-6")} />
+        {isCollapsed && badgeCount !== undefined && badgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full" />
+        )}
+      </div>
+      {!isCollapsed && (
+        <>
+          <span className="truncate">{item.label}</span>
+          {badgeCount !== undefined && badgeCount > 0 && (
+            <Badge 
+              variant="destructive" 
+              className="ml-auto h-5 min-w-[20px] px-1.5 text-xs font-medium"
+            >
+              {badgeCount > 99 ? '99+' : badgeCount}
+            </Badge>
+          )}
+        </>
+      )}
     </Button>
   );
 }

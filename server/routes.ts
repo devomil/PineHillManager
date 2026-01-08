@@ -25623,6 +25623,18 @@ Important:
   // SUPPORT TICKETS
   // ================================
 
+  // Get pending ticket count for admin sidebar badge
+  app.get('/api/support/tickets/pending-count', isAuthenticated, isRyanSorensen, async (req, res) => {
+    try {
+      // Count tickets that need attention (submitted status)
+      const tickets = await storage.getSupportTickets({ status: 'submitted' });
+      res.json({ pendingCount: tickets.length });
+    } catch (error) {
+      console.error('Error fetching pending ticket count:', error);
+      res.status(500).json({ error: 'Failed to fetch pending count' });
+    }
+  });
+
   // Get tickets (employees see their own, Ryan/admins see all)
   app.get('/api/support/tickets', isAuthenticated, async (req, res) => {
     try {
