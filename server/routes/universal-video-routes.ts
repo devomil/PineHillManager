@@ -10,6 +10,9 @@ import { sceneAnalysisService, SceneContext } from '../services/scene-analysis-s
 import type { Phase8AnalysisResult } from '../../shared/video-types';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { autoRegenerationService, SceneForRegeneration, RegenerationResult } from '../services/auto-regeneration-service';
+import { intelligentRegenerationService } from '../services/intelligent-regeneration-service';
+import { regenerationStrategyEngine } from '../services/regeneration-strategy-engine';
+import { promptComplexityAnalyzer } from '../services/prompt-complexity-analyzer';
 import { brandContextService } from '../services/brand-context-service';
 import { videoProviderSelector, SceneForSelection } from '../services/video-provider-selector';
 import { imageProviderSelector } from '../services/image-provider-selector';
@@ -4962,6 +4965,206 @@ router.get('/auto-regeneration/config', isAuthenticated, async (req: Request, re
     const config = autoRegenerationService.getConfig();
     res.json({ success: true, config });
   } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// PHASE 13E: INTELLIGENT REGENERATION SYSTEM
+// ============================================================
+
+router.post('/projects/:projectId/scenes/:sceneIndex/intelligent-regenerate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneIndex } = req.params;
+    
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+    
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIdx = parseInt(sceneIndex, 10);
+    if (sceneIdx < 0 || sceneIdx >= projectData.scenes.length) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const scene = projectData.scenes[sceneIdx];
+    const issues: QualityIssue[] = (scene.analysisResult as any)?.issues || [];
+    
+    console.log(`[Phase13E] Intelligent regeneration for scene ${sceneIdx + 1}`);
+    
+    const result = await intelligentRegenerationService.regenerateScene(
+      {
+        id: scene.id,
+        type: scene.type || 'content',
+        duration: scene.duration || 5,
+        narration: scene.narration,
+        visualDirection: scene.visualDirection,
+        textOverlays: scene.textOverlays,
+        assets: scene.assets,
+        background: (scene as any).background,
+      },
+      {
+        id: projectId,
+        outputFormat: projectData.outputFormat,
+        scenes: projectData.scenes.map(s => ({
+          id: s.id,
+          type: s.type || 'content',
+          duration: s.duration || 5,
+          narration: s.narration,
+          visualDirection: s.visualDirection,
+          textOverlays: s.textOverlays,
+          assets: s.assets,
+          background: (s as any).background,
+        })),
+      },
+      issues,
+      sceneIdx
+    );
+    
+    if (result.success && result.newVideoUrl) {
+      if (!scene.assets) scene.assets = {};
+      scene.assets.videoUrl = result.newVideoUrl;
+      (scene as any).analysis = result.newAnalysis;
+      (scene as any).compositionInstructions = result.newInstructions;
+      
+      if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
+      projectData.regenerationHistory.push({
+        id: `intelligent_regen_${Date.now()}`,
+        sceneId: scene.id,
+        assetType: 'video',
+        previousUrl: (scene.assets as any)?.previousVideoUrl || '',
+        newUrl: result.newVideoUrl,
+        prompt: result.strategy.changes.prompt || scene.visualDirection || '',
+        timestamp: new Date().toISOString(),
+        success: true,
+      });
+      
+      await saveProjectToDb(projectData, projectData.ownerId);
+    }
+    
+    res.json({
+      success: result.success,
+      sceneIndex: sceneIdx,
+      attempt: result.attempt,
+      strategy: {
+        approach: result.strategy.approach,
+        reasoning: result.strategy.reasoning,
+        confidence: result.strategy.confidenceScore,
+        warning: result.strategy.warning,
+      },
+      newVideoUrl: result.newVideoUrl,
+      usedStockFootage: result.usedStockFootage,
+      error: result.error,
+      project: projectData,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase13E] Intelligent regeneration failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/projects/:projectId/scenes/:sceneId/regeneration-history', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { sceneId } = req.params;
+    
+    const history = await intelligentRegenerationService.getSceneHistory(sceneId);
+    
+    res.json({
+      success: true,
+      sceneId,
+      history,
+      attemptCount: history.length,
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase13E] Get regeneration history failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneId/analyze-prompt-complexity', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { prompt } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: 'Prompt is required' });
+    }
+    
+    const complexity = promptComplexityAnalyzer.analyze(prompt);
+    
+    res.json({
+      success: true,
+      complexity: {
+        score: complexity.score,
+        category: complexity.category,
+        factors: complexity.factors,
+        recommendations: complexity.recommendations,
+        warning: complexity.userWarning,
+      },
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase13E] Prompt complexity analysis failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/regeneration/preview-strategy', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { prompt, attemptCount = 0, currentMediaUrl, previousIssues = [] } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: 'Prompt is required' });
+    }
+    
+    const complexity = promptComplexityAnalyzer.analyze(prompt);
+    
+    const mockAttempts = Array(attemptCount).fill(null).map((_, i) => ({
+      attemptNumber: i + 1,
+      timestamp: new Date(),
+      provider: 'kling-2.5-turbo',
+      prompt,
+      result: 'failure' as const,
+      issues: previousIssues,
+    }));
+    
+    const strategy = regenerationStrategyEngine.determineStrategy({
+      attempts: mockAttempts,
+      complexity,
+      currentPrompt: prompt,
+      currentMediaUrl,
+    });
+    
+    res.json({
+      success: true,
+      complexity: {
+        score: complexity.score,
+        category: complexity.category,
+        warning: complexity.userWarning,
+      },
+      strategy: {
+        approach: strategy.approach,
+        reasoning: strategy.reasoning,
+        confidence: strategy.confidenceScore,
+        warning: strategy.warning,
+        changes: strategy.changes,
+      },
+      suggestion: regenerationStrategyEngine.getNextSuggestion(strategy),
+    });
+    
+  } catch (error: any) {
+    console.error('[Phase13E] Preview strategy failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
