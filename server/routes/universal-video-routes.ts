@@ -5076,13 +5076,34 @@ router.post('/projects/:projectId/scenes/:sceneIndex/intelligent-regenerate', is
 
 router.get('/projects/:projectId/scenes/:sceneId/regeneration-history', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const { sceneId } = req.params;
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
     
-    const history = await intelligentRegenerationService.getSceneHistory(sceneId);
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+    
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneExists = projectData.scenes.some((s: Scene) => s.id === sceneId);
+    if (!sceneExists) {
+      return res.status(404).json({ success: false, error: 'Scene not found in project' });
+    }
+    
+    const history = await intelligentRegenerationService.getSceneHistory(sceneId, projectId);
     
     res.json({
       success: true,
       sceneId,
+      projectId,
       history,
       attemptCount: history.length,
     });

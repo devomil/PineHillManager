@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { sceneRegenerationHistory, InsertSceneRegenerationHistory } from '@shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { regenerationStrategyEngine, RegenerationStrategy, RegenerationAttempt, StrategyContext } from './regeneration-strategy-engine';
 import { promptComplexityAnalyzer } from './prompt-complexity-analyzer';
 import { aiVideoService } from './ai-video-service';
@@ -345,8 +345,33 @@ class IntelligentRegenerationService {
     }
   }
   
-  async getSceneHistory(sceneId: string): Promise<RegenerationAttempt[]> {
-    return this.getPriorAttempts(sceneId);
+  async getSceneHistory(sceneId: string, projectId?: string): Promise<RegenerationAttempt[]> {
+    try {
+      const conditions = [eq(sceneRegenerationHistory.sceneId, sceneId)];
+      if (projectId) {
+        conditions.push(eq(sceneRegenerationHistory.projectId, projectId));
+      }
+      
+      const history = await db
+        .select()
+        .from(sceneRegenerationHistory)
+        .where(and(...conditions))
+        .orderBy(desc(sceneRegenerationHistory.createdAt))
+        .limit(20);
+      
+      return history.map(h => ({
+        attemptNumber: h.attemptNumber,
+        timestamp: h.createdAt || new Date(),
+        provider: h.provider,
+        prompt: h.prompt || '',
+        result: h.result as 'success' | 'failure' | 'partial',
+        qualityScore: h.qualityScore ? parseFloat(h.qualityScore) : undefined,
+        issues: h.issues ? h.issues.split('; ') : [],
+      }));
+    } catch (error) {
+      console.error('[IntelligentRegen] Error fetching scene history:', error);
+      return [];
+    }
   }
   
   async clearSceneHistory(sceneId: string): Promise<void> {
