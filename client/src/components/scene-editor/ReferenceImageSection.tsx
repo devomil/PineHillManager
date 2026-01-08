@@ -220,8 +220,9 @@ export const ReferenceImageSection = ({
       // Revoke the temporary blob URL
       URL.revokeObjectURL(tempUrl);
       
-      // Use the returned URL from object storage - must be a valid URL
-      if (result.url && typeof result.url === 'string' && result.url.startsWith('http')) {
+      // Use the returned URL from object storage - can be a full URL or an internal path
+      // Internal paths like /objects/... or /replit-objstore-... are valid and served by backend
+      if (result.url && typeof result.url === 'string' && (result.url.startsWith('http') || result.url.startsWith('/'))) {
         setReferenceUrl(result.url);
         toast({
           title: "Image Uploaded",
@@ -264,7 +265,8 @@ export const ReferenceImageSection = ({
     }
     
     // Prevent saving temporary blob URLs - require proper upload
-    if (referenceUrl?.startsWith('blob:')) {
+    // Valid URLs start with http, https, or / (internal paths)
+    if (referenceUrl && !referenceUrl.startsWith('http') && !referenceUrl.startsWith('/')) {
       toast({
         title: "Upload In Progress",
         description: "Please wait for the image to finish uploading",
