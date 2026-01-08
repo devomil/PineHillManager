@@ -148,7 +148,7 @@ export const ReferenceImageSection = ({
   
   // Fetch existing reference config on mount
   const { data: existingConfig, isLoading: isLoadingConfig } = useQuery<{ success: boolean; config: ReferenceConfig }>({
-    queryKey: ['/api/universal-video/projects', projectId, 'scenes', sceneId, 'reference-config'],
+    queryKey: [`/api/universal-video/projects/${projectId}/scenes/${sceneId}/reference-config`],
     enabled: !!projectId && !!sceneId,
   });
   
@@ -185,7 +185,7 @@ export const ReferenceImageSection = ({
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'scenes', sceneId, 'reference-config'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/universal-video/projects/${projectId}/scenes/${sceneId}/reference-config`] });
       // Invalidate projects list so parent component updates
       queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
       toast({
