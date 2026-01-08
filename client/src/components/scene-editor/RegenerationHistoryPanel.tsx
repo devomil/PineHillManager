@@ -116,6 +116,31 @@ export const RegenerationHistoryPanel = ({
     );
   }
 
+  if (error) {
+    return (
+      <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" data-testid="card-regeneration-history-error">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+              <XCircle className="w-4 h-4" />
+              <span>Failed to load regeneration history</span>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => refetch()}
+              className="text-red-600 hover:text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+              data-testid="button-retry-history"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!hasHistory) {
     return (
       <Card className="bg-gray-50 dark:bg-gray-900/50 border-dashed" data-testid="card-regeneration-history-empty">

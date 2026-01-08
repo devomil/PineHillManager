@@ -68,7 +68,7 @@ export const StrategyPreviewCard = ({
       }, 500);
       return () => clearTimeout(debounceTimer);
     }
-  }, [prompt, attemptCount]);
+  }, [prompt, attemptCount, currentMediaUrl, JSON.stringify(previousIssues)]);
 
   const getApproachIcon = (approach: string) => {
     switch (approach) {
