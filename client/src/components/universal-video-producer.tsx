@@ -3364,8 +3364,34 @@ function ProjectsList({ onSelectProject, onCreateNew }: {
   onSelectProject: (project: ProjectWithMeta) => void; 
   onCreateNew: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  
   const { data: projectsData, isLoading } = useQuery<{ success: boolean; projects: ProjectWithMeta[] }>({
     queryKey: ['/api/universal-video/projects'],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await apiRequest('DELETE', `/api/universal-video/projects/${projectId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+      toast({
+        title: "Project Deleted",
+        description: "The video project has been removed.",
+      });
+      setDeleteConfirmId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Could not delete the project.",
+        variant: "destructive",
+      });
+    },
   });
 
   const projects: ProjectWithMeta[] = projectsData?.projects || [];
@@ -3422,7 +3448,53 @@ function ProjectsList({ onSelectProject, onCreateNew }: {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{project.title}</CardTitle>
-                  {getStatusBadge(project.status)}
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(project.status)}
+                    {deleteConfirmId === project.id ? (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMutation.mutate(project.id);
+                          }}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-confirm-delete-${project.id}`}
+                        >
+                          {deleteMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            "Delete"
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmId(null);
+                          }}
+                          data-testid={`button-cancel-delete-${project.id}`}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(project.id);
+                        }}
+                        data-testid={`button-delete-${project.id}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <CardDescription className="text-xs">
                   Created {formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })}

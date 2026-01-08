@@ -253,6 +253,46 @@ router.get('/projects', isAuthenticated, async (req: Request, res: Response) => 
   }
 });
 
+// Delete a video project
+router.delete('/projects/:projectId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    const { projectId } = req.params;
+    const projectIdNum = parseInt(projectId, 10);
+    
+    if (isNaN(projectIdNum)) {
+      return res.status(400).json({ success: false, error: 'Invalid project ID' });
+    }
+    
+    // Verify ownership before deleting
+    const [existing] = await db.select({ ownerId: universalVideoProjects.ownerId })
+      .from(universalVideoProjects)
+      .where(eq(universalVideoProjects.id, projectIdNum));
+    
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (existing.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Not authorized to delete this project' });
+    }
+    
+    // Delete the project
+    await db.delete(universalVideoProjects)
+      .where(eq(universalVideoProjects.id, projectIdNum));
+    
+    console.log(`[UniversalVideo] Project ${projectIdNum} deleted by user ${userId}`);
+    res.json({ success: true, message: 'Project deleted successfully' });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error deleting project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Ask Suzzie (Claude AI) to generate visual direction idea for a scene
 router.post('/ask-suzzie', isAuthenticated, async (req: Request, res: Response) => {
   try {
