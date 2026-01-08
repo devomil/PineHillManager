@@ -25725,7 +25725,110 @@ Important:
         return res.status(400).json({ error: 'Invalid status' });
       }
       
+      // Get ticket before update to know the submitter
+      const existingTicket = await storage.getSupportTicket(id);
+      if (!existingTicket) {
+        return res.status(404).json({ error: 'Ticket not found' });
+      }
+      
       const ticket = await storage.updateTicketStatus(id, status, resolutionNotes);
+      
+      // Send SMS notifications for status updates (similar to direct messages)
+      try {
+        const currentUserId = req.user!.id;
+        
+        // Get status label for SMS message
+        const statusLabels: Record<string, string> = {
+          'submitted': 'Submitted',
+          'in_review': 'In Review',
+          'in_progress': 'In Progress',
+          'completed': 'Completed',
+          'closed': 'Closed'
+        };
+        const statusLabel = statusLabels[status] || status;
+        
+        // Get the ticket submitter's info
+        const submitter = await storage.getUser(existingTicket.submittedById);
+        
+        // Get all users and filter for managers
+        const allUsers = await storage.getAllUsers();
+        const managers = allUsers.filter(user => user.role === 'manager' || user.role === 'admin');
+        
+        // Collect all users who should receive SMS (ticket creator + all managers)
+        const recipientsSet = new Set<string>();
+        const recipientUsers: Array<{ id: string; firstName: string; lastName: string; phone: string | null; smsEnabled: boolean | null; smsConsent: boolean | null }> = [];
+        
+        // Add the ticket submitter
+        if (submitter && submitter.id !== currentUserId) {
+          recipientsSet.add(submitter.id);
+          recipientUsers.push(submitter);
+        }
+        
+        // Add all managers (who are not the current user)
+        for (const manager of managers) {
+          if (manager.id !== currentUserId && !recipientsSet.has(manager.id)) {
+            recipientsSet.add(manager.id);
+            recipientUsers.push(manager);
+          }
+        }
+        
+        // Filter for SMS-eligible recipients
+        const smsEligibleRecipients = recipientUsers.filter(user => 
+          user.phone && user.smsEnabled && user.smsConsent
+        );
+        
+        console.log(`📱 Support ticket #${ticket.ticketNumber} status updated to "${statusLabel}"`);
+        console.log(`👥 ${smsEligibleRecipients.length} SMS-eligible recipients for notification`);
+        
+        // Send SMS to all eligible recipients
+        const notificationPromises = smsEligibleRecipients.map(async (recipient) => {
+          try {
+            const isSubmitter = recipient.id === existingTicket.submittedById;
+            
+            // Customize message based on whether they're the submitter or a manager
+            let smsMessage: string;
+            if (isSubmitter) {
+              smsMessage = `🎫 Your support ticket "${ticket.title}" (${ticket.ticketNumber}) has been updated to: ${statusLabel}`;
+              if (resolutionNotes && (status === 'completed' || status === 'closed')) {
+                const previewNotes = resolutionNotes.substring(0, 100);
+                smsMessage += `\n\n📝 ${previewNotes}${resolutionNotes.length > 100 ? '...' : ''}`;
+              }
+              smsMessage += `\n\nView details: https://PHFManager.co/support`;
+            } else {
+              // Manager notification
+              smsMessage = `🎫 Ticket ${ticket.ticketNumber} "${ticket.title}" is now: ${statusLabel}\n\nView at: https://PHFManager.co/support`;
+            }
+            
+            const result = await smsService.sendSMS({
+              to: recipient.phone!,
+              message: smsMessage,
+              priority: 'normal'
+            });
+            
+            if (result.success) {
+              console.log(`📱 SMS sent to ${recipient.firstName} ${recipient.lastName} about ticket status update`);
+            } else {
+              console.error(`❌ Failed to send SMS to ${recipient.firstName} ${recipient.lastName}: ${result.error}`);
+            }
+            
+            return result;
+          } catch (error) {
+            console.error(`❌ Error sending SMS to ${recipient.firstName} ${recipient.lastName}:`, error);
+            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+          }
+        });
+        
+        // Wait for all SMS notifications
+        const smsResults = await Promise.all(notificationPromises);
+        const successfulSMS = smsResults.filter(r => r.success).length;
+        const failedSMS = smsResults.filter(r => !r.success).length;
+        
+        console.log(`📊 Ticket status SMS summary: ${successfulSMS} sent, ${failedSMS} failed`);
+      } catch (smsError) {
+        console.error('Error sending ticket status SMS notifications:', smsError);
+        // Don't fail the status update if SMS fails
+      }
+      
       res.json(ticket);
     } catch (error) {
       console.error('Error updating ticket status:', error);
