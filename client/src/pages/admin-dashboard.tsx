@@ -262,7 +262,7 @@ export default function AdminDashboard() {
       title: "System Support",
       description: "Access support resources and documentation",
       icon: FileText,
-      href: "/system-support",
+      href: "/support",
       color: "text-indigo-600",
       bgColor: "bg-indigo-50"
     },
