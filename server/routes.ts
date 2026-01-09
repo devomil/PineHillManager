@@ -18116,6 +18116,10 @@ Respond in JSON format:
         usageContexts: data.usageContexts || [],
         visualAttributes: data.visualAttributes || {},
         placementSettings: data.placementSettings || {},
+        assetCategory: data.assetCategory || null,
+        assetType: data.assetType || null,
+        personInfo: data.personInfo || null,
+        productInfo: data.productInfo || null,
         priority: data.priority || 5,
         isDefault: data.isDefault || false,
         isActive: true,
@@ -18152,7 +18156,10 @@ Respond in JSON format:
           placementSettings: data.placementSettings,
           priority: data.priority,
           isDefault: data.isDefault,
+          assetCategory: data.assetCategory || null,
           assetType: data.assetType || null,
+          personInfo: data.personInfo || null,
+          productInfo: data.productInfo || null,
           updatedAt: new Date(),
         })
         .where(eq(brandMediaLibrary.id, id))

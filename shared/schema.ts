@@ -4996,8 +4996,10 @@ export const brandMediaLibrary = pgTable("brand_media_library", {
   // Asset type: logo, photo, video, graphic, watermark, intro, outro, lower_third
   mediaType: varchar("media_type", { length: 50 }).notNull(),
   
-  // Structured asset type from taxonomy (Phase 14 Addendum)
-  // e.g., "product-hero-single", "logo-primary-color", "people-founder-portrait"
+  // Structured asset category and type from taxonomy (Phase 14 Addendum B)
+  // Category: "products" | "location" | "people" | "logos" | "trust" | "services" | "creative" | "documents"
+  assetCategory: varchar("asset_category", { length: 50 }),
+  // Type: e.g., "product-hero-single", "logo-primary-color", "people-founder-portrait"
   assetType: varchar("asset_type", { length: 100 }),
   
   // Entity association (e.g., "Pine Hill Farm", "Wellness Center", "BioScan")
@@ -5057,7 +5059,9 @@ export const brandMediaLibrary = pgTable("brand_media_library", {
   entityNameIdx: index("idx_brand_media_library_entity").on(table.entityName),
   entityTypeIdx: index("idx_brand_media_library_entity_type").on(table.entityType),
   isActiveIdx: index("idx_brand_media_library_active").on(table.isActive),
+  assetCategoryIdx: index("idx_brand_media_library_category").on(table.assetCategory),
   assetTypeIdx: index("idx_brand_media_library_asset_type").on(table.assetType),
+  categoryTypeIdx: index("idx_brand_media_library_category_type").on(table.assetCategory, table.assetType),
 }));
 
 export const brandMediaLibraryRelations = relations(brandMediaLibrary, ({ one }) => ({

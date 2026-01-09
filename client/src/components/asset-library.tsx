@@ -30,12 +30,13 @@ import {
   Edit,
   Building2,
   MapPin,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { AssetUploadModal, type AssetMetadata } from './AssetUploadModal';
-import { ASSET_CATEGORIES as TAXONOMY_CATEGORIES, getAssetType } from '@shared/brand-asset-types';
+import { ASSET_CATEGORIES as TAXONOMY_CATEGORIES, getAssetType, getTypesByCategory } from '@shared/brand-asset-types';
 
 type AssetType = 'image' | 'video' | 'music' | 'all';
 type ViewMode = 'grid' | 'list';
@@ -172,7 +173,14 @@ export default function AssetLibrary() {
     url: '',
     matchKeywords: '',
     usageContexts: '',
+    assetCategory: '',
     assetType: '',
+    personName: '',
+    personTitle: '',
+    personCredentials: '',
+    consentObtained: false,
+    productName: '',
+    productSku: '',
   });
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementPreview, setReplacementPreview] = useState<string | null>(null);
@@ -990,6 +998,7 @@ export default function AssetLibrary() {
                               e.stopPropagation();
                               setSelectedBrandAsset(asset);
                               setIsEditingBrand(true);
+                              const assetTypeInfo = asset.assetType ? getAssetType(asset.assetType) : null;
                               setBrandEditForm({
                                 name: asset.name,
                                 description: asset.description || '',
@@ -997,9 +1006,16 @@ export default function AssetLibrary() {
                                 entityName: asset.entityName || '',
                                 entityType: asset.entityType || 'brand',
                                 url: asset.url,
-                                matchKeywords: asset.matchKeywords.join(', '),
-                                usageContexts: asset.usageContexts.join(', '),
+                                matchKeywords: asset.matchKeywords?.join(', ') || '',
+                                usageContexts: asset.usageContexts?.join(', ') || '',
+                                assetCategory: assetTypeInfo?.category || '',
                                 assetType: asset.assetType || '',
+                                personName: (asset.personInfo as any)?.name || '',
+                                personTitle: (asset.personInfo as any)?.title || '',
+                                personCredentials: (asset.personInfo as any)?.credentials || '',
+                                consentObtained: (asset.personInfo as any)?.consentObtained || false,
+                                productName: (asset.productInfo as any)?.productName || '',
+                                productSku: (asset.productInfo as any)?.sku || '',
                               });
                             }}
                           >
@@ -1155,96 +1171,159 @@ export default function AssetLibrary() {
                 data-testid="brand-edit-description"
               />
             </div>
+            {/* Legacy Asset Warning - only show if there's legacy keyword/context data without taxonomy classification */}
+            {!brandEditForm.assetCategory && !brandEditForm.assetType && (brandEditForm.matchKeywords?.trim() || brandEditForm.usageContexts?.trim()) && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-amber-800">Legacy Asset Detected</p>
+                    <p className="text-amber-700 mt-1">
+                      This asset uses legacy keywords/contexts. Select a Category and Asset Type to migrate it to the new taxonomy for improved AI matching.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Category Selection */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Media Type</Label>
-                <Select value={brandEditForm.mediaType} onValueChange={(v) => setBrandEditForm({ ...brandEditForm, mediaType: v })}>
-                  <SelectTrigger data-testid="brand-edit-type">
-                    <SelectValue />
+                <Label>Category *</Label>
+                <Select 
+                  value={brandEditForm.assetCategory || ''} 
+                  onValueChange={(v) => setBrandEditForm({ 
+                    ...brandEditForm, 
+                    assetCategory: v,
+                    assetType: '',
+                  })}
+                >
+                  <SelectTrigger data-testid="brand-edit-category">
+                    <SelectValue placeholder="Select category..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="logo">Logo</SelectItem>
-                    <SelectItem value="photo">Photo</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
-                    <SelectItem value="graphic">Graphic</SelectItem>
-                    <SelectItem value="watermark">Watermark</SelectItem>
+                    {TAXONOMY_CATEGORIES.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
+
               <div>
-                <Label>Entity Type</Label>
-                <Select value={brandEditForm.entityType} onValueChange={(v) => setBrandEditForm({ ...brandEditForm, entityType: v })}>
-                  <SelectTrigger data-testid="brand-edit-entity-type">
-                    <SelectValue />
+                <Label>Asset Type {brandEditForm.assetCategory ? '*' : ''}</Label>
+                <Select 
+                  value={brandEditForm.assetType || ''} 
+                  onValueChange={(v) => setBrandEditForm({ ...brandEditForm, assetType: v })}
+                  disabled={!brandEditForm.assetCategory}
+                >
+                  <SelectTrigger data-testid="brand-edit-asset-type">
+                    <SelectValue placeholder={brandEditForm.assetCategory ? 'Select type...' : 'Select category first'} />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="brand">Brand</SelectItem>
-                    <SelectItem value="location">Location</SelectItem>
-                    <SelectItem value="product">Product</SelectItem>
-                    <SelectItem value="store">Store</SelectItem>
+                  <SelectContent className="max-h-[300px]">
+                    {brandEditForm.assetCategory && getTypesByCategory(brandEditForm.assetCategory).map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {brandEditForm.assetType && getAssetType(brandEditForm.assetType) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {getAssetType(brandEditForm.assetType)?.description}
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* Conditional Person Info (for People category) */}
+            {brandEditForm.assetCategory === 'people' && (
+              <div className="space-y-3 p-3 bg-blue-50 border border-blue-100 rounded-md">
+                <Label className="text-sm font-medium text-blue-800">Person Details</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      value={brandEditForm.personName}
+                      onChange={(e) => setBrandEditForm({ ...brandEditForm, personName: e.target.value })}
+                      placeholder="e.g., Dr. Sarah Johnson"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Title</Label>
+                    <Input
+                      value={brandEditForm.personTitle}
+                      onChange={(e) => setBrandEditForm({ ...brandEditForm, personTitle: e.target.value })}
+                      placeholder="e.g., Wellness Director"
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Credentials</Label>
+                  <Input
+                    value={brandEditForm.personCredentials}
+                    onChange={(e) => setBrandEditForm({ ...brandEditForm, personCredentials: e.target.value })}
+                    placeholder="e.g., MD, PhD, Certified Nutritionist"
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="consent-checkbox"
+                    checked={brandEditForm.consentObtained}
+                    onChange={(e) => setBrandEditForm({ ...brandEditForm, consentObtained: e.target.checked })}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="consent-checkbox" className="text-xs font-normal cursor-pointer">
+                    Consent obtained for marketing use
+                  </Label>
+                </div>
+              </div>
+            )}
+
+            {/* Conditional Product Info (for Products category) */}
+            {brandEditForm.assetCategory === 'products' && (
+              <div className="space-y-3 p-3 bg-green-50 border border-green-100 rounded-md">
+                <Label className="text-sm font-medium text-green-800">Product Details</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Product Name</Label>
+                    <Input
+                      value={brandEditForm.productName}
+                      onChange={(e) => setBrandEditForm({ ...brandEditForm, productName: e.target.value })}
+                      placeholder="e.g., CBD Tincture 500mg"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">SKU</Label>
+                    <Input
+                      value={brandEditForm.productSku}
+                      onChange={(e) => setBrandEditForm({ ...brandEditForm, productSku: e.target.value })}
+                      placeholder="e.g., PHF-CBD-500"
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Entity Name - kept for backwards compatibility */}
             <div>
-              <Label>Entity Name</Label>
+              <Label>Entity/Location Name</Label>
               <Input
                 value={brandEditForm.entityName}
                 onChange={(e) => setBrandEditForm({ ...brandEditForm, entityName: e.target.value })}
                 placeholder="e.g., Lake Geneva Store, Pine Hill Farm"
                 data-testid="brand-edit-entity-name"
               />
-            </div>
-            <div>
-              <Label>Match Keywords (comma-separated)</Label>
-              <Input
-                value={brandEditForm.matchKeywords}
-                onChange={(e) => setBrandEditForm({ ...brandEditForm, matchKeywords: e.target.value })}
-                placeholder="pine hill farm, logo, brand"
-                data-testid="brand-edit-keywords"
-              />
-            </div>
-            <div>
-              <Label>Usage Contexts (comma-separated)</Label>
-              <Input
-                value={brandEditForm.usageContexts}
-                onChange={(e) => setBrandEditForm({ ...brandEditForm, usageContexts: e.target.value })}
-                placeholder="marketing, social, website"
-                data-testid="brand-edit-contexts"
-              />
-            </div>
-            
-            {/* Asset Type Taxonomy */}
-            <div>
-              <Label>Asset Type (Taxonomy)</Label>
-              <Select 
-                value={brandEditForm.assetType || 'none'} 
-                onValueChange={(v) => setBrandEditForm({ ...brandEditForm, assetType: v === 'none' ? '' : v })}
-              >
-                <SelectTrigger data-testid="brand-edit-asset-type">
-                  <SelectValue placeholder="Select asset type..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[400px]">
-                  <SelectItem value="none">None (Legacy)</SelectItem>
-                  {TAXONOMY_CATEGORIES.map((category) => (
-                    <SelectGroup key={category.id}>
-                      <SelectLabel className="text-xs font-semibold text-gray-600 bg-gray-50">
-                        {category.label}
-                      </SelectLabel>
-                      {category.types.map((type) => (
-                        <SelectItem key={type.id} value={type.id} className="pl-6">
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-              {brandEditForm.assetType && getAssetType(brandEditForm.assetType) && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {getAssetType(brandEditForm.assetType)?.description}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Optional - specify which location or entity this asset belongs to
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -1293,6 +1372,18 @@ export default function AssetLibrary() {
                   // When a file is replaced, update both url and thumbnailUrl to keep them in sync
                   const thumbnailUrl = replacementFile ? newUrl : selectedBrandAsset.thumbnailUrl;
                   
+                  const personInfo = brandEditForm.assetCategory === 'people' ? {
+                      name: brandEditForm.personName || null,
+                      title: brandEditForm.personTitle || null,
+                      credentials: brandEditForm.personCredentials || null,
+                      consentObtained: brandEditForm.consentObtained,
+                    } : null;
+                    
+                    const productInfo = brandEditForm.assetCategory === 'products' ? {
+                      productName: brandEditForm.productName || null,
+                      sku: brandEditForm.productSku || null,
+                    } : null;
+
                   updateBrandAssetMutation.mutate({
                     id: selectedBrandAsset.id,
                     data: {
@@ -1303,9 +1394,12 @@ export default function AssetLibrary() {
                       entityType: brandEditForm.entityType,
                       url: newUrl,
                       thumbnailUrl: thumbnailUrl,
-                      matchKeywords: brandEditForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
-                      usageContexts: brandEditForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
+                      matchKeywords: brandEditForm.matchKeywords ? brandEditForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean) : [],
+                      usageContexts: brandEditForm.usageContexts ? brandEditForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean) : [],
+                      assetCategory: brandEditForm.assetCategory || null,
                       assetType: brandEditForm.assetType || null,
+                      personInfo,
+                      productInfo,
                     }
                   });
                   
@@ -1607,6 +1701,7 @@ export default function AssetLibrary() {
                       variant="outline" 
                       onClick={() => {
                         setIsEditingBrand(true);
+                        const assetTypeInfo = selectedBrandAsset.assetType ? getAssetType(selectedBrandAsset.assetType) : null;
                         setBrandEditForm({
                           name: selectedBrandAsset.name,
                           description: selectedBrandAsset.description || '',
@@ -1614,9 +1709,16 @@ export default function AssetLibrary() {
                           entityName: selectedBrandAsset.entityName || '',
                           entityType: selectedBrandAsset.entityType || 'brand',
                           url: selectedBrandAsset.url,
-                          matchKeywords: selectedBrandAsset.matchKeywords.join(', '),
-                          usageContexts: selectedBrandAsset.usageContexts.join(', '),
+                          matchKeywords: selectedBrandAsset.matchKeywords?.join(', ') || '',
+                          usageContexts: selectedBrandAsset.usageContexts?.join(', ') || '',
+                          assetCategory: assetTypeInfo?.category || '',
                           assetType: selectedBrandAsset.assetType || '',
+                          personName: (selectedBrandAsset.personInfo as any)?.name || '',
+                          personTitle: (selectedBrandAsset.personInfo as any)?.title || '',
+                          personCredentials: (selectedBrandAsset.personInfo as any)?.credentials || '',
+                          consentObtained: (selectedBrandAsset.personInfo as any)?.consentObtained || false,
+                          productName: (selectedBrandAsset.productInfo as any)?.productName || '',
+                          productSku: (selectedBrandAsset.productInfo as any)?.sku || '',
                         });
                       }}
                     >
