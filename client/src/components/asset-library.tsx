@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   Image, 
   Video, 
@@ -1225,24 +1224,20 @@ export default function AssetLibrary() {
                 <SelectTrigger data-testid="brand-edit-asset-type">
                   <SelectValue placeholder="Select asset type..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-[400px] overflow-y-auto">
+                <SelectContent className="max-h-[400px]">
                   <SelectItem value="none">None (Legacy)</SelectItem>
-                  <Accordion type="single" collapsible className="w-full">
-                    {TAXONOMY_CATEGORIES.map((category) => (
-                      <AccordionItem key={category.id} value={category.id} className="border-b-0">
-                        <AccordionTrigger className="px-2 py-1.5 text-xs font-semibold text-gray-600 hover:no-underline hover:bg-gray-50">
-                          {category.label}
-                        </AccordionTrigger>
-                        <AccordionContent className="pb-0">
-                          {category.types.map((type) => (
-                            <SelectItem key={type.id} value={type.id} className="pl-4">
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
+                  {TAXONOMY_CATEGORIES.map((category) => (
+                    <SelectGroup key={category.id}>
+                      <SelectLabel className="text-xs font-semibold text-gray-600 bg-gray-50">
+                        {category.label}
+                      </SelectLabel>
+                      {category.types.map((type) => (
+                        <SelectItem key={type.id} value={type.id} className="pl-6">
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
                 </SelectContent>
               </Select>
               {brandEditForm.assetType && getAssetType(brandEditForm.assetType) && (
