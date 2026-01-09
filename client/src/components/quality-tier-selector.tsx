@@ -1,8 +1,9 @@
 import { Crown, Zap, Check, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { calculateCosts, type QualityTier } from '@shared/quality-tiers';
 
-export type QualityTier = 'ultra' | 'premium' | 'standard';
+export { QualityTier };
 
 interface QualityTierSelectorProps {
   value: QualityTier;
@@ -78,8 +79,6 @@ const TIERS = [
   },
 ];
 
-const BASE_COST_PER_10S = 0.25;
-
 export function QualityTierSelector({
   value,
   onChange,
@@ -87,12 +86,12 @@ export function QualityTierSelector({
   sceneCount,
   compact = false,
 }: QualityTierSelectorProps) {
-  const calculateCost = (multiplier: number) => {
-    const videoSegments = Math.ceil(sceneDuration / 10);
-    const baseCost = videoSegments * BASE_COST_PER_10S;
-    const videoCost = baseCost * multiplier;
-    const otherCosts = sceneCount * 0.15 * multiplier;
-    return videoCost + otherCosts;
+  const calculateTierCost = (tier: QualityTier) => {
+    const scenes = Array.from({ length: sceneCount }, () => ({ 
+      duration: sceneDuration / Math.max(1, sceneCount) 
+    }));
+    const breakdown = calculateCosts(tier, scenes, sceneDuration, sceneDuration, sceneCount);
+    return breakdown.total;
   };
   
   const selectedTier = TIERS.find(t => t.id === value);
@@ -108,7 +107,7 @@ export function QualityTierSelector({
         {TIERS.map((tier) => {
           const Icon = tier.icon;
           const isSelected = value === tier.id;
-          const estimatedCost = calculateCost(tier.costMultiplier);
+          const estimatedCost = calculateTierCost(tier.id);
           
           return (
             <button

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Video,
@@ -137,6 +137,7 @@ interface GenerationEstimate {
   }>;
   brandName: string;
   warnings: string[];
+  qualityTier?: 'ultra' | 'premium' | 'standard';
 }
 
 interface QAStats {
@@ -369,6 +370,12 @@ export function GenerationPreviewPanel({
     },
     staleTime: 30 * 1000,
   });
+  
+  useEffect(() => {
+    if (estimate?.qualityTier && estimate.qualityTier !== qualityTier) {
+      setQualityTier(estimate.qualityTier);
+    }
+  }, [estimate?.qualityTier]);
 
   if (isLoading) {
     return (

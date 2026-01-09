@@ -102,9 +102,10 @@ export function calculateCosts(
   
   if (tier === 'ultra') {
     const ultraCosts = costs as typeof TIER_COSTS.ultra;
+    const multiPassMultiplier = ultraCosts.multiPassMultiplier || 3;
     
-    breakdown.multiPassGeneration = videoCost * ((ultraCosts.multiPassMultiplier || 3) - 1);
-    breakdown.video = videoCost * (ultraCosts.multiPassMultiplier || 3);
+    breakdown.video = videoCost;
+    breakdown.multiPassGeneration = videoCost * (multiPassMultiplier - 1);
     
     breakdown.aiUpscaling = scenes.length * (ultraCosts.upscalePer || 0);
     breakdown.colorGrading = scenes.length * (ultraCosts.colorGradePer || 0);

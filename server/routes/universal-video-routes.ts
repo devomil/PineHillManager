@@ -4170,6 +4170,7 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       brandElements,
       brandName: 'Pine Hill Farm',
       warnings,
+      qualityTier: (project as any).qualityTier || 'premium',
     });
     
   } catch (error: any) {
