@@ -57,11 +57,12 @@ class MultiPassVideoGenerator {
       )
     );
     
-    const successful: GeneratedVideo[] = generations
-      .filter((result): result is PromiseFulfilledResult<GeneratedVideo> => 
-        result.status === 'fulfilled' && result.value.success
-      )
-      .map(result => result.value);
+    const successful: GeneratedVideo[] = [];
+    for (const result of generations) {
+      if (result.status === 'fulfilled' && result.value.success) {
+        successful.push(result.value);
+      }
+    }
     
     if (successful.length === 0) {
       throw new Error('All generation passes failed');

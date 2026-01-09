@@ -5107,6 +5107,9 @@ export const universalVideoProjects = pgTable("universal_video_projects", {
   // Quality evaluation (Phase 3)
   qualityReport: jsonb("quality_report"), // VideoQualityReport from quality evaluation
   
+  // Quality tier (Phase 14C)
+  qualityTier: varchar("quality_tier", { length: 20 }).notNull().default("premium"), // 'ultra' | 'premium' | 'standard'
+  
   // Render metadata
   renderId: varchar("render_id", { length: 100 }),
   bucketName: varchar("bucket_name", { length: 255 }),

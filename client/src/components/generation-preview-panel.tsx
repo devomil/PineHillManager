@@ -20,6 +20,7 @@ import {
   Type,
   Shuffle,
   ShieldCheck,
+  Crown,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import {
 import { ContentTypeWarning } from './scene-editor/ContentTypeWarning';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import QualityTierSelector, { type QualityTier } from './quality-tier-selector';
 
 interface ProviderCostBreakdown {
   displayName: string;
@@ -234,8 +236,42 @@ export function GenerationPreviewPanel({
   const { toast } = useToast();
   const [showSceneDetails, setShowSceneDetails] = useState(false);
 
+  // Phase 14C: Quality tier state
+  const [qualityTier, setQualityTier] = useState<QualityTier>('premium');
+
   // State to track batch updates
   const [batchUpdateCount, setBatchUpdateCount] = useState(0);
+  
+  // Phase 14C: Quality tier mutation
+  const updateQualityTierMutation = useMutation({
+    mutationFn: async (tier: QualityTier) => {
+      const response = await apiRequest(
+        'PATCH',
+        `/api/universal-video/projects/${projectId}/quality-tier`,
+        { qualityTier: tier }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to update quality tier');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update quality tier",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const handleQualityTierChange = (tier: QualityTier) => {
+    setQualityTier(tier);
+    updateQualityTierMutation.mutate(tier);
+  };
   
   // Phase 12 Addendum: Shared helper for content type API call
   const updateContentTypeApi = async (sceneId: string, contentType: string) => {
@@ -370,6 +406,14 @@ export function GenerationPreviewPanel({
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Phase 14C: Quality Tier Selector */}
+        <QualityTierSelector
+          value={qualityTier}
+          onChange={handleQualityTierChange}
+          sceneDuration={estimate.project.totalDuration}
+          sceneCount={estimate.project.sceneCount}
+        />
+        
         {/* Provider Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="provider-summary">
           {/* Video - Enhanced with per-provider costs */}

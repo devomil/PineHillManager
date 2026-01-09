@@ -238,7 +238,7 @@ class QualityAwareProviderRouter {
     if (sceneType === 'testimonial') needs.push('talking-heads');
     if (sceneType === 'b-roll') needs.push('nature-scenes');
     
-    return [...new Set(needs)];
+    return Array.from(new Set(needs));
   }
   
   private estimateCost(provider: typeof VIDEO_PROVIDERS[string], durationSeconds: number): number {

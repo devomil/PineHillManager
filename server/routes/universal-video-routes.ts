@@ -832,6 +832,46 @@ router.patch('/projects/:projectId/scenes/:sceneId/content-type', isAuthenticate
   }
 });
 
+// Phase 14C: Update quality tier for a project
+router.patch('/projects/:projectId/quality-tier', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { qualityTier } = req.body;
+    
+    const validTiers = ['ultra', 'premium', 'standard'];
+    
+    if (!validTiers.includes(qualityTier)) {
+      return res.status(400).json({ success: false, error: 'Invalid quality tier' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    // Update quality tier
+    (projectData as any).qualityTier = qualityTier;
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[Phase14C] Updated quality tier for project ${projectId}: ${qualityTier}`);
+    
+    res.json({ 
+      success: true, 
+      qualityTier,
+      message: `Quality tier set to ${qualityTier}`
+    });
+  } catch (error: any) {
+    console.error('[Phase14C] Error updating quality tier:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 8A: Background scene analysis helper (runs async without blocking response)
 // Updated to handle video scenes by extracting a thumbnail frame for analysis
 async function runBackgroundSceneAnalysis(projectId: string, userId: number | string) {
