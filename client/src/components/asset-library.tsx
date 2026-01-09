@@ -1218,14 +1218,14 @@ export default function AssetLibrary() {
             <div>
               <Label>Asset Type (Taxonomy)</Label>
               <Select 
-                value={brandEditForm.assetType || ''} 
-                onValueChange={(v) => setBrandEditForm({ ...brandEditForm, assetType: v })}
+                value={brandEditForm.assetType || 'none'} 
+                onValueChange={(v) => setBrandEditForm({ ...brandEditForm, assetType: v === 'none' ? '' : v })}
               >
                 <SelectTrigger data-testid="brand-edit-asset-type">
                   <SelectValue placeholder="Select asset type..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
-                  <SelectItem value="">None (Legacy)</SelectItem>
+                  <SelectItem value="none">None (Legacy)</SelectItem>
                   {TAXONOMY_CATEGORIES.map((category) => (
                     <div key={category.id}>
                       <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
