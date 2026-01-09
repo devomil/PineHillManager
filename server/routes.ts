@@ -18006,14 +18006,17 @@ Respond in JSON format:
         return res.status(404).json({ error: 'Asset not found' });
       }
       
-      // If it's classified as brand, also delete the brand media entry
-      if (asset.brandMediaId) {
-        await db.delete(brandMediaLibrary)
-          .where(eq(brandMediaLibrary.id, asset.brandMediaId));
-      }
+      // Cache brandMediaId before deletion
+      const brandMediaIdToDelete = asset.brandMediaId;
       
-      // Delete the media asset
+      // Delete the media asset first (this clears the FK reference)
       await db.delete(mediaAssets).where(eq(mediaAssets.id, id));
+      
+      // Now we can safely delete the brand media entry if it existed
+      if (brandMediaIdToDelete) {
+        await db.delete(brandMediaLibrary)
+          .where(eq(brandMediaLibrary.id, brandMediaIdToDelete));
+      }
       
       res.json({ success: true });
     } catch (error) {
