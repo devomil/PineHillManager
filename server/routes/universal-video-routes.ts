@@ -6357,4 +6357,241 @@ router.post('/smart-route', isAuthenticated, async (req, res) => {
   }
 });
 
+// Phase 14A: Brand Requirement Analyzer
+import { brandRequirementAnalyzer } from '../services/brand-requirement-analyzer';
+import { brandAssetMatcher } from '../services/brand-asset-matcher';
+
+const brandAnalysisInputSchema = z.object({
+  visualDirection: z.string().min(1),
+  narration: z.string().optional(),
+});
+
+const brandAnalysisSchema = z.object({
+  requiresBrandAssets: z.boolean(),
+  confidence: z.number(),
+  requirements: z.object({
+    productMentioned: z.boolean(),
+    productNames: z.array(z.string()),
+    productVisibility: z.enum(['featured', 'prominent', 'visible', 'background']),
+    logoRequired: z.boolean(),
+    logoType: z.enum(['primary', 'watermark', 'certification']).nullable(),
+    brandingVisibility: z.enum(['prominent', 'visible', 'subtle']),
+    sceneType: z.enum(['product-hero', 'product-in-context', 'branded-environment', 'standard']),
+    outputType: z.enum(['image', 'video']),
+    motionStyle: z.enum(['static', 'subtle', 'environmental', 'reveal']).nullable(),
+  }),
+  matchedAssets: z.object({
+    products: z.array(z.any()),
+    logos: z.array(z.any()),
+    locations: z.array(z.any()),
+  }),
+});
+
+const brandAssetBestInputSchema = z.object({
+  purpose: z.enum(['product-hero', 'logo-overlay', 'watermark', 'product-group', 'location']),
+  productName: z.string().optional(),
+});
+
+const brandAssetSearchInputSchema = z.object({
+  keywords: z.array(z.string().min(1)).min(1),
+});
+
+router.post('/brand-analysis/analyze', isAuthenticated, async (req, res) => {
+  try {
+    const parseResult = brandAnalysisInputSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ success: false, error: parseResult.error.message });
+    }
+    
+    const { visualDirection, narration } = parseResult.data;
+    const analysis = brandRequirementAnalyzer.analyze(visualDirection, narration);
+    
+    res.json({
+      success: true,
+      phase: '14A',
+      analysis,
+    });
+  } catch (error: any) {
+    console.error('[Phase14A] Brand analysis failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/brand-analysis/analyze-with-assets', isAuthenticated, async (req, res) => {
+  try {
+    const parseResult = brandAnalysisInputSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ success: false, error: parseResult.error.message });
+    }
+    
+    const { visualDirection, narration } = parseResult.data;
+    const analysis = brandRequirementAnalyzer.analyze(visualDirection, narration);
+    const analysisWithAssets = await brandAssetMatcher.matchAssets(analysis);
+    
+    res.json({
+      success: true,
+      phase: '14A+14B',
+      analysis: analysisWithAssets,
+    });
+  } catch (error: any) {
+    console.error('[Phase14A+14B] Brand analysis with assets failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/brand-analysis/patterns', isAuthenticated, async (req, res) => {
+  try {
+    const patterns = brandRequirementAnalyzer.getPatterns();
+    res.json({
+      success: true,
+      phase: '14A',
+      patterns,
+    });
+  } catch (error: any) {
+    console.error('[Phase14A] Get patterns failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 14B: Brand Asset Matcher
+router.post('/brand-assets/match', isAuthenticated, async (req, res) => {
+  try {
+    const { analysis } = req.body;
+    
+    if (!analysis) {
+      return res.status(400).json({ success: false, error: 'analysis is required (from /brand-analysis/analyze)' });
+    }
+    
+    const parseResult = brandAnalysisSchema.safeParse(analysis);
+    if (!parseResult.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid analysis object structure',
+        details: parseResult.error.issues.map(i => i.message).join(', ')
+      });
+    }
+
+    const matchedAnalysis = await brandAssetMatcher.matchAssets(parseResult.data);
+    
+    res.json({
+      success: true,
+      phase: '14B',
+      matchedAssets: matchedAnalysis.matchedAssets,
+    });
+  } catch (error: any) {
+    console.error('[Phase14B] Asset matching failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/brand-assets/best', isAuthenticated, async (req, res) => {
+  try {
+    const parseResult = brandAssetBestInputSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'purpose is required (product-hero, logo-overlay, watermark, product-group, location)',
+        details: parseResult.error.message
+      });
+    }
+
+    const { purpose, productName } = parseResult.data;
+    const asset = await brandAssetMatcher.getBestAsset(purpose, productName);
+    
+    res.json({
+      success: true,
+      phase: '14B',
+      purpose,
+      asset,
+      hasMatch: asset !== null,
+    });
+  } catch (error: any) {
+    console.error('[Phase14B] Get best asset failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/brand-assets/search', isAuthenticated, async (req, res) => {
+  try {
+    const parseResult = brandAssetSearchInputSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'keywords array is required',
+        details: parseResult.error.message
+      });
+    }
+
+    const { keywords } = parseResult.data;
+    const results = await brandAssetMatcher.searchByKeywords(keywords);
+    
+    res.json({
+      success: true,
+      phase: '14B',
+      totalMatches: results.length,
+      results,
+    });
+  } catch (error: any) {
+    console.error('[Phase14B] Asset search failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 14: Analyze all scenes in a project for brand requirements
+router.get('/projects/:projectId/brand-analysis', isAuthenticated, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const projectData = await getProjectFromDb(projectId);
+    
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const sceneAnalyses = await Promise.all(
+      projectData.scenes.map(async (scene, index) => {
+        const analysis = brandRequirementAnalyzer.analyze(
+          scene.visualDirection || '',
+          scene.narration || ''
+        );
+        
+        const analysisWithAssets = analysis.requiresBrandAssets 
+          ? await brandAssetMatcher.matchAssets(analysis)
+          : analysis;
+        
+        return {
+          sceneIndex: index,
+          sceneId: scene.id,
+          sceneType: scene.type,
+          visualDirection: scene.visualDirection?.substring(0, 100) + '...',
+          analysis: analysisWithAssets,
+        };
+      })
+    );
+
+    const summary = {
+      totalScenes: sceneAnalyses.length,
+      scenesRequiringBrandAssets: sceneAnalyses.filter(s => s.analysis.requiresBrandAssets).length,
+      scenesByType: {
+        'product-hero': sceneAnalyses.filter(s => s.analysis.requirements.sceneType === 'product-hero').length,
+        'product-in-context': sceneAnalyses.filter(s => s.analysis.requirements.sceneType === 'product-in-context').length,
+        'branded-environment': sceneAnalyses.filter(s => s.analysis.requirements.sceneType === 'branded-environment').length,
+        'standard': sceneAnalyses.filter(s => s.analysis.requirements.sceneType === 'standard').length,
+      },
+      totalProductMatches: sceneAnalyses.reduce((sum, s) => sum + s.analysis.matchedAssets.products.length, 0),
+      totalLogoMatches: sceneAnalyses.reduce((sum, s) => sum + s.analysis.matchedAssets.logos.length, 0),
+    };
+
+    res.json({
+      success: true,
+      phase: '14A+14B',
+      projectId,
+      summary,
+      scenes: sceneAnalyses,
+    });
+  } catch (error: any) {
+    console.error('[Phase14] Project brand analysis failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

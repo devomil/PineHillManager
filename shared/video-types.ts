@@ -187,6 +187,15 @@ export interface Scene {
   motionControlSettings?: MotionControlSettings;
   // Phase 13D: Reference image configuration
   referenceConfig?: ReferenceConfig;
+  // Phase 14A: Brand requirement analysis results
+  brandAnalysis?: {
+    confidence: number;
+    sceneType: 'product-hero' | 'product-in-context' | 'branded-environment' | 'standard';
+    productVisibility: 'featured' | 'prominent' | 'visible' | 'background';
+    logoRequired: boolean;
+    matchedProductCount: number;
+    matchedLogoCount: number;
+  };
 }
 
 // Phase 8A: Scene analysis types

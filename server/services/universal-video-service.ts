@@ -16,6 +16,8 @@ import {
   SCENE_OVERLAY_DEFAULTS,
 } from "../../shared/video-types";
 import { brandAssetService } from "./brand-asset-service";
+import { brandRequirementAnalyzer } from "./brand-requirement-analyzer";
+import { brandAssetMatcher } from "./brand-asset-matcher";
 import { aiVideoService } from "./ai-video-service";
 import { soundDesignService, SceneSoundDesign } from "./sound-design-service";
 import { aiMusicService, GeneratedMusic } from "./ai-music-service";
@@ -2620,23 +2622,113 @@ Total: 90 seconds` : ''}
       }
       // ===== END PHASE 13D =====
 
-      // ===== BRAND ASSET RESOLUTION (BEFORE AI GENERATION) =====
-      // Check if visual direction mentions brand assets (logos, Pine Hill Farm, etc.)
+      // ===== PHASE 14A+14B: BRAND ASSET INTELLIGENCE PIPELINE =====
+      // Use the new Brand Requirement Analyzer for smarter detection
       const visualDirection = scene.visualDirection || scene.background?.source || '';
-      if (brandAssetService.shouldUseBrandAssets(visualDirection)) {
-        console.log(`[UniversalVideoService] Brand asset check for scene ${scene.id}: "${visualDirection.substring(0, 80)}..."`);
+      const narration = scene.narration || '';
+      
+      const brandAnalysis = brandRequirementAnalyzer.analyze(visualDirection, narration);
+      
+      if (brandAnalysis.requiresBrandAssets) {
+        console.log(`[Phase14] Brand analysis for scene ${scene.id}:`, {
+          confidence: brandAnalysis.confidence,
+          sceneType: brandAnalysis.requirements.sceneType,
+          productMentioned: brandAnalysis.requirements.productMentioned,
+          productNames: brandAnalysis.requirements.productNames,
+          logoRequired: brandAnalysis.requirements.logoRequired,
+        });
+        
+        try {
+          // Use Phase 14B matcher for intelligent asset matching
+          const analysisWithAssets = await brandAssetMatcher.matchAssets(brandAnalysis);
+          
+          // Store brand analysis on the scene for later use (now properly typed in Scene interface)
+          updatedProject.scenes[i].brandAnalysis = {
+            confidence: analysisWithAssets.confidence,
+            sceneType: analysisWithAssets.requirements.sceneType,
+            productVisibility: analysisWithAssets.requirements.productVisibility,
+            logoRequired: analysisWithAssets.requirements.logoRequired,
+            matchedProductCount: analysisWithAssets.matchedAssets.products.length,
+            matchedLogoCount: analysisWithAssets.matchedAssets.logos.length,
+          };
+          
+          const { products, logos, locations } = analysisWithAssets.matchedAssets;
+          
+          // Use matched product assets
+          if (products.length > 0 && analysisWithAssets.requirements.sceneType !== 'standard') {
+            const bestProduct = products[0];
+            console.log(`[Phase14B] Matched product asset for scene ${scene.id}: ${bestProduct.name}`);
+            
+            // For product-hero scenes, use product as main background
+            if (analysisWithAssets.requirements.sceneType === 'product-hero') {
+              updatedProject.assets.images.push({
+                sceneId: scene.id,
+                url: bestProduct.url,
+                prompt: visualDirection,
+                source: 'uploaded',
+              });
+              updatedProject.scenes[i].assets!.imageUrl = bestProduct.url;
+              updatedProject.scenes[i].assets!.backgroundUrl = bestProduct.url;
+              console.log(`[Phase14B] Using brand product as HERO for scene ${scene.id}`);
+            } 
+            // For product-in-context, use as overlay
+            else if (analysisWithAssets.requirements.sceneType === 'product-in-context') {
+              updatedProject.scenes[i].assets!.productOverlayUrl = bestProduct.url;
+              updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
+              updatedProject.scenes[i].assets!.useProductOverlay = true;
+              console.log(`[Phase14B] Using brand product as OVERLAY for scene ${scene.id}`);
+            }
+          }
+          
+          // Use matched logo assets
+          if (logos.length > 0 && analysisWithAssets.requirements.logoRequired) {
+            const bestLogo = logos[0];
+            updatedProject.scenes[i].assets!.logoUrl = bestLogo.url;
+            const defaultLogoPosition = {
+              position: analysisWithAssets.requirements.brandingVisibility === 'prominent' ? 'center' : 'bottom-right',
+              size: analysisWithAssets.requirements.brandingVisibility === 'prominent' ? 0.25 : 0.15,
+              opacity: analysisWithAssets.requirements.brandingVisibility === 'subtle' ? 0.6 : 0.9,
+            };
+            const placementSettings = bestLogo.placementSettings as { position?: string; size?: number; opacity?: number } | null;
+            updatedProject.scenes[i].assets!.logoPosition = placementSettings && placementSettings.position 
+              ? { position: placementSettings.position, size: placementSettings.size || 0.15, opacity: placementSettings.opacity || 0.9 }
+              : defaultLogoPosition;
+            console.log(`[Phase14B] Adding brand LOGO to scene ${scene.id}: ${bestLogo.name}`);
+          }
+          
+          // Use location assets for branded-environment scenes
+          if (locations.length > 0 && analysisWithAssets.requirements.sceneType === 'branded-environment') {
+            const bestLocation = locations[0];
+            updatedProject.assets.images.push({
+              sceneId: scene.id,
+              url: bestLocation.url,
+              prompt: visualDirection,
+              source: 'uploaded',
+            });
+            updatedProject.scenes[i].assets!.imageUrl = bestLocation.url;
+            updatedProject.scenes[i].assets!.backgroundUrl = bestLocation.url;
+            console.log(`[Phase14B] Using brand LOCATION for scene ${scene.id}: ${bestLocation.name}`);
+          }
+          
+          // If we found brand assets for product-hero or branded-environment, skip AI generation
+          if ((products.length > 0 && analysisWithAssets.requirements.sceneType === 'product-hero') ||
+              (locations.length > 0 && analysisWithAssets.requirements.sceneType === 'branded-environment')) {
+            updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+            continue;
+          }
+        } catch (error: any) {
+          console.error(`[Phase14] Brand asset matching failed for scene ${scene.id}:`, error.message);
+        }
+      }
+      
+      // Fallback to legacy brand asset service for compatibility
+      if (brandAssetService.shouldUseBrandAssets(visualDirection) && !brandAnalysis.requiresBrandAssets) {
+        console.log(`[UniversalVideoService] Legacy brand asset check for scene ${scene.id}`);
         
         try {
           const brandAssets = await brandAssetService.resolveAssetsFromVisualDirection(visualDirection, scene.type);
           
           if (brandAssets.hasMatch) {
-            console.log(`[UniversalVideoService] Found brand assets for scene ${scene.id}:`, {
-              hasLogo: !!brandAssets.logo,
-              photoCount: brandAssets.photos.length,
-              videoCount: brandAssets.videos.length,
-            });
-            
-            // Use brand video if available for video scenes
             if (brandAssets.videos.length > 0 && ['hook', 'benefit', 'story', 'intro'].includes(scene.type)) {
               const brandVideo = brandAssets.videos[0];
               updatedProject.scenes[i].background = {
@@ -2645,45 +2737,36 @@ Total: 90 seconds` : ''}
                 videoUrl: brandVideo.url,
               };
               updatedProject.scenes[i].assets!.videoUrl = brandVideo.url;
-              console.log(`[UniversalVideoService] Using brand VIDEO for scene ${scene.id}: ${brandVideo.name}`);
-            }
-            // Use brand photo if available
-            else if (brandAssets.photos.length > 0) {
+            } else if (brandAssets.photos.length > 0) {
               const brandPhoto = brandAssets.photos[0];
               updatedProject.assets.images.push({
                 sceneId: scene.id,
                 url: brandPhoto.url,
                 prompt: visualDirection,
-                source: 'uploaded', // Brand library assets treated as uploaded
+                source: 'uploaded',
               });
               updatedProject.scenes[i].assets!.imageUrl = brandPhoto.url;
               updatedProject.scenes[i].assets!.backgroundUrl = brandPhoto.url;
-              console.log(`[UniversalVideoService] Using brand PHOTO for scene ${scene.id}: ${brandPhoto.name}`);
             }
             
-            // Add logo overlay if logo mentioned and available
             if (brandAssets.logo && visualDirection.toLowerCase().includes('logo')) {
               updatedProject.scenes[i].assets!.logoUrl = brandAssets.logo.url;
-              updatedProject.scenes[i].assets!.logoPosition = brandAssets.logo.placementSettings || {
-                position: 'bottom-right',
-                size: 0.15,
-                opacity: 0.9,
-              };
-              console.log(`[UniversalVideoService] Adding brand LOGO overlay to scene ${scene.id}: ${brandAssets.logo.name}`);
+              const legacyPlacement = brandAssets.logo.placementSettings as { position?: string; size?: number; opacity?: number } | null;
+              updatedProject.scenes[i].assets!.logoPosition = legacyPlacement && legacyPlacement.position
+                ? { position: legacyPlacement.position, size: legacyPlacement.size || 0.15, opacity: legacyPlacement.opacity || 0.9 }
+                : { position: 'bottom-right', size: 0.15, opacity: 0.9 };
             }
             
-            // If we found brand assets, skip AI generation for this scene
             if (brandAssets.photos.length > 0 || brandAssets.videos.length > 0) {
               updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
-              continue; // Skip to next scene - we have brand assets
+              continue;
             }
           }
         } catch (error: any) {
-          console.error(`[UniversalVideoService] Brand asset resolution failed for scene ${scene.id}:`, error.message);
-          // Continue with normal AI generation
+          console.error(`[UniversalVideoService] Legacy brand asset resolution failed:`, error.message);
         }
       }
-      // ===== END BRAND ASSET RESOLUTION =====
+      // ===== END PHASE 14A+14B BRAND ASSET INTELLIGENCE =====
 
       if (scene.assets?.assignedProductImageId) {
         const assignedImage = productImages.find(img => img.id === scene.assets?.assignedProductImageId);
