@@ -4996,6 +4996,10 @@ export const brandMediaLibrary = pgTable("brand_media_library", {
   // Asset type: logo, photo, video, graphic, watermark, intro, outro, lower_third
   mediaType: varchar("media_type", { length: 50 }).notNull(),
   
+  // Structured asset type from taxonomy (Phase 14 Addendum)
+  // e.g., "product-hero-single", "logo-primary-color", "people-founder-portrait"
+  assetType: varchar("asset_type", { length: 100 }),
+  
   // Entity association (e.g., "Pine Hill Farm", "Wellness Center", "BioScan")
   entityName: varchar("entity_name", { length: 255 }),
   entityType: varchar("entity_type", { length: 100 }), // brand, location, product, service, equipment
@@ -5028,6 +5032,14 @@ export const brandMediaLibrary = pgTable("brand_media_library", {
   // Default placement settings for this asset
   placementSettings: jsonb("placement_settings"), // position, size, opacity, animation
   
+  // Person-specific metadata (Phase 14 Addendum)
+  // { name?: string, title?: string, credentials?: string, consentObtained: boolean }
+  personInfo: jsonb("person_info"),
+  
+  // Product-specific metadata (Phase 14 Addendum)
+  // { productName?: string, sku?: string }
+  productInfo: jsonb("product_info"),
+  
   // Priority when multiple assets match (higher = prefer)
   priority: integer("priority").default(0),
   
@@ -5045,6 +5057,7 @@ export const brandMediaLibrary = pgTable("brand_media_library", {
   entityNameIdx: index("idx_brand_media_library_entity").on(table.entityName),
   entityTypeIdx: index("idx_brand_media_library_entity_type").on(table.entityType),
   isActiveIdx: index("idx_brand_media_library_active").on(table.isActive),
+  assetTypeIdx: index("idx_brand_media_library_asset_type").on(table.assetType),
 }));
 
 export const brandMediaLibraryRelations = relations(brandMediaLibrary, ({ one }) => ({
