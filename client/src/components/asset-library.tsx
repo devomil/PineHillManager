@@ -35,6 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { AssetUploadModal, type AssetMetadata } from './AssetUploadModal';
+import { ASSET_CATEGORIES as TAXONOMY_CATEGORIES, getAssetType } from '@shared/brand-asset-types';
 
 type AssetType = 'image' | 'video' | 'music' | 'all';
 type ViewMode = 'grid' | 'list';
@@ -75,6 +76,7 @@ interface BrandMedia {
   name: string;
   description?: string;
   mediaType: 'logo' | 'photo' | 'video' | 'graphic' | 'watermark';
+  assetType?: string | null;
   entityName?: string;
   entityType?: string;
   url: string;
@@ -86,6 +88,8 @@ interface BrandMedia {
   isDefault: boolean;
   isActive: boolean;
   createdAt: string;
+  personInfo?: { name?: string; title?: string; credentials?: string; consentObtained: boolean } | null;
+  productInfo?: { productName?: string; sku?: string } | null;
 }
 
 interface UnifiedMediaAsset {
@@ -168,6 +172,7 @@ export default function AssetLibrary() {
     url: '',
     matchKeywords: '',
     usageContexts: '',
+    assetType: '',
   });
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementPreview, setReplacementPreview] = useState<string | null>(null);
@@ -994,6 +999,7 @@ export default function AssetLibrary() {
                                 url: asset.url,
                                 matchKeywords: asset.matchKeywords.join(', '),
                                 usageContexts: asset.usageContexts.join(', '),
+                                assetType: asset.assetType || '',
                               });
                             }}
                           >
@@ -1207,6 +1213,39 @@ export default function AssetLibrary() {
                 data-testid="brand-edit-contexts"
               />
             </div>
+            
+            {/* Asset Type Taxonomy */}
+            <div>
+              <Label>Asset Type (Taxonomy)</Label>
+              <Select 
+                value={brandEditForm.assetType || ''} 
+                onValueChange={(v) => setBrandEditForm({ ...brandEditForm, assetType: v })}
+              >
+                <SelectTrigger data-testid="brand-edit-asset-type">
+                  <SelectValue placeholder="Select asset type..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  <SelectItem value="">None (Legacy)</SelectItem>
+                  {TAXONOMY_CATEGORIES.map((category) => (
+                    <div key={category.id}>
+                      <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                        {category.label}
+                      </div>
+                      {category.types.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+              {brandEditForm.assetType && getAssetType(brandEditForm.assetType) && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {getAssetType(brandEditForm.assetType)?.description}
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -1266,6 +1305,7 @@ export default function AssetLibrary() {
                       thumbnailUrl: thumbnailUrl,
                       matchKeywords: brandEditForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
                       usageContexts: brandEditForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
+                      assetType: brandEditForm.assetType || null,
                     }
                   });
                   
@@ -1576,6 +1616,7 @@ export default function AssetLibrary() {
                           url: selectedBrandAsset.url,
                           matchKeywords: selectedBrandAsset.matchKeywords.join(', '),
                           usageContexts: selectedBrandAsset.usageContexts.join(', '),
+                          assetType: selectedBrandAsset.assetType || '',
                         });
                       }}
                     >
