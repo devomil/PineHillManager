@@ -1651,9 +1651,13 @@ export function getAssetType(typeId: string): AssetType | null {
   return BRAND_ASSET_TYPES[typeId] || null;
 }
 
+export const getAssetTypeById = getAssetType;
+
 export function getTypesByCategory(categoryId: string): AssetType[] {
   return Object.values(BRAND_ASSET_TYPES).filter(t => t.category === categoryId);
 }
+
+export const getAssetTypesByCategory = getTypesByCategory;
 
 export function findMatchingAssetTypes(prompt: string): string[] {
   const lower = prompt.toLowerCase();

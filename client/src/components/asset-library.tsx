@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { AssetUploadModal, type AssetMetadata } from './AssetUploadModal';
 
 type AssetType = 'image' | 'video' | 'music' | 'all';
 type ViewMode = 'grid' | 'list';
@@ -172,6 +173,7 @@ export default function AssetLibrary() {
   const [replacementPreview, setReplacementPreview] = useState<string | null>(null);
   const [isUploadingReplacement, setIsUploadingReplacement] = useState(false);
   const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+  const [isNewUploadModalOpen, setIsNewUploadModalOpen] = useState(false);
   const [newBrandFile, setNewBrandFile] = useState<File | null>(null);
   const [newBrandPreview, setNewBrandPreview] = useState<string | null>(null);
   const [newBrandForm, setNewBrandForm] = useState({
@@ -379,6 +381,84 @@ export default function AssetLibrary() {
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleNewUpload = async (file: File, metadata: AssetMetadata) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', metadata.name);
+      if (metadata.description) formData.append('description', metadata.description);
+      formData.append('assetType', metadata.assetType);
+      formData.append('tags', JSON.stringify(metadata.tags || []));
+      if (metadata.personInfo) formData.append('personInfo', JSON.stringify(metadata.personInfo));
+      if (metadata.productInfo) formData.append('productInfo', JSON.stringify(metadata.productInfo));
+      
+      const uploadResponse = await fetch('/api/videos/uploads', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload file');
+      }
+      
+      const uploadResult = await uploadResponse.json();
+      const newUrl = uploadResult.upload?.url || uploadResult.url;
+      
+      if (!newUrl) {
+        throw new Error('No URL returned from upload');
+      }
+      
+      const assetCategory = metadata.assetType.split('-')[0];
+      let mediaType = 'photo';
+      let entityType = 'brand';
+      
+      if (assetCategory === 'product') {
+        mediaType = 'photo';
+        entityType = 'product';
+      } else if (assetCategory === 'logo') {
+        mediaType = 'logo';
+        entityType = 'brand';
+      } else if (assetCategory === 'location') {
+        mediaType = 'photo';
+        entityType = 'location';
+      } else if (assetCategory === 'people') {
+        mediaType = 'photo';
+        entityType = 'person';
+      } else if (assetCategory === 'creative') {
+        if (file.type.startsWith('video/')) {
+          mediaType = 'video';
+        } else {
+          mediaType = 'graphic';
+        }
+      }
+      
+      createBrandAssetMutation.mutate({
+        name: metadata.name,
+        description: metadata.description || '',
+        mediaType,
+        entityName: metadata.productInfo?.productName || '',
+        entityType,
+        url: newUrl,
+        thumbnailUrl: newUrl,
+        matchKeywords: metadata.tags || [],
+        usageContexts: [],
+        assetType: metadata.assetType,
+        personInfo: metadata.personInfo || null,
+        productInfo: metadata.productInfo || null,
+      });
+      
+      setIsNewUploadModalOpen(false);
+    } catch (error) {
+      console.error('Error uploading brand asset:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to upload brand asset',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -846,7 +926,7 @@ export default function AssetLibrary() {
                   Manage brand assets like logos, store photos, and location images. These are automatically matched during video generation.
                 </p>
                 <Button 
-                  onClick={() => setIsCreatingBrand(true)}
+                  onClick={() => setIsNewUploadModalOpen(true)}
                   data-testid="add-brand-asset-btn"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -868,7 +948,7 @@ export default function AssetLibrary() {
                   <p className="text-gray-500 mb-4 max-w-md">
                     Add logos, store photos, and branded imagery to automatically include in video productions.
                   </p>
-                  <Button onClick={() => setIsCreatingBrand(true)} data-testid="add-brand-asset-empty">
+                  <Button onClick={() => setIsNewUploadModalOpen(true)} data-testid="add-brand-asset-empty">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Your First Brand Asset
                   </Button>
@@ -1827,6 +1907,13 @@ export default function AssetLibrary() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* New Structured Asset Upload Modal */}
+      <AssetUploadModal
+        isOpen={isNewUploadModalOpen}
+        onClose={() => setIsNewUploadModalOpen(false)}
+        onUpload={handleNewUpload}
+      />
     </div>
   );
 }
