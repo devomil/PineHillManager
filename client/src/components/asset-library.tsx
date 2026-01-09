@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   Image, 
   Video, 
@@ -1224,20 +1225,24 @@ export default function AssetLibrary() {
                 <SelectTrigger data-testid="brand-edit-asset-type">
                   <SelectValue placeholder="Select asset type..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
+                <SelectContent className="max-h-[400px] overflow-y-auto">
                   <SelectItem value="none">None (Legacy)</SelectItem>
-                  {TAXONOMY_CATEGORIES.map((category) => (
-                    <div key={category.id}>
-                      <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
-                        {category.label}
-                      </div>
-                      {category.types.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </div>
-                  ))}
+                  <Accordion type="single" collapsible className="w-full">
+                    {TAXONOMY_CATEGORIES.map((category) => (
+                      <AccordionItem key={category.id} value={category.id} className="border-b-0">
+                        <AccordionTrigger className="px-2 py-1.5 text-xs font-semibold text-gray-600 hover:no-underline hover:bg-gray-50">
+                          {category.label}
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-0">
+                          {category.types.map((type) => (
+                            <SelectItem key={type.id} value={type.id} className="pl-4">
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                 </SelectContent>
               </Select>
               {brandEditForm.assetType && getAssetType(brandEditForm.assetType) && (

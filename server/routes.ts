@@ -18149,6 +18149,7 @@ Respond in JSON format:
           placementSettings: data.placementSettings,
           priority: data.priority,
           isDefault: data.isDefault,
+          assetType: data.assetType || null,
           updatedAt: new Date(),
         })
         .where(eq(brandMediaLibrary.id, id))
