@@ -195,8 +195,14 @@ export default function AssetLibrary() {
     mediaType: 'photo',
     entityName: '',
     entityType: 'brand',
-    matchKeywords: '',
-    usageContexts: '',
+    assetCategory: '',
+    assetType: '',
+    personName: '',
+    personTitle: '',
+    personCredentials: '',
+    consentObtained: false,
+    productName: '',
+    productSku: '',
   });
 
   const { data: assetsData, isLoading: isLoadingAssets } = useQuery<{ assets: MediaAsset[]; total: number }>({
@@ -259,8 +265,14 @@ export default function AssetLibrary() {
         mediaType: 'photo',
         entityName: '',
         entityType: 'brand',
-        matchKeywords: '',
-        usageContexts: '',
+        assetCategory: '',
+        assetType: '',
+        personName: '',
+        personTitle: '',
+        personCredentials: '',
+        consentObtained: false,
+        productName: '',
+        productSku: '',
       });
     },
     onError: () => {
@@ -1542,23 +1554,126 @@ export default function AssetLibrary() {
               />
             </div>
 
-            <div>
-              <Label>Match Keywords (comma-separated)</Label>
-              <Input
-                value={newBrandForm.matchKeywords}
-                onChange={(e) => setNewBrandForm({ ...newBrandForm, matchKeywords: e.target.value })}
-                placeholder="e.g., logo, brand, pine hill farm"
-              />
+            {/* Category Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Category *</Label>
+                <Select 
+                  value={newBrandForm.assetCategory || ''} 
+                  onValueChange={(v) => setNewBrandForm({ 
+                    ...newBrandForm, 
+                    assetCategory: v,
+                    assetType: '',
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TAXONOMY_CATEGORIES.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Asset Type {newBrandForm.assetCategory ? '*' : ''}</Label>
+                <Select 
+                  value={newBrandForm.assetType || ''} 
+                  onValueChange={(v) => setNewBrandForm({ ...newBrandForm, assetType: v })}
+                  disabled={!newBrandForm.assetCategory}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={newBrandForm.assetCategory ? 'Select type...' : 'Select category first'} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {newBrandForm.assetCategory && getTypesByCategory(newBrandForm.assetCategory).map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div>
-              <Label>Usage Contexts (comma-separated)</Label>
-              <Input
-                value={newBrandForm.usageContexts}
-                onChange={(e) => setNewBrandForm({ ...newBrandForm, usageContexts: e.target.value })}
-                placeholder="e.g., intro, outro, overlay"
-              />
-            </div>
+            {/* Conditional Person Info */}
+            {newBrandForm.assetCategory === 'people' && (
+              <div className="space-y-3 p-3 bg-blue-50 border border-blue-100 rounded-md">
+                <Label className="text-sm font-medium text-blue-800">Person Details</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      value={newBrandForm.personName}
+                      onChange={(e) => setNewBrandForm({ ...newBrandForm, personName: e.target.value })}
+                      placeholder="e.g., Dr. Sarah Johnson"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Title</Label>
+                    <Input
+                      value={newBrandForm.personTitle}
+                      onChange={(e) => setNewBrandForm({ ...newBrandForm, personTitle: e.target.value })}
+                      placeholder="e.g., Wellness Director"
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Credentials</Label>
+                  <Input
+                    value={newBrandForm.personCredentials}
+                    onChange={(e) => setNewBrandForm({ ...newBrandForm, personCredentials: e.target.value })}
+                    placeholder="e.g., MD, PhD"
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="new-consent-checkbox"
+                    checked={newBrandForm.consentObtained}
+                    onChange={(e) => setNewBrandForm({ ...newBrandForm, consentObtained: e.target.checked })}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="new-consent-checkbox" className="text-xs font-normal cursor-pointer">
+                    Consent obtained for marketing use
+                  </Label>
+                </div>
+              </div>
+            )}
+
+            {/* Conditional Product Info */}
+            {newBrandForm.assetCategory === 'products' && (
+              <div className="space-y-3 p-3 bg-green-50 border border-green-100 rounded-md">
+                <Label className="text-sm font-medium text-green-800">Product Details</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Product Name</Label>
+                    <Input
+                      value={newBrandForm.productName}
+                      onChange={(e) => setNewBrandForm({ ...newBrandForm, productName: e.target.value })}
+                      placeholder="e.g., CBD Tincture 500mg"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">SKU</Label>
+                    <Input
+                      value={newBrandForm.productSku}
+                      onChange={(e) => setNewBrandForm({ ...newBrandForm, productSku: e.target.value })}
+                      placeholder="e.g., PHF-CBD-500"
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreatingBrand(false)}>
@@ -1581,7 +1696,7 @@ export default function AssetLibrary() {
                   formData.append('file', newBrandFile);
                   formData.append('type', newBrandForm.mediaType === 'video' ? 'video' : 'image');
                   formData.append('name', newBrandForm.name);
-                  formData.append('tags', newBrandForm.matchKeywords);
+                  formData.append('tags', newBrandForm.assetType || '');
                   
                   const uploadResponse = await fetch('/api/videos/uploads', {
                     method: 'POST',
@@ -1600,6 +1715,18 @@ export default function AssetLibrary() {
                     throw new Error('No URL returned from upload');
                   }
                   
+                  const personInfo = newBrandForm.assetCategory === 'people' ? {
+                    name: newBrandForm.personName || null,
+                    title: newBrandForm.personTitle || null,
+                    credentials: newBrandForm.personCredentials || null,
+                    consentObtained: newBrandForm.consentObtained,
+                  } : null;
+                  
+                  const productInfo = newBrandForm.assetCategory === 'products' ? {
+                    productName: newBrandForm.productName || null,
+                    sku: newBrandForm.productSku || null,
+                  } : null;
+                  
                   createBrandAssetMutation.mutate({
                     name: newBrandForm.name,
                     description: newBrandForm.description,
@@ -1608,8 +1735,12 @@ export default function AssetLibrary() {
                     entityType: newBrandForm.entityType,
                     url: newUrl,
                     thumbnailUrl: newUrl,
-                    matchKeywords: newBrandForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
-                    usageContexts: newBrandForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
+                    matchKeywords: [],
+                    usageContexts: [],
+                    assetCategory: newBrandForm.assetCategory || null,
+                    assetType: newBrandForm.assetType || null,
+                    personInfo,
+                    productInfo,
                   });
                 } catch (error) {
                   console.error('Error creating brand asset:', error);
@@ -1674,25 +1805,17 @@ export default function AssetLibrary() {
                       <p className="text-sm text-gray-700">{selectedBrandAsset.description}</p>
                     </div>
                   )}
-                  <div>
-                    <Label className="text-xs text-gray-500">Match Keywords</Label>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedBrandAsset.matchKeywords.map((kw) => (
-                        <Badge key={kw} variant="outline" className="text-xs">
-                          #{kw}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  {selectedBrandAsset.usageContexts.length > 0 && (
+                  {/* Category & Asset Type (New Taxonomy) */}
+                  {selectedBrandAsset.assetType && getAssetType(selectedBrandAsset.assetType) && (
                     <div>
-                      <Label className="text-xs text-gray-500">Usage Contexts</Label>
+                      <Label className="text-xs text-gray-500">Category & Type</Label>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedBrandAsset.usageContexts.map((ctx) => (
-                          <Badge key={ctx} variant="secondary" className="text-xs">
-                            {ctx}
-                          </Badge>
-                        ))}
+                        <Badge variant="default" className="text-xs">
+                          {TAXONOMY_CATEGORIES.find(c => c.id === getAssetType(selectedBrandAsset.assetType!)?.category)?.label || 'Unknown'}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {getAssetType(selectedBrandAsset.assetType!)?.label}
+                        </Badge>
                       </div>
                     </div>
                   )}
