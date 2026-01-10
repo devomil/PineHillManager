@@ -33,6 +33,7 @@ import {
 import { ContentTypeWarning } from './scene-editor/ContentTypeWarning';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import QualityTierSelector, { type QualityTier } from './quality-tier-selector';
 
 interface ProviderCostBreakdown {
@@ -949,7 +950,17 @@ export function GenerationPreviewPanel({
           <Button variant="ghost" onClick={onCancel} disabled={isGenerating} data-testid="button-cancel">
             Cancel
           </Button>
-          <Button onClick={onGenerate} disabled={isGenerating} className="gap-2" data-testid="button-generate">
+          <Button 
+            onClick={onGenerate} 
+            disabled={isGenerating} 
+            className={cn(
+              "gap-2",
+              qualityTier === 'ultra' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
+              qualityTier === 'premium' ? 'bg-amber-600 hover:bg-amber-700 text-white' :
+              'bg-blue-600 hover:bg-blue-700 text-white'
+            )}
+            data-testid="button-generate"
+          >
             {isGenerating ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
