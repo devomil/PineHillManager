@@ -11,9 +11,37 @@ import {
   SERVICES_ASSET_TYPES,
   CREATIVE_ASSET_TYPES,
   AssetType,
+  AssetCategory,
   getAssetTypeById,
-  getAssetTypesByCategory
+  getAssetTypesByCategory,
+  findMatchingAssetTypes,
+  ASSET_CATEGORIES,
+  BRAND_ASSET_TYPES,
 } from '../../shared/brand-asset-types';
+
+export interface AssetMatch {
+  asset: BrandMedia;
+  assetTypeDefinition: AssetType | null;
+  matchScore: number;
+  matchedKeywords: string[];
+  matchReason: string;
+}
+
+export interface GroupedAssetMatches {
+  category: string;
+  categoryLabel: string;
+  assets: AssetMatch[];
+}
+
+export interface VisualDirectionMatchResult {
+  totalMatches: number;
+  hasBrandAssets: boolean;
+  hasLocationAsset: boolean;
+  hasProductAsset: boolean;
+  hasLogoAsset: boolean;
+  groupedMatches: GroupedAssetMatches[];
+  matches: AssetMatch[];
+}
 
 class BrandAssetMatcher {
   
@@ -370,7 +398,7 @@ class BrandAssetMatcher {
           asset,
           score: matchedKeywords.length * 10 + (asset.priority || 0) + declaredBonus,
           matchedKeywords,
-          matchType: asset.assetType ? 'declared' : (matchedKeywords.length > 2 ? 'exact' : 'keyword'),
+          matchType: asset.assetType ? 'exact' : (matchedKeywords.length > 2 ? 'exact' : 'keyword'),
         });
       }
     }
@@ -401,6 +429,234 @@ class BrandAssetMatcher {
     }
     
     return stats;
+  }
+
+  /**
+   * Phase 15D: Taxonomy-based asset matching
+   * Find brand assets that match a visual direction using promptKeywords from asset type definitions
+   * Supports both classified and unclassified assets via direct keyword matching
+   */
+  async findMatchingBrandAssets(visualDirection: string): Promise<VisualDirectionMatchResult> {
+    const trimmedDirection = (visualDirection || '').trim();
+    if (!trimmedDirection || trimmedDirection.length < 3) {
+      console.log('[AssetMatcher] Visual direction too short, returning empty result');
+      return this.emptyMatchResult();
+    }
+    
+    const lowerDirection = trimmedDirection.toLowerCase();
+    
+    // Step 1: Find which asset TYPES match the visual direction using taxonomy
+    // This returns a prioritized, deterministic list ordered by match strength
+    const matchingTypeIds = findMatchingAssetTypes(trimmedDirection);
+    
+    console.log(`[AssetMatcher] Visual direction: "${trimmedDirection.substring(0, 60)}..."`);
+    console.log(`[AssetMatcher] Matching asset types from taxonomy: ${matchingTypeIds.slice(0, 5).join(', ')}`);
+    
+    // Step 2: Fetch assets - filter by matching types if any, otherwise fetch all
+    let assetsToScore: BrandMedia[];
+    
+    if (matchingTypeIds.length > 0) {
+      // Optimized: Fetch only assets that match taxonomy OR have no type assigned
+      assetsToScore = await db.select()
+        .from(brandMediaLibrary)
+        .where(
+          and(
+            eq(brandMediaLibrary.isActive, true),
+            or(
+              inArray(brandMediaLibrary.assetType, matchingTypeIds),
+              sql`${brandMediaLibrary.assetType} IS NULL`
+            )
+          )
+        );
+    } else {
+      // Fallback: Fetch all active assets for keyword matching
+      assetsToScore = await db.select()
+        .from(brandMediaLibrary)
+        .where(eq(brandMediaLibrary.isActive, true));
+    }
+    
+    if (assetsToScore.length === 0) {
+      console.log('[AssetMatcher] No assets to score in library');
+      return this.emptyMatchResult();
+    }
+    
+    // Step 3: Collect all promptKeywords from matching types for unclassified assets
+    const allMatchingKeywords: string[] = [];
+    for (const typeId of matchingTypeIds.slice(0, 20)) {
+      const typeDef = getAssetTypeById(typeId);
+      if (typeDef) {
+        allMatchingKeywords.push(...typeDef.promptKeywords);
+      }
+    }
+    
+    // Step 4: Score each asset based on taxonomy matching
+    const matches: AssetMatch[] = [];
+    
+    for (const asset of assetsToScore) {
+      let score = 0;
+      const matchedKeywords: string[] = [];
+      let matchReason = '';
+      
+      // Case A: Asset has a declared assetType that matches taxonomy
+      if (asset.assetType && matchingTypeIds.includes(asset.assetType)) {
+        const typeDef = getAssetTypeById(asset.assetType);
+        if (typeDef) {
+          // Score based on promptKeywords that match the visual direction
+          for (const keyword of typeDef.promptKeywords) {
+            if (lowerDirection.includes(keyword.toLowerCase())) {
+              score += keyword.length; // Longer keywords = more specific = higher score
+              matchedKeywords.push(keyword);
+            }
+          }
+          
+          // Bonus for type position in match order (first match = highest priority)
+          // Uses formula: max(0, 20 - index * 2) per Phase 15D spec
+          const typeIndex = matchingTypeIds.indexOf(asset.assetType);
+          if (typeIndex >= 0) {
+            score += Math.max(0, 20 - typeIndex * 2);
+          }
+          
+          // Base bonus for having a declared type that matches
+          if (matchedKeywords.length > 0 || typeIndex < 5) {
+            score += 25;
+          }
+          
+          matchReason = `Taxonomy match: ${typeDef.label}`;
+        }
+      }
+      // Case B: Asset has no type - use keyword matching from all matched types
+      else if (!asset.assetType && allMatchingKeywords.length > 0) {
+        const assetText = `${asset.name || ''} ${asset.description || ''} ${(asset.matchKeywords || []).join(' ')}`.toLowerCase();
+        
+        for (const keyword of allMatchingKeywords) {
+          if (assetText.includes(keyword.toLowerCase()) || lowerDirection.includes(keyword.toLowerCase())) {
+            if (!matchedKeywords.includes(keyword)) {
+              score += keyword.length;
+              matchedKeywords.push(keyword);
+            }
+          }
+        }
+        
+        if (matchedKeywords.length > 0) {
+          matchReason = `Keyword match (${matchedKeywords.length} keywords)`;
+        }
+      }
+      
+      // Additional scoring: Check asset name/description for direct matches
+      
+      // Check for direct asset name match in visual direction
+      if (asset.name && lowerDirection.includes(asset.name.toLowerCase())) {
+        score += 50;
+        if (!matchedKeywords.includes(`name: ${asset.name}`)) {
+          matchedKeywords.push(`name: ${asset.name}`);
+        }
+        matchReason = matchReason ? `${matchReason} + name match` : `Name match: ${asset.name}`;
+      }
+      
+      // Check for entity name match (e.g., "Pine Hill Farm")
+      if (asset.entityName && lowerDirection.includes(asset.entityName.toLowerCase())) {
+        score += 40;
+        if (!matchedKeywords.includes(`entity: ${asset.entityName}`)) {
+          matchedKeywords.push(`entity: ${asset.entityName}`);
+        }
+        matchReason = matchReason ? `${matchReason} + entity match` : `Entity match: ${asset.entityName}`;
+      }
+      
+      // Priority and default bonuses
+      if (asset.priority) {
+        score += asset.priority;
+      }
+      if (asset.isDefault) {
+        score += 5;
+      }
+      
+      // Only include assets with positive scores
+      if (score > 0) {
+        const typeDef = asset.assetType ? getAssetTypeById(asset.assetType) : null;
+        matches.push({
+          asset,
+          assetTypeDefinition: typeDef,
+          matchScore: score,
+          matchedKeywords,
+          matchReason: matchReason || 'Keyword match',
+        });
+      }
+    }
+    
+    // Step 4: Sort by score descending
+    matches.sort((a, b) => b.matchScore - a.matchScore);
+    
+    console.log(`[AssetMatcher] Found ${matches.length} matching assets`);
+    matches.slice(0, 3).forEach(m => {
+      console.log(`  - ${m.asset.name} (${m.asset.assetType || 'no type'}): score ${m.matchScore}, reason: ${m.matchReason}`);
+    });
+    
+    // Step 5: Group by category
+    const groupedMatches = this.groupMatchesByCategory(matches);
+    
+    // Step 6: Build result
+    const hasLocationAsset = matches.some(m => m.assetTypeDefinition?.category === 'location');
+    const hasProductAsset = matches.some(m => m.assetTypeDefinition?.category === 'products');
+    const hasLogoAsset = matches.some(m => m.assetTypeDefinition?.category === 'logos');
+    
+    return {
+      totalMatches: matches.length,
+      hasBrandAssets: matches.length > 0,
+      hasLocationAsset,
+      hasProductAsset,
+      hasLogoAsset,
+      groupedMatches,
+      matches,
+    };
+  }
+
+  /**
+   * Group matched assets by category for UI display
+   */
+  groupMatchesByCategory(matches: AssetMatch[]): GroupedAssetMatches[] {
+    const groups: Record<string, AssetMatch[]> = {};
+    
+    for (const match of matches) {
+      const category = match.assetTypeDefinition?.category || 'uncategorized';
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(match);
+    }
+    
+    // Convert to array with labels
+    const result: GroupedAssetMatches[] = [];
+    
+    for (const categoryId of Object.keys(groups)) {
+      const categoryMatches = groups[categoryId];
+      const categoryDef = ASSET_CATEGORIES.find(c => c.id === categoryId);
+      result.push({
+        category: categoryId,
+        categoryLabel: categoryDef?.label || categoryId,
+        assets: categoryMatches,
+      });
+    }
+    
+    // Sort categories by total match score
+    result.sort((a, b) => {
+      const scoreA = a.assets.reduce((sum, m) => sum + m.matchScore, 0);
+      const scoreB = b.assets.reduce((sum, m) => sum + m.matchScore, 0);
+      return scoreB - scoreA;
+    });
+    
+    return result;
+  }
+
+  private emptyMatchResult(): VisualDirectionMatchResult {
+    return {
+      totalMatches: 0,
+      hasBrandAssets: false,
+      hasLocationAsset: false,
+      hasProductAsset: false,
+      hasLogoAsset: false,
+      groupedMatches: [],
+      matches: [],
+    };
   }
 }
 

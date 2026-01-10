@@ -18200,6 +18200,58 @@ Respond in JSON format:
     }
   });
 
+  // ========== PHASE 15D: Taxonomy-based Asset Matching ==========
+  
+  // Match brand assets to a visual direction using taxonomy-based matching
+  app.post('/api/brand-media-library/match', isAuthenticated, async (req, res) => {
+    try {
+      const { visualDirection } = req.body;
+      
+      if (!visualDirection || typeof visualDirection !== 'string') {
+        return res.status(400).json({ error: 'visualDirection is required and must be a string' });
+      }
+      
+      const trimmedDirection = visualDirection.trim();
+      if (trimmedDirection.length < 3) {
+        return res.status(400).json({ error: 'visualDirection must be at least 3 characters' });
+      }
+      
+      if (trimmedDirection.length > 5000) {
+        return res.status(400).json({ error: 'visualDirection exceeds maximum length of 5000 characters' });
+      }
+      
+      console.log(`[Asset Match API] Matching assets for: "${trimmedDirection.substring(0, 60)}..."`);
+      
+      const { brandAssetMatcher } = await import('./services/brand-asset-matcher');
+      const result = await brandAssetMatcher.findMatchingBrandAssets(trimmedDirection);
+      
+      // Format response for API consumption
+      res.json({
+        totalMatches: result.totalMatches,
+        hasBrandAssets: result.hasBrandAssets,
+        hasLocationAsset: result.hasLocationAsset,
+        hasProductAsset: result.hasProductAsset,
+        hasLogoAsset: result.hasLogoAsset,
+        groupedMatches: result.groupedMatches,
+        matches: result.matches.map(m => ({
+          assetId: m.asset.id,
+          assetName: m.asset.name,
+          assetType: m.asset.assetType,
+          assetTypeLabel: m.assetTypeDefinition?.label || null,
+          category: m.assetTypeDefinition?.category || 'uncategorized',
+          fileUrl: m.asset.url,
+          thumbnailUrl: m.asset.thumbnailUrl,
+          matchScore: m.matchScore,
+          matchReason: m.matchReason,
+          matchedKeywords: m.matchedKeywords,
+        })),
+      });
+    } catch (error) {
+      console.error('[Brand Media Library] Asset matching error:', error);
+      res.status(500).json({ error: 'Asset matching failed' });
+    }
+  });
+
   // ========== PHASE 11E: ASSET LIBRARY (AI-Generated Assets Reuse) ==========
   
   // Get assets from library with filters
