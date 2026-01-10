@@ -35,6 +35,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import QualityTierSelector, { type QualityTier } from './quality-tier-selector';
+import { MediaTypeIndicator, type MediaType } from './media-type-indicator';
+import { QualityWarning } from './quality-warning';
 
 interface ProviderCostBreakdown {
   displayName: string;
@@ -107,6 +109,9 @@ interface GenerationEstimate {
     providerReason?: string;
     confidence?: number;
     alternatives?: string[];
+    mediaType?: 't2v' | 'i2v' | 'image-motion' | 'stock';
+    mediaTypeReason?: string;
+    forcedByTier?: boolean;
     intelligence?: {
       analysisStatus: 'pending' | 'complete' | 'error';
       textPlacement?: {
@@ -770,6 +775,22 @@ export function GenerationPreviewPanel({
           </div>
         )}
 
+        {/* Phase 15G: Quality Warning for Standard Tier */}
+        {(() => {
+          const imageMotionCount = estimate.sceneBreakdown.filter(s => s.mediaType === 'image-motion').length;
+          const tier = selectedTier || estimate.qualityTier || 'standard';
+          if (imageMotionCount > 0 && tier === 'standard') {
+            return (
+              <QualityWarning 
+                tier="standard" 
+                imageMotionScenes={imageMotionCount}
+                totalScenes={estimate.sceneBreakdown.length}
+              />
+            );
+          }
+          return null;
+        })()}
+
         {/* Scene Breakdown (Collapsible) */}
         <Collapsible open={showSceneDetails} onOpenChange={setShowSceneDetails}>
           <CollapsibleTrigger asChild>
@@ -798,6 +819,10 @@ export function GenerationPreviewPanel({
                         {scene.sceneType}
                       </Badge>
                       <span className="text-gray-500 dark:text-gray-400 text-xs">{scene.contentType}</span>
+                      {/* Phase 15G: Media Type Indicator */}
+                      {scene.mediaType && (
+                        <MediaTypeIndicator mediaType={scene.mediaType} />
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 dark:text-gray-400">{scene.duration}s</span>
@@ -811,10 +836,15 @@ export function GenerationPreviewPanel({
                       )}
                     </div>
                   </div>
-                  {(scene.providerReason || (scene.alternatives && scene.alternatives.length > 0)) && (
-                    <div className="ml-6 mt-1 flex items-center gap-2 text-xs text-gray-400">
+                  {(scene.providerReason || (scene.alternatives && scene.alternatives.length > 0) || scene.mediaTypeReason) && (
+                    <div className="ml-6 mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
                       {scene.providerReason && (
                         <span className="italic">{scene.providerReason}</span>
+                      )}
+                      {scene.mediaTypeReason && (
+                        <span className={`italic ${scene.forcedByTier ? 'text-amber-500' : ''}`}>
+                          {scene.mediaTypeReason}
+                        </span>
                       )}
                       {scene.alternatives && scene.alternatives.length > 0 && (
                         <span className="hidden md:inline">

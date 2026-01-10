@@ -58,6 +58,7 @@ import type { LogoType, LogoPlacement, LogoCompositionConfig } from '../../share
 import { brandWorkflowOrchestrator } from '../services/brand-workflow-orchestrator';
 import { brandWorkflowRouter } from '../services/brand-workflow-router';
 import type { WorkflowPath, WorkflowResult } from '../../shared/types/brand-workflow-types';
+import { selectMediaSource, type MediaType } from '../services/media-source-selector';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -3987,6 +3988,19 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       const scene = scenes[index];
       const provider = selection?.provider;
       const sceneTransition = transitionsData.transitions.find((t: any) => t.fromSceneIndex === index);
+      
+      // Phase 15G: Predict media type based on quality tier
+      const mediaDecision = selectMediaSource(
+        { 
+          id: String(index), 
+          visualDirection: scene?.visualDirection || '', 
+          duration: scene?.duration || 5,
+          type: scene?.type,
+        },
+        [], // Empty for now - will be populated by asset matching
+        qualityTier
+      );
+      
       return {
         sceneIndex: index,
         sceneType: scene?.type || 'unknown',
@@ -3999,6 +4013,10 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         providerReason: selection?.reason || 'Default selection',
         confidence: selection?.confidence ?? 50,
         alternatives: selection?.alternatives || ['runway', 'hailuo'],
+        // Phase 15G: Media type prediction
+        mediaType: mediaDecision.mediaType,
+        mediaTypeReason: mediaDecision.reason,
+        forcedByTier: mediaDecision.forcedByTier,
         // Phase 7D: Per-scene intelligence
         intelligence: {
           analysisStatus: 'pending' as const,
