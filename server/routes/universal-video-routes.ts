@@ -45,6 +45,9 @@ import {
   PINE_HILL_FARM_BRAND,
   getCompositionId,
 } from '../../shared/video-types';
+import { imageCompositionService } from '../services/image-composition-service';
+import { compositionRequestBuilder } from '../services/composition-request-builder';
+import type { CompositionRequest, ProductPlacement } from '../../shared/types/image-composition-types';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -6631,6 +6634,214 @@ router.get('/projects/:projectId/brand-analysis', isAuthenticated, async (req, r
     });
   } catch (error: any) {
     console.error('[Phase14] Project brand analysis failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 14C: Image Composition - Generate composed product images
+const compositionRequestSchema = z.object({
+  sceneId: z.string(),
+  visualDirection: z.string(),
+  environment: z.object({
+    prompt: z.string(),
+    style: z.enum(['photorealistic', 'lifestyle', 'studio', 'natural']),
+    lighting: z.enum(['warm', 'cool', 'natural', 'dramatic', 'soft']),
+    colorPalette: z.array(z.string()).optional(),
+  }),
+  products: z.array(z.object({
+    assetId: z.string(),
+    assetUrl: z.string(),
+    position: z.object({
+      x: z.number(),
+      y: z.number(),
+      anchor: z.enum(['center', 'bottom-center', 'top-center']),
+    }),
+    scale: z.number(),
+    maxWidth: z.number().optional(),
+    maxHeight: z.number().optional(),
+    rotation: z.number().optional(),
+    flip: z.enum(['horizontal', 'vertical', 'none']).optional(),
+    shadow: z.object({
+      enabled: z.boolean(),
+      angle: z.number(),
+      blur: z.number(),
+      opacity: z.number(),
+    }),
+    zIndex: z.number(),
+  })),
+  logoOverlay: z.object({
+    assetId: z.string(),
+    position: z.enum(['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right']),
+    size: z.enum(['small', 'medium', 'large']),
+    opacity: z.number(),
+  }).optional(),
+  output: z.object({
+    width: z.number(),
+    height: z.number(),
+    format: z.enum(['png', 'jpg', 'webp']),
+    quality: z.number(),
+  }),
+});
+
+router.post('/compose-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const validatedRequest = compositionRequestSchema.parse(req.body) as CompositionRequest;
+    
+    console.log(`[Phase14C] Composing image for scene ${validatedRequest.sceneId}`);
+    
+    const result = await imageCompositionService.compose(validatedRequest);
+    
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Composition failed' 
+      });
+    }
+    
+    res.json({
+      ...result,
+      phase: '14C',
+    });
+  } catch (error: any) {
+    console.error('[Phase14C] Image composition failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/compose-image/simple', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { sceneId, environmentPrompt, productUrls, options } = req.body;
+    
+    if (!sceneId || !environmentPrompt) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'sceneId and environmentPrompt are required' 
+      });
+    }
+    
+    console.log(`[Phase14C] Simple composition for scene ${sceneId}`);
+    
+    const request = compositionRequestBuilder.buildFromSimpleParams(
+      sceneId,
+      environmentPrompt,
+      productUrls || [],
+      options
+    );
+    
+    const result = await imageCompositionService.compose(request);
+    
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Composition failed' 
+      });
+    }
+    
+    res.json({
+      ...result,
+      phase: '14C',
+    });
+  } catch (error: any) {
+    console.error('[Phase14C] Simple composition failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/compose-image/from-analysis', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { sceneId, visualDirection, analysis, outputType } = req.body;
+    
+    if (!sceneId || !visualDirection || !analysis) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'sceneId, visualDirection, and analysis are required' 
+      });
+    }
+    
+    console.log(`[Phase14C] Composition from analysis for scene ${sceneId}`);
+    
+    const request = await compositionRequestBuilder.build(
+      sceneId,
+      visualDirection,
+      analysis,
+      outputType || 'image'
+    );
+    
+    const result = await imageCompositionService.compose(request);
+    
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Composition failed' 
+      });
+    }
+    
+    res.json({
+      ...result,
+      phase: '14C',
+      request,
+    });
+  } catch (error: any) {
+    console.error('[Phase14C] Analysis composition failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneId/compose', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const { options } = req.body;
+    
+    console.log(`[Phase14C] Composing scene ${sceneId} in project ${projectId}`);
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const scene = projectData.scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const analysis = brandRequirementAnalyzer.analyze(
+      scene.visualDirection || '',
+      scene.narration || ''
+    );
+    
+    const analysisWithAssets = analysis.requiresBrandAssets 
+      ? await brandAssetMatcher.matchAssets(analysis)
+      : analysis;
+    
+    const request = await compositionRequestBuilder.build(
+      sceneId,
+      scene.visualDirection || '',
+      analysisWithAssets,
+      'image'
+    );
+    
+    if (options?.width) request.output.width = options.width;
+    if (options?.height) request.output.height = options.height;
+    if (options?.format) request.output.format = options.format;
+    
+    const result = await imageCompositionService.compose(request);
+    
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Composition failed' 
+      });
+    }
+    
+    res.json({
+      ...result,
+      phase: '14C',
+      projectId,
+      sceneId,
+      analysis: analysisWithAssets,
+    });
+  } catch (error: any) {
+    console.error('[Phase14C] Scene composition failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
