@@ -1249,6 +1249,31 @@ export default function AssetLibrary() {
               </div>
             </div>
 
+            {/* Auto-match Keywords Preview */}
+            {brandEditForm.assetType && getAssetType(brandEditForm.assetType) && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-blue-800 font-medium text-sm">
+                  <Sparkles className="h-4 w-4" />
+                  {getAssetType(brandEditForm.assetType)?.label}
+                </div>
+                <div className="pt-2 border-t border-blue-200">
+                  <span className="text-xs text-blue-600 font-medium">Auto-matches these keywords in visual directions:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(getAssetType(brandEditForm.assetType)?.promptKeywords || []).slice(0, 8).map((kw, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                        {kw}
+                      </Badge>
+                    ))}
+                    {(getAssetType(brandEditForm.assetType)?.promptKeywords || []).length > 8 && (
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                        +{(getAssetType(brandEditForm.assetType)?.promptKeywords || []).length - 8} more
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Conditional Person Info (for People category) */}
             {brandEditForm.assetCategory === 'people' && (
               <div className="space-y-3 p-3 bg-blue-50 border border-blue-100 rounded-md">
