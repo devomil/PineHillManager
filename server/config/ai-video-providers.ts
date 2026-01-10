@@ -214,18 +214,30 @@ export function selectProvidersForScene(
 }
 
 const NEW_TO_LEGACY_PROVIDER_MAP: Record<string, string> = {
+  // Kling Family (12 variants)
   'kling-1.6': 'kling',
   'kling-2.0': 'kling',
   'kling-2.1': 'kling',
+  'kling-2.1-master': 'kling',
+  'kling-2.5': 'kling',
   'kling-2.5-turbo': 'kling',
+  'kling-2.6': 'kling',
+  'kling-2.6-pro': 'kling',
+  'kling-2.6-motion-control': 'kling',
+  'kling-2.6-motion-control-pro': 'kling',
   'kling-effects': 'kling',
   'kling-avatar': 'kling',
+  // Wan Family
   'wan-2.1': 'hailuo',
   'wan-2.6': 'hailuo',
+  // Veo Family
   'veo-2': 'veo',
+  'veo-3': 'veo',
   'veo-3.1': 'veo',
+  // Hailuo Family
   'seedance-1.0': 'hailuo',
   'hailuo-minimax': 'hailuo',
+  // Other providers
   'runway-gen3': 'runway',
   'luma-dream-machine': 'luma',
   'hunyuan': 'hunyuan',

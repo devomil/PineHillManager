@@ -179,8 +179,10 @@ class PiAPIVideoService {
     };
 
     switch (options.model) {
+      // Kling 1.6 (legacy)
       case 'kling':
       case 'kling-1.6':
+        console.log(`[PiAPI T2V] Using Kling 1.6 (version 1.6, std mode)`);
         return {
           ...baseRequest,
           model: 'kling',
@@ -191,9 +193,24 @@ class PiAPIVideoService {
             version: '1.6',
           },
         };
+      
+      // Kling 2.0
+      case 'kling-2.0':
+        console.log(`[PiAPI T2V] Using Kling 2.0 (version 2.0, std mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '2.0',
+          },
+        };
         
+      // Kling 2.1 variants
       case 'kling-2.1':
-        console.log(`[PiAPI] Using Kling 2.1 (version 2.1, std mode)`);
+        console.log(`[PiAPI T2V] Using Kling 2.1 (version 2.1, std mode)`);
         return {
           ...baseRequest,
           model: 'kling',
@@ -205,9 +222,35 @@ class PiAPIVideoService {
           },
         };
         
+      case 'kling-2.1-master':
+        console.log(`[PiAPI T2V] Using Kling 2.1 Master (version 2.1, pro mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'pro',
+            version: '2.1',
+          },
+        };
+        
+      // Kling 2.5 variants
       case 'kling-2.5':
+        console.log(`[PiAPI T2V] Using Kling 2.5 (version 2.5, std mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '2.5',
+          },
+        };
+        
       case 'kling-2.5-turbo':
-        console.log(`[PiAPI] Using Kling 2.5 Turbo (version 2.5, turbo mode)`);
+        console.log(`[PiAPI T2V] Using Kling 2.5 Turbo (version 2.5, turbo mode)`);
         return {
           ...baseRequest,
           model: 'kling',
@@ -219,8 +262,9 @@ class PiAPIVideoService {
           },
         };
         
+      // Kling 2.6 variants
       case 'kling-2.6':
-        console.log(`[PiAPI] Using Kling 2.6 (version 2.6, std mode)`);
+        console.log(`[PiAPI T2V] Using Kling 2.6 (version 2.6, std mode)`);
         return {
           ...baseRequest,
           model: 'kling',
@@ -232,7 +276,50 @@ class PiAPIVideoService {
           },
         };
         
+      case 'kling-2.6-pro':
+        console.log(`[PiAPI T2V] Using Kling 2.6 Pro (version 2.6, pro mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'pro',
+            version: '2.6',
+          },
+        };
+        
+      // Kling Avatar (talking head specialized)
+      case 'kling-avatar':
+        console.log(`[PiAPI T2V] Using Kling Avatar (version 2.0, avatar mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '2.0',
+          },
+        };
+        
+      // Kling Effects (VFX specialized)
+      case 'kling-effects':
+        console.log(`[PiAPI T2V] Using Kling Effects (version 1.6, std mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '1.6',
+          },
+        };
+        
+      // Luma variants
       case 'luma':
+      case 'luma-dream-machine':
         return {
           ...baseRequest,
           model: 'luma',
@@ -243,7 +330,10 @@ class PiAPIVideoService {
           },
         };
         
+      // Hailuo/Minimax Family
       case 'hailuo':
+      case 'hailuo-minimax':
+        console.log(`[PiAPI T2V] Using Hailuo (t2v-01)`);
         return {
           ...baseRequest,
           model: 'hailuo',
@@ -254,14 +344,55 @@ class PiAPIVideoService {
           },
         };
         
+      case 'seedance-1.0':
+        console.log(`[PiAPI T2V] Using Seedance 1.0`);
+        return {
+          ...baseRequest,
+          model: 'hailuo',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            model: 'seedance-1.0',
+          },
+        };
+      
+      // Wan Family (Alibaba - via Hailuo API)
+      case 'wan-2.1':
+        console.log(`[PiAPI T2V] Using Wan 2.1`);
+        return {
+          ...baseRequest,
+          model: 'hailuo',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            model: 'wan-2.1',
+          },
+        };
+        
+      case 'wan-2.6':
+        console.log(`[PiAPI T2V] Using Wan 2.6`);
+        return {
+          ...baseRequest,
+          model: 'hailuo',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            model: 'wan-2.6',
+          },
+        };
+        
+      // Hunyuan
       case 'hunyuan':
+        console.log(`[PiAPI T2V] Using Hunyuan`);
         return {
           ...baseRequest,
           model: 'hunyuan',
           task_type: 'txt2video',
         };
         
+      // Veo Family (Google)
       case 'veo':
+        console.log(`[PiAPI T2V] Using Veo 3`);
         return {
           ...baseRequest,
           model: 'veo-3',
@@ -271,7 +402,30 @@ class PiAPIVideoService {
           },
         };
         
+      case 'veo-2':
+        console.log(`[PiAPI T2V] Using Veo 2`);
+        return {
+          ...baseRequest,
+          model: 'veo-2',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+          },
+        };
+        
+      case 'veo-3.1':
+        console.log(`[PiAPI T2V] Using Veo 3.1`);
+        return {
+          ...baseRequest,
+          model: 'veo-3.1',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+          },
+        };
+        
       default:
+        console.log(`[PiAPI T2V] Using default model: ${options.model}`);
         return baseRequest;
     }
   }
@@ -383,15 +537,36 @@ class PiAPIVideoService {
 
   private getModelConfig(model: string): ModelConfig {
     const configs: Record<string, ModelConfig> = {
+      // Kling Family (12 variants)
       'kling': { modelId: 'kling', maxDuration: 10 },
+      'kling-1.6': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.0': { modelId: 'kling', maxDuration: 10 },
       'kling-2.1': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.1-master': { modelId: 'kling', maxDuration: 10 },
       'kling-2.5': { modelId: 'kling', maxDuration: 10 },
       'kling-2.5-turbo': { modelId: 'kling', maxDuration: 10 },
       'kling-2.6': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.6-pro': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.6-motion-control': { modelId: 'kling', maxDuration: 30 },
+      'kling-2.6-motion-control-pro': { modelId: 'kling', maxDuration: 30 },
+      'kling-avatar': { modelId: 'kling', maxDuration: 60 },
+      'kling-effects': { modelId: 'kling', maxDuration: 5 },
+      // Luma Family
       'luma': { modelId: 'luma', maxDuration: 5 },
+      'luma-dream-machine': { modelId: 'luma', maxDuration: 5 },
+      // Hailuo/Minimax Family
       'hailuo': { modelId: 'hailuo', maxDuration: 6 },
+      'hailuo-minimax': { modelId: 'hailuo', maxDuration: 6 },
+      'seedance-1.0': { modelId: 'hailuo', maxDuration: 6 },
+      // Wan Family (Alibaba via PiAPI)
+      'wan-2.1': { modelId: 'hailuo', maxDuration: 5 },
+      'wan-2.6': { modelId: 'hailuo', maxDuration: 5 },
+      // Hunyuan
       'hunyuan': { modelId: 'hunyuan', maxDuration: 5 },
+      // Veo Family (Google)
       'veo': { modelId: 'veo-3', maxDuration: 8 },
+      'veo-2': { modelId: 'veo-2', maxDuration: 8 },
+      'veo-3.1': { modelId: 'veo-3.1', maxDuration: 8 },
     };
     return configs[model] || { modelId: model, maxDuration: 5 };
   }
@@ -505,20 +680,66 @@ class PiAPIVideoService {
       let version = '2.6';
       let mode = 'pro';
       
-      if (options.model === 'kling-2.1') {
+      // Kling 1.6 (legacy)
+      if (options.model === 'kling' || options.model === 'kling-1.6') {
+        version = '1.6';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling 1.6 (version 1.6, std mode)`);
+      }
+      // Kling 2.0
+      else if (options.model === 'kling-2.0') {
+        version = '2.0';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling 2.0 (version 2.0, std mode)`);
+      }
+      // Kling 2.1 variants
+      else if (options.model === 'kling-2.1') {
         version = '2.1';
         mode = 'std';
         console.log(`[PiAPI I2V] Using Kling 2.1 (version 2.1, std mode)`);
-      } else if (options.model === 'kling-2.5' || options.model === 'kling-2.5-turbo') {
+      }
+      else if (options.model === 'kling-2.1-master') {
+        version = '2.1';
+        mode = 'pro';
+        console.log(`[PiAPI I2V] Using Kling 2.1 Master (version 2.1, pro mode)`);
+      }
+      // Kling 2.5 variants
+      else if (options.model === 'kling-2.5') {
+        version = '2.5';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling 2.5 (version 2.5, std mode)`);
+      }
+      else if (options.model === 'kling-2.5-turbo') {
         version = '2.5';
         mode = 'turbo';
         console.log(`[PiAPI I2V] Using Kling 2.5 Turbo (version 2.5, turbo mode)`);
-      } else if (options.model === 'kling-2.6') {
+      }
+      // Kling 2.6 variants
+      else if (options.model === 'kling-2.6') {
         version = '2.6';
         mode = 'pro';
         console.log(`[PiAPI I2V] Using Kling 2.6 (version 2.6, pro mode)`);
-      } else {
-        const extractedVersion = options.model.replace('kling-v', '').replace('kling-', '');
+      }
+      else if (options.model === 'kling-2.6-pro') {
+        version = '2.6';
+        mode = 'pro';
+        console.log(`[PiAPI I2V] Using Kling 2.6 Pro (version 2.6, pro mode)`);
+      }
+      // Kling Avatar
+      else if (options.model === 'kling-avatar') {
+        version = '2.0';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling Avatar (version 2.0, std mode)`);
+      }
+      // Kling Effects
+      else if (options.model === 'kling-effects') {
+        version = '1.6';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling Effects (version 1.6, std mode)`);
+      }
+      // Default fallback
+      else {
+        const extractedVersion = options.model.replace('kling-v', '').replace('kling-', '').split('-')[0];
         version = extractedVersion || '2.6';
         console.log(`[PiAPI I2V] Using Kling ${version} (extracted, pro mode)`);
       }
@@ -534,7 +755,9 @@ class PiAPIVideoService {
       };
     }
     
+    // Luma Family
     if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
+      console.log(`[PiAPI I2V] Using Luma Dream Machine`);
       return {
         model: 'luma',
         task_type: 'image_to_video',
@@ -545,7 +768,9 @@ class PiAPIVideoService {
       };
     }
     
+    // Hailuo/Minimax Family
     if (options.model.includes('hailuo') || options.model.includes('minimax')) {
+      console.log(`[PiAPI I2V] Using Hailuo (i2v-01)`);
       return {
         model: 'hailuo',
         task_type: 'image_to_video',
@@ -556,10 +781,54 @@ class PiAPIVideoService {
       };
     }
     
+    // Wan Family (Alibaba)
+    if (options.model.includes('wan')) {
+      const wanModel = options.model === 'wan-2.6' ? 'wan-2.6-i2v' : 'wan-2.1-i2v';
+      console.log(`[PiAPI I2V] Using ${wanModel}`);
+      return {
+        model: 'hailuo',
+        task_type: 'image_to_video',
+        input: {
+          ...baseInput,
+          model: wanModel,
+        },
+      };
+    }
+    
+    // Seedance
+    if (options.model.includes('seedance')) {
+      console.log(`[PiAPI I2V] Using Seedance 1.0 I2V`);
+      return {
+        model: 'hailuo',
+        task_type: 'image_to_video',
+        input: {
+          ...baseInput,
+          model: 'seedance-1.0-i2v',
+        },
+      };
+    }
+    
+    // Veo Family (Google)
     if (options.model.includes('veo')) {
-      const veoModel = options.model.includes('3.1') ? 'veo-3.1' : 'veo-2';
+      let veoModel = 'veo-2';
+      if (options.model === 'veo-3.1') {
+        veoModel = 'veo-3.1';
+      } else if (options.model === 'veo-3' || options.model === 'veo') {
+        veoModel = 'veo-3';
+      }
+      console.log(`[PiAPI I2V] Using ${veoModel}`);
       return {
         model: veoModel,
+        task_type: 'image_to_video',
+        input: baseInput,
+      };
+    }
+    
+    // Hunyuan
+    if (options.model === 'hunyuan') {
+      console.log(`[PiAPI I2V] Using Hunyuan`);
+      return {
+        model: 'hunyuan',
         task_type: 'image_to_video',
         input: baseInput,
       };
