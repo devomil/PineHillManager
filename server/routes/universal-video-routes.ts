@@ -4031,14 +4031,34 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     };
     const IMAGE_COST = imageProviderSelector.calculateImageCost(imageProviderCounts);
     
-    // Calculate other costs
-    const VOICEOVER_COST = 0.015 * totalDuration; // ElevenLabs
-    const MUSIC_COST = musicEnabled ? 0.10 : 0; // Udio flat rate - only if music enabled
-    const SOUND_FX_COST = 0.05; // Kling Sound effects
-    const SCENE_ANALYSIS_COST = scenes.length * 0.02; // Claude Vision scene analysis
-    const QA_COST = 0.02; // Claude Vision quality check
+    // Get quality tier for cost adjustments
+    const qualityTier = (project as any).qualityTier || 'standard';
     
-    const totalCost = VIDEO_COST + IMAGE_COST + VOICEOVER_COST + MUSIC_COST + SOUND_FX_COST + SCENE_ANALYSIS_COST + QA_COST;
+    // Quality tier multipliers for costs
+    const TIER_MULTIPLIERS: Record<string, number> = {
+      ultra: 3.5,
+      premium: 2.0,
+      standard: 1.0,
+    };
+    const tierMultiplier = TIER_MULTIPLIERS[qualityTier] || 1.0;
+    
+    // Calculate costs with quality tier adjustments
+    const BASE_VOICEOVER_COST = 0.015 * totalDuration;
+    const BASE_MUSIC_COST = musicEnabled ? 0.10 : 0;
+    const BASE_SOUND_FX_COST = 0.05;
+    const BASE_SCENE_ANALYSIS_COST = scenes.length * 0.02;
+    const BASE_QA_COST = 0.02;
+    
+    // Apply tier multipliers
+    const ADJUSTED_VIDEO_COST = VIDEO_COST * tierMultiplier;
+    const ADJUSTED_IMAGE_COST = IMAGE_COST * tierMultiplier;
+    const VOICEOVER_COST = BASE_VOICEOVER_COST * (qualityTier === 'ultra' ? 1.5 : qualityTier === 'premium' ? 1.2 : 1.0);
+    const MUSIC_COST = BASE_MUSIC_COST * tierMultiplier;
+    const SOUND_FX_COST = BASE_SOUND_FX_COST * tierMultiplier;
+    const SCENE_ANALYSIS_COST = BASE_SCENE_ANALYSIS_COST * tierMultiplier;
+    const QA_COST = BASE_QA_COST * tierMultiplier;
+    
+    const totalCost = ADJUSTED_VIDEO_COST + ADJUSTED_IMAGE_COST + VOICEOVER_COST + MUSIC_COST + SOUND_FX_COST + SCENE_ANALYSIS_COST + QA_COST;
     
     // Estimate time
     const avgSceneGenTime = 45; // seconds per scene
@@ -4169,9 +4189,9 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       musicEnabled,
       sceneBreakdown: sceneProviders,
       costs: {
-        video: VIDEO_COST.toFixed(2),
+        video: ADJUSTED_VIDEO_COST.toFixed(2),
         videoCostBreakdown: videoCostByProvider,
-        images: IMAGE_COST.toFixed(2),
+        images: ADJUSTED_IMAGE_COST.toFixed(2),
         voiceover: VOICEOVER_COST.toFixed(2),
         music: MUSIC_COST.toFixed(2),
         soundFx: SOUND_FX_COST.toFixed(2),
