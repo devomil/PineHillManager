@@ -2812,6 +2812,41 @@ function ScenePreview({
                       logos={sceneWorkflow.matchedAssets.logos}
                       locations={sceneWorkflow.matchedAssets.locations}
                       isLoading={analyzingWorkflow[scene.id] || false}
+                      appliedAssetId={(() => {
+                        const config = previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig);
+                        const logoName = config?.logo?.logoName;
+                        if (!logoName) return undefined;
+                        return sceneWorkflow.matchedAssets.logos.find((l: any) => l.name === logoName)?.id;
+                      })()}
+                      onApplyToOverlay={async (asset, overlayType) => {
+                        if (!projectId) return;
+                        const normalizedUrl = convertToDisplayUrl(asset.url);
+                        const currentConfig = previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general');
+                        const updatedConfig: OverlayConfig = {
+                          ...currentConfig,
+                          logo: overlayType === 'logo' ? {
+                            ...currentConfig.logo,
+                            enabled: true,
+                            logoUrl: normalizedUrl,
+                            logoName: asset.name,
+                          } : currentConfig.logo,
+                          watermark: overlayType === 'watermark' ? {
+                            ...currentConfig.watermark,
+                            enabled: true,
+                            watermarkUrl: normalizedUrl,
+                            watermarkName: asset.name,
+                          } : currentConfig.watermark,
+                        };
+                        setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: updatedConfig }));
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: updatedConfig });
+                          onSceneUpdate?.();
+                          toast({ title: 'Applied', description: `${asset.name} added as ${overlayType} overlay.` });
+                        } catch (err) {
+                          setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: currentConfig }));
+                          toast({ title: 'Error', description: 'Failed to apply overlay', variant: 'destructive' });
+                        }
+                      }}
                       onSwapAsset={(category, oldId, newAsset) => {
                         setWorkflowAnalysis(prev => {
                           const current = prev[scene.id];
@@ -2966,7 +3001,7 @@ function ScenePreview({
                     <Label className="text-sm font-medium">Scene Overlays</Label>
                   </div>
                   <OverlayEditor
-                    config={(scene.overlayConfig as OverlayConfig) ?? getDefaultOverlayConfig(scene.type || 'general')}
+                    config={previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general')}
                     onChange={async (config) => {
                       if (projectId) {
                         try {

@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { 
   Package, Star, MapPin, RefreshCw, Check, X, 
-  Image as ImageIcon, ChevronDown, ChevronUp, Eye
+  Image as ImageIcon, ChevronDown, ChevronUp, Eye, Layers
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
@@ -29,6 +29,8 @@ interface BrandAssetPreviewPanelProps {
   isLoading?: boolean;
   onSwapAsset?: (category: 'products' | 'logos' | 'locations', oldId: number, newAsset: BrandAsset) => void;
   onRemoveAsset?: (category: 'products' | 'logos' | 'locations', assetId: number) => void;
+  onApplyToOverlay?: (asset: MatchedAsset, overlayType: 'logo' | 'watermark') => void;
+  appliedAssetId?: number;
   compact?: boolean;
 }
 
@@ -37,21 +39,28 @@ function AssetCard({
   category,
   onSwap,
   onRemove,
+  onApplyToOverlay,
+  isApplied,
 }: { 
   asset: MatchedAsset;
   category: 'products' | 'logos' | 'locations';
   onSwap?: (asset: BrandAsset) => void;
   onRemove?: () => void;
+  onApplyToOverlay?: (overlayType: 'logo' | 'watermark') => void;
+  isApplied?: boolean;
 }) {
   const [showSelector, setShowSelector] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   
   const thumbnailUrl = asset.thumbnailUrl || asset.url;
   const isValidUrl = thumbnailUrl && (thumbnailUrl.startsWith('http') || thumbnailUrl.startsWith('/'));
+  const isLogoCategory = category === 'logos';
 
   return (
     <>
-      <div className="flex items-center gap-3 p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors group">
+      <div className={`flex items-center gap-3 p-2 rounded-lg border transition-colors group ${
+        isApplied ? 'bg-primary/10 border-primary' : 'bg-card hover:bg-accent/50'
+      }`}>
         <div 
           className="w-12 h-12 rounded-md overflow-hidden bg-muted flex-shrink-0 cursor-pointer"
           onClick={() => setPreviewOpen(true)}
@@ -73,7 +82,10 @@ function AssetCard({
         </div>
         
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">{asset.name}</div>
+          <div className="font-medium text-sm truncate flex items-center gap-1.5">
+            {asset.name}
+            {isApplied && <Check className="w-3.5 h-3.5 text-primary" />}
+          </div>
           <div className="flex items-center gap-2 mt-0.5">
             <Badge variant="outline" className="text-xs">
               {asset.mediaType}
@@ -87,6 +99,17 @@ function AssetCard({
         </div>
         
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {isLogoCategory && onApplyToOverlay && !isApplied && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7 text-primary hover:text-primary"
+              onClick={() => onApplyToOverlay('logo')}
+              title="Apply as logo overlay"
+            >
+              <Layers className="w-3.5 h-3.5" />
+            </Button>
+          )}
           {onSwap && (
             <Button 
               variant="ghost" 
@@ -151,6 +174,8 @@ function AssetSection({
   category,
   onSwap,
   onRemove,
+  onApplyToOverlay,
+  appliedAssetId,
   defaultExpanded = true,
 }: {
   title: string;
@@ -159,6 +184,8 @@ function AssetSection({
   category: 'products' | 'logos' | 'locations';
   onSwap?: (oldId: number, newAsset: BrandAsset) => void;
   onRemove?: (assetId: number) => void;
+  onApplyToOverlay?: (asset: MatchedAsset, overlayType: 'logo' | 'watermark') => void;
+  appliedAssetId?: number;
   defaultExpanded?: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -194,6 +221,8 @@ function AssetSection({
               category={category}
               onSwap={onSwap ? (newAsset) => onSwap(asset.id, newAsset) : undefined}
               onRemove={onRemove ? () => onRemove(asset.id) : undefined}
+              onApplyToOverlay={onApplyToOverlay ? (overlayType) => onApplyToOverlay(asset, overlayType) : undefined}
+              isApplied={appliedAssetId === asset.id}
             />
           ))}
         </div>
@@ -209,6 +238,8 @@ export function BrandAssetPreviewPanel({
   isLoading,
   onSwapAsset,
   onRemoveAsset,
+  onApplyToOverlay,
+  appliedAssetId,
   compact = false,
 }: BrandAssetPreviewPanelProps) {
   const totalAssets = products.length + logos.length + locations.length;
@@ -301,6 +332,8 @@ export function BrandAssetPreviewPanel({
               category="logos"
               onSwap={onSwapAsset ? (oldId, newAsset) => onSwapAsset('logos', oldId, newAsset) : undefined}
               onRemove={onRemoveAsset ? (assetId) => onRemoveAsset('logos', assetId) : undefined}
+              onApplyToOverlay={onApplyToOverlay}
+              appliedAssetId={appliedAssetId}
             />
             
             <AssetSection

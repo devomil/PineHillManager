@@ -206,6 +206,11 @@ export function BrandMediaSelector({
                         src={asset.thumbnailUrl || asset.url}
                         alt={asset.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.parentElement?.classList.add('bg-muted');
+                        }}
                       />
                       
                       <div className="absolute top-2 left-2">
@@ -324,8 +329,12 @@ export function BrandMediaSelector({
                     <div className="aspect-video bg-muted rounded overflow-hidden relative">
                       <img
                         src={selectedAsset.thumbnailUrl || selectedAsset.url}
-                        alt="Preview"
-                        className={`w-full h-full object-cover animate-${animationSettings.type}-${animationSettings.intensity}`}
+                        alt={selectedAsset.name}
+                        className={`w-full h-full object-cover`}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
                       />
                       {animationSettings.focusPoint && animationSettings.type !== 'static' && (
                         <div
