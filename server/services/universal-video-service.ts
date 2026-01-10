@@ -3004,7 +3004,20 @@ Total: 90 seconds` : ''}
     // Define scene types that should use AI video generation (hero scenes)
     const heroSceneTypes = ['hook', 'cta', 'testimonial', 'story'];
     const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial', 'cta'];
-    const scenesNeedingVideo = project.scenes.filter(s => videoSceneTypes.includes(s.type));
+    
+    // Phase 15G: Get quality tier FIRST - premium/ultra requires video for ALL scenes
+    const projectQualityTier = (project as any).qualityTier || 'standard';
+    const isPremiumOrUltraProject = projectQualityTier === 'premium' || projectQualityTier === 'ultra';
+    
+    // For premium/ultra, include ALL scenes in video generation loop
+    // For standard, only include specific scene types
+    const scenesNeedingVideo = isPremiumOrUltraProject 
+      ? project.scenes 
+      : project.scenes.filter(s => videoSceneTypes.includes(s.type));
+    
+    if (isPremiumOrUltraProject) {
+      console.log(`[UniversalVideoService] ${projectQualityTier.toUpperCase()} tier: Forcing video for ALL ${scenesNeedingVideo.length} scenes`);
+    }
     
     if (scenesNeedingVideo.length > 0) {
       console.log(`[UniversalVideoService] Processing ${scenesNeedingVideo.length} scenes for video (types: ${videoSceneTypes.join(', ')})...`);
@@ -3067,16 +3080,13 @@ Total: 90 seconds` : ''}
         }
         // ===== END PHASE 12A MOTION GRAPHICS ROUTING =====
         
-        // Get quality tier from project - needs to be accessible for all scenes (Phase 15G/15H fix)
-        const projectQualityTier = (project as any).qualityTier || 'standard';
-        
         // Phase 15G: Premium/Ultra tiers require video for ALL scenes, not just hero scenes
-        const isPremiumOrUltra = projectQualityTier === 'premium' || projectQualityTier === 'ultra';
-        const shouldGenerateVideo = isHeroScene || isPremiumOrUltra;
+        // Use projectQualityTier and isPremiumOrUltraProject defined at start of video step
+        const shouldGenerateVideo = isHeroScene || isPremiumOrUltraProject;
         
         // Try AI video generation for hero scenes OR for premium/ultra tiers (all scenes)
         if (shouldGenerateVideo && aiVideoService.isAvailable()) {
-          console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id} (isHero=${isHeroScene}, isPremiumOrUltra=${isPremiumOrUltra})...`);
+          console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id} (isHero=${isHeroScene}, isPremiumOrUltra=${isPremiumOrUltraProject})...`);
           console.log(`[Assets] Using quality tier: ${projectQualityTier}`);
           
           const aiResult = await aiVideoService.generateVideo({
@@ -3214,7 +3224,7 @@ Total: 90 seconds` : ''}
             updatedProject.scenes[sceneIndex].assets!.videoSource = videoResult.source;
             videosGenerated++;
             console.log(`[UniversalVideoService] Video APPLIED for scene ${scene.id} (${videoResult.source}): ${videoResult.url.substring(0, 80)}...`);
-          } else if (isPremiumOrUltra) {
+          } else if (isPremiumOrUltraProject) {
             // Phase 15G: Premium/Ultra NEVER falls back to image
             // Mark scene as requiring video - this is an ERROR state that must be resolved
             console.error(`[UniversalVideoService] ${projectQualityTier} tier: VIDEO REQUIRED but ALL generation attempts failed for scene ${scene.id}`);
