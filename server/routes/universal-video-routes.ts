@@ -4124,12 +4124,13 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     }
     
     // Calculate tier summaries for all tiers so frontend can display correct prices
+    // IMPORTANT: Must use the SAME calculation logic as the main estimate to ensure costs match
     const calculateTierCosts = (tier: 'ultra' | 'premium' | 'standard') => {
       const tierProviderSelections = videoProviderSelector.selectProvidersForProject(scenesForSelection, visualStyle, tier);
-      const { total: tierVideoCost } = videoProviderSelector.calculateTotalCost(tierProviderSelections, scenesForSelection);
+      const { total: tierVideoCostRaw } = videoProviderSelector.calculateTotalCost(tierProviderSelections, scenesForSelection);
       const tierImageSelections = imageProviderSelector.selectProvidersForScenes(scenesForImageSelection, tier);
       const tierImageCounts = imageProviderSelector.getProviderSummary(tierImageSelections);
-      const tierImageCost = imageProviderSelector.calculateImageCost(tierImageCounts);
+      const tierImageCostRaw = imageProviderSelector.calculateImageCost(tierImageCounts);
       
       // Get top video providers for this tier - convert IDs to display names
       const tierProviderCounts = videoProviderSelector.getProviderSummary(tierProviderSelections);
@@ -4152,10 +4153,14 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         imageProviders.push(tier === 'standard' ? 'Flux Schnell' : 'Flux Pro');
       }
       
+      // Apply SAME multipliers as main estimate (lines 4058-4065)
       const multipliers: Record<string, number> = { ultra: 3.5, premium: 2.0, standard: 1.0 };
       const tierMult = multipliers[tier];
       const voiceMultipliers: Record<string, number> = { ultra: 1.5, premium: 1.2, standard: 1.0 };
       
+      // CRITICAL: Apply tier multiplier to video and image costs (same as ADJUSTED_VIDEO_COST, ADJUSTED_IMAGE_COST)
+      const tierVideoCost = tierVideoCostRaw * tierMult;
+      const tierImageCost = tierImageCostRaw * tierMult;
       const tierVoiceover = BASE_VOICEOVER_COST * voiceMultipliers[tier];
       const tierMusic = BASE_MUSIC_COST * tierMult;
       const tierSoundFx = BASE_SOUND_FX_COST * tierMult;
