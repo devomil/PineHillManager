@@ -64,15 +64,24 @@ class LegNextClient {
     try {
       const formattedPrompt = this.formatPrompt(request);
       
+      const requestBody: Record<string, any> = {
+        text: formattedPrompt,
+      };
+      
+      if (request.referenceImage) {
+        requestBody.image_url = request.referenceImage;
+        if (request.referenceStrength !== undefined) {
+          requestBody.image_weight = request.referenceStrength;
+        }
+      }
+      
       const response = await fetch(`${this.config.baseUrl}/diffusion`, {
         method: 'POST',
         headers: {
           'x-api-key': this.config.apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          text: formattedPrompt,
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       if (!response.ok) {
