@@ -180,6 +180,7 @@ class PiAPIVideoService {
 
     switch (options.model) {
       case 'kling':
+      case 'kling-1.6':
         return {
           ...baseRequest,
           model: 'kling',
@@ -188,6 +189,46 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'std',
             version: '1.6',
+          },
+        };
+        
+      case 'kling-2.1':
+        console.log(`[PiAPI] Using Kling 2.1 (version 2.1, std mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '2.1',
+          },
+        };
+        
+      case 'kling-2.5':
+      case 'kling-2.5-turbo':
+        console.log(`[PiAPI] Using Kling 2.5 Turbo (version 2.5, turbo mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'turbo',
+            version: '2.5',
+          },
+        };
+        
+      case 'kling-2.6':
+        console.log(`[PiAPI] Using Kling 2.6 (version 2.6, std mode)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '2.6',
           },
         };
         
@@ -342,11 +383,15 @@ class PiAPIVideoService {
 
   private getModelConfig(model: string): ModelConfig {
     const configs: Record<string, ModelConfig> = {
-      kling: { modelId: 'kling', maxDuration: 10 },
-      luma: { modelId: 'luma', maxDuration: 5 },
-      hailuo: { modelId: 'hailuo', maxDuration: 6 },
-      hunyuan: { modelId: 'hunyuan', maxDuration: 5 },
-      veo: { modelId: 'veo-3', maxDuration: 8 },
+      'kling': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.1': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.5': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.5-turbo': { modelId: 'kling', maxDuration: 10 },
+      'kling-2.6': { modelId: 'kling', maxDuration: 10 },
+      'luma': { modelId: 'luma', maxDuration: 5 },
+      'hailuo': { modelId: 'hailuo', maxDuration: 6 },
+      'hunyuan': { modelId: 'hunyuan', maxDuration: 5 },
+      'veo': { modelId: 'veo-3', maxDuration: 8 },
     };
     return configs[model] || { modelId: model, maxDuration: 5 };
   }
@@ -457,14 +502,34 @@ class PiAPIVideoService {
     };
     
     if (options.model.startsWith('kling')) {
-      const version = options.model.replace('kling-v', '').replace('kling-', '');
+      let version = '2.6';
+      let mode = 'pro';
+      
+      if (options.model === 'kling-2.1') {
+        version = '2.1';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling 2.1 (version 2.1, std mode)`);
+      } else if (options.model === 'kling-2.5' || options.model === 'kling-2.5-turbo') {
+        version = '2.5';
+        mode = 'turbo';
+        console.log(`[PiAPI I2V] Using Kling 2.5 Turbo (version 2.5, turbo mode)`);
+      } else if (options.model === 'kling-2.6') {
+        version = '2.6';
+        mode = 'pro';
+        console.log(`[PiAPI I2V] Using Kling 2.6 (version 2.6, pro mode)`);
+      } else {
+        const extractedVersion = options.model.replace('kling-v', '').replace('kling-', '');
+        version = extractedVersion || '2.6';
+        console.log(`[PiAPI I2V] Using Kling ${version} (extracted, pro mode)`);
+      }
+      
       return {
         model: 'kling',
         task_type: 'image_to_video',
         input: {
           ...baseInput,
-          mode: 'pro',
-          version: version || '2.6',
+          mode,
+          version,
         },
       };
     }
