@@ -477,6 +477,15 @@ export const IMAGE_PROVIDERS: Record<string, ImageProvider> = {
     strengths: ['Versatile', 'Good text rendering', 'Fast'],
     bestFor: ['general', 'text-in-image', 'artistic'],
   },
+  
+  midjourney: {
+    id: 'midjourney',
+    name: 'midjourney',
+    displayName: 'Midjourney',
+    costPerImage: 0.05,
+    strengths: ['Artistic excellence', 'Premium aesthetics', 'Creative compositions', 'Photorealistic'],
+    bestFor: ['hero-shots', 'artistic', 'premium-content', 'lifestyle', 'cinematic'],
+  },
 };
 
 export interface SoundProvider {

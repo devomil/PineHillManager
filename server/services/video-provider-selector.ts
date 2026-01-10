@@ -309,13 +309,13 @@ class VideoProviderSelectorService {
     scores: Record<string, number>,
     reasons: Record<string, string[]>
   ): void {
-    // Ultra tier: Favor highest-end providers (Veo 3.1, Kling Pro variants, Runway, Luma)
+    // Ultra tier: Favor highest-end providers (Veo 3.1, Kling 2.6 Pro variants, Runway, Luma)
     // Use CORRECT provider IDs from shared/provider-config.ts
-    const ultraProviders = ['veo-3.1', 'veo-2', 'kling-2.6-pro', 'kling-2.6-motion-control-pro', 'kling-2.5-turbo', 'runway', 'luma'];
-    // Premium tier: Favor pro-level providers
-    const premiumProviders = ['veo-3.1', 'veo-2', 'kling-2.6', 'kling-2.5', 'kling-2.1', 'kling-2.0', 'runway', 'kling-2.5-turbo'];
-    // Standard tier: Favor cost-effective providers (Kling basic, Wan, Hailuo)
-    const standardProviders = ['kling-1.6', 'wan-2.1', 'wan-2.6', 'seedance-1.0'];
+    const ultraProviders = ['veo-3.1', 'veo-2', 'kling-2.6-pro', 'kling-2.6-motion-control-pro', 'kling-2.6', 'runway', 'luma'];
+    // Premium tier: Favor pro-level providers (Kling 2.6, 2.5, Veo, Runway)
+    const premiumProviders = ['kling-2.6', 'kling-2.6-pro', 'kling-2.5-turbo', 'kling-2.5', 'veo-2', 'veo-3.1', 'runway', 'kling-2.1'];
+    // Standard tier: Favor cost-effective providers (Kling basic, Wan)
+    const standardProviders = ['kling-1.6', 'kling-2.0', 'wan-2.1', 'wan-2.6', 'seedance-1.0'];
     
     if (qualityTier === 'ultra') {
       // Give Veo 3.1 the highest boost - it should be the primary Ultra provider

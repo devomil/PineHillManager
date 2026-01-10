@@ -4035,6 +4035,7 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     const imageProviderSelections = imageProviderSelector.selectProvidersForScenes(scenesForImageSelection, qualityTier);
     const rawImageProviderCounts = imageProviderSelector.getProviderSummary(imageProviderSelections);
     const imageProviderCounts = {
+      midjourney: rawImageProviderCounts.midjourney || 0,
       flux: rawImageProviderCounts.flux || 0,
       falai: rawImageProviderCounts.falai || 0,
     };
@@ -4140,9 +4141,13 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         .map(([id]) => VIDEO_PROVIDERS[id]?.displayName || id);
       
       // Get image providers used - normalize to display names
+      const midjourneyCount = tierImageCounts.midjourney || 0;
       const fluxCount = tierImageCounts.flux || 0;
       const falaiCount = tierImageCounts.falai || 0;
       const imageProviders: string[] = [];
+      if (midjourneyCount > 0) {
+        imageProviders.push('Midjourney');
+      }
       if (fluxCount > 0) {
         imageProviders.push(tier === 'standard' ? 'Flux Schnell' : 'Flux Pro');
       }
@@ -4150,7 +4155,7 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         imageProviders.push('fal.ai');
       }
       if (imageProviders.length === 0) {
-        imageProviders.push(tier === 'standard' ? 'Flux Schnell' : 'Flux Pro');
+        imageProviders.push(tier === 'ultra' ? 'Midjourney' : tier === 'premium' ? 'Flux Pro' : 'fal.ai');
       }
       
       // Apply SAME multipliers as main estimate (lines 4058-4065)
@@ -4201,10 +4206,16 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
         video: providerCounts,
         videoCostByProvider,
         images: {
+          midjourney: imageProviderCounts.midjourney,
           flux: imageProviderCounts.flux,
           falai: imageProviderCounts.falai,
         },
         imageCosts: {
+          midjourney: {
+            count: imageProviderCounts.midjourney,
+            cost: (imageProviderCounts.midjourney * 0.05).toFixed(2),
+            useCase: 'premium',
+          },
           flux: { 
             count: imageProviderCounts.flux, 
             cost: (imageProviderCounts.flux * 0.03).toFixed(2),

@@ -1,7 +1,7 @@
-import { IMAGE_PROVIDERS } from '@shared/provider-config';
+import { IMAGE_PROVIDERS, ImageProvider } from '@shared/provider-config';
 
 export interface ImageProviderSelection {
-  provider: typeof IMAGE_PROVIDERS.flux | typeof IMAGE_PROVIDERS.falai;
+  provider: ImageProvider;
   reason: string;
   confidence: number;
 }
@@ -16,10 +16,82 @@ class ImageProviderSelectorService {
   ): ImageProviderSelection {
     const lower = visualDirection.toLowerCase();
     
-    // For ultra and premium tiers, prefer Flux (higher quality)
-    // For standard tier, still use content-based selection but note it's cost-optimized
-    const preferFlux = qualityTier === 'ultra' || qualityTier === 'premium';
+    // Ultra tier: Use Midjourney for best quality
+    // Premium tier: Use Flux Pro
+    // Standard tier: Use fal.ai for cost-effectiveness
+    const isUltra = qualityTier === 'ultra';
+    const isPremium = qualityTier === 'premium';
     
+    // For Ultra tier, prefer Midjourney for most scenes
+    if (isUltra) {
+      if (
+        contentType === 'product' ||
+        sceneType === 'product' ||
+        /product|bottle|package|supplement|food|ingredient|object|item|merchandise/.test(lower)
+      ) {
+        return {
+          provider: IMAGE_PROVIDERS.midjourney,
+          reason: 'Ultra quality - Midjourney product excellence',
+          confidence: 95,
+        };
+      }
+      
+      if (
+        contentType === 'person' ||
+        contentType === 'lifestyle' ||
+        sceneType === 'testimonial' ||
+        /person|woman|man|people|lifestyle|authentic|natural|wellness|customer/.test(lower)
+      ) {
+        return {
+          provider: IMAGE_PROVIDERS.midjourney,
+          reason: 'Ultra quality - Midjourney lifestyle aesthetics',
+          confidence: 92,
+        };
+      }
+      
+      // Default Ultra: Midjourney
+      return {
+        provider: IMAGE_PROVIDERS.midjourney,
+        reason: 'Ultra tier - Midjourney premium quality',
+        confidence: 90,
+      };
+    }
+    
+    // For Premium tier, use Flux
+    if (isPremium) {
+      if (
+        contentType === 'product' ||
+        sceneType === 'product' ||
+        /product|bottle|package|supplement|food|ingredient|object|item|merchandise/.test(lower)
+      ) {
+        return {
+          provider: IMAGE_PROVIDERS.flux,
+          reason: 'Premium quality product rendering - Flux Pro',
+          confidence: 90,
+        };
+      }
+      
+      if (
+        contentType === 'person' ||
+        contentType === 'lifestyle' ||
+        sceneType === 'testimonial' ||
+        /person|woman|man|people|lifestyle|authentic|natural|wellness|customer/.test(lower)
+      ) {
+        return {
+          provider: IMAGE_PROVIDERS.flux,
+          reason: 'Premium lifestyle quality - Flux Pro',
+          confidence: 88,
+        };
+      }
+      
+      return {
+        provider: IMAGE_PROVIDERS.flux,
+        reason: 'Premium tier default - Flux Pro',
+        confidence: 85,
+      };
+    }
+    
+    // Standard tier: Use fal.ai for cost-effectiveness
     if (
       contentType === 'product' ||
       sceneType === 'product' ||
@@ -27,79 +99,15 @@ class ImageProviderSelectorService {
     ) {
       return {
         provider: IMAGE_PROVIDERS.flux,
-        reason: qualityTier === 'ultra' ? 'Ultra quality product rendering' : 'Product/object focus - clean commercial quality',
-        confidence: 90,
-      };
-    }
-    
-    if (
-      contentType === 'person' ||
-      contentType === 'lifestyle' ||
-      sceneType === 'testimonial' ||
-      /person|woman|man|people|lifestyle|authentic|natural|wellness|customer/.test(lower)
-    ) {
-      // For ultra/premium, use Flux for higher quality even on lifestyle
-      if (preferFlux) {
-        return {
-          provider: IMAGE_PROVIDERS.flux,
-          reason: qualityTier === 'ultra' ? 'Ultra quality lifestyle rendering' : 'Premium lifestyle quality',
-          confidence: 88,
-        };
-      }
-      return {
-        provider: IMAGE_PROVIDERS.falai,
-        reason: 'Lifestyle/people - natural authentic feel',
+        reason: 'Product shots - Flux quality at standard pricing',
         confidence: 85,
-      };
-    }
-    
-    if (
-      contentType === 'nature' ||
-      /garden|farm|outdoor|landscape|nature|environment|field|meadow/.test(lower)
-    ) {
-      if (preferFlux) {
-        return {
-          provider: IMAGE_PROVIDERS.flux,
-          reason: qualityTier === 'ultra' ? 'Ultra quality nature scenes' : 'Premium environment quality',
-          confidence: 85,
-        };
-      }
-      return {
-        provider: IMAGE_PROVIDERS.falai,
-        reason: 'Environment/nature scene',
-        confidence: 80,
-      };
-    }
-    
-    if (/food|vegetable|fruit|meal|kitchen|cooking|ingredient|herb|spice/.test(lower)) {
-      return {
-        provider: IMAGE_PROVIDERS.flux,
-        reason: qualityTier === 'ultra' ? 'Ultra quality food detail' : 'Food/ingredients - accurate detail rendering',
-        confidence: 88,
-      };
-    }
-    
-    if (/studio|clean|minimal|white background|isolated|professional/.test(lower)) {
-      return {
-        provider: IMAGE_PROVIDERS.flux,
-        reason: 'Studio/clean aesthetic - sharp commercial quality',
-        confidence: 85,
-      };
-    }
-    
-    // Default: Use Flux for ultra/premium, falai for standard
-    if (preferFlux) {
-      return {
-        provider: IMAGE_PROVIDERS.flux,
-        reason: qualityTier === 'ultra' ? 'Ultra tier default - maximum quality' : 'Premium tier default',
-        confidence: 75,
       };
     }
     
     return {
       provider: IMAGE_PROVIDERS.falai,
-      reason: 'General scene - cost-effective rendering',
-      confidence: 70,
+      reason: 'Cost-effective rendering - fal.ai',
+      confidence: 75,
     };
   }
   
@@ -127,21 +135,25 @@ class ImageProviderSelectorService {
         selections.set(scene.sceneIndex, selection);
       });
     
+    const midjourneyCount = Array.from(selections.values())
+      .filter(s => s.provider.id === 'midjourney').length;
     const fluxCount = Array.from(selections.values())
       .filter(s => s.provider.id === 'flux').length;
     const falaiCount = Array.from(selections.values())
       .filter(s => s.provider.id === 'falai').length;
     
-    console.log(`[ImageProvider] Selection: Flux.1: ${fluxCount}, fal.ai: ${falaiCount}`);
+    console.log(`[ImageProvider] Selection: Midjourney: ${midjourneyCount}, Flux.1: ${fluxCount}, fal.ai: ${falaiCount}`);
     
     return selections;
   }
   
-  getProviderSummary(selections: Map<number, ImageProviderSelection>): { flux: number; falai: number } {
-    const counts = { flux: 0, falai: 0 };
+  getProviderSummary(selections: Map<number, ImageProviderSelection>): { midjourney: number; flux: number; falai: number } {
+    const counts = { midjourney: 0, flux: 0, falai: 0 };
     
     selections.forEach(selection => {
-      if (selection.provider.id === 'flux') {
+      if (selection.provider.id === 'midjourney') {
+        counts.midjourney++;
+      } else if (selection.provider.id === 'flux') {
         counts.flux++;
       } else {
         counts.falai++;
@@ -151,10 +163,12 @@ class ImageProviderSelectorService {
     return counts;
   }
   
-  calculateImageCost(counts: { flux: number; falai: number }): number {
+  calculateImageCost(counts: { midjourney?: number; flux: number; falai: number }): number {
+    const midjourneyCount = counts.midjourney || 0;
+    const midjourneyCost = midjourneyCount * IMAGE_PROVIDERS.midjourney.costPerImage;
     const fluxCost = counts.flux * IMAGE_PROVIDERS.flux.costPerImage;
     const falaiCost = counts.falai * IMAGE_PROVIDERS.falai.costPerImage;
-    return fluxCost + falaiCost;
+    return midjourneyCost + fluxCost + falaiCost;
   }
 }
 
