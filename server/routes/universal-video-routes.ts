@@ -78,7 +78,7 @@ const productVideoInputSchema = z.object({
   benefits: z.array(z.string()).min(1),
   duration: z.union([z.literal(30), z.literal(60), z.literal(90)]),
   platform: z.enum(['youtube', 'tiktok', 'instagram', 'facebook', 'website']),
-  style: z.enum(['professional', 'friendly', 'energetic', 'calm']),
+  style: z.enum(['professional', 'casual', 'energetic', 'calm', 'cinematic', 'documentary', 'luxury', 'minimal', 'instructional', 'educational', 'training']),
   callToAction: z.string().min(1),
   productImages: z.array(productImageSchema).optional(),
   voiceId: z.string().optional(),
@@ -150,6 +150,8 @@ const scriptVideoInputSchema = z.object({
   }).optional(),
   musicEnabled: z.boolean().optional(),
   musicMood: z.string().optional(),
+  voiceId: z.string().optional(),
+  voiceName: z.string().optional(),
   // Phase 13: Audio and motion control generation settings
   generationSettings: generationSettingsSchema.optional(),
 });
@@ -474,6 +476,8 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
       outputFormat: OUTPUT_FORMATS[validatedInput.platform] || OUTPUT_FORMATS.youtube,
       brand: PINE_HILL_FARM_BRAND,
       scenes,
+      voiceId: validatedInput.voiceId || '21m00Tcm4TlvDq8ikWAM',
+      voiceName: validatedInput.voiceName || 'Rachel',
       assets: {
         voiceover: { fullTrackUrl: '', duration: 0, perScene: [] },
         music: { url: '', duration: 0, volume: 0.18 },

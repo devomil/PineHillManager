@@ -92,6 +92,27 @@ interface ScriptFormData {
   brandSettings?: UIBrandSettings;
 }
 
+type ScriptMode = "ai-generate" | "custom";
+
+interface UnifiedFormData {
+  mode: ScriptMode;
+  title: string;
+  productName: string;
+  productDescription: string;
+  targetAudience: string;
+  benefits: string[];
+  customScript: string;
+  duration: 30 | 60 | 90;
+  platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
+  style: string;
+  callToAction: string;
+  voiceId: string;
+  voiceName: string;
+  musicEnabled: boolean;
+  musicMood: string;
+  brandSettings: UIBrandSettings;
+}
+
 const STEP_ICONS: Record<string, any> = {
   script: FileText,
   voiceover: Volume2,
@@ -372,26 +393,63 @@ function ProductImageUpload({
   );
 }
 
-function ProductVideoForm({ 
-  onSubmit, 
+function VideoCreatorForm({ 
+  onSubmitProduct, 
+  onSubmitScript,
   isLoading 
 }: { 
-  onSubmit: (data: ProductFormData & { productImages?: ProductImage[] }) => void;
+  onSubmitProduct: (data: ProductFormData & { productImages?: ProductImage[] }) => void;
+  onSubmitScript: (data: ScriptFormData) => void;
   isLoading: boolean;
 }) {
-  const [formData, setFormData] = useState<ProductFormData>({
+  const [scriptMode, setScriptMode] = useState<ScriptMode>("ai-generate");
+  const [productImages, setProductImages] = useState<ProductImage[]>([]);
+  
+  const defaultFormData: UnifiedFormData = {
+    mode: "ai-generate",
+    title: "",
     productName: "",
     productDescription: "",
     targetAudience: "",
     benefits: [""],
+    customScript: "",
     duration: 60,
     platform: "youtube",
     style: "professional",
     callToAction: "Visit pinehillfarm.com",
-    voiceId: "21m00Tcm4TlvDq8ikWAM",  // Rachel - default
+    voiceId: "21m00Tcm4TlvDq8ikWAM",
     voiceName: "Rachel",
-  });
-  const [productImages, setProductImages] = useState<ProductImage[]>([]);
+    musicEnabled: true,
+    musicMood: "",
+    brandSettings: {
+      includeIntroLogo: true,
+      includeWatermark: true,
+      includeCTAOutro: true,
+      watermarkPosition: 'bottom-right',
+      watermarkOpacity: 0.7,
+    },
+  };
+
+  const [formData, setFormData] = useState<UnifiedFormData>(defaultFormData);
+
+  const handleModeChange = (newMode: ScriptMode) => {
+    setScriptMode(newMode);
+    if (newMode === "ai-generate") {
+      setFormData(prev => ({
+        ...prev,
+        mode: newMode,
+        benefits: prev.benefits.some(b => b.trim()) ? prev.benefits : [""],
+        callToAction: prev.callToAction || "Visit pinehillfarm.com",
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        mode: newMode,
+      }));
+    }
+  };
+
+  const visualStyles = getAvailableStyles();
 
   const addBenefit = () => {
     setFormData(prev => ({
@@ -415,99 +473,210 @@ function ProductVideoForm({
   };
 
   const handleSubmit = () => {
-    const filteredBenefits = formData.benefits.filter(b => b.trim());
-    if (filteredBenefits.length === 0) {
-      return;
+    if (scriptMode === "ai-generate") {
+      const filteredBenefits = formData.benefits.filter(b => b.trim());
+      if (filteredBenefits.length === 0) return;
+      
+      onSubmitProduct({
+        productName: formData.productName,
+        productDescription: formData.productDescription,
+        targetAudience: formData.targetAudience,
+        benefits: filteredBenefits,
+        duration: formData.duration,
+        platform: formData.platform,
+        style: formData.style as any,
+        callToAction: formData.callToAction,
+        voiceId: formData.voiceId,
+        voiceName: formData.voiceName,
+        productImages,
+      });
+    } else {
+      onSubmitScript({
+        title: formData.title,
+        script: formData.customScript,
+        platform: formData.platform,
+        style: formData.style as any,
+        brandSettings: formData.brandSettings,
+        musicEnabled: formData.musicEnabled,
+        musicMood: formData.musicMood,
+        voiceId: formData.voiceId,
+        voiceName: formData.voiceName,
+      } as any);
     }
-    onSubmit({ ...formData, benefits: filteredBenefits, productImages });
   };
 
+  const isValidForSubmit = scriptMode === "ai-generate"
+    ? formData.productName.trim() && 
+      formData.productDescription.trim() && 
+      formData.targetAudience.trim() && 
+      formData.callToAction.trim() && 
+      formData.benefits.some(b => b.trim())
+    : formData.title.trim() && formData.customScript.length >= 50;
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="productName">Product Name</Label>
-          <Input
-            id="productName"
-            data-testid="input-product-name"
-            placeholder="e.g., Weight Loss Support Capsules"
-            value={formData.productName}
-            onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="targetAudience">Target Audience</Label>
-          <Input
-            id="targetAudience"
-            data-testid="input-target-audience"
-            placeholder="e.g., Health-conscious adults 35-55"
-            value={formData.targetAudience}
-            onChange={(e) => setFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="productDescription">Product Description</Label>
-        <Textarea
-          id="productDescription"
-          data-testid="textarea-product-description"
-          placeholder="Describe your product's features and benefits..."
-          value={formData.productDescription}
-          onChange={(e) => setFormData(prev => ({ ...prev, productDescription: e.target.value }))}
-          rows={3}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Key Benefits</Label>
-        {formData.benefits.map((benefit, index) => (
-          <div key={index} className="flex gap-2">
-            <Input
-              data-testid={`input-benefit-${index}`}
-              placeholder={`Benefit ${index + 1}`}
-              value={benefit}
-              onChange={(e) => updateBenefit(index, e.target.value)}
-            />
-            {formData.benefits.length > 1 && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => removeBenefit(index)}
-                data-testid={`button-remove-benefit-${index}`}
-              >
-                ×
-              </Button>
-            )}
-          </div>
-        ))}
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={addBenefit}
-          data-testid="button-add-benefit"
+    <div className="space-y-6">
+      <div className="flex items-center justify-center p-1 bg-muted rounded-lg">
+        <button
+          type="button"
+          onClick={() => handleModeChange("ai-generate")}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+            scriptMode === "ai-generate"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          data-testid="mode-ai-generate"
         >
-          + Add Benefit
-        </Button>
+          <Sparkles className="w-4 h-4" />
+          AI-Generated Script
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModeChange("custom")}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+            scriptMode === "custom"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          data-testid="mode-custom-script"
+        >
+          <FileText className="w-4 h-4" />
+          Custom Script
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Video Duration</Label>
-          <Select
-            value={String(formData.duration)}
-            onValueChange={(val) => setFormData(prev => ({ ...prev, duration: Number(val) as 30 | 60 | 90 }))}
-          >
-            <SelectTrigger data-testid="select-duration">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30">30 seconds</SelectItem>
-              <SelectItem value="60">60 seconds</SelectItem>
-              <SelectItem value="90">90 seconds</SelectItem>
-            </SelectContent>
-          </Select>
+      {scriptMode === "ai-generate" ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="productName">Product Name</Label>
+              <Input
+                id="productName"
+                data-testid="input-product-name"
+                placeholder="e.g., Weight Loss Support Capsules"
+                value={formData.productName}
+                onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="targetAudience">Target Audience</Label>
+              <Input
+                id="targetAudience"
+                data-testid="input-target-audience"
+                placeholder="e.g., Health-conscious adults 35-55"
+                value={formData.targetAudience}
+                onChange={(e) => setFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="productDescription">Product Description</Label>
+            <Textarea
+              id="productDescription"
+              data-testid="textarea-product-description"
+              placeholder="Describe your product's features and benefits..."
+              value={formData.productDescription}
+              onChange={(e) => setFormData(prev => ({ ...prev, productDescription: e.target.value }))}
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Key Benefits</Label>
+            {formData.benefits.map((benefit, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  data-testid={`input-benefit-${index}`}
+                  placeholder={`Benefit ${index + 1}`}
+                  value={benefit}
+                  onChange={(e) => updateBenefit(index, e.target.value)}
+                />
+                {formData.benefits.length > 1 && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeBenefit(index)}
+                    data-testid={`button-remove-benefit-${index}`}
+                  >
+                    ×
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={addBenefit}
+              data-testid="button-add-benefit"
+            >
+              + Add Benefit
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="callToAction">Call to Action</Label>
+            <Input
+              id="callToAction"
+              data-testid="input-cta"
+              placeholder="e.g., Visit pinehillfarm.com today!"
+              value={formData.callToAction}
+              onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
+            />
+          </div>
         </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Video Title</Label>
+            <Input
+              id="title"
+              data-testid="input-script-title"
+              placeholder="e.g., Weight Loss: The Hidden Toxin Connection"
+              value={formData.title}
+              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="script">Full Script</Label>
+            <Textarea
+              id="script"
+              data-testid="textarea-script"
+              placeholder="Paste your full video script here..."
+              value={formData.customScript}
+              onChange={(e) => setFormData(prev => ({ ...prev, customScript: e.target.value }))}
+              rows={10}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Word count: {formData.customScript.split(/\s+/).filter(Boolean).length} | 
+              Estimated duration: {Math.ceil(formData.customScript.split(/\s+/).filter(Boolean).length / 2.5)} seconds
+            </p>
+          </div>
+        </div>
+      )}
+
+      <Separator />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {scriptMode === "ai-generate" && (
+          <div className="space-y-2">
+            <Label>Video Duration</Label>
+            <Select
+              value={String(formData.duration)}
+              onValueChange={(val) => setFormData(prev => ({ ...prev, duration: Number(val) as 30 | 60 | 90 }))}
+            >
+              <SelectTrigger data-testid="select-duration">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">30 seconds</SelectItem>
+                <SelectItem value="60">60 seconds</SelectItem>
+                <SelectItem value="90">90 seconds</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>Platform</Label>
@@ -527,38 +696,42 @@ function ProductVideoForm({
             </SelectContent>
           </Select>
         </div>
-
-        <div className="space-y-2">
-          <Label>Style</Label>
-          <Select
-            value={formData.style}
-            onValueChange={(val) => setFormData(prev => ({ ...prev, style: val as any }))}
-          >
-            <SelectTrigger data-testid="select-style">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="professional">Professional</SelectItem>
-              <SelectItem value="friendly">Friendly</SelectItem>
-              <SelectItem value="energetic">Energetic</SelectItem>
-              <SelectItem value="calm">Calm</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="callToAction">Call to Action</Label>
-        <Input
-          id="callToAction"
-          data-testid="input-cta"
-          placeholder="e.g., Visit pinehillfarm.com today!"
-          value={formData.callToAction}
-          onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
-        />
+        <Label>Visual Style</Label>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {visualStyles.map((style) => (
+            <button
+              key={style.id}
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, style: style.id }))}
+              className={`
+                p-3 rounded-lg border text-left transition-all
+                ${formData.style === style.id 
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                  : 'border-gray-200 hover:border-gray-300'}
+              `}
+              data-testid={`button-style-${style.id}`}
+            >
+              <p className="font-medium text-sm">{style.name}</p>
+              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                {style.description}
+              </p>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <Separator className="my-4" />
+      <MusicStyleSelector
+        enabled={formData.musicEnabled}
+        onEnabledChange={(enabled) => setFormData(prev => ({ ...prev, musicEnabled: enabled }))}
+        visualStyle={formData.style}
+        customMood={formData.musicMood}
+        onMoodChange={(mood) => setFormData(prev => ({ ...prev, musicMood: mood }))}
+      />
+
+      <Separator />
 
       <VoiceSelector
         selectedVoiceId={formData.voiceId}
@@ -567,170 +740,38 @@ function ProductVideoForm({
         }
       />
 
-      <Separator className="my-4" />
+      {scriptMode === "ai-generate" && (
+        <>
+          <Separator />
+          <ProductImageUpload
+            projectId={null}
+            images={productImages}
+            onImagesChange={setProductImages}
+          />
+        </>
+      )}
 
-      <ProductImageUpload
-        projectId={null}
-        images={productImages}
-        onImagesChange={setProductImages}
-      />
-
-      <Button 
-        className="w-full" 
-        onClick={handleSubmit}
-        disabled={isLoading || !formData.productName || !formData.productDescription}
-        data-testid="button-create-project"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Creating Project...
-          </>
-        ) : (
-          <>
-            <Sparkles className="w-4 h-4 mr-2" />
-            Create Product Video
-          </>
-        )}
-      </Button>
-    </div>
-  );
-}
-
-function ScriptVideoForm({
-  onSubmit,
-  isLoading
-}: {
-  onSubmit: (data: ScriptFormData) => void;
-  isLoading: boolean;
-}) {
-  const [formData, setFormData] = useState<ScriptFormData>({
-    title: "",
-    script: "",
-    platform: "youtube",
-    style: "professional",
-  });
-
-  const [brandSettings, setBrandSettings] = useState<UIBrandSettings>({
-    includeIntroLogo: true,
-    includeWatermark: true,
-    includeCTAOutro: true,
-    watermarkPosition: 'bottom-right',
-    watermarkOpacity: 0.7,
-  });
-
-  const [musicEnabled, setMusicEnabled] = useState(true);
-  const [musicMood, setMusicMood] = useState<string>('');
-  
-  const visualStyles = getAvailableStyles();
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="title">Video Title</Label>
-        <Input
-          id="title"
-          data-testid="input-script-title"
-          placeholder="e.g., Weight Loss: The Hidden Toxin Connection"
-          value={formData.title}
-          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="script">Full Script</Label>
-        <Textarea
-          id="script"
-          data-testid="textarea-script"
-          placeholder="Paste your full video script here..."
-          value={formData.script}
-          onChange={(e) => setFormData(prev => ({ ...prev, script: e.target.value }))}
-          rows={10}
-          className="font-mono text-sm"
-        />
-        <p className="text-xs text-muted-foreground">
-          Word count: {formData.script.split(/\s+/).filter(Boolean).length} | 
-          Estimated duration: {Math.ceil(formData.script.split(/\s+/).filter(Boolean).length / 2.5)} seconds
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Platform</Label>
-          <Select
-            value={formData.platform}
-            onValueChange={(val) => setFormData(prev => ({ ...prev, platform: val as any }))}
-          >
-            <SelectTrigger data-testid="select-script-platform">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="youtube">YouTube</SelectItem>
-              <SelectItem value="tiktok">TikTok</SelectItem>
-              <SelectItem value="instagram">Instagram</SelectItem>
-              <SelectItem value="facebook">Facebook</SelectItem>
-              <SelectItem value="website">Website</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2 col-span-2">
-          <Label>Visual Style</Label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {visualStyles.map((style) => (
-              <button
-                key={style.id}
-                type="button"
-                onClick={() => setFormData(prev => ({ ...prev, style: style.id as any }))}
-                className={`
-                  p-3 rounded-lg border text-left transition-all
-                  ${formData.style === style.id 
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary' 
-                    : 'border-gray-200 hover:border-gray-300'}
-                `}
-                data-testid={`button-style-${style.id}`}
-              >
-                <p className="font-medium text-sm">{style.name}</p>
-                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                  {style.description}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Music Style Selector (Phase 5B) */}
-      <MusicStyleSelector
-        enabled={musicEnabled}
-        onEnabledChange={setMusicEnabled}
-        visualStyle={formData.style}
-        customMood={musicMood}
-        onMoodChange={setMusicMood}
-      />
-
-      {/* Brand Settings Panel (Phase 5A) */}
       <BrandSettingsPanel
-        settings={brandSettings}
-        onSettingsChange={setBrandSettings}
+        settings={formData.brandSettings}
+        onSettingsChange={(brandSettings) => setFormData(prev => ({ ...prev, brandSettings }))}
         defaultExpanded={false}
       />
 
       <Button 
         className="w-full" 
-        onClick={() => onSubmit({ ...formData, brandSettings, musicEnabled, musicMood } as any)}
-        disabled={isLoading || !formData.title || formData.script.length < 50}
-        data-testid="button-parse-script"
+        onClick={handleSubmit}
+        disabled={isLoading || !isValidForSubmit}
+        data-testid="button-create-project"
       >
         {isLoading ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Parsing Script...
+            {scriptMode === "ai-generate" ? "Creating Project..." : "Parsing Script..."}
           </>
         ) : (
           <>
-            <FileText className="w-4 h-4 mr-2" />
-            Parse Script & Create Project
+            <Sparkles className="w-4 h-4 mr-2" />
+            Create Video Project
           </>
         )}
       </Button>
@@ -3660,7 +3701,6 @@ export default function UniversalVideoProducer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [workflowType, setWorkflowType] = useState<WorkflowType>("product");
   const [project, setProject] = useState<VideoProject | null>(null);
   const [renderId, setRenderId] = useState<string | null>(null);
   const [bucketName, setBucketName] = useState<string | null>(null);
@@ -4115,32 +4155,11 @@ export default function UniversalVideoProducer() {
           {viewMode === 'list' ? (
             <ProjectsList onSelectProject={handleSelectProject} onCreateNew={handleCreateNew} />
           ) : !project ? (
-            <Tabs value={workflowType} onValueChange={(v) => setWorkflowType(v as WorkflowType)}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="product" data-testid="tab-product">
-                  <Package className="w-4 h-4 mr-2" />
-                  Product Video
-                </TabsTrigger>
-                <TabsTrigger value="script" data-testid="tab-script">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Script-Based
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="product" className="mt-4">
-                <ProductVideoForm 
-                  onSubmit={(data) => createProductMutation.mutate(data)}
-                  isLoading={createProductMutation.isPending}
-                />
-              </TabsContent>
-              
-              <TabsContent value="script" className="mt-4">
-                <ScriptVideoForm
-                  onSubmit={(data) => createScriptMutation.mutate(data)}
-                  isLoading={createScriptMutation.isPending}
-                />
-              </TabsContent>
-            </Tabs>
+            <VideoCreatorForm 
+              onSubmitProduct={(data) => createProductMutation.mutate(data)}
+              onSubmitScript={(data) => createScriptMutation.mutate(data)}
+              isLoading={createProductMutation.isPending || createScriptMutation.isPending}
+            />
           ) : (
             <div className="space-y-6">
               <ServiceFailureAlert failures={project.progress.serviceFailures} />
