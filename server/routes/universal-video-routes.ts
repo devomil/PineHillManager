@@ -51,6 +51,10 @@ import type { CompositionRequest, ProductPlacement } from '../../shared/types/im
 import { imageToVideoService } from '../services/image-to-video-service';
 import { motionStyleDetector } from '../services/motion-style-detector';
 import { selectI2VProvider, I2V_PROVIDER_CAPABILITIES, getAllI2VProviders } from '../services/i2v-provider-capabilities';
+import { logoCompositionService } from '../services/logo-composition-service';
+import { logoAssetSelector } from '../services/logo-asset-selector';
+import { logoPlacementCalculator } from '../services/logo-placement-calculator';
+import type { LogoType, LogoPlacement, LogoCompositionConfig } from '../../shared/types/logo-composition-types';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -7027,6 +7031,266 @@ router.post('/projects/:projectId/scenes/:sceneId/generate-video-from-composed',
     });
   } catch (error: any) {
     console.error('[Phase14D] Scene I2V generation failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/logo-composition/build-config', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { 
+      sceneId, 
+      sceneDuration, 
+      analysis, 
+      productRegions,
+      width = 1920,
+      height = 1080,
+      fps = 30,
+    } = req.body;
+
+    if (!sceneId || !sceneDuration) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'sceneId and sceneDuration are required' 
+      });
+    }
+
+    const config = await logoCompositionService.buildConfig(
+      sceneId,
+      sceneDuration,
+      analysis || { requirements: { logoRequired: true, productMentioned: false, brandingVisibility: 'visible' } },
+      productRegions,
+      { width, height, fps }
+    );
+
+    res.json({
+      success: true,
+      phase: '14E',
+      config,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Logo config build failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/logo-composition/build-simple', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { 
+      sceneId, 
+      sceneDuration, 
+      logoTypes = ['primary', 'watermark'],
+      productRegions,
+      width = 1920,
+      height = 1080,
+      fps = 30,
+    } = req.body;
+
+    if (!sceneId || !sceneDuration) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'sceneId and sceneDuration are required' 
+      });
+    }
+
+    const config = await logoCompositionService.buildSimpleConfig(
+      sceneId,
+      sceneDuration,
+      logoTypes as LogoType[],
+      { width, height, fps, productRegions }
+    );
+
+    res.json({
+      success: true,
+      phase: '14E',
+      config,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Simple logo config failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/logo-composition/generate-props', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { config } = req.body;
+
+    if (!config || !config.logos) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'config with logos array is required' 
+      });
+    }
+
+    const props = await logoCompositionService.generateRemotionProps(config);
+
+    res.json({
+      success: true,
+      phase: '14E',
+      remotionProps: props,
+      count: props.length,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Remotion props generation failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/logo-composition/select-logo/:type', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { type } = req.params;
+    const { preferredName } = req.query;
+
+    const validTypes: LogoType[] = ['primary', 'watermark', 'certification', 'partner'];
+    if (!validTypes.includes(type as LogoType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid logo type. Must be one of: ${validTypes.join(', ')}` 
+      });
+    }
+
+    const asset = await logoAssetSelector.selectLogo(
+      type as LogoType, 
+      preferredName as string | undefined
+    );
+
+    if (!asset) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `No ${type} logo found in brand media library` 
+      });
+    }
+
+    res.json({
+      success: true,
+      phase: '14E',
+      asset,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Logo selection failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/logo-composition/calculate-placement', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { placement, logoAsset, config } = req.body;
+
+    if (!placement || !logoAsset || !config) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'placement, logoAsset, and config are required' 
+      });
+    }
+
+    const calculated = logoPlacementCalculator.calculate(placement, logoAsset, config);
+
+    res.json({
+      success: true,
+      phase: '14E',
+      calculated,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Placement calculation failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/logo-composition/add-logo', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { config, logoType, overrides } = req.body;
+
+    if (!config || !logoType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'config and logoType are required' 
+      });
+    }
+
+    const updatedConfig = await logoCompositionService.addLogoToConfig(
+      config,
+      logoType as LogoType,
+      overrides
+    );
+
+    res.json({
+      success: true,
+      phase: '14E',
+      config: updatedConfig,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Add logo failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/logo-composition/resolve-assets', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { config } = req.body;
+
+    if (!config) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'config is required' 
+      });
+    }
+
+    const resolvedConfig = await logoCompositionService.resolveAllAssetUrls(config);
+
+    res.json({
+      success: true,
+      phase: '14E',
+      config: resolvedConfig,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Asset resolution failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneId/compose-logos', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const { 
+      logoTypes = ['primary', 'watermark'],
+      productRegions,
+      width = 1920,
+      height = 1080,
+    } = req.body;
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const scene = projectData.scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    const sceneDuration = scene.duration || 5;
+    const fps = projectData.fps || 30;
+    const sceneDurationFrames = sceneDuration * fps;
+
+    const config = await logoCompositionService.buildSimpleConfig(
+      sceneId,
+      sceneDurationFrames,
+      logoTypes as LogoType[],
+      { width, height, fps, productRegions }
+    );
+
+    const resolvedConfig = await logoCompositionService.resolveAllAssetUrls(config);
+    const remotionProps = await logoCompositionService.generateRemotionProps(resolvedConfig);
+
+    res.json({
+      success: true,
+      phase: '14E',
+      projectId,
+      sceneId,
+      config: resolvedConfig,
+      remotionProps,
+    });
+  } catch (error: any) {
+    console.error('[Phase14E] Scene logo composition failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
