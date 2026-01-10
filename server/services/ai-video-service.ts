@@ -34,7 +34,47 @@ interface AIVideoOptions {
   contentType?: 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle';
   visualStyle?: string;
   imageUrl?: string;
+  qualityTier?: 'ultra' | 'premium' | 'standard';
 }
+
+// Maps base provider + quality tier to the appropriate versioned provider
+const TIER_PROVIDER_VERSIONS: Record<string, Record<string, string>> = {
+  kling: {
+    ultra: 'kling-2.6',
+    premium: 'kling-2.6',
+    standard: 'kling-2.5',
+  },
+  runway: {
+    ultra: 'runway',
+    premium: 'runway',
+    standard: 'runway',
+  },
+  luma: {
+    ultra: 'luma',
+    premium: 'luma',
+    standard: 'luma',
+  },
+  hailuo: {
+    ultra: 'hailuo',
+    premium: 'hailuo',
+    standard: 'hailuo',
+  },
+  veo: {
+    ultra: 'veo-3.1',
+    premium: 'veo-2',
+    standard: 'veo',
+  },
+  hunyuan: {
+    ultra: 'hunyuan',
+    premium: 'hunyuan',
+    standard: 'hunyuan',
+  },
+  wan: {
+    ultra: 'wan-2.6',
+    premium: 'wan-2.6',
+    standard: 'wan-2.1',
+  },
+};
 
 class AIVideoService {
   
@@ -97,6 +137,7 @@ class AIVideoService {
 
     // Select providers using intelligent Claude-based analysis when narration available
     let providerOrder: string[];
+    const qualityTier = options.qualityTier || 'standard';
     
     if (enhancedOptions.preferredProvider) {
       providerOrder = [enhancedOptions.preferredProvider, ...configuredProviders.filter(p => p !== enhancedOptions.preferredProvider)];
@@ -111,10 +152,25 @@ class AIVideoService {
       providerOrder = this.selectProvidersForStyle(styleConfig.preferredVideoProviders, enhancedOptions.sceneType, contentType, configuredProviders);
     }
 
-    console.log(`[AIVideo] Scene: ${enhancedOptions.sceneType}`);
-    console.log(`[AIVideo] Provider order: ${providerOrder.join(' → ')}`);
+    // Map base providers to tier-appropriate versions
+    const tierAdjustedOrder = providerOrder.map(baseProvider => {
+      // Extract base provider name (e.g., 'kling' from 'kling-2.6')
+      const baseName = baseProvider.split('-')[0];
+      const tierVersions = TIER_PROVIDER_VERSIONS[baseName];
+      if (tierVersions && tierVersions[qualityTier]) {
+        const versionedProvider = tierVersions[qualityTier];
+        if (versionedProvider !== baseProvider) {
+          console.log(`[AIVideo] Quality tier ${qualityTier}: ${baseProvider} → ${versionedProvider}`);
+        }
+        return versionedProvider;
+      }
+      return baseProvider;
+    });
 
-    for (const providerKey of providerOrder) {
+    console.log(`[AIVideo] Scene: ${enhancedOptions.sceneType}, Quality: ${qualityTier}`);
+    console.log(`[AIVideo] Provider order: ${tierAdjustedOrder.join(' → ')}`);
+
+    for (const providerKey of tierAdjustedOrder) {
       const provider = AI_VIDEO_PROVIDERS[providerKey];
       
       if (!provider) continue;

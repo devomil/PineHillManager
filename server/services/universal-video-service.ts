@@ -3057,6 +3057,10 @@ Total: 90 seconds` : ''}
         if (isHeroScene && aiVideoService.isAvailable()) {
           console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id}...`);
           
+          // Get quality tier from project (Phase 15H fix)
+          const projectQualityTier = (project as any).qualityTier || 'standard';
+          console.log(`[Assets] Using quality tier: ${projectQualityTier}`);
+          
           const aiResult = await aiVideoService.generateVideo({
             prompt: visualPrompt,
             duration: Math.min(scene.duration || 5, 10),
@@ -3065,6 +3069,7 @@ Total: 90 seconds` : ''}
             narration: scene.narration,
             mood: (scene as any).analysis?.mood,
             contentType: (scene as any).analysis?.contentType as 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle' | undefined,
+            qualityTier: projectQualityTier as 'ultra' | 'premium' | 'standard',
           });
           
           if (aiResult.success && aiResult.s3Url) {
@@ -4120,6 +4125,10 @@ Total: 90 seconds` : ''}
     if (provider && aiProviders.includes(provider.toLowerCase())) {
       console.log(`[Regenerate] Using AI video provider: ${provider}`);
       
+      // Get quality tier from project (Phase 15H fix)
+      const projectQualityTier = (project as any).qualityTier || 'standard';
+      console.log(`[Regenerate] Using quality tier: ${projectQualityTier}`);
+      
       try {
         const aiResult = await aiVideoService.generateVideo({
           prompt: prompt,
@@ -4130,6 +4139,7 @@ Total: 90 seconds` : ''}
           narration: scene.narration,
           mood: (scene as any).analysis?.mood,
           contentType: (scene as any).analysis?.contentType as 'person' | 'product' | 'nature' | 'abstract' | 'lifestyle' | undefined,
+          qualityTier: projectQualityTier as 'ultra' | 'premium' | 'standard',
         });
         
         if (aiResult.success && aiResult.s3Url) {
