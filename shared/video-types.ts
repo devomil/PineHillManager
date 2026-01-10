@@ -196,6 +196,8 @@ export interface Scene {
     matchedProductCount: number;
     matchedLogoCount: number;
   };
+  // Phase 15H: Workflow override - allows disabling brand asset matching per scene
+  useBrandAssets?: boolean;
 }
 
 // Phase 8A: Scene analysis types

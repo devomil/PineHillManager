@@ -108,10 +108,19 @@ export const I2V_PROVIDER_CAPABILITIES: Record<string, I2VProviderCapabilities> 
   },
 };
 
+type QualityTier = 'ultra' | 'premium' | 'standard';
+
+const TIER_PROVIDER_PRIORITY: Record<QualityTier, string[]> = {
+  ultra: ['veo-3.1', 'runway-gen3', 'kling-2.6', 'veo-2'],
+  premium: ['kling-2.6', 'runway-gen3', 'veo-3.1', 'kling-2.5'],
+  standard: ['kling-2.5', 'kling-2.1', 'luma-dream-machine', 'hailuo-minimax'],
+};
+
 export function selectI2VProvider(
   motionStyle: MotionStyle,
   duration: number,
-  preferQuality: boolean = true
+  preferQuality: boolean = true,
+  qualityTier: QualityTier = 'premium'
 ): string {
   
   const compatible = Object.entries(I2V_PROVIDER_CAPABILITIES)
@@ -121,7 +130,16 @@ export function selectI2VProvider(
     );
   
   if (compatible.length === 0) {
-    return 'kling-2.6';
+    return TIER_PROVIDER_PRIORITY[qualityTier][0] || 'kling-2.6';
+  }
+  
+  const tierPriority = TIER_PROVIDER_PRIORITY[qualityTier];
+  for (const preferredProvider of tierPriority) {
+    const match = compatible.find(([id]) => id === preferredProvider);
+    if (match) {
+      console.log(`[I2V] Selected ${match[0]} for ${qualityTier} tier (motion: ${motionStyle})`);
+      return match[0];
+    }
   }
   
   if (preferQuality) {

@@ -20,6 +20,16 @@ interface ImageGenerationOptions {
   aspectRatio?: string;
 }
 
+interface I2IRequest {
+  referenceImageUrl: string;
+  prompt: string;
+  strength?: number;
+  provider?: string;
+  qualityTier?: QualityTier;
+  width?: number;
+  height?: number;
+}
+
 interface GeneratedImage {
   url: string;
   provider: string;
@@ -27,6 +37,8 @@ interface GeneratedImage {
   width: number;
   height: number;
   cost?: number;
+  generationType?: 'txt2img' | 'img2img';
+  sourceAsset?: string;
 }
 
 class ImageGenerationService {
@@ -54,6 +66,131 @@ class ImageGenerationService {
     }
     
     return this.generateWithFalAI(options, provider);
+  }
+  
+  async generateImageToImage(request: I2IRequest): Promise<GeneratedImage> {
+    const qualityTier = request.qualityTier || 'premium';
+    const strength = request.strength ?? 0.6;
+    
+    console.log(`[I2I] Reference: ${request.referenceImageUrl.substring(0, 50)}...`);
+    console.log(`[I2I] Strength: ${strength}`);
+    console.log(`[I2I] Quality tier: ${qualityTier}`);
+    
+    const i2iProviders: Record<QualityTier, string> = {
+      ultra: 'flux-kontext',
+      premium: 'flux-1.1-pro',
+      standard: 'flux',
+    };
+    const providerId = request.provider || i2iProviders[qualityTier];
+    
+    console.log(`[I2I] Using provider: ${providerId}`);
+    
+    const piApiKey = process.env.PIAPI_API_KEY;
+    if (!piApiKey) {
+      throw new Error('PIAPI_API_KEY not configured');
+    }
+    
+    const piapiModelMap: Record<string, string> = {
+      'flux-kontext': 'Qubico/flux1-dev-advanced',
+      'flux-1.1-pro': 'flux-pro',
+      'flux': 'flux-schnell',
+      'gpt-image-1.5': 'gpt-image-1.5',
+      'stable-diffusion-3': 'sd3',
+    };
+    
+    const model = piapiModelMap[providerId] || 'flux-pro';
+    
+    try {
+      const response = await fetch('https://api.piapi.ai/api/v1/task', {
+        method: 'POST',
+        headers: {
+          'X-API-Key': piApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          task_type: 'img2img',
+          input: {
+            image_url: request.referenceImageUrl,
+            prompt: request.prompt,
+            strength,
+            guidance_scale: 7.5,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[I2I] API error: ${response.status} - ${errorText}`);
+        throw new Error(`I2I generation failed: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      const taskId = data.data?.task_id || data.task_id;
+      
+      if (!taskId) {
+        throw new Error('No task ID returned from I2I API');
+      }
+      
+      console.log(`[I2I] Task created: ${taskId}`);
+      
+      const result = await this.pollForI2ICompletion(taskId, piApiKey);
+      
+      console.log(`[I2I] Generation complete: ${result.url.substring(0, 50)}...`);
+      
+      return {
+        ...result,
+        provider: providerId,
+        prompt: request.prompt,
+        generationType: 'img2img',
+        sourceAsset: request.referenceImageUrl,
+      };
+      
+    } catch (error: any) {
+      console.error(`[I2I] Error:`, error.message);
+      console.log(`[I2I] Falling back to standard txt2img`);
+      return this.generateImage({
+        prompt: request.prompt,
+        qualityTier,
+        width: request.width,
+        height: request.height,
+      });
+    }
+  }
+  
+  private async pollForI2ICompletion(taskId: string, apiKey: string): Promise<{ url: string; width: number; height: number }> {
+    const maxAttempts = 60;
+    const pollInterval = 3000;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      
+      const response = await fetch(`https://api.piapi.ai/api/v1/task/${taskId}`, {
+        headers: { 'X-API-Key': apiKey },
+      });
+      
+      if (!response.ok) continue;
+      
+      const data = await response.json();
+      const status = data.data?.status || data.status;
+      
+      if (status === 'completed' || status === 'success') {
+        const output = data.data?.output || data.output;
+        const imageUrl = output?.image_url || output?.images?.[0] || output;
+        
+        if (imageUrl && typeof imageUrl === 'string') {
+          return { url: imageUrl, width: 1280, height: 720 };
+        }
+      } else if (status === 'failed' || status === 'error') {
+        throw new Error(`I2I task failed: ${data.data?.error || 'Unknown error'}`);
+      }
+      
+      if (attempt % 5 === 0) {
+        console.log(`[I2I] Polling... attempt ${attempt + 1}/${maxAttempts} (status: ${status})`);
+      }
+    }
+    
+    throw new Error('I2I generation timed out');
   }
   
   private async generateWithLegNext(

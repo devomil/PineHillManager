@@ -21,24 +21,25 @@ interface Scene {
   visualDirection: string;
   duration: number;
   type?: string;
+  useBrandAssets?: boolean;
 }
 
 const T2V_PROVIDERS: Record<QualityTier, string[]> = {
   ultra: [
     'veo-3.1',
-    'kling-2.6-pro',
-    'kling-2.6-mc-pro',
-    'runway-gen3-turbo',
+    'runway-gen3',
+    'kling-2.6',
+    'veo-2',
   ],
   premium: [
-    'kling-2.6-pro',
-    'veo-3.1',
     'kling-2.6',
-    'luma-ray2',
+    'runway-gen3',
+    'veo-3.1',
+    'kling-2.5',
   ],
   standard: [
-    'kling-2.6',
     'kling-2.5',
+    'kling-2.1',
     'wan-2.6',
     'hailuo-minimax',
   ],
@@ -46,19 +47,22 @@ const T2V_PROVIDERS: Record<QualityTier, string[]> = {
 
 const I2V_PROVIDERS: Record<QualityTier, string[]> = {
   ultra: [
-    'kling-2.6-pro',
     'veo-3.1',
-    'runway-gen3-turbo',
+    'runway-gen3',
+    'kling-2.6',
+    'veo-2',
   ],
   premium: [
     'kling-2.6',
-    'kling-2.6-pro',
-    'luma-ray2',
+    'runway-gen3',
+    'veo-3.1',
+    'kling-2.5',
   ],
   standard: [
-    'kling-2.6',
     'kling-2.5',
-    'wan-2.6',
+    'kling-2.1',
+    'luma-dream-machine',
+    'hailuo-minimax',
   ],
 };
 
@@ -147,7 +151,17 @@ export function selectMediaSource(
   qualityTier: QualityTier
 ): MediaSourceDecision {
   
-  console.log(`[MediaSource] Selecting for scene ${scene.id}, tier: ${qualityTier}`);
+  console.log(`[MediaSource] Selecting for scene ${scene.id}, tier: ${qualityTier}, useBrandAssets: ${scene.useBrandAssets}`);
+  
+  if (scene.useBrandAssets === false) {
+    console.log(`[MediaSource] Brand assets DISABLED for scene ${scene.id} - using T2V`);
+    return {
+      mediaType: 't2v',
+      provider: selectT2VProvider(qualityTier),
+      reason: 'T2V generation (brand assets disabled for this scene)',
+      forcedByTier: false,
+    };
+  }
   
   if (qualityTier === 'ultra' || qualityTier === 'premium') {
     

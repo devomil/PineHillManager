@@ -15,10 +15,12 @@ class ImageToVideoService {
     console.log(`[I2V] Source image: ${request.sourceImageUrl.substring(0, 80)}...`);
     
     try {
+      const qualityTier = request.qualityTier || 'premium';
       const providerId = selectI2VProvider(
         request.motion.style,
         request.motion.duration,
-        true
+        true,
+        qualityTier
       );
       
       console.log(`[I2V] Selected provider: ${providerId}`);

@@ -778,7 +778,7 @@ export function GenerationPreviewPanel({
         {/* Phase 15G: Quality Warning for Standard Tier */}
         {(() => {
           const imageMotionCount = estimate.sceneBreakdown.filter(s => s.mediaType === 'image-motion').length;
-          const tier = selectedTier || estimate.qualityTier || 'standard';
+          const tier = qualityTier || estimate.qualityTier || 'standard';
           if (imageMotionCount > 0 && tier === 'standard') {
             return (
               <QualityWarning 
