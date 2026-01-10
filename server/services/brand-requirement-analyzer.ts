@@ -180,7 +180,7 @@ class BrandRequirementAnalyzer {
     if (productAnalysis.productMentioned) confidence += 0.2;
     if (productAnalysis.productVisibility === 'featured') confidence += 0.2;
     
-    if (brandingAnalysis.logoRequired) confidence += 0.3;
+    if (brandingAnalysis.logoRequired) confidence += 0.5;
     if (brandingAnalysis.brandingVisibility === 'prominent') confidence += 0.2;
     
     return Math.min(confidence, 1);

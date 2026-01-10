@@ -55,6 +55,9 @@ import { logoCompositionService } from '../services/logo-composition-service';
 import { logoAssetSelector } from '../services/logo-asset-selector';
 import { logoPlacementCalculator } from '../services/logo-placement-calculator';
 import type { LogoType, LogoPlacement, LogoCompositionConfig } from '../../shared/types/logo-composition-types';
+import { brandWorkflowOrchestrator } from '../services/brand-workflow-orchestrator';
+import { brandWorkflowRouter } from '../services/brand-workflow-router';
+import type { WorkflowPath, WorkflowResult } from '../../shared/types/brand-workflow-types';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -7291,6 +7294,202 @@ router.post('/projects/:projectId/scenes/:sceneId/compose-logos', isAuthenticate
     });
   } catch (error: any) {
     console.error('[Phase14E] Scene logo composition failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/workflow/analyze', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { visualDirection, narration, outputType = 'video' } = req.body;
+
+    if (!visualDirection) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'visualDirection is required' 
+      });
+    }
+
+    const { analysis, decision } = await brandWorkflowOrchestrator.analyzeOnly(
+      visualDirection,
+      narration || '',
+      outputType
+    );
+
+    res.json({
+      success: true,
+      phase: '14F',
+      analysis: {
+        requiresBrandAssets: analysis.requiresBrandAssets,
+        confidence: analysis.confidence,
+        requirements: analysis.requirements,
+        matchedAssets: {
+          products: analysis.matchedAssets.products.length,
+          logos: analysis.matchedAssets.logos.length,
+          locations: analysis.matchedAssets.locations.length,
+        },
+      },
+      decision: {
+        path: decision.path,
+        confidence: decision.confidence,
+        reasons: decision.reasons,
+        steps: decision.steps,
+        qualityImpact: decision.qualityImpact,
+        costMultiplier: decision.costMultiplier,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Phase14F] Workflow analysis failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/workflow/execute', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { 
+      sceneId,
+      visualDirection,
+      narration,
+      duration = 5,
+      outputType = 'video'
+    } = req.body;
+
+    if (!sceneId || !visualDirection) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'sceneId and visualDirection are required' 
+      });
+    }
+
+    const result = await brandWorkflowOrchestrator.execute(
+      sceneId,
+      visualDirection,
+      narration || '',
+      duration,
+      outputType
+    );
+
+    const { success, ...restResult } = result;
+    res.json({
+      success,
+      phase: '14F',
+      ...restResult,
+    });
+  } catch (error: any) {
+    console.error('[Phase14F] Workflow execution failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/workflow/paths', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const paths = brandWorkflowOrchestrator.getWorkflowPaths();
+    
+    const pathDetails = paths.map(path => ({
+      id: path,
+      description: brandWorkflowOrchestrator.describeWorkflow(path),
+    }));
+
+    res.json({
+      success: true,
+      phase: '14F',
+      paths: pathDetails,
+    });
+  } catch (error: any) {
+    console.error('[Phase14F] Failed to get workflow paths:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneId/workflow', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const { outputType = 'video' } = req.body;
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const scene = projectData.scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    const result = await brandWorkflowOrchestrator.execute(
+      sceneId,
+      scene.visualDirection || '',
+      scene.narration || '',
+      scene.duration || 5,
+      outputType
+    );
+
+    const { success, ...restResult } = result;
+    res.json({
+      success,
+      phase: '14F',
+      projectId,
+      sceneId,
+      ...restResult,
+    });
+  } catch (error: any) {
+    console.error('[Phase14F] Scene workflow execution failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/workflow-preview', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const sceneWorkflows = await Promise.all(
+      projectData.scenes.map(async (scene: any) => {
+        const { analysis, decision } = await brandWorkflowOrchestrator.analyzeOnly(
+          scene.visualDirection || '',
+          scene.narration || '',
+          'video'
+        );
+        
+        return {
+          sceneId: scene.id,
+          sceneNumber: scene.sceneNumber,
+          title: scene.title,
+          path: decision.path,
+          confidence: decision.confidence,
+          reasons: decision.reasons,
+          qualityImpact: decision.qualityImpact,
+          costMultiplier: decision.costMultiplier,
+          matchedAssets: {
+            products: analysis.matchedAssets.products.length,
+            logos: analysis.matchedAssets.logos.length,
+          },
+        };
+      })
+    );
+
+    const totalCost = sceneWorkflows.reduce((sum, s) => sum + s.costMultiplier, 0);
+    const avgCost = sceneWorkflows.length > 0 ? totalCost / sceneWorkflows.length : 1;
+    
+    const pathCounts = sceneWorkflows.reduce((acc, s) => {
+      acc[s.path] = (acc[s.path] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    res.json({
+      success: true,
+      phase: '14F',
+      projectId,
+      totalScenes: sceneWorkflows.length,
+      averageCostMultiplier: avgCost,
+      pathDistribution: pathCounts,
+      scenes: sceneWorkflows,
+    });
+  } catch (error: any) {
+    console.error('[Phase14F] Project workflow preview failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
