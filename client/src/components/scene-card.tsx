@@ -4,6 +4,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from './content-type-selector';
 import { VisualDirectionEditor } from './visual-direction-editor';
+import { WorkflowOverrideCompact } from './workflow-override-toggle';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 interface SceneSoundDesign {
   ambient: { type: string; description: string } | null;
@@ -36,11 +39,13 @@ interface Scene {
   status?: 'pending' | 'generating' | 'complete' | 'error';
   soundDesign?: SceneSoundDesign;
   intelligence?: SceneIntelligence;
+  useBrandAssets?: boolean;
 }
 
 interface SceneCardProps {
   scene: Scene;
   index: number;
+  projectId?: string;
   onUpdate: (sceneId: string, updates: Partial<Scene>) => Promise<void>;
   onDragStart?: () => void;
   expanded?: boolean;
@@ -61,12 +66,15 @@ const SCENE_TYPE_COLORS: Record<string, string> = {
 export function SceneCard({
   scene,
   index,
+  projectId,
   onUpdate,
   onDragStart,
   expanded: defaultExpanded = false,
   disabled = false,
 }: SceneCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [savingBrandAssets, setSavingBrandAssets] = useState(false);
+  const { toast } = useToast();
 
   const handleContentTypeChange = async (contentType: ContentType) => {
     await onUpdate(scene.id, { contentType });
@@ -74,6 +82,33 @@ export function SceneCard({
 
   const handleVisualDirectionSave = async (visualDirection: string) => {
     await onUpdate(scene.id, { visualDirection });
+  };
+
+  const handleBrandAssetToggle = async (sceneId: string, useBrandAssets: boolean) => {
+    if (!projectId) {
+      await onUpdate(sceneId, { useBrandAssets });
+      return;
+    }
+    
+    setSavingBrandAssets(true);
+    try {
+      const response = await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${sceneId}/brand-assets`, { useBrandAssets });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({ 
+          title: useBrandAssets ? 'Brand Mode' : 'AI Mode', 
+          description: data.message 
+        });
+        await onUpdate(sceneId, { useBrandAssets });
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingBrandAssets(false);
+    }
   };
 
   const typeColor = SCENE_TYPE_COLORS[scene.type] || 'bg-gray-100 text-gray-800';
@@ -181,6 +216,21 @@ export function SceneCard({
                 onSave={handleVisualDirectionSave}
                 disabled={disabled}
               />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">
+                Generation Mode
+              </label>
+              <WorkflowOverrideCompact
+                sceneId={scene.id}
+                useBrandAssets={scene.useBrandAssets ?? true}
+                onToggle={handleBrandAssetToggle}
+                disabled={disabled || savingBrandAssets}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Brand: animate product photos (I2V) | AI: generate from scratch (T2V)
+              </p>
             </div>
 
             {/* Sound Design (Phase 7C) */}

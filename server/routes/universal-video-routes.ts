@@ -849,6 +849,48 @@ router.patch('/projects/:projectId/scenes/:sceneId/content-type', isAuthenticate
   }
 });
 
+// Phase 15H: Update scene brand asset toggle
+router.patch('/projects/:projectId/scenes/:sceneId/brand-assets', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { useBrandAssets } = req.body;
+    
+    if (typeof useBrandAssets !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'useBrandAssets must be a boolean' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    (projectData.scenes[sceneIndex] as any).useBrandAssets = useBrandAssets;
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[Phase15H] Updated brand asset mode for scene ${sceneId}: ${useBrandAssets ? 'Brand I2V' : 'AI T2V'}`);
+    
+    res.json({ 
+      success: true, 
+      scene: projectData.scenes[sceneIndex],
+      message: useBrandAssets ? 'Brand asset mode enabled (I2V)' : 'AI generation mode enabled (T2V)'
+    });
+  } catch (error: any) {
+    console.error('[Phase15H] Error updating brand asset mode:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 14C: Update quality tier for a project
 router.patch('/projects/:projectId/quality-tier', isAuthenticated, async (req: Request, res: Response) => {
   try {
