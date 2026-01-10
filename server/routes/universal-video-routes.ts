@@ -4031,8 +4031,13 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     };
     const IMAGE_COST = imageProviderSelector.calculateImageCost(imageProviderCounts);
     
-    // Get quality tier for cost adjustments
-    const qualityTier = (project as any).qualityTier || 'standard';
+    // Get quality tier for cost adjustments - prefer query param over stored value
+    const tierParam = req.query.tier as string;
+    const validTiers = ['ultra', 'premium', 'standard'];
+    const qualityTier = (tierParam && validTiers.includes(tierParam)) 
+      ? tierParam 
+      : ((project as any).qualityTier || 'standard');
+    console.log(`[GenerationEstimate] Project ${projectId} using qualityTier: ${qualityTier} (param: ${tierParam}, stored: ${(project as any).qualityTier})`);
     
     // Quality tier multipliers for costs
     const TIER_MULTIPLIERS: Record<string, number> = {

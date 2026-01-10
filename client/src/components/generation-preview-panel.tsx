@@ -360,9 +360,9 @@ export function GenerationPreviewPanel({
   };
 
   const { data: estimate, isLoading, error } = useQuery<GenerationEstimate>({
-    queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate'],
+    queryKey: ['/api/universal-video/projects', projectId, 'generation-estimate', qualityTier],
     queryFn: async () => {
-      const response = await fetch(`/api/universal-video/projects/${projectId}/generation-estimate`, {
+      const response = await fetch(`/api/universal-video/projects/${projectId}/generation-estimate?tier=${qualityTier}`, {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to load estimate');
