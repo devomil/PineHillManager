@@ -354,6 +354,162 @@ class PiAPIVideoService {
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+  
+  async generateImageToVideo(options: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    aspectRatio: '16:9' | '9:16' | '1:1';
+    model: string;
+    negativePrompt?: string;
+  }): Promise<PiAPIGenerationResult> {
+    if (!this.isAvailable()) {
+      return { success: false, error: 'PiAPI key not configured' };
+    }
+
+    const startTime = Date.now();
+    
+    const sanitized = sanitizePromptForAI(options.prompt, 'video');
+    const sanitizedPrompt = enhancePromptForProvider(sanitized.cleanPrompt, options.model);
+    
+    console.log(`[PiAPI:${options.model}] Starting image-to-video generation...`);
+    console.log(`[PiAPI:${options.model}] Source image: ${options.imageUrl.substring(0, 50)}...`);
+    console.log(`[PiAPI:${options.model}] Prompt: ${sanitizedPrompt.substring(0, 80)}...`);
+
+    try {
+      const requestBody = this.buildI2VRequestBody(options, sanitizedPrompt);
+      
+      const response = await fetch(`${this.baseUrl}/task`, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[PiAPI:${options.model}] I2V API error: ${response.status} - ${errorText}`);
+        return { success: false, error: `API error: ${response.status}`, generationTimeMs: Date.now() - startTime };
+      }
+
+      const data = await response.json();
+      const taskId = data.data?.task_id || data.task_id;
+      
+      if (!taskId) {
+        return { success: false, error: 'No task ID in I2V response', generationTimeMs: Date.now() - startTime };
+      }
+
+      console.log(`[PiAPI:${options.model}] I2V task created: ${taskId}`);
+
+      const result = await this.pollForCompletion(taskId, options.model);
+      
+      if (!result.success || !result.videoUrl) {
+        return {
+          ...result,
+          generationTimeMs: Date.now() - startTime,
+        };
+      }
+
+      console.log(`[PiAPI:${options.model}] I2V complete, uploading to S3...`);
+      const s3Url = await this.uploadToS3(result.videoUrl, options.model);
+
+      const generationTimeMs = Date.now() - startTime;
+      const provider = AI_VIDEO_PROVIDERS[options.model];
+      const cost = options.duration * (provider?.costPerSecond || 0.03);
+
+      console.log(`[PiAPI:${options.model}] I2V complete! Time: ${(generationTimeMs / 1000).toFixed(1)}s, Cost: $${cost.toFixed(3)}`);
+
+      return {
+        success: true,
+        videoUrl: result.videoUrl,
+        s3Url,
+        duration: options.duration,
+        cost,
+        generationTimeMs,
+        taskId,
+      };
+
+    } catch (error: any) {
+      console.error(`[PiAPI:${options.model}] I2V generation failed:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        generationTimeMs: Date.now() - startTime,
+      };
+    }
+  }
+  
+  private buildI2VRequestBody(options: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    aspectRatio: '16:9' | '9:16' | '1:1';
+    model: string;
+  }, sanitizedPrompt: string): any {
+    const baseInput = {
+      prompt: sanitizedPrompt,
+      image_url: options.imageUrl,
+      duration: options.duration,
+      aspect_ratio: options.aspectRatio,
+      negative_prompt: 'blurry, low quality, distorted, morphing, warping, text, watermark',
+    };
+    
+    if (options.model.startsWith('kling')) {
+      const version = options.model.replace('kling-v', '').replace('kling-', '');
+      return {
+        model: 'kling',
+        task_type: 'image_to_video',
+        input: {
+          ...baseInput,
+          mode: 'pro',
+          version: version || '2.6',
+        },
+      };
+    }
+    
+    if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
+      return {
+        model: 'luma',
+        task_type: 'image_to_video',
+        input: {
+          ...baseInput,
+          loop: false,
+        },
+      };
+    }
+    
+    if (options.model.includes('hailuo') || options.model.includes('minimax')) {
+      return {
+        model: 'hailuo',
+        task_type: 'image_to_video',
+        input: {
+          ...baseInput,
+          model: 'i2v-01',
+        },
+      };
+    }
+    
+    if (options.model.includes('veo')) {
+      const veoModel = options.model.includes('3.1') ? 'veo-3.1' : 'veo-2';
+      return {
+        model: veoModel,
+        task_type: 'image_to_video',
+        input: baseInput,
+      };
+    }
+    
+    return {
+      model: 'kling',
+      task_type: 'image_to_video',
+      input: {
+        ...baseInput,
+        mode: 'pro',
+        version: '2.6',
+      },
+    };
+  }
 }
 
 export const piapiVideoService = new PiAPIVideoService();

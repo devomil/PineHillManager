@@ -48,6 +48,9 @@ import {
 import { imageCompositionService } from '../services/image-composition-service';
 import { compositionRequestBuilder } from '../services/composition-request-builder';
 import type { CompositionRequest, ProductPlacement } from '../../shared/types/image-composition-types';
+import { imageToVideoService } from '../services/image-to-video-service';
+import { motionStyleDetector } from '../services/motion-style-detector';
+import { selectI2VProvider, I2V_PROVIDER_CAPABILITIES, getAllI2VProviders } from '../services/i2v-provider-capabilities';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -6842,6 +6845,188 @@ router.post('/projects/:projectId/scenes/:sceneId/compose', isAuthenticated, asy
     });
   } catch (error: any) {
     console.error('[Phase14C] Scene composition failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/image-to-video/generate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { 
+      sourceImageUrl, 
+      sourceType = 'composed',
+      sceneId,
+      visualDirection,
+      motion,
+      productRegions,
+      output = { width: 1920, height: 1080, fps: 30, format: 'mp4' },
+    } = req.body;
+
+    if (!sourceImageUrl || !sceneId || !visualDirection) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: sourceImageUrl, sceneId, visualDirection' 
+      });
+    }
+
+    console.log(`[Phase14D] Starting I2V generation for scene ${sceneId}`);
+
+    let motionConfig = motion;
+    if (!motionConfig) {
+      motionConfig = motionStyleDetector.detect(visualDirection);
+      console.log(`[Phase14D] Auto-detected motion style: ${motionConfig.style}`);
+    }
+
+    const result = await imageToVideoService.generate({
+      sourceImageUrl,
+      sourceType,
+      sceneId,
+      visualDirection,
+      motion: {
+        style: motionConfig.style || 'subtle',
+        intensity: motionConfig.intensity || 'low',
+        duration: motionConfig.duration || 5,
+        cameraMovement: motionConfig.cameraMovement,
+        environmentalEffects: motionConfig.environmentalEffects,
+        revealDirection: motionConfig.revealDirection,
+      },
+      productRegions: productRegions || [],
+      output,
+    });
+
+    res.json({
+      ...result,
+      phase: '14D',
+      motionConfig,
+    });
+  } catch (error: any) {
+    console.error('[Phase14D] I2V generation failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/image-to-video/detect-motion', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { visualDirection, sceneType } = req.body;
+
+    if (!visualDirection && !sceneType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Provide visualDirection or sceneType' 
+      });
+    }
+
+    let result;
+    if (sceneType) {
+      result = motionStyleDetector.detectFromSceneType(sceneType);
+    } else {
+      result = motionStyleDetector.detect(visualDirection);
+    }
+
+    res.json({
+      success: true,
+      ...result,
+      phase: '14D',
+    });
+  } catch (error: any) {
+    console.error('[Phase14D] Motion detection failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/image-to-video/providers', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const providers = getAllI2VProviders().map(id => ({
+      id,
+      ...I2V_PROVIDER_CAPABILITIES[id],
+    }));
+
+    res.json({
+      success: true,
+      providers,
+      phase: '14D',
+    });
+  } catch (error: any) {
+    console.error('[Phase14D] Failed to get I2V providers:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/image-to-video/select-provider', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { motionStyle, duration, preferQuality = true } = req.body;
+
+    if (!motionStyle) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required field: motionStyle' 
+      });
+    }
+
+    const selectedProviderId = selectI2VProvider(motionStyle, duration || 5, preferQuality);
+    const provider = I2V_PROVIDER_CAPABILITIES[selectedProviderId];
+
+    res.json({
+      success: true,
+      provider: {
+        id: selectedProviderId,
+        ...provider,
+      },
+      phase: '14D',
+    });
+  } catch (error: any) {
+    console.error('[Phase14D] Provider selection failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneId/generate-video-from-composed', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const { composedImageUrl, motion, duration = 5 } = req.body;
+
+    if (!composedImageUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required field: composedImageUrl' 
+      });
+    }
+
+    console.log(`[Phase14D] Generating video from composed image for scene ${sceneId}`);
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    const scene = projectData.scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    let motionConfig = motion;
+    if (!motionConfig) {
+      motionConfig = motionStyleDetector.detect(scene.visualDirection || '');
+    }
+
+    const productRegions: Array<{ bounds: { x: number; y: number; width: number; height: number } }> = [];
+
+    const result = await imageToVideoService.generateFromComposedImage(
+      sceneId,
+      scene.visualDirection || '',
+      composedImageUrl,
+      productRegions,
+      duration,
+      motionConfig
+    );
+
+    res.json({
+      ...result,
+      phase: '14D',
+      projectId,
+      sceneId,
+    });
+  } catch (error: any) {
+    console.error('[Phase14D] Scene I2V generation failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
