@@ -275,16 +275,15 @@ router.delete('/projects/:projectId', isAuthenticated, async (req: Request, res:
     }
     
     const { projectId } = req.params;
-    const projectIdNum = parseInt(projectId, 10);
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId || typeof projectId !== 'string') {
       return res.status(400).json({ success: false, error: 'Invalid project ID' });
     }
     
-    // Verify ownership before deleting
+    // Verify ownership before deleting - use projectId string column
     const [existing] = await db.select({ ownerId: universalVideoProjects.ownerId })
       .from(universalVideoProjects)
-      .where(eq(universalVideoProjects.id, projectIdNum));
+      .where(eq(universalVideoProjects.projectId, projectId));
     
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Project not found' });
@@ -294,11 +293,11 @@ router.delete('/projects/:projectId', isAuthenticated, async (req: Request, res:
       return res.status(403).json({ success: false, error: 'Not authorized to delete this project' });
     }
     
-    // Delete the project
+    // Delete the project using projectId string column
     await db.delete(universalVideoProjects)
-      .where(eq(universalVideoProjects.id, projectIdNum));
+      .where(eq(universalVideoProjects.projectId, projectId));
     
-    console.log(`[UniversalVideo] Project ${projectIdNum} deleted by user ${userId}`);
+    console.log(`[UniversalVideo] Project ${projectId} deleted by user ${userId}`);
     res.json({ success: true, message: 'Project deleted successfully' });
   } catch (error: any) {
     console.error('[UniversalVideo] Error deleting project:', error);
