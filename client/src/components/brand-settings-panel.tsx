@@ -1,23 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Image, Check, AlertCircle, Edit2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Palette, Check, AlertCircle, Edit2, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-
-interface BrandAsset {
-  id: number;
-  name: string;
-  url: string;
-  thumbnailUrl?: string;
-  mediaType: string;
-  usageContexts: string[];
-}
 
 interface BrandLogo {
   id: number;
@@ -49,7 +38,6 @@ interface BrandPreview {
     url: string;
   };
   hasMinimumAssets: boolean;
-  availableAssets?: BrandAsset[];
 }
 
 export interface BrandSettings {
@@ -98,8 +86,6 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
   defaultExpanded = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [showIntroSelector, setShowIntroSelector] = useState(false);
-  const [showWatermarkSelector, setShowWatermarkSelector] = useState(false);
   const [isEditingCta, setIsEditingCta] = useState(false);
   const [ctaTextEdit, setCtaTextEdit] = useState('');
   const [ctaSubtextEdit, setCtaSubtextEdit] = useState('');
@@ -114,46 +100,11 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: allAssets } = useQuery<BrandAsset[]>({
-    queryKey: ['brand-media-library'],
-    queryFn: async () => {
-      const response = await fetch('/api/brand-media-library');
-      if (!response.ok) throw new Error('Failed to load brand assets');
-      const result = await response.json();
-      const assets = result.assets || result || [];
-      return assets.filter((a: BrandAsset) => ['logo', 'photo', 'graphic', 'watermark'].includes(a.mediaType));
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
   const handleToggle = (key: keyof BrandSettings) => {
     onSettingsChange({
       ...settings,
       [key]: !settings[key],
     });
-  };
-
-  const handlePositionChange = (position: BrandSettings['watermarkPosition']) => {
-    onSettingsChange({
-      ...settings,
-      watermarkPosition: position,
-    });
-  };
-
-  const handleSelectIntroLogo = (asset: BrandAsset) => {
-    onSettingsChange({
-      ...settings,
-      selectedIntroLogoId: asset.id,
-    });
-    setShowIntroSelector(false);
-  };
-
-  const handleSelectWatermark = (asset: BrandAsset) => {
-    onSettingsChange({
-      ...settings,
-      selectedWatermarkId: asset.id,
-    });
-    setShowWatermarkSelector(false);
   };
 
   const handleStartEditCta = () => {
@@ -175,22 +126,6 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
     setIsEditingCta(false);
   };
 
-  const getSelectedIntroLogo = (): BrandLogo | BrandAsset | null => {
-    if (settings.selectedIntroLogoId && allAssets) {
-      const found = allAssets.find(a => a.id === settings.selectedIntroLogoId);
-      if (found) return found;
-    }
-    return brandPreview?.logos.intro || brandPreview?.logos.main || null;
-  };
-
-  const getSelectedWatermark = (): BrandLogo | BrandAsset | null => {
-    if (settings.selectedWatermarkId && allAssets) {
-      const found = allAssets.find(a => a.id === settings.selectedWatermarkId);
-      if (found) return found;
-    }
-    return brandPreview?.logos.watermark || brandPreview?.logos.main || null;
-  };
-
   const getDisplayCta = () => {
     return {
       text: settings.ctaText || brandPreview?.callToAction.text || 'Start Your Wellness Journey Today',
@@ -204,7 +139,7 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
         <CardHeader className="py-3 cursor-pointer">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Image className="h-4 w-4" />
+              <Palette className="h-4 w-4" />
               Brand Settings
             </CardTitle>
             <Skeleton className="h-4 w-4" />
@@ -250,8 +185,6 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
     );
   }
 
-  const selectedIntro = getSelectedIntroLogo();
-  const selectedWatermark = getSelectedWatermark();
   const displayCta = getDisplayCta();
 
   return (
@@ -264,7 +197,7 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Image className="h-4 w-4 text-primary" />
+              <Palette className="h-4 w-4 text-primary" />
               Brand Settings
               <span className="text-xs font-normal text-gray-500">
                 ({brandPreview.brandName})
@@ -295,193 +228,12 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
                   <p className="text-xs text-gray-500">{brandPreview.tagline}</p>
                 )}
               </div>
-              <div className="ml-auto flex gap-1">
-                {BRAND_COLORS.slice(0, 3).map((color, idx) => (
-                  <Tooltip key={color.hex}>
-                    <TooltipTrigger>
-                      <div 
-                        className="w-5 h-5 rounded-full border border-gray-200"
-                        style={{ backgroundColor: color.hex }}
-                        data-testid={`color-${idx}`}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>{color.name}: {color.hex}</TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
             </div>
 
             <div className="space-y-3">
-              {/* Intro Logo Animation */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                  <Dialog open={showIntroSelector} onOpenChange={setShowIntroSelector}>
-                    <DialogTrigger asChild>
-                      <button 
-                        className="relative h-12 w-12 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200 transition-colors group"
-                        data-testid="button-select-intro-logo"
-                      >
-                        {selectedIntro ? (
-                          <img
-                            src={(selectedIntro as any).thumbnailUrl || (selectedIntro as any).url}
-                            alt="Intro logo"
-                            className="h-10 w-10 object-contain p-1"
-                          />
-                        ) : (
-                          <Image className="h-5 w-5 text-gray-400" />
-                        )}
-                        <div className="absolute inset-0 bg-black/50 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Edit2 className="h-4 w-4 text-white" />
-                        </div>
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Select Intro Logo</DialogTitle>
-                      </DialogHeader>
-                      <ScrollArea className="max-h-[400px]">
-                        <div className="grid grid-cols-3 gap-3 p-1">
-                          {allAssets?.map((asset) => (
-                            <button
-                              key={asset.id}
-                              onClick={() => handleSelectIntroLogo(asset)}
-                              className={`
-                                relative p-2 border rounded-lg hover:border-primary transition-colors
-                                ${settings.selectedIntroLogoId === asset.id ? 'border-primary bg-primary/5' : 'border-gray-200'}
-                              `}
-                              data-testid={`button-intro-asset-${asset.id}`}
-                            >
-                              <img
-                                src={asset.thumbnailUrl || asset.url}
-                                alt={asset.name}
-                                className="w-full h-16 object-contain"
-                              />
-                              <p className="text-xs text-center mt-1 truncate">{asset.name}</p>
-                              {settings.selectedIntroLogoId === asset.id && (
-                                <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
-                                  <Check className="h-3 w-3 text-white" />
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </DialogContent>
-                  </Dialog>
-                  <div>
-                    <p className="text-sm font-medium">Intro Logo Animation</p>
-                    <p className="text-xs text-gray-500">Appears in first scene (3 seconds)</p>
-                  </div>
-                </div>
-                <Switch
-                  checked={settings.includeIntroLogo}
-                  onCheckedChange={() => handleToggle('includeIntroLogo')}
-                  data-testid="switch-intro-logo"
-                />
-              </div>
-
-              {/* Corner Watermark */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                  <Dialog open={showWatermarkSelector} onOpenChange={setShowWatermarkSelector}>
-                    <DialogTrigger asChild>
-                      <button 
-                        className="relative h-12 w-12 bg-gray-100 rounded flex items-center justify-center hover:bg-gray-200 transition-colors group"
-                        data-testid="button-select-watermark"
-                      >
-                        {selectedWatermark ? (
-                          <img
-                            src={(selectedWatermark as any).thumbnailUrl || (selectedWatermark as any).url}
-                            alt="Watermark"
-                            className="h-10 w-10 object-contain p-1 opacity-70"
-                          />
-                        ) : (
-                          <Image className="h-5 w-5 text-gray-400" />
-                        )}
-                        <div className="absolute inset-0 bg-black/50 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Edit2 className="h-4 w-4 text-white" />
-                        </div>
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Select Watermark Image</DialogTitle>
-                      </DialogHeader>
-                      <ScrollArea className="max-h-[400px]">
-                        <div className="grid grid-cols-3 gap-3 p-1">
-                          {allAssets?.map((asset) => (
-                            <button
-                              key={asset.id}
-                              onClick={() => handleSelectWatermark(asset)}
-                              className={`
-                                relative p-2 border rounded-lg hover:border-primary transition-colors
-                                ${settings.selectedWatermarkId === asset.id ? 'border-primary bg-primary/5' : 'border-gray-200'}
-                              `}
-                              data-testid={`button-watermark-asset-${asset.id}`}
-                            >
-                              <img
-                                src={asset.thumbnailUrl || asset.url}
-                                alt={asset.name}
-                                className="w-full h-16 object-contain opacity-70"
-                              />
-                              <p className="text-xs text-center mt-1 truncate">{asset.name}</p>
-                              {settings.selectedWatermarkId === asset.id && (
-                                <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
-                                  <Check className="h-3 w-3 text-white" />
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </DialogContent>
-                  </Dialog>
-                  <div>
-                    <p className="text-sm font-medium">Corner Watermark</p>
-                    <p className="text-xs text-gray-500">Appears in middle scenes (70% opacity)</p>
-                  </div>
-                </div>
-                <Switch
-                  checked={settings.includeWatermark}
-                  onCheckedChange={() => handleToggle('includeWatermark')}
-                  data-testid="switch-watermark"
-                />
-              </div>
-
-              {settings.includeWatermark && (
-                <div className="ml-11 pl-3 border-l-2 border-gray-100">
-                  <p className="text-xs text-gray-500 mb-2">Watermark Position</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map((pos) => (
-                      <button
-                        key={pos}
-                        onClick={() => handlePositionChange(pos)}
-                        className={`
-                          relative h-10 border rounded text-xs
-                          ${settings.watermarkPosition === pos 
-                            ? 'border-primary bg-primary/5' 
-                            : 'border-gray-200 hover:border-gray-300'}
-                        `}
-                        data-testid={`button-position-${pos}`}
-                      >
-                        <div 
-                          className={`
-                            absolute w-2 h-2 rounded-full bg-gray-400
-                            ${pos === 'top-left' ? 'top-1 left-1' : ''}
-                            ${pos === 'top-right' ? 'top-1 right-1' : ''}
-                            ${pos === 'bottom-left' ? 'bottom-1 left-1' : ''}
-                            ${pos === 'bottom-right' ? 'bottom-1 right-1' : ''}
-                            ${settings.watermarkPosition === pos ? 'bg-primary' : ''}
-                          `}
-                        />
-                        {settings.watermarkPosition === pos && (
-                          <Check className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-3 w-3 text-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <p className="text-xs text-gray-500">
+                Logo and watermark placement is now managed per-scene via "Matched Brand Assets" in the scene editor.
+              </p>
 
               {/* CTA Outro */}
               <div className="flex items-center justify-between">
@@ -559,25 +311,17 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
                       />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <div className="text-center">
-                        <p className="font-medium">{color.name}</p>
-                        <p className="text-xs opacity-75">{color.hex}</p>
-                      </div>
+                      <p className="font-medium">{color.name}</p>
+                      <p className="text-xs opacity-75">{color.hex}</p>
                     </TooltipContent>
                   </Tooltip>
                 ))}
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500" data-testid="text-brand-summary">
-                {[
-                  settings.includeIntroLogo && 'Intro',
-                  settings.includeWatermark && 'Watermark', 
-                  settings.includeCTAOutro && 'CTA'
-                ].filter(Boolean).join(', ') || 'No brand elements'} will be added to your video.
-              </p>
-            </div>
+            <p className="text-xs text-gray-400 mt-4 text-center">
+              Intro, Watermark, CTA will be added to your video.
+            </p>
           </CardContent>
         )}
       </Card>
