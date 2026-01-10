@@ -51,8 +51,9 @@ interface GenerationEstimate {
   providers: {
     video: Record<string, number>;
     videoCostByProvider?: Record<string, ProviderCostBreakdown>;
-    images?: { flux: number; falai: number };
+    images?: { midjourney?: number; flux: number; falai: number };
     imageCosts?: { 
+      midjourney?: { count: number; cost: string };
       flux: { count: number; cost: string }; 
       falai: { count: number; cost: string };
     };
@@ -225,6 +226,7 @@ const PROVIDER_NAMES: Record<string, string> = {
 };
 
 const IMAGE_PROVIDER_INFO: Record<string, { displayName: string; useCase: string; colorClass: string }> = {
+  midjourney: { displayName: 'Midjourney', useCase: 'premium', colorClass: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
   flux: { displayName: 'Flux.1', useCase: 'products', colorClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' },
   falai: { displayName: 'fal.ai', useCase: 'lifestyle', colorClass: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200' },
 };
@@ -543,8 +545,28 @@ export function GenerationPreviewPanel({
             <Image className="h-4 w-4" />
             <span className="text-xs font-medium">Image Generation</span>
           </div>
-          {(estimate.providers.images?.flux ?? 0) > 0 || (estimate.providers.images?.falai ?? 0) > 0 ? (
+          {(estimate.providers.images?.midjourney ?? 0) > 0 || (estimate.providers.images?.flux ?? 0) > 0 || (estimate.providers.images?.falai ?? 0) > 0 ? (
             <div className="space-y-1.5">
+              {(estimate.providers.images?.midjourney ?? 0) > 0 && (
+                <div className="flex items-center justify-between">
+                  <Badge variant="secondary" className={`text-xs ${IMAGE_PROVIDER_INFO.midjourney.colorClass}`}>
+                    {IMAGE_PROVIDER_INFO.midjourney.displayName}
+                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {estimate.providers.images?.midjourney ?? 0} images
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      ({IMAGE_PROVIDER_INFO.midjourney.useCase})
+                    </span>
+                    {estimate.providers.imageCosts?.midjourney && (
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        ${estimate.providers.imageCosts.midjourney.cost}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {(estimate.providers.images?.flux ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <Badge variant="secondary" className={`text-xs ${IMAGE_PROVIDER_INFO.flux.colorClass}`}>
