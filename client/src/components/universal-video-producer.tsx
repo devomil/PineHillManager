@@ -33,6 +33,9 @@ import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayCo
 import { OverlayPreview } from "./overlay-preview";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
 import { ReferenceImageSection, RegenerationOptions } from "./scene-editor";
+import { WorkflowPathIndicator, WorkflowPathBadge } from "./workflow-path-indicator";
+import { BrandAssetPreviewPanel, BrandAssetSummary } from "./brand-asset-preview-panel";
+import type { WorkflowDecision } from "@shared/types/brand-workflow-types";
 import type { AnimationSettings, ReferenceConfig, RegenerateOptions, PromptComplexityAnalysis } from "@shared/video-types";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
@@ -1367,6 +1370,11 @@ function ScenePreview({
   const [activeJobPolling, setActiveJobPolling] = useState<Record<string, { jobId: string; progress: number }>>({});
   const [overlayPreviewMode, setOverlayPreviewMode] = useState<Record<string, boolean>>({});
   const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
+  const [workflowAnalysis, setWorkflowAnalysis] = useState<Record<string, {
+    decision: WorkflowDecision;
+    matchedAssets: { products: any[]; logos: any[]; locations: any[] };
+  }>>({});
+  const [analyzingWorkflow, setAnalyzingWorkflow] = useState<Record<string, boolean>>({});
   const pollingTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1694,6 +1702,33 @@ function ScenePreview({
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setAskingSuzzie(null);
+    }
+  };
+
+  const analyzeSceneWorkflow = async (sceneId: string, visualDirection: string, narration: string) => {
+    if (workflowAnalysis[sceneId] || analyzingWorkflow[sceneId]) return;
+    setAnalyzingWorkflow(prev => ({ ...prev, [sceneId]: true }));
+    try {
+      const res = await fetch('/api/universal-video/workflow/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ visualDirection, narration })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWorkflowAnalysis(prev => ({
+          ...prev,
+          [sceneId]: {
+            decision: data.decision,
+            matchedAssets: data.matchedAssets || { products: [], logos: [], locations: [] }
+          }
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to analyze workflow:', err);
+    } finally {
+      setAnalyzingWorkflow(prev => ({ ...prev, [sceneId]: false }));
     }
   };
 
@@ -2308,6 +2343,11 @@ function ScenePreview({
       const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
       const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
       const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
+      const sceneWorkflow = workflowAnalysis[scene.id];
+      
+      if (!workflowAnalysis[scene.id] && !analyzingWorkflow[scene.id]) {
+        analyzeSceneWorkflow(scene.id, scene.background?.source || scene.visualDirection || '', scene.narration);
+      }
       
       return (
         <Dialog open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
@@ -2327,6 +2367,9 @@ function ScenePreview({
                   <Badge className={`text-xs ${showsProductOverlay ? 'bg-gradient-to-r from-purple-500 to-blue-500' : 'bg-purple-500'}`}>
                     {showsProductOverlay ? 'AI + Product' : 'AI Background'}
                   </Badge>
+                )}
+                {sceneWorkflow && (
+                  <WorkflowPathIndicator decision={sceneWorkflow.decision} compact />
                 )}
               </DialogTitle>
               <DialogDescription>
@@ -2752,6 +2795,43 @@ function ScenePreview({
                       </div>
                       <p className="text-sm text-amber-900">{scene.analysisResult.improvedPrompt}</p>
                     </div>
+                  )}
+                </div>
+                
+                {/* Phase 14F: Workflow Path Indicator */}
+                <div className="space-y-3">
+                  <WorkflowPathIndicator 
+                    decision={sceneWorkflow?.decision || null} 
+                    isLoading={analyzingWorkflow[scene.id] || false}
+                  />
+                  
+                  {/* Phase 14B: Brand Asset Preview Panel */}
+                  {sceneWorkflow && (
+                    <BrandAssetPreviewPanel
+                      products={sceneWorkflow.matchedAssets.products}
+                      logos={sceneWorkflow.matchedAssets.logos}
+                      locations={sceneWorkflow.matchedAssets.locations}
+                      isLoading={analyzingWorkflow[scene.id] || false}
+                      onSwapAsset={(category, oldId, newAsset) => {
+                        setWorkflowAnalysis(prev => {
+                          const current = prev[scene.id];
+                          if (!current) return prev;
+                          return {
+                            ...prev,
+                            [scene.id]: {
+                              ...current,
+                              matchedAssets: {
+                                ...current.matchedAssets,
+                                [category]: current.matchedAssets[category].map((a: any) =>
+                                  a.id === oldId ? { ...newAsset, matchScore: 1 } : a
+                                )
+                              }
+                            }
+                          };
+                        });
+                        toast({ title: 'Asset swapped', description: `Using ${newAsset.name} instead.` });
+                      }}
+                    />
                   )}
                 </div>
                 

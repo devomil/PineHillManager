@@ -7322,11 +7322,32 @@ router.post('/workflow/analyze', isAuthenticated, async (req: Request, res: Resp
         requiresBrandAssets: analysis.requiresBrandAssets,
         confidence: analysis.confidence,
         requirements: analysis.requirements,
-        matchedAssets: {
-          products: analysis.matchedAssets.products.length,
-          logos: analysis.matchedAssets.logos.length,
-          locations: analysis.matchedAssets.locations.length,
-        },
+      },
+      matchedAssets: {
+        products: analysis.matchedAssets.products.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          url: p.url,
+          thumbnailUrl: p.thumbnailUrl || p.url,
+          mediaType: p.mediaType || 'product',
+          matchScore: p.matchScore,
+        })),
+        logos: analysis.matchedAssets.logos.map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          url: l.url,
+          thumbnailUrl: l.thumbnailUrl || l.url,
+          mediaType: l.mediaType || 'logo',
+          matchScore: l.matchScore,
+        })),
+        locations: analysis.matchedAssets.locations.map((loc: any) => ({
+          id: loc.id,
+          name: loc.name,
+          url: loc.url,
+          thumbnailUrl: loc.thumbnailUrl || loc.url,
+          mediaType: loc.mediaType || 'location',
+          matchScore: loc.matchScore,
+        })),
       },
       decision: {
         path: decision.path,
