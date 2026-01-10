@@ -3950,10 +3950,19 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       duration: scene.duration || 5,
     }));
     
-    // Use intelligent provider selector for all scenes
+    // Get quality tier for provider selection - prefer query param over stored value
+    const tierParam = req.query.tier as string;
+    const validTiers = ['ultra', 'premium', 'standard'] as const;
+    const qualityTier = (tierParam && validTiers.includes(tierParam as any)) 
+      ? tierParam as 'ultra' | 'premium' | 'standard'
+      : ((project as any).qualityTier || 'standard') as 'ultra' | 'premium' | 'standard';
+    console.log(`[GenerationEstimate] Project ${projectId} using qualityTier: ${qualityTier} (param: ${tierParam}, stored: ${(project as any).qualityTier})`);
+    
+    // Use intelligent provider selector for all scenes with quality tier
     const providerSelections = videoProviderSelector.selectProvidersForProject(
       scenesForSelection,
-      visualStyle
+      visualStyle,
+      qualityTier
     );
     
     // Get provider summary counts and cost breakdown
@@ -4023,21 +4032,13 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
                   scene.type === 'testimonial' || !(scene as any).videoUrl,
     }));
     
-    const imageProviderSelections = imageProviderSelector.selectProvidersForScenes(scenesForImageSelection);
+    const imageProviderSelections = imageProviderSelector.selectProvidersForScenes(scenesForImageSelection, qualityTier);
     const rawImageProviderCounts = imageProviderSelector.getProviderSummary(imageProviderSelections);
     const imageProviderCounts = {
       flux: rawImageProviderCounts.flux || 0,
       falai: rawImageProviderCounts.falai || 0,
     };
     const IMAGE_COST = imageProviderSelector.calculateImageCost(imageProviderCounts);
-    
-    // Get quality tier for cost adjustments - prefer query param over stored value
-    const tierParam = req.query.tier as string;
-    const validTiers = ['ultra', 'premium', 'standard'];
-    const qualityTier = (tierParam && validTiers.includes(tierParam)) 
-      ? tierParam 
-      : ((project as any).qualityTier || 'standard');
-    console.log(`[GenerationEstimate] Project ${projectId} using qualityTier: ${qualityTier} (param: ${tierParam}, stored: ${(project as any).qualityTier})`);
     
     // Quality tier multipliers for costs
     const TIER_MULTIPLIERS: Record<string, number> = {
@@ -4121,6 +4122,68 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
     if (missingContentType.length > 0) {
       warnings.push(`${missingContentType.length} scene(s) will use default content type based on style`);
     }
+    
+    // Calculate tier summaries for all tiers so frontend can display correct prices
+    const calculateTierCosts = (tier: 'ultra' | 'premium' | 'standard') => {
+      const tierProviderSelections = videoProviderSelector.selectProvidersForProject(scenesForSelection, visualStyle, tier);
+      const { total: tierVideoCost } = videoProviderSelector.calculateTotalCost(tierProviderSelections, scenesForSelection);
+      const tierImageSelections = imageProviderSelector.selectProvidersForScenes(scenesForImageSelection, tier);
+      const tierImageCounts = imageProviderSelector.getProviderSummary(tierImageSelections);
+      const tierImageCost = imageProviderSelector.calculateImageCost(tierImageCounts);
+      
+      // Get top video providers for this tier - convert IDs to display names
+      const tierProviderCounts = videoProviderSelector.getProviderSummary(tierProviderSelections);
+      const topVideoProviders = Object.entries(tierProviderCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([id]) => VIDEO_PROVIDERS[id]?.displayName || id);
+      
+      // Get image providers used - normalize to display names
+      const fluxCount = tierImageCounts.flux || 0;
+      const falaiCount = tierImageCounts.falai || 0;
+      const imageProviders: string[] = [];
+      if (fluxCount > 0) {
+        imageProviders.push(tier === 'standard' ? 'Flux Schnell' : 'Flux Pro');
+      }
+      if (falaiCount > 0) {
+        imageProviders.push('fal.ai');
+      }
+      if (imageProviders.length === 0) {
+        imageProviders.push(tier === 'standard' ? 'Flux Schnell' : 'Flux Pro');
+      }
+      
+      const multipliers: Record<string, number> = { ultra: 3.5, premium: 2.0, standard: 1.0 };
+      const tierMult = multipliers[tier];
+      const voiceMultipliers: Record<string, number> = { ultra: 1.5, premium: 1.2, standard: 1.0 };
+      
+      const tierVoiceover = BASE_VOICEOVER_COST * voiceMultipliers[tier];
+      const tierMusic = BASE_MUSIC_COST * tierMult;
+      const tierSoundFx = BASE_SOUND_FX_COST * tierMult;
+      const tierAnalysis = BASE_SCENE_ANALYSIS_COST * tierMult;
+      const tierQA = BASE_QA_COST * tierMult;
+      
+      // Video/image costs already factor in provider quality via tier-aware selection
+      const total = tierVideoCost + tierImageCost + tierVoiceover + tierMusic + tierSoundFx + tierAnalysis + tierQA;
+      
+      return {
+        total: parseFloat(total.toFixed(2)),
+        video: parseFloat(tierVideoCost.toFixed(2)),
+        images: parseFloat(tierImageCost.toFixed(2)),
+        voiceover: parseFloat(tierVoiceover.toFixed(2)),
+        music: parseFloat(tierMusic.toFixed(2)),
+        soundFx: parseFloat(tierSoundFx.toFixed(2)),
+        sceneAnalysis: parseFloat(tierAnalysis.toFixed(2)),
+        qualityAssurance: parseFloat(tierQA.toFixed(2)),
+        topVideoProviders,
+        imageProviders,
+      };
+    };
+    
+    const tierSummaries = {
+      ultra: calculateTierCosts('ultra'),
+      premium: calculateTierCosts('premium'),
+      standard: calculateTierCosts('standard'),
+    };
     
     res.json({
       project: {
@@ -4211,7 +4274,8 @@ router.get('/projects/:projectId/generation-estimate', isAuthenticated, async (r
       brandElements,
       brandName: 'Pine Hill Farm',
       warnings,
-      qualityTier: (project as any).qualityTier || 'premium',
+      qualityTier,
+      tierSummaries,
     });
     
   } catch (error: any) {

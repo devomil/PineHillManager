@@ -88,6 +88,11 @@ interface GenerationEstimate {
     provider: string;
     checks: string[];
   };
+  tierSummaries?: {
+    ultra: { total: number; video: number; images: number; voiceover: number; music: number; soundFx: number; sceneAnalysis: number; qualityAssurance: number; topVideoProviders: string[]; imageProviders: string[] };
+    premium: { total: number; video: number; images: number; voiceover: number; music: number; soundFx: number; sceneAnalysis: number; qualityAssurance: number; topVideoProviders: string[]; imageProviders: string[] };
+    standard: { total: number; video: number; images: number; voiceover: number; music: number; soundFx: number; sceneAnalysis: number; qualityAssurance: number; topVideoProviders: string[]; imageProviders: string[] };
+  };
   sceneBreakdown: Array<{
     sceneIndex: number;
     sceneType: string;
@@ -413,12 +418,13 @@ export function GenerationPreviewPanel({
       </CardHeader>
       
       <CardContent className="space-y-4">
-        {/* Phase 14C: Quality Tier Selector */}
+        {/* Phase 14C: Quality Tier Selector - uses backend tier summaries for accurate costs */}
         <QualityTierSelector
           value={qualityTier}
           onChange={handleQualityTierChange}
           sceneDuration={estimate.project.totalDuration}
           sceneCount={estimate.project.sceneCount}
+          tierSummaries={estimate.tierSummaries}
         />
         
         {/* Provider Summary */}

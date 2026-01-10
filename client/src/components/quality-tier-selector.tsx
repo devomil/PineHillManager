@@ -1,9 +1,22 @@
 import { Crown, Zap, Check, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { calculateCosts, type QualityTier } from '@shared/quality-tiers';
+import { type QualityTier } from '@shared/quality-tiers';
 
 export { QualityTier };
+
+interface TierSummary {
+  total: number;
+  video: number;
+  images: number;
+  voiceover: number;
+  music: number;
+  soundFx: number;
+  sceneAnalysis: number;
+  qualityAssurance: number;
+  topVideoProviders: string[];
+  imageProviders: string[];
+}
 
 interface QualityTierSelectorProps {
   value: QualityTier;
@@ -11,6 +24,11 @@ interface QualityTierSelectorProps {
   sceneDuration: number;
   sceneCount: number;
   compact?: boolean;
+  tierSummaries?: {
+    ultra: TierSummary;
+    premium: TierSummary;
+    standard: TierSummary;
+  };
 }
 
 const TIERS = [
@@ -85,13 +103,26 @@ export function QualityTierSelector({
   sceneDuration,
   sceneCount,
   compact = false,
+  tierSummaries,
 }: QualityTierSelectorProps) {
-  const calculateTierCost = (tier: QualityTier) => {
-    const scenes = Array.from({ length: sceneCount }, () => ({ 
-      duration: sceneDuration / Math.max(1, sceneCount) 
-    }));
-    const breakdown = calculateCosts(tier, scenes, sceneDuration, sceneDuration, sceneCount);
-    return breakdown.total;
+  // Use backend tier summaries if available, otherwise calculate fallback
+  const getTierCost = (tier: QualityTier): number => {
+    if (tierSummaries && tierSummaries[tier]) {
+      return tierSummaries[tier].total;
+    }
+    // Fallback to rough estimate if no backend data
+    const baseCost = sceneDuration * 0.03 + sceneCount * 0.05;
+    const multipliers: Record<QualityTier, number> = { ultra: 3.5, premium: 2.0, standard: 1.0 };
+    return baseCost * multipliers[tier];
+  };
+  
+  const getTierProviders = (tier: QualityTier): string => {
+    if (tierSummaries && tierSummaries[tier] && tierSummaries[tier].topVideoProviders.length > 0) {
+      return tierSummaries[tier].topVideoProviders.join(', ');
+    }
+    // Fallback static providers
+    const tierConfig = TIERS.find(t => t.id === tier);
+    return tierConfig?.providers || '';
   };
   
   const selectedTier = TIERS.find(t => t.id === value);
@@ -107,7 +138,8 @@ export function QualityTierSelector({
         {TIERS.map((tier) => {
           const Icon = tier.icon;
           const isSelected = value === tier.id;
-          const estimatedCost = calculateTierCost(tier.id);
+          const estimatedCost = getTierCost(tier.id);
+          const displayProviders = getTierProviders(tier.id);
           
           return (
             <button
@@ -159,7 +191,7 @@ export function QualityTierSelector({
               </div>
               
               <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
-                {tier.providers}
+                {displayProviders}
               </div>
             </button>
           );

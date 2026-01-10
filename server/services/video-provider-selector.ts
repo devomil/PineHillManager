@@ -23,7 +23,8 @@ class VideoProviderSelectorService {
   
   selectProvider(
     scene: SceneForSelection,
-    visualStyle: string
+    visualStyle: string,
+    qualityTier: 'ultra' | 'premium' | 'standard' = 'premium'
   ): ProviderSelection {
     const styleConfig = VISUAL_STYLES[visualStyle] || VISUAL_STYLES.professional;
     const scores: Record<string, number> = {};
@@ -39,7 +40,7 @@ class VideoProviderSelectorService {
     this.scoreByVisualDirection(scene.visualDirection, scores, reasons);
     this.scoreByStylePreferences(styleConfig.preferredVideoProviders || [], scores, reasons);
     this.scoreByDuration(scene.duration, scores, reasons);
-    this.scoreByTier(scores, reasons);
+    this.scoreByQualityTier(qualityTier, scores, reasons);
     this.scoreBySpecialization(scene, scores, reasons);
     
     const sortedProviders = Object.entries(scores)
@@ -59,12 +60,13 @@ class VideoProviderSelectorService {
   
   selectProvidersForProject(
     scenes: SceneForSelection[],
-    visualStyle: string
+    visualStyle: string,
+    qualityTier: 'ultra' | 'premium' | 'standard' = 'premium'
   ): Map<number, ProviderSelection> {
     const selections = new Map<number, ProviderSelection>();
     
     scenes.forEach(scene => {
-      const selection = this.selectProvider(scene, visualStyle);
+      const selection = this.selectProvider(scene, visualStyle, qualityTier);
       selections.set(scene.sceneIndex, selection);
     });
     
@@ -302,18 +304,67 @@ class VideoProviderSelectorService {
     });
   }
   
-  private scoreByTier(
+  private scoreByQualityTier(
+    qualityTier: 'ultra' | 'premium' | 'standard',
     scores: Record<string, number>,
     reasons: Record<string, string[]>
   ): void {
-    Object.entries(VIDEO_PROVIDERS).forEach(([id, provider]) => {
-      if (provider.tier === 'premium') {
-        scores[id] += 5;
-      } else if (provider.tier === 'budget') {
-        scores[id] += 3;
-        reasons[id].push('Cost-effective option');
-      }
-    });
+    // Ultra tier: Favor highest-end providers (Veo 3.1, Kling 2.5 MC Pro, Runway, Luma)
+    const ultraProviders = ['veo-3.1', 'kling-2.5-turbo', 'runway-gen3', 'runway', 'luma-dream-machine', 'luma'];
+    // Premium tier: Favor pro-level providers (Veo, Kling 2.5 Pro, Kling 2.1, Runway)
+    const premiumProviders = ['veo-3.1', 'veo-2', 'veo', 'kling-2.1', 'kling-2.0', 'runway-gen3', 'runway', 'kling-2.5-turbo'];
+    // Standard tier: Favor cost-effective providers (Kling, Wan, Hailuo)
+    const standardProviders = ['kling', 'kling-1.6', 'wan-2.1', 'wan-2.6', 'hailuo', 'hailuo-minimax', 'hunyuan'];
+    
+    if (qualityTier === 'ultra') {
+      // Heavily boost ultra providers, penalize budget options
+      ultraProviders.forEach(id => {
+        if (scores[id] !== undefined) {
+          scores[id] += 40;
+          if (!reasons[id].includes('Ultra tier provider')) {
+            reasons[id].push('Ultra tier provider');
+          }
+        }
+      });
+      // Penalize standard/budget providers for ultra tier
+      standardProviders.forEach(id => {
+        if (scores[id] !== undefined) {
+          scores[id] -= 25;
+        }
+      });
+    } else if (qualityTier === 'premium') {
+      // Boost premium providers, demote budget options
+      premiumProviders.forEach(id => {
+        if (scores[id] !== undefined) {
+          scores[id] += 25;
+          if (!reasons[id].includes('Premium tier provider')) {
+            reasons[id].push('Premium tier provider');
+          }
+        }
+      });
+      // Demote budget providers for premium tier
+      standardProviders.forEach(id => {
+        if (scores[id] !== undefined) {
+          scores[id] -= 15;
+        }
+      });
+    } else {
+      // Standard tier: Boost budget-friendly providers, penalize expensive ones
+      standardProviders.forEach(id => {
+        if (scores[id] !== undefined) {
+          scores[id] += 35;
+          if (!reasons[id].includes('Cost-effective option')) {
+            reasons[id].push('Cost-effective option');
+          }
+        }
+      });
+      // Penalize expensive providers for standard tier
+      ultraProviders.forEach(id => {
+        if (scores[id] !== undefined) {
+          scores[id] -= 20;
+        }
+      });
+    }
   }
   
   private scoreBySpecialization(

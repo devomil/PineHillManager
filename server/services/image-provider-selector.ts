@@ -11,9 +11,14 @@ class ImageProviderSelectorService {
   selectProvider(
     contentType: string,
     sceneType: string,
-    visualDirection: string
+    visualDirection: string,
+    qualityTier: 'ultra' | 'premium' | 'standard' = 'premium'
   ): ImageProviderSelection {
     const lower = visualDirection.toLowerCase();
+    
+    // For ultra and premium tiers, prefer Flux (higher quality)
+    // For standard tier, still use content-based selection but note it's cost-optimized
+    const preferFlux = qualityTier === 'ultra' || qualityTier === 'premium';
     
     if (
       contentType === 'product' ||
@@ -22,7 +27,7 @@ class ImageProviderSelectorService {
     ) {
       return {
         provider: IMAGE_PROVIDERS.flux,
-        reason: 'Product/object focus - clean commercial quality',
+        reason: qualityTier === 'ultra' ? 'Ultra quality product rendering' : 'Product/object focus - clean commercial quality',
         confidence: 90,
       };
     }
@@ -33,6 +38,14 @@ class ImageProviderSelectorService {
       sceneType === 'testimonial' ||
       /person|woman|man|people|lifestyle|authentic|natural|wellness|customer/.test(lower)
     ) {
+      // For ultra/premium, use Flux for higher quality even on lifestyle
+      if (preferFlux) {
+        return {
+          provider: IMAGE_PROVIDERS.flux,
+          reason: qualityTier === 'ultra' ? 'Ultra quality lifestyle rendering' : 'Premium lifestyle quality',
+          confidence: 88,
+        };
+      }
       return {
         provider: IMAGE_PROVIDERS.falai,
         reason: 'Lifestyle/people - natural authentic feel',
@@ -44,6 +57,13 @@ class ImageProviderSelectorService {
       contentType === 'nature' ||
       /garden|farm|outdoor|landscape|nature|environment|field|meadow/.test(lower)
     ) {
+      if (preferFlux) {
+        return {
+          provider: IMAGE_PROVIDERS.flux,
+          reason: qualityTier === 'ultra' ? 'Ultra quality nature scenes' : 'Premium environment quality',
+          confidence: 85,
+        };
+      }
       return {
         provider: IMAGE_PROVIDERS.falai,
         reason: 'Environment/nature scene',
@@ -54,7 +74,7 @@ class ImageProviderSelectorService {
     if (/food|vegetable|fruit|meal|kitchen|cooking|ingredient|herb|spice/.test(lower)) {
       return {
         provider: IMAGE_PROVIDERS.flux,
-        reason: 'Food/ingredients - accurate detail rendering',
+        reason: qualityTier === 'ultra' ? 'Ultra quality food detail' : 'Food/ingredients - accurate detail rendering',
         confidence: 88,
       };
     }
@@ -67,9 +87,18 @@ class ImageProviderSelectorService {
       };
     }
     
+    // Default: Use Flux for ultra/premium, falai for standard
+    if (preferFlux) {
+      return {
+        provider: IMAGE_PROVIDERS.flux,
+        reason: qualityTier === 'ultra' ? 'Ultra tier default - maximum quality' : 'Premium tier default',
+        confidence: 75,
+      };
+    }
+    
     return {
       provider: IMAGE_PROVIDERS.falai,
-      reason: 'General scene - versatile rendering',
+      reason: 'General scene - cost-effective rendering',
       confidence: 70,
     };
   }
@@ -81,7 +110,8 @@ class ImageProviderSelectorService {
       sceneType: string;
       visualDirection: string;
       needsImage: boolean;
-    }>
+    }>,
+    qualityTier: 'ultra' | 'premium' | 'standard' = 'premium'
   ): Map<number, ImageProviderSelection> {
     const selections = new Map<number, ImageProviderSelection>();
     
@@ -91,7 +121,8 @@ class ImageProviderSelectorService {
         const selection = this.selectProvider(
           scene.contentType,
           scene.sceneType,
-          scene.visualDirection
+          scene.visualDirection,
+          qualityTier
         );
         selections.set(scene.sceneIndex, selection);
       });
