@@ -48,10 +48,11 @@ export const QUALITY_TIERS: Record<QualityTier, QualityTierConfig> = {
     ],
     
     preferredImageProviders: [
+      'midjourney-v7',
       'midjourney-v6',
       'flux-1.1-pro',
-      'ideogram-v2',
-      'dall-e-3-hd',
+      'flux-kontext',
+      'gpt-image-1.5',
     ],
     
     preferredVoiceProviders: [
@@ -95,9 +96,9 @@ export const QUALITY_TIERS: Record<QualityTier, QualityTierConfig> = {
     
     preferredImageProviders: [
       'flux-1.1-pro',
-      'stable-diffusion-3',
       'midjourney-v6',
-      'ideogram-v2',
+      'gpt-image-1.5',
+      'flux-kontext',
     ],
     
     preferredVoiceProviders: [
@@ -137,7 +138,9 @@ export const QUALITY_TIERS: Record<QualityTier, QualityTierConfig> = {
     
     preferredImageProviders: [
       'flux-schnell',
-      'stable-diffusion-3',
+      'qwen-image',
+      'seedream-4',
+      'gpt-image-1',
     ],
     
     preferredVoiceProviders: [
