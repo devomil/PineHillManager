@@ -51,7 +51,7 @@ const TIERS = [
       '60fps frame interpolation',
       'AI audio enhancement',
     ],
-    providers: 'Veo 3.1, Kling 2.6 MC Pro, Midjourney',
+    providers: 'Veo 3.1, Veo 2, Runway',
     costMultiplier: 3.5,
   },
   {
@@ -72,7 +72,7 @@ const TIERS = [
       '1080p/4K output',
       'Cinematic motion quality',
     ],
-    providers: 'Veo 3.1, Kling 2.6 Pro, Flux Pro',
+    providers: 'Kling 2.5, Runway, Flux Pro',
     costMultiplier: 2.0,
   },
   {
@@ -92,7 +92,7 @@ const TIERS = [
       '720p/1080p output',
       'Faster generation',
     ],
-    providers: 'Kling 2.6, Wan 2.6, Flux Schnell',
+    providers: 'Kling AI, Wan 2.1, fal.ai',
     costMultiplier: 1.0,
   },
 ];

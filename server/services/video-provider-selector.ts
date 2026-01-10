@@ -309,17 +309,32 @@ class VideoProviderSelectorService {
     scores: Record<string, number>,
     reasons: Record<string, string[]>
   ): void {
-    // Ultra tier: Favor highest-end providers (Veo 3.1, Kling 2.5 MC Pro, Runway, Luma)
-    const ultraProviders = ['veo-3.1', 'kling-2.5-turbo', 'runway-gen3', 'runway', 'luma-dream-machine', 'luma'];
-    // Premium tier: Favor pro-level providers (Veo, Kling 2.5 Pro, Kling 2.1, Runway)
-    const premiumProviders = ['veo-3.1', 'veo-2', 'veo', 'kling-2.1', 'kling-2.0', 'runway-gen3', 'runway', 'kling-2.5-turbo'];
-    // Standard tier: Favor cost-effective providers (Kling, Wan, Hailuo)
-    const standardProviders = ['kling', 'kling-1.6', 'wan-2.1', 'wan-2.6', 'hailuo', 'hailuo-minimax', 'hunyuan'];
+    // Ultra tier: Favor highest-end providers (Veo 3.1, Kling Pro variants, Runway, Luma)
+    // Use CORRECT provider IDs from shared/provider-config.ts
+    const ultraProviders = ['veo-3.1', 'veo-2', 'kling-2.6-pro', 'kling-2.6-motion-control-pro', 'kling-2.5-turbo', 'runway', 'luma'];
+    // Premium tier: Favor pro-level providers
+    const premiumProviders = ['veo-3.1', 'veo-2', 'kling-2.6', 'kling-2.5', 'kling-2.1', 'kling-2.0', 'runway', 'kling-2.5-turbo'];
+    // Standard tier: Favor cost-effective providers (Kling basic, Wan, Hailuo)
+    const standardProviders = ['kling-1.6', 'wan-2.1', 'wan-2.6', 'seedance-1.0'];
     
     if (qualityTier === 'ultra') {
-      // Heavily boost ultra providers, penalize budget options
+      // Give Veo 3.1 the highest boost - it should be the primary Ultra provider
+      if (scores['veo-3.1'] !== undefined) {
+        scores['veo-3.1'] += 80; // Extra strong boost for top Ultra provider
+        if (!reasons['veo-3.1'].includes('Top Ultra tier - Veo 3.1')) {
+          reasons['veo-3.1'].push('Top Ultra tier - Veo 3.1');
+        }
+      }
+      // Strong boost for Veo 2 as secondary
+      if (scores['veo-2'] !== undefined) {
+        scores['veo-2'] += 60;
+        if (!reasons['veo-2'].includes('Ultra tier - Veo 2')) {
+          reasons['veo-2'].push('Ultra tier - Veo 2');
+        }
+      }
+      // Boost other ultra providers
       ultraProviders.forEach(id => {
-        if (scores[id] !== undefined) {
+        if (scores[id] !== undefined && id !== 'veo-3.1' && id !== 'veo-2') {
           scores[id] += 40;
           if (!reasons[id].includes('Ultra tier provider')) {
             reasons[id].push('Ultra tier provider');
@@ -329,14 +344,14 @@ class VideoProviderSelectorService {
       // Penalize standard/budget providers for ultra tier
       standardProviders.forEach(id => {
         if (scores[id] !== undefined) {
-          scores[id] -= 25;
+          scores[id] -= 30;
         }
       });
     } else if (qualityTier === 'premium') {
       // Boost premium providers, demote budget options
       premiumProviders.forEach(id => {
         if (scores[id] !== undefined) {
-          scores[id] += 25;
+          scores[id] += 30;
           if (!reasons[id].includes('Premium tier provider')) {
             reasons[id].push('Premium tier provider');
           }
@@ -352,7 +367,7 @@ class VideoProviderSelectorService {
       // Standard tier: Boost budget-friendly providers, penalize expensive ones
       standardProviders.forEach(id => {
         if (scores[id] !== undefined) {
-          scores[id] += 35;
+          scores[id] += 40;
           if (!reasons[id].includes('Cost-effective option')) {
             reasons[id].push('Cost-effective option');
           }
@@ -361,7 +376,7 @@ class VideoProviderSelectorService {
       // Penalize expensive providers for standard tier
       ultraProviders.forEach(id => {
         if (scores[id] !== undefined) {
-          scores[id] -= 20;
+          scores[id] -= 25;
         }
       });
     }
