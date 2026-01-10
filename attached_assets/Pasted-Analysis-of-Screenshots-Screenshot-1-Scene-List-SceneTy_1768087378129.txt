@@ -1,0 +1,75 @@
+Analysis of Screenshots
+Screenshot 1: Scene List
+SceneTypeQ ScoreMediaProblemHookB-RollQ: 89 ✅Black/empty with Runway tagOnly B-Roll got video (Runway)SolutionStandardQ: 89 ✅ImageShould be video (Premium)BenefitAI BackgroundQ: 46 ❌ImageShould be videoExplanationStandardQ: 77 ⚠️ImageShould be videoProductStandardQ: 58 ❌ImageShould be video
+Pattern: Only the B-Roll scene (Hook) used actual video generation (Runway). Everything else is images with Ken Burns.
+Screenshot 2: Scene 1 (Hook) Details
+
+Video Provider: Kling 2.6 Master ✅ (correct provider)
+Workflow: Standard Workflow, 90% match
+"No brand assets detected" - Correct for this scene
+But: Video player is empty/black - did generation fail?
+
+
+The Core Issues
+Issue 1: Only B-Roll Gets Video
+The system treats scene types differently:
+
+B-Roll → Routes to video generation ✅
+Everything else → Routes to image + Ken Burns ❌
+
+This is wrong! When Premium tier is selected, ALL scenes should use video.
+Issue 2: Pine Hill Farm Interior NOT Being Used
+The visual direction mentions:
+
+"Warm, sunlit living room with natural wood furniture..."
+
+You uploaded "Pine Hill Farm Interior" photo. Why isn't it:
+
+Matched to this scene (it's an interior workspace/living area)
+Used via I2V to create the video
+
+Issue 3: Images Instead of Video (95% of scenes)
+From PiAPI logs earlier:
+
+Txt2Img: $0.0015 × many calls
+Video_generation: Only a few at $0.26
+
+Premium tier should force video for ALL scenes (Phase 15G), but it's not happening.
+
+What Should Happen
+For Scene 1 (Hook):
+Visual Direction: "Warm, sunlit living room with natural wood furniture..."
+
+1. Asset Matching:
+   - "living room", "interior" → Should match location-interior-workspace
+   - Should find "Pine Hill Farm Interior" photo
+   
+2. If Asset Matched:
+   - Use I2V with Pine Hill Farm Interior as source
+   - Generate video that animates the REAL interior photo
+   
+3. If No Asset Matched (current):
+   - Premium tier → Must use T2V (text-to-video)
+   - NOT image + Ken Burns
+For ALL Scenes (Premium Tier):
+Every scene must use either:
+- I2V (if brand asset matched) → Animate real photo
+- T2V (if no brand asset) → Generate actual AI video
+
+NEVER use:
+- Image + Ken Burns (that's for Standard tier only)
+
+The Missing Enforcement
+Phase 15G documented this, but clearly it's not implemented:
+typescript// THIS CHECK IS NOT HAPPENING:
+
+if (qualityTier === 'premium' || qualityTier === 'ultra') {
+  // FORCE video generation
+  if (hasBrandAsset) {
+    return generateI2V(brandAsset);  // Animate brand photo
+  } else {
+    return generateT2V(visualDirection);  // AI video from text
+  }
+  
+  // NEVER fall through to image generation
+}

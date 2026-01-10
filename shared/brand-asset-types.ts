@@ -286,7 +286,7 @@ export const LOCATION_ASSET_TYPES: Record<string, AssetType> = {
       minResolution: { width: 1920, height: 1080 },
       aspectRatio: '16:9-preferred',
     },
-    promptKeywords: ['inside', 'facility', 'lab', 'workspace', 'behind the scenes'],
+    promptKeywords: ['inside', 'facility', 'lab', 'workspace', 'behind the scenes', 'living room', 'room', 'interior', 'home', 'cozy', 'indoor', 'house', 'kitchen', 'sunlit'],
     placementRules: {
       canBeComposited: false,
       canBeAnimated: true,

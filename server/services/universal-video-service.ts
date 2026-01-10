@@ -1851,12 +1851,25 @@ Total: 90 seconds` : ''}
   /**
    * FIX 2: Determine whether to use video or image for a scene
    * Returns false (use image) for scenes where AI image quality is better than random B-roll
+   * Phase 15G: Premium/Ultra tiers FORCE video for ALL scenes
    */
   private shouldUseVideoBackground(
     scene: Scene,
     videoResult: { url: string; tags?: string; description?: string } | null,
-    targetAudience?: string
+    targetAudience?: string,
+    qualityTier?: 'ultra' | 'premium' | 'standard'
   ): boolean {
+    // Phase 15G: Premium/Ultra tiers FORCE video generation - no fallback to images
+    if (qualityTier === 'premium' || qualityTier === 'ultra') {
+      if (!videoResult || !videoResult.url) {
+        console.log(`[Background] Scene ${scene.id}: ${qualityTier} tier requires video but none available - WILL GENERATE ONE`);
+        // Return true to signal that we NEED video - caller should generate one
+        return true;
+      }
+      console.log(`[Background] Scene ${scene.id}: ${qualityTier} tier FORCES video usage`);
+      return true;
+    }
+    
     if (!videoResult || !videoResult.url) {
       console.log(`[Background] Scene ${scene.id}: No video available, using image`);
       return false;
@@ -1875,9 +1888,10 @@ Total: 90 seconds` : ''}
       }
     }
     
+    // Only prefer images over video for Standard tier
     const preferImageSceneTypes = ['intro', 'cta'];
     if (preferImageSceneTypes.includes(scene.type)) {
-      console.log(`[Background] Scene ${scene.id}: Prefer image for ${scene.type} scene`);
+      console.log(`[Background] Scene ${scene.id}: Prefer image for ${scene.type} scene (standard tier)`);
       return false;
     }
     
@@ -3053,12 +3067,16 @@ Total: 90 seconds` : ''}
         }
         // ===== END PHASE 12A MOTION GRAPHICS ROUTING =====
         
-        // Try AI video generation for hero scenes if any provider is available
-        if (isHeroScene && aiVideoService.isAvailable()) {
-          console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id}...`);
-          
-          // Get quality tier from project (Phase 15H fix)
-          const projectQualityTier = (project as any).qualityTier || 'standard';
+        // Get quality tier from project - needs to be accessible for all scenes (Phase 15G/15H fix)
+        const projectQualityTier = (project as any).qualityTier || 'standard';
+        
+        // Phase 15G: Premium/Ultra tiers require video for ALL scenes, not just hero scenes
+        const isPremiumOrUltra = projectQualityTier === 'premium' || projectQualityTier === 'ultra';
+        const shouldGenerateVideo = isHeroScene || isPremiumOrUltra;
+        
+        // Try AI video generation for hero scenes OR for premium/ultra tiers (all scenes)
+        if (shouldGenerateVideo && aiVideoService.isAvailable()) {
+          console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id} (isHero=${isHeroScene}, isPremiumOrUltra=${isPremiumOrUltra})...`);
           console.log(`[Assets] Using quality tier: ${projectQualityTier}`);
           
           const aiResult = await aiVideoService.generateVideo({
@@ -3104,7 +3122,76 @@ Total: 90 seconds` : ''}
           updatedProject.scenes[sceneIndex].assets!.productOverlayPosition = productPosition;
           
           // Apply video result if we have one
-          const useVideo = videoResult && this.shouldUseVideoBackground(scene, videoResult, project.targetAudience);
+          // Phase 15G: Pass qualityTier to enforce video for premium/ultra
+          const useVideo = this.shouldUseVideoBackground(scene, videoResult, project.targetAudience, projectQualityTier as 'ultra' | 'premium' | 'standard');
+          
+          // Phase 15G: For premium/ultra, if we need video but don't have one, check for I2V or T2V
+          if (useVideo && !videoResult && (projectQualityTier === 'premium' || projectQualityTier === 'ultra')) {
+            // Check for REAL brand asset or user-uploaded reference image for I2V routing
+            // Important: Do NOT use backgroundUrl (AI-generated image) - only genuine brand assets
+            
+            // Check 1: Explicit brand asset URL on scene
+            // Check 2: User-uploaded reference image from scene configuration
+            // Check 3: Look for brand assets matched in Phase 14A/14B (source: 'uploaded')
+            const matchedBrandImage = updatedProject.assets.images.find(
+              img => img.sceneId === scene.id && img.source === 'uploaded'
+            );
+            
+            const hasBrandAsset = scene.brandAssetUrl || 
+                                  (scene.referenceConfig?.mode !== 'none' && scene.referenceConfig?.imageUrl) ||
+                                  matchedBrandImage?.url;
+            
+            if (hasBrandAsset) {
+              // Route through I2V with verified brand asset (not AI-generated background)
+              const sourceImageUrl = scene.brandAssetUrl || scene.referenceConfig?.imageUrl || matchedBrandImage?.url;
+              console.log(`[Assets] ${projectQualityTier} tier: Scene ${scene.id} has brand asset - using I2V with ${sourceImageUrl}`);
+              
+              const i2vResult = await aiVideoService.generateVideo({
+                prompt: scene.visualDirection || scene.narration || 'Dynamic professional video content',
+                sceneType: scene.type,
+                duration: scene.duration || 5,
+                aspectRatio: updatedProject.outputFormat?.aspectRatio || '16:9',
+                qualityTier: projectQualityTier as 'ultra' | 'premium' | 'standard',
+                imageUrl: sourceImageUrl,
+              });
+              
+              if (i2vResult.success && i2vResult.s3Url) {
+                videoResult = { 
+                  url: i2vResult.s3Url, 
+                  source: i2vResult.provider || 'ai-i2v',
+                  duration: i2vResult.duration,
+                };
+                aiVideosGenerated++;
+                console.log(`[Assets] I2V generated for ${scene.id}: ${i2vResult.s3Url}`);
+              } else {
+                console.warn(`[Assets] I2V failed for ${scene.id}: ${i2vResult.error} - falling back to T2V`);
+              }
+            }
+            
+            // T2V fallback if no brand asset or I2V failed
+            if (!videoResult) {
+              console.log(`[Assets] ${projectQualityTier} tier: Scene ${scene.id} needs video - generating T2V...`);
+              const t2vResult = await aiVideoService.generateVideo({
+                prompt: scene.visualDirection || scene.narration || 'Dynamic professional video content',
+                sceneType: scene.type,
+                duration: scene.duration || 5,
+                aspectRatio: updatedProject.outputFormat?.aspectRatio || '16:9',
+                qualityTier: projectQualityTier as 'ultra' | 'premium' | 'standard',
+              });
+              
+              if (t2vResult.success && t2vResult.s3Url) {
+                videoResult = { 
+                  url: t2vResult.s3Url, 
+                  source: t2vResult.provider || 'ai',
+                  duration: t2vResult.duration,
+                };
+                aiVideosGenerated++;
+                console.log(`[Assets] T2V generated for ${scene.id}: ${t2vResult.s3Url}`);
+              } else {
+                console.warn(`[Assets] T2V failed for ${scene.id}: ${t2vResult.error}`);
+              }
+            }
+          }
           
           if (useVideo && videoResult) {
             updatedProject.assets.videos.push({
@@ -3127,21 +3214,78 @@ Total: 90 seconds` : ''}
             updatedProject.scenes[sceneIndex].assets!.videoSource = videoResult.source;
             videosGenerated++;
             console.log(`[UniversalVideoService] Video APPLIED for scene ${scene.id} (${videoResult.source}): ${videoResult.url.substring(0, 80)}...`);
+          } else if (isPremiumOrUltra) {
+            // Phase 15G: Premium/Ultra NEVER falls back to image
+            // Mark scene as requiring video - this is an ERROR state that must be resolved
+            console.error(`[UniversalVideoService] ${projectQualityTier} tier: VIDEO REQUIRED but ALL generation attempts failed for scene ${scene.id}`);
+            console.error(`[UniversalVideoService] Scene ${scene.id} will be queued for video regeneration - Image+Ken Burns NOT allowed for ${projectQualityTier}`);
+            
+            updatedProject.scenes[sceneIndex].assets!.needsVideoGeneration = true;
+            updatedProject.scenes[sceneIndex].assets!.videoGenerationFailed = true;
+            updatedProject.scenes[sceneIndex].assets!.videoGenerationError = `${projectQualityTier} tier requires video - generation failed, needs retry`;
+            
+            // Set background type to 'pending' to prevent image fallback
+            if (!updatedProject.scenes[sceneIndex].background) {
+              updatedProject.scenes[sceneIndex].background = {
+                type: 'pending' as any,
+                source: '',
+              };
+            } else {
+              (updatedProject.scenes[sceneIndex].background as any).type = 'pending';
+            }
+            
+            // Add to failed scenes list for later retry
+            if (!updatedProject.failedScenes) (updatedProject as any).failedScenes = [];
+            (updatedProject as any).failedScenes.push({
+              sceneId: scene.id,
+              reason: 'video_generation_failed',
+              qualityTier: projectQualityTier,
+              timestamp: new Date().toISOString(),
+            });
           } else {
-            // Keep using AI image - ensure background type is 'image'
+            // Standard tier: Fall back to AI image - ensure background type is 'image'
             if (updatedProject.scenes[sceneIndex].background) {
               updatedProject.scenes[sceneIndex].background.type = 'image';
             }
-            console.log(`[UniversalVideoService] Using AI image for scene ${scene.id} - video not available`);
+            console.log(`[UniversalVideoService] Using AI image for scene ${scene.id} - video not available (standard tier)`);
           }
         }
       }
       
       updatedProject.progress.steps.videos.progress = 100;
       updatedProject.progress.steps.videos.status = 'complete';
-      updatedProject.progress.steps.videos.message = videosGenerated > 0 
-        ? `Generated ${aiVideosGenerated} AI videos, ${videosGenerated - aiVideosGenerated} stock clips`
-        : 'No suitable video found - using AI images';
+      
+      // Phase 15G: Check for failed premium/ultra scenes that couldn't get video
+      const failedScenes = (updatedProject as any).failedScenes || [];
+      const failedPremiumScenes = failedScenes.filter(
+        (fs: any) => fs.qualityTier === 'premium' || fs.qualityTier === 'ultra'
+      );
+      
+      if (failedPremiumScenes.length > 0) {
+        // Phase 15G: Premium/Ultra scenes MUST have video - throw hard error
+        const failedSceneIds = failedPremiumScenes.map((fs: any) => fs.sceneId);
+        console.error(`[UniversalVideoService] CRITICAL: ${failedPremiumScenes.length} ${projectQualityTier} scenes failed video generation`);
+        console.error(`[UniversalVideoService] Failed scene IDs: ${failedSceneIds.join(', ')}`);
+        
+        // Set error status on project
+        updatedProject.progress.steps.videos.status = 'error';
+        updatedProject.progress.steps.videos.message = `${projectQualityTier} tier requires video for all scenes - ${failedPremiumScenes.length} scene(s) failed generation`;
+        
+        // Mark project as having video generation errors
+        (updatedProject as any).videoGenerationError = {
+          type: 'premium_video_required',
+          message: `${projectQualityTier} tier requires video for all scenes. ${failedPremiumScenes.length} scene(s) failed video generation and cannot use image fallback.`,
+          failedSceneIds,
+          action: 'retry_video_generation',
+        };
+        
+        // Throw error to prevent project from completing with missing video
+        throw new Error(`${projectQualityTier} tier video generation failed for ${failedPremiumScenes.length} scene(s): ${failedSceneIds.join(', ')}. Premium/Ultra requires video - image fallback not allowed.`);
+      } else {
+        updatedProject.progress.steps.videos.message = videosGenerated > 0 
+          ? `Generated ${aiVideosGenerated} AI videos, ${videosGenerated - aiVideosGenerated} stock clips`
+          : 'No suitable video found - using AI images';
+      }
     } else {
       updatedProject.progress.steps.videos.status = 'skipped';
       updatedProject.progress.steps.videos.message = 'No scenes require video';

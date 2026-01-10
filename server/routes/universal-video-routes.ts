@@ -2525,6 +2525,26 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
+    // Phase 15G: Premium/Ultra tiers FORCE video generation - redirect to video endpoint
+    const qualityTier = projectData.qualityTier || 'standard';
+    if (qualityTier === 'premium' || qualityTier === 'ultra') {
+      console.log(`[Phase15G] ${qualityTier} tier: Redirecting image regeneration to VIDEO generation`);
+      console.log(`[Phase15G] Premium/Ultra must use T2V or I2V, NOT image+Ken Burns`);
+      
+      // Check if scene has a brand asset for I2V, otherwise use T2V
+      const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+      const scene = sceneIndex >= 0 ? projectData.scenes[sceneIndex] : null;
+      const hasBrandAsset = scene?.brandAssetUrl || scene?.assets?.backgroundUrl;
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: `${qualityTier.charAt(0).toUpperCase() + qualityTier.slice(1)} tier requires video generation, not images. Please use "Regenerate Video" button instead.`,
+        forceVideo: true,
+        hint: hasBrandAsset ? 'Use I2V with brand asset' : 'Use T2V for AI-generated video',
+        qualityTier
+      });
+    }
+    
     const result = await universalVideoService.regenerateSceneImage(projectData, sceneId, prompt, provider);
     
     if (result.success && result.newImageUrl) {
@@ -5145,6 +5165,7 @@ router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthent
       projectId,
       aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
       totalScenes: projectData.scenes.length,
+      qualityTier: projectData.qualityTier || 'standard',
     };
     
     const result = await autoRegenerationService.regenerateScene(sceneForRegen);
@@ -5358,6 +5379,7 @@ router.post('/projects/:projectId/review-queue/:sceneId/resolve', isAuthenticate
         projectId,
         aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
         totalScenes: projectData.scenes.length,
+        qualityTier: projectData.qualityTier || 'standard',
       };
       
       const result = await autoRegenerationService.regenerateScene(sceneForRegen);
