@@ -1289,54 +1289,88 @@ Total: 90 seconds` : ''}
     console.log(`[BuildContentPrompt] Scene ${scene.id} sanitized:`);
     console.log(`  Removed: ${sanitized.removedElements.length} elements`);
     console.log(`  Extracted text: ${sanitized.extractedText.join(', ') || 'none'}`);
+    console.log(`  Visual direction: ${cleanVisualDirection.substring(0, 80)}...`);
     
-    // Get demographic context from scene or infer from product
-    let demographicContext = '';
-    const lowerNarration = narration.toLowerCase();
-    const lowerProduct = productName.toLowerCase();
+    // PHASE 14C FIX: Use visual direction as PRIMARY prompt source
+    // Only add demographic heuristics if visual direction is empty or very short
+    const hasSubstantiveVisualDirection = cleanVisualDirection.length > 30;
     
-    // Infer demographics from product/narration content
-    if (lowerProduct.includes('menopause') || lowerNarration.includes('menopause') ||
-        lowerProduct.includes('hormone') || lowerNarration.includes('hot flash')) {
-      demographicContext = 'mature woman in her 40s-60s, graceful confident, healthy glowing, ';
-    } else if (lowerProduct.includes('senior') || lowerNarration.includes('elderly')) {
-      demographicContext = 'senior woman, dignified healthy, active lifestyle, ';
-    } else if (lowerNarration.includes('woman') || lowerNarration.includes('female') || lowerNarration.includes('women')) {
-      demographicContext = 'adult woman, healthy natural, ';
+    // Check if visual direction explicitly wants people or is environment-only
+    const lowerVisualDir = cleanVisualDirection.toLowerCase();
+    const personIndicators = ['woman', 'man', 'person', 'people', 'she ', 'he ', 'her ', 'his ', 
+                              'mother', 'father', 'family', 'customer', 'patient', 'client',
+                              'sitting', 'standing', 'walking', 'looking', 'smiling'];
+    const environmentIndicators = ['setting', 'room', 'space', 'background', 'scene', 'environment',
+                                   'desk', 'table', 'kitchen', 'office', 'studio', 'outdoor', 'indoor',
+                                   'lighting', 'atmosphere', 'minimalist', 'modern', 'natural light'];
+    
+    const wantsPeople = personIndicators.some(ind => lowerVisualDir.includes(ind));
+    const isEnvironmentFocused = environmentIndicators.some(ind => lowerVisualDir.includes(ind)) && !wantsPeople;
+    
+    let fullPrompt: string;
+    
+    if (hasSubstantiveVisualDirection) {
+      // Use visual direction as the primary prompt - respect what the user wrote
+      console.log(`[BuildContentPrompt] Using visual direction as PRIMARY prompt (${wantsPeople ? 'includes people' : isEnvironmentFocused ? 'environment-only' : 'general'})`);
+      
+      if (isEnvironmentFocused) {
+        // Environment-only: explicitly exclude people
+        fullPrompt = `${cleanVisualDirection}. Empty scene, NO PEOPLE, NO FACES, NO HUMANS - ONLY the environment, setting, and objects described. Professional photography, 4K, high quality.`;
+      } else if (wantsPeople) {
+        // Includes people: let the visual direction define who
+        fullPrompt = `${cleanVisualDirection}. Professional lifestyle photography, 4K, photorealistic. NO text, NO logos, NO product shots, NO watermarks. IMPORTANT: Show ADULTS only.`;
+      } else {
+        // General case: follow visual direction, add quality modifiers
+        fullPrompt = `${cleanVisualDirection}. Professional photography, 4K, high quality, photorealistic. NO text, NO logos, NO watermarks.`;
+      }
+    } else {
+      // Fallback: No substantial visual direction, use old heuristic-based approach
+      console.log(`[BuildContentPrompt] Visual direction too short - using demographic heuristics`);
+      
+      const lowerNarration = narration.toLowerCase();
+      const lowerProduct = productName.toLowerCase();
+      let demographicContext = '';
+      
+      if (lowerProduct.includes('menopause') || lowerNarration.includes('menopause') ||
+          lowerProduct.includes('hormone') || lowerNarration.includes('hot flash')) {
+        demographicContext = 'mature woman in her 40s-60s, graceful confident, healthy glowing, ';
+      } else if (lowerProduct.includes('senior') || lowerNarration.includes('elderly')) {
+        demographicContext = 'senior woman, dignified healthy, active lifestyle, ';
+      } else if (lowerNarration.includes('woman') || lowerNarration.includes('female') || lowerNarration.includes('women')) {
+        demographicContext = 'adult woman, healthy natural, ';
+      }
+      
+      let baseContext = '';
+      switch (sceneType) {
+        case 'hook':
+          baseContext = `${demographicContext}Emotional cinematic scene showing the problem or challenge. Realistic lifestyle photography, dramatic lighting.`;
+          break;
+        case 'benefit':
+          baseContext = `${demographicContext}Positive transformation scene showing wellness. Bright natural lighting, optimistic mood.`;
+          break;
+        case 'story':
+          baseContext = `${demographicContext}Authentic storytelling scene with emotional depth. Documentary style, warm tones.`;
+          break;
+        case 'explanation':
+        case 'process':
+          baseContext = `${demographicContext}Educational visual showing scientific or natural process. Clean informational style.`;
+          break;
+        case 'testimonial':
+        case 'social_proof':
+          baseContext = `${demographicContext}Happy satisfied person in natural home setting. Warm inviting atmosphere.`;
+          break;
+        case 'problem':
+          baseContext = `${demographicContext}Person dealing with challenge. Empathetic perspective, muted colors.`;
+          break;
+        default:
+          baseContext = `${demographicContext}Professional lifestyle photography with natural lighting.`;
+      }
+      
+      const extractedConcepts = this.extractVisualConcepts(cleanVisualDirection, narration);
+      fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic. NO text, NO logos, NO product shots, NO watermarks. IMPORTANT: Show ADULTS only.`;
     }
     
-    let baseContext = '';
-    
-    switch (sceneType) {
-      case 'hook':
-        baseContext = `${demographicContext}Emotional cinematic scene showing the problem or challenge. Person experiencing discomfort or frustration. Realistic lifestyle photography, dramatic lighting, evocative mood.`;
-        break;
-      case 'benefit':
-        baseContext = `${demographicContext}Positive transformation scene showing wellness and relief. Person feeling happy, healthy, and vibrant. Bright natural lighting, optimistic mood, lifestyle photography.`;
-        break;
-      case 'story':
-        baseContext = `${demographicContext}Authentic storytelling scene with emotional depth. Real-life moment captured naturally. Documentary style, warm tones, genuine expression.`;
-        break;
-      case 'explanation':
-      case 'process':
-        baseContext = `${demographicContext}Educational visual showing scientific or natural process. Clean informational style, subtle medical/botanical elements, professional presentation.`;
-        break;
-      case 'testimonial':
-      case 'social_proof':
-        baseContext = `${demographicContext}Happy satisfied person in natural home or lifestyle setting. Genuine smile, warm inviting atmosphere, trustworthy and relatable.`;
-        break;
-      case 'problem':
-        baseContext = `${demographicContext}Person dealing with challenge or discomfort. Empathetic perspective, muted colors, realistic portrayal of struggle before solution.`;
-        break;
-      default:
-        baseContext = `${demographicContext}Professional lifestyle photography with natural lighting.`;
-    }
-    
-    // Use sanitized visual direction for concept extraction
-    const extractedConcepts = this.extractVisualConcepts(cleanVisualDirection, narration);
-    
-    // The sanitized prompt already has "no text" instruction appended, so just add scene-specific requirements
-    const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging, NO watermarks, NO labels, NO buttons. IMPORTANT: Show ADULTS only, no children or teenagers.`;
+    console.log(`[BuildContentPrompt] Final prompt: ${fullPrompt.substring(0, 100)}...`);
     
     return {
       prompt: fullPrompt,
