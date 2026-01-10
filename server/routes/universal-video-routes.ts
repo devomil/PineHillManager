@@ -2547,6 +2547,15 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
         projectData.scenes[sceneIndex].assets!.backgroundUrl = result.newImageUrl;
         projectData.scenes[sceneIndex].background!.type = 'image';
         
+        // Track generation method based on source type
+        if (result.source === 'stock' || result.source?.includes('pexels') || result.source?.includes('unsplash')) {
+          projectData.scenes[sceneIndex].generationMethod = 'stock';
+        } else {
+          const hasReferenceImage = projectData.scenes[sceneIndex].referenceConfig?.mode !== 'none' && 
+                                    projectData.scenes[sceneIndex].referenceConfig?.imageUrl;
+          projectData.scenes[sceneIndex].generationMethod = hasReferenceImage ? 'I2I' : 'T2I';
+        }
+        
         if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
         projectData.regenerationHistory.push({
           id: `regen_${Date.now()}`,
@@ -2730,6 +2739,26 @@ router.get('/:projectId/scenes/:sceneId/video-job/:jobId', isAuthenticated, asyn
         projectData.scenes[sceneIndex].background = projectData.scenes[sceneIndex].background || { type: 'video', source: '' };
         projectData.scenes[sceneIndex].background!.type = 'video';
         projectData.scenes[sceneIndex].background!.videoUrl = job.videoUrl;
+        
+        // Track generation method based on source type and job metadata
+        if (job.source === 'stock' || job.provider?.includes('pexels') || job.provider?.includes('pixabay')) {
+          projectData.scenes[sceneIndex].generationMethod = 'stock';
+        } else {
+          // Check if we used a source video (V2V) or source image (I2V) or just text prompt (T2V)
+          const hadSourceVideo = projectData.scenes[sceneIndex].background?.videoUrl && 
+                                 projectData.scenes[sceneIndex].background?.videoUrl !== job.videoUrl;
+          const hadSourceImage = projectData.scenes[sceneIndex].assets?.imageUrl || 
+                                 projectData.scenes[sceneIndex].assets?.backgroundUrl ||
+                                 projectData.scenes[sceneIndex].brandAssetUrl;
+          
+          if (hadSourceVideo) {
+            projectData.scenes[sceneIndex].generationMethod = 'V2V';
+          } else if (hadSourceImage) {
+            projectData.scenes[sceneIndex].generationMethod = 'I2V';
+          } else {
+            projectData.scenes[sceneIndex].generationMethod = 'T2V';
+          }
+        }
         
         if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
         projectData.regenerationHistory.push({

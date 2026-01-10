@@ -2465,6 +2465,11 @@ function ScenePreview({
                   <div>
                     <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
                       <Video className="w-4 h-4" /> B-Roll Video
+                      {scene.generationMethod && (
+                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
+                          {scene.generationMethod}
+                        </span>
+                      )}
                     </Label>
                     <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
                       <video 
@@ -2480,7 +2485,14 @@ function ScenePreview({
                   </div>
                 ) : hasAIBackground ? (
                   <div>
-                    <Label className="text-sm text-muted-foreground mb-2">AI Background</Label>
+                    <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
+                      AI Background
+                      {scene.generationMethod && (
+                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
+                          {scene.generationMethod}
+                        </span>
+                      )}
+                    </Label>
                     <div className="w-full rounded-lg overflow-hidden border relative bg-black" style={{ aspectRatio: '16/9' }}>
                       <img 
                         src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
@@ -2512,7 +2524,14 @@ function ScenePreview({
                   </div>
                 ) : imageAsset?.url ? (
                   <div>
-                    <Label className="text-sm text-muted-foreground mb-2">Scene Image</Label>
+                    <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
+                      Scene Image
+                      {scene.generationMethod && (
+                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
+                          {scene.generationMethod}
+                        </span>
+                      )}
+                    </Label>
                     <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
                       <img 
                         src={convertToDisplayUrl(imageAsset.url)} 
@@ -2822,19 +2841,50 @@ function ScenePreview({
                           <Sparkles className="w-4 h-4 text-amber-600" />
                           <span className="text-sm font-medium text-amber-800">Suggested Improvement</span>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-700"
-                          onClick={() => {
-                            navigator.clipboard.writeText(scene.analysisResult?.improvedPrompt || '');
-                            toast({ title: 'Copied!', description: 'Suggested prompt copied to clipboard.' });
-                          }}
-                          data-testid={`button-copy-suggested-prompt-${scene.id}`}
-                        >
-                          <Copy className="w-3 h-3 mr-1" />
-                          Copy
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs bg-green-100 hover:bg-green-200 border-green-300 text-green-700"
+                            disabled={savingVisualDirection === scene.id}
+                            onClick={async () => {
+                              if (!projectId || !scene.analysisResult?.improvedPrompt) return;
+                              setSavingVisualDirection(scene.id);
+                              try {
+                                await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}/visual-direction`, {
+                                  visualDirection: scene.analysisResult.improvedPrompt,
+                                });
+                                onSceneUpdate?.();
+                                toast({ title: 'Applied!', description: 'Suggested improvement applied to visual direction.' });
+                              } catch (err) {
+                                toast({ title: 'Error', description: 'Failed to apply suggestion.', variant: 'destructive' });
+                              } finally {
+                                setSavingVisualDirection(null);
+                              }
+                            }}
+                            data-testid={`button-apply-suggested-prompt-${scene.id}`}
+                          >
+                            {savingVisualDirection === scene.id ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Check className="w-3 h-3 mr-1" />
+                            )}
+                            Apply
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-700"
+                            onClick={() => {
+                              navigator.clipboard.writeText(scene.analysisResult?.improvedPrompt || '');
+                              toast({ title: 'Copied!', description: 'Suggested prompt copied to clipboard.' });
+                            }}
+                            data-testid={`button-copy-suggested-prompt-${scene.id}`}
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-sm text-amber-900">{scene.analysisResult.improvedPrompt}</p>
                     </div>

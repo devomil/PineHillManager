@@ -20,6 +20,8 @@ interface BrandMediaAsset {
   thumbnailUrl?: string;
   mediaType: string;
   entityType?: string;
+  assetCategory?: string;
+  assetType?: string;
 }
 
 interface TextOverlayItem {
@@ -128,15 +130,49 @@ export const OverlayEditor = memo(function OverlayEditor({
     refetchOnWindowFocus: false,
   });
 
-  const logos = useMemo(() => brandMedia.filter(a => 
-    (a.mediaType === 'image' || a.mediaType === 'photo') && 
-    (a.entityType === 'logo' || a.entityType === 'brand' || a.name?.toLowerCase().includes('logo'))
-  ), [brandMedia]);
+  const logos = useMemo(() => brandMedia.filter(a => {
+    if (a.mediaType !== 'image' && a.mediaType !== 'photo') return false;
+    const nameLower = a.name?.toLowerCase() || '';
+    const categoryLower = a.assetCategory?.toLowerCase() || '';
+    const typeLower = a.assetType?.toLowerCase() || '';
+    const entityLower = a.entityType?.toLowerCase() || '';
+    return (
+      entityLower === 'logo' || 
+      entityLower === 'brand' || 
+      entityLower === 'certification' ||
+      entityLower === 'partner' ||
+      entityLower === 'trust' ||
+      categoryLower === 'logos' ||
+      categoryLower === 'trust' ||
+      typeLower.includes('logo') ||
+      typeLower.includes('certification') ||
+      typeLower.includes('partner') ||
+      typeLower.includes('badge') ||
+      nameLower.includes('logo') ||
+      nameLower.includes('usda') ||
+      nameLower.includes('organic') ||
+      nameLower.includes('certified') ||
+      nameLower.includes('badge') ||
+      nameLower.includes('seal')
+    );
+  }), [brandMedia]);
   
-  const watermarks = useMemo(() => brandMedia.filter(a => 
-    (a.mediaType === 'image' || a.mediaType === 'photo') && 
-    (a.entityType === 'watermark' || a.entityType === 'brand' || a.name?.toLowerCase().includes('watermark') || a.name?.toLowerCase().includes('logo'))
-  ), [brandMedia]);
+  const watermarks = useMemo(() => brandMedia.filter(a => {
+    if (a.mediaType !== 'image' && a.mediaType !== 'photo') return false;
+    const nameLower = a.name?.toLowerCase() || '';
+    const categoryLower = a.assetCategory?.toLowerCase() || '';
+    const typeLower = a.assetType?.toLowerCase() || '';
+    const entityLower = a.entityType?.toLowerCase() || '';
+    return (
+      entityLower === 'watermark' || 
+      entityLower === 'brand' || 
+      categoryLower === 'logos' ||
+      typeLower.includes('watermark') ||
+      typeLower.includes('logo') ||
+      nameLower.includes('watermark') ||
+      nameLower.includes('logo')
+    );
+  }), [brandMedia]);
   
   const [draft, setDraft] = useState<OverlayConfig>(config);
   const [hasChanges, setHasChanges] = useState(false);

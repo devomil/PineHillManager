@@ -199,6 +199,8 @@ export interface Scene {
   };
   // Phase 15H: Workflow override - allows disabling brand asset matching per scene
   useBrandAssets?: boolean;
+  // Phase 15H: Generation method tracking - what method was used to generate the media
+  generationMethod?: 'T2I' | 'I2I' | 'T2V' | 'I2V' | 'V2V' | 'stock';
 }
 
 // Phase 8A: Scene analysis types
