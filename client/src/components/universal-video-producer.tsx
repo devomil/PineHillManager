@@ -1366,6 +1366,7 @@ function ScenePreview({
   assets,
   projectId,
   projectTitle,
+  projectQualityTier,
   onToggleProductOverlay,
   onSceneUpdate,
   onProjectUpdate
@@ -1374,6 +1375,7 @@ function ScenePreview({
   assets: VideoProject['assets'];
   projectId?: string;
   projectTitle?: string;
+  projectQualityTier?: 'ultra' | 'premium' | 'standard';
   onToggleProductOverlay?: (sceneId: string, useOverlay: boolean) => void;
   onSceneUpdate?: () => void;
   onProjectUpdate?: (project: VideoProject) => void;
@@ -2410,7 +2412,7 @@ function ScenePreview({
                   </Badge>
                 )}
                 {sceneWorkflow && (
-                  <WorkflowPathIndicator decision={sceneWorkflow.decision} compact />
+                  <WorkflowPathIndicator decision={sceneWorkflow.decision} compact projectQualityTier={projectQualityTier} />
                 )}
               </DialogTitle>
               <DialogDescription>
@@ -2844,6 +2846,7 @@ function ScenePreview({
                   <WorkflowPathIndicator 
                     decision={sceneWorkflow?.decision || null} 
                     isLoading={analyzingWorkflow[scene.id] || false}
+                    projectQualityTier={projectQualityTier}
                   />
                   
                   {/* Phase 14B: Brand Asset Preview Panel */}
@@ -4422,6 +4425,7 @@ export default function UniversalVideoProducer() {
                     assets={project.assets}
                     projectId={project.id}
                     projectTitle={project.title}
+                    projectQualityTier={project.qualityTier}
                     onToggleProductOverlay={handleToggleProductOverlay}
                     onSceneUpdate={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
                     onProjectUpdate={(updatedProject) => setProject(updatedProject)}

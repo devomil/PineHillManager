@@ -8,10 +8,13 @@ import {
 } from "lucide-react";
 import type { WorkflowPath, WorkflowDecision, WorkflowStep } from "@shared/types/brand-workflow-types";
 
+type QualityTier = 'ultra' | 'premium' | 'standard';
+
 interface WorkflowPathIndicatorProps {
   decision: WorkflowDecision | null;
   isLoading?: boolean;
   compact?: boolean;
+  projectQualityTier?: QualityTier;
 }
 
 const WORKFLOW_INFO: Record<WorkflowPath, {
@@ -65,7 +68,17 @@ const WORKFLOW_INFO: Record<WorkflowPath, {
   },
 };
 
-function getQualityLabel(impact: WorkflowDecision['qualityImpact']): { label: string; color: string } {
+function getQualityLabel(impact: WorkflowDecision['qualityImpact'], projectTier?: QualityTier): { label: string; color: string } {
+  if (projectTier) {
+    switch (projectTier) {
+      case 'ultra':
+        return { label: 'Ultra Quality', color: 'text-purple-600' };
+      case 'premium':
+        return { label: 'Premium Quality', color: 'text-amber-600' };
+      case 'standard':
+        return { label: 'Standard Quality', color: 'text-gray-600' };
+    }
+  }
   switch (impact) {
     case 'higher':
       return { label: 'Higher Quality', color: 'text-green-600' };
@@ -82,7 +95,7 @@ function getCostLabel(multiplier: number): { label: string; color: string } {
   return { label: `${multiplier}x Cost`, color: 'text-orange-600' };
 }
 
-export function WorkflowPathIndicator({ decision, isLoading, compact = false }: WorkflowPathIndicatorProps) {
+export function WorkflowPathIndicator({ decision, isLoading, compact = false, projectQualityTier }: WorkflowPathIndicatorProps) {
   if (isLoading) {
     return (
       <Card className="border-dashed animate-pulse">
@@ -102,7 +115,7 @@ export function WorkflowPathIndicator({ decision, isLoading, compact = false }: 
 
   const info = WORKFLOW_INFO[decision.path];
   const Icon = info.icon;
-  const qualityInfo = getQualityLabel(decision.qualityImpact);
+  const qualityInfo = getQualityLabel(decision.qualityImpact, projectQualityTier);
   const costInfo = getCostLabel(decision.costMultiplier);
 
   if (compact) {

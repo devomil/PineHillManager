@@ -18,6 +18,7 @@ export interface VideoProject {
   voiceName?: string;
   regenerationHistory?: RegenerationRecord[];
   history?: ProjectHistory;
+  qualityTier?: 'ultra' | 'premium' | 'standard';
 }
 
 export type VideoProjectStatus = 'draft' | 'generating' | 'ready' | 'rendering' | 'complete' | 'error';
