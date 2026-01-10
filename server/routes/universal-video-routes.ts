@@ -179,6 +179,7 @@ function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; buck
     outputUrl: row.outputUrl || undefined,
     history: row.history || undefined,
     qualityReport: row.qualityReport || undefined,
+    qualityTier: row.qualityTier || 'premium',
   };
 }
 
