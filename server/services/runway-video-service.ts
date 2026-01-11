@@ -252,6 +252,7 @@ class RunwayVideoService {
         Key: key,
         Body: buffer,
         ContentType: 'video/mp4',
+        ACL: 'public-read',
       }));
 
       const s3Url = `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;

@@ -365,6 +365,7 @@ class ProductImageService {
         Key: key,
         Body: buffer,
         ContentType: 'image/png',
+        ACL: 'public-read',
       }));
 
       return `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;

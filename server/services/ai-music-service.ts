@@ -303,6 +303,7 @@ class AIMusicService {
         Key: key,
         Body: buffer,
         ContentType: 'audio/mpeg',
+        ACL: 'public-read',
       }));
 
       console.log(`[AIMusic] Uploaded to S3: ${key}`);

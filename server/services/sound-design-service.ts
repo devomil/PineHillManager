@@ -396,6 +396,7 @@ class SoundDesignService {
         Key: key,
         Body: buffer,
         ContentType: 'audio/mpeg',
+        ACL: 'public-read',
       }));
 
       const s3Url = `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;
