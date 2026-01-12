@@ -424,8 +424,8 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
   onGenerate,
   isGenerating = false,
 }: ProviderSelectorPanelProps) {
-  const [imageExpanded, setImageExpanded] = useState(activeMediaType === 'image');
-  const [videoExpanded, setVideoExpanded] = useState(activeMediaType === 'video');
+  const [imageExpanded, setImageExpanded] = useState(false);
+  const [videoExpanded, setVideoExpanded] = useState(false);
   
   const filteredImageProviders = filterProvidersByMode(IMAGE_PROVIDERS, referenceMode);
   const filteredVideoProviders = filterProvidersByMode(VIDEO_PROVIDERS, referenceMode);
