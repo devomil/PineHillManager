@@ -1322,7 +1322,7 @@ function VoiceoverControlsPanel({
           ) : (
             <>
               <RefreshCw className="w-3 h-3 mr-1" />
-              Regenerate All
+              Regenerate Voiceover
             </>
           )}
         </Button>
@@ -1411,6 +1411,8 @@ function ScenePreview({
   const [rejectReason, setRejectReason] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'needs_review' | 'approved' | 'rejected'>('all');
   const [activeJobPolling, setActiveJobPolling] = useState<Record<string, { jobId: string; progress: number }>>({});
+  const [bulkRegeneratingVideos, setBulkRegeneratingVideos] = useState(false);
+  const [bulkRegenerateProgress, setBulkRegenerateProgress] = useState({ current: 0, total: 0 });
   const [overlayPreviewMode, setOverlayPreviewMode] = useState<Record<string, boolean>>({});
   const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
   const [workflowAnalysis, setWorkflowAnalysis] = useState<Record<string, {
@@ -1950,6 +1952,115 @@ function ScenePreview({
     }
   };
 
+  const regenerateAllVideos = async () => {
+    if (!projectId || bulkRegeneratingVideos) return;
+    
+    setBulkRegeneratingVideos(true);
+    setBulkRegenerateProgress({ current: 0, total: scenes.length });
+    
+    toast({
+      title: 'Regenerating all scene videos',
+      description: `Starting regeneration of ${scenes.length} scenes. This may take a while.`
+    });
+    
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/regenerate-all-videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        toast({
+          title: 'Bulk video regeneration started',
+          description: `Regenerating ${data.totalScenes} scenes. Check back in a few minutes.`
+        });
+        
+        const pollBulkStatus = async () => {
+          let completed = false;
+          let polls = 0;
+          const maxPolls = 360;
+          
+          while (!completed && polls < maxPolls) {
+            polls++;
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            try {
+              const statusRes = await fetch(
+                `/api/universal-video/${projectId}/regenerate-all-videos/status`,
+                { credentials: 'include' }
+              );
+              const statusData = await statusRes.json();
+              
+              if (statusData.success) {
+                setBulkRegenerateProgress({
+                  current: statusData.completed || 0,
+                  total: statusData.total || scenes.length
+                });
+                
+                if (statusData.status === 'completed' || statusData.completed >= statusData.total) {
+                  completed = true;
+                  const successCount = statusData.completed - (statusData.failed || 0);
+                  if (statusData.failed > 0) {
+                    toast({
+                      title: 'Video regeneration completed with issues',
+                      description: `${successCount} videos regenerated, ${statusData.failed} failed.`,
+                      variant: 'destructive'
+                    });
+                  } else {
+                    toast({
+                      title: 'All videos regenerated!',
+                      description: `Successfully regenerated ${statusData.completed} scene videos.`
+                    });
+                  }
+                  onSceneUpdate?.();
+                  queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+                } else if (statusData.status === 'failed') {
+                  completed = true;
+                  toast({
+                    title: 'Bulk regeneration failed',
+                    description: statusData.errors?.[0] || 'All scenes failed to regenerate',
+                    variant: 'destructive'
+                  });
+                }
+              } else {
+                completed = true;
+                toast({
+                  title: 'Status check failed',
+                  description: 'Could not get regeneration status. Some videos may have been updated.',
+                  variant: 'destructive'
+                });
+              }
+            } catch (err) {
+              console.error('[regenerateAllVideos] Poll error:', err);
+            }
+          }
+          
+          setBulkRegeneratingVideos(false);
+          setBulkRegenerateProgress({ current: 0, total: 0 });
+        };
+        
+        pollBulkStatus();
+      } else {
+        toast({
+          title: 'Bulk regeneration failed',
+          description: data.error || 'Unknown error',
+          variant: 'destructive'
+        });
+        setBulkRegeneratingVideos(false);
+      }
+    } catch (err: any) {
+      console.error('[regenerateAllVideos] Error:', err);
+      toast({
+        title: 'Error',
+        description: err.message,
+        variant: 'destructive'
+      });
+      setBulkRegeneratingVideos(false);
+    }
+  };
+
   const switchBackground = async (sceneId: string, preferVideo: boolean) => {
     if (!projectId) return;
     setRegenerating(`switch-${sceneId}`);
@@ -2188,6 +2299,29 @@ function ScenePreview({
       >
         <XCircle className="w-3 h-3 mr-1" /> Rejected ({statusCounts.rejected})
       </Button>
+      
+      <div className="ml-auto">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={regenerateAllVideos}
+          disabled={bulkRegeneratingVideos || scenes.length === 0}
+          className="border-blue-400 text-blue-700 hover:bg-blue-50"
+          data-testid="button-regenerate-all-videos"
+        >
+          {bulkRegeneratingVideos ? (
+            <>
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              Regenerating {bulkRegenerateProgress.current}/{bulkRegenerateProgress.total}...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Regenerate All Videos
+            </>
+          )}
+        </Button>
+      </div>
     </div>
     
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

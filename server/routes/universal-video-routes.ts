@@ -3092,6 +3092,142 @@ router.post('/:projectId/regenerate-music', isAuthenticated, async (req: Request
   }
 });
 
+// In-memory storage for bulk regeneration status (per project)
+const bulkRegenerationStatus: Map<string, {
+  status: 'running' | 'completed' | 'failed';
+  total: number;
+  completed: number;
+  failed: number;
+  errors: string[];
+  startedAt: Date;
+}> = new Map();
+
+// Bulk regenerate all videos for a project
+router.post('/:projectId/regenerate-all-videos', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const scenes = projectData.scenes || [];
+    if (scenes.length === 0) {
+      return res.status(400).json({ success: false, error: 'No scenes to regenerate' });
+    }
+    
+    console.log(`[UniversalVideo] Starting bulk video regeneration for project ${projectId} with ${scenes.length} scenes`);
+    
+    // Initialize status tracking
+    bulkRegenerationStatus.set(projectId, {
+      status: 'running',
+      total: scenes.length,
+      completed: 0,
+      failed: 0,
+      errors: [],
+      startedAt: new Date()
+    });
+    
+    // Start async regeneration process (don't await - return immediately)
+    (async () => {
+      const status = bulkRegenerationStatus.get(projectId)!;
+      
+      for (const scene of scenes) {
+        try {
+          console.log(`[BulkRegen] Regenerating video for scene ${scene.id}`);
+          
+          // Use the existing video regeneration logic
+          const result = await universalVideoService.regenerateSceneVideo(
+            projectData, 
+            scene.id,
+            { query: scene.visualDirection || scene.title }
+          );
+          
+          if (result.success) {
+            status.completed++;
+            console.log(`[BulkRegen] Scene ${scene.id} completed (${status.completed}/${status.total})`);
+          } else {
+            status.failed++;
+            status.errors.push(`Scene ${scene.id}: ${result.error}`);
+            console.error(`[BulkRegen] Scene ${scene.id} failed:`, result.error);
+          }
+          
+          // Save progress periodically
+          await saveProjectToDb(projectData, projectData.ownerId);
+          
+        } catch (err: any) {
+          status.failed++;
+          status.errors.push(`Scene ${scene.id}: ${err.message}`);
+          console.error(`[BulkRegen] Error regenerating scene ${scene.id}:`, err);
+        }
+      }
+      
+      status.status = status.failed === status.total ? 'failed' : 'completed';
+      console.log(`[BulkRegen] Bulk regeneration completed: ${status.completed} success, ${status.failed} failed`);
+      
+      // Clear status after 30 minutes
+      setTimeout(() => {
+        bulkRegenerationStatus.delete(projectId);
+      }, 30 * 60 * 1000);
+    })();
+    
+    return res.json({ 
+      success: true, 
+      message: 'Bulk video regeneration started',
+      totalScenes: scenes.length
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Bulk regeneration error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get bulk regeneration status
+router.get('/:projectId/regenerate-all-videos/status', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const status = bulkRegenerationStatus.get(projectId);
+    
+    if (!status) {
+      return res.json({ 
+        success: true, 
+        status: 'not_started',
+        total: 0,
+        completed: 0
+      });
+    }
+    
+    return res.json({
+      success: true,
+      status: status.status,
+      total: status.total,
+      completed: status.completed,
+      failed: status.failed,
+      errors: status.errors.slice(0, 10) // Only return first 10 errors
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Bulk regeneration status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 2: Update Music Volume
 router.patch('/:projectId/music-volume', isAuthenticated, async (req: Request, res: Response) => {
   try {
