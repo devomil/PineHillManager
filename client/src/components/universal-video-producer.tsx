@@ -3317,18 +3317,20 @@ function ScenePreview({
                   
                   {/* Provider Selection */}
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Video Provider</Label>
+                    <Label className="text-xs text-muted-foreground">Video Provider (I2V)</Label>
                     <Select
-                      value={selectedProviders[scene.id] || 'runway_gen4_turbo'}
+                      value={selectedProviders[scene.id] || 'runway'}
                       onValueChange={(val) => setSelectedProviders(prev => ({ ...prev, [scene.id]: val }))}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select provider" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="runway_gen4_turbo">Runway Gen-4 Turbo</SelectItem>
-                        <SelectItem value="kling_1.6">Kling 1.6</SelectItem>
-                        <SelectItem value="minimax">MiniMax</SelectItem>
+                        {VIDEO_PROVIDERS.filter(p => p.supportsI2V).map(provider => (
+                          <SelectItem key={provider.id} value={provider.id}>
+                            {provider.icon} {provider.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
