@@ -2620,7 +2620,7 @@ function ScenePreview({
                       <video 
                         key={scene.background!.videoUrl}
                         src={convertToDisplayUrl(scene.background!.videoUrl!)}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain i2v-video-fade"
                         controls
                         muted
                         playsInline
@@ -4667,7 +4667,7 @@ export default function UniversalVideoProducer() {
                       <video
                         key={`preview-video-${scene.id}`}
                         src={videoUrl}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover i2v-video-fade"
                         autoPlay
                         muted
                         loop={false}

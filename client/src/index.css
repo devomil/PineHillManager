@@ -231,3 +231,20 @@
     box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
   }
 }
+
+/* I2V Video fade-in animation to hide initial static frame */
+@keyframes i2v-fade-in {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.i2v-video-fade {
+  animation: i2v-fade-in 1s ease-out forwards;
+}
