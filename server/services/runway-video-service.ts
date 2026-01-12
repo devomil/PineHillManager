@@ -3,6 +3,10 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import RunwayML from '@runwayml/sdk';
 import { sanitizePromptForAI, enhancePromptForProvider } from './prompt-sanitizer';
+import { db } from '../db';
+import { brandAssets } from '@shared/schema';
+import { eq } from 'drizzle-orm';
+import { signObjectURL } from '../objectStorage';
 
 interface RunwayGenerationResult {
   success: boolean;
@@ -63,6 +67,62 @@ class RunwayVideoService {
     return available;
   }
 
+  private async resolveImageUrl(imageUrl: string): Promise<string> {
+    if (!imageUrl) return imageUrl;
+    
+    if (imageUrl.startsWith('https://')) {
+      console.log(`[Runway] Image URL already HTTPS, using as-is`);
+      return imageUrl;
+    }
+    
+    if (imageUrl.startsWith('/api/brand-assets/file/')) {
+      const assetId = parseInt(imageUrl.split('/').pop() || '0');
+      console.log(`[Runway] Resolving brand asset ID: ${assetId}`);
+      
+      if (assetId > 0) {
+        try {
+          const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
+          console.log(`[Runway] Asset found:`, asset ? 'yes' : 'no');
+          
+          if (asset) {
+            console.log(`[Runway] Asset settings type:`, typeof asset.settings);
+            console.log(`[Runway] Asset settings:`, JSON.stringify(asset.settings));
+            
+            const settings = asset.settings as any;
+            if (settings?.storagePath) {
+              console.log(`[Runway] Storage path:`, settings.storagePath);
+              const parts = settings.storagePath.split('|');
+              const bucketName = parts[0];
+              const filePath = parts[1];
+              console.log(`[Runway] Bucket: ${bucketName}, Path: ${filePath}`);
+              
+              if (bucketName && filePath) {
+                const signedUrl = await signObjectURL({
+                  bucketName,
+                  objectName: filePath,
+                  method: 'GET',
+                  ttlSec: 3600, // 1 hour expiry
+                });
+                console.log(`[Runway] Resolved brand asset ${assetId} to signed URL: ${signedUrl.substring(0, 80)}...`);
+                return signedUrl;
+              } else {
+                console.warn(`[Runway] Missing bucket or path: bucket=${bucketName}, path=${filePath}`);
+              }
+            } else {
+              console.warn(`[Runway] No storagePath in settings`);
+            }
+          }
+          console.warn(`[Runway] Could not resolve brand asset ${assetId} - no storage path found`);
+        } catch (error) {
+          console.error(`[Runway] Failed to resolve brand asset URL:`, error);
+        }
+      }
+    }
+    
+    console.warn(`[Runway] Unable to resolve image URL to HTTPS: ${imageUrl.substring(0, 50)}`);
+    return imageUrl;
+  }
+
   async generateVideo(options: RunwayGenerationOptions): Promise<RunwayGenerationResult> {
     const client = this.getClient();
     if (!client) {
@@ -99,12 +159,23 @@ class RunwayVideoService {
       let task: any;
 
       if (options.imageUrl) {
+        const resolvedImageUrl = await this.resolveImageUrl(options.imageUrl);
+        
+        if (!resolvedImageUrl.startsWith('https://')) {
+          return {
+            success: false,
+            error: `Unable to resolve image URL to public HTTPS URL: ${options.imageUrl.substring(0, 50)}`,
+            generationTimeMs: Date.now() - startTime,
+          };
+        }
+        
+        console.log(`[Runway] Resolved image URL: ${resolvedImageUrl.substring(0, 80)}...`);
         const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
         console.log(`[Runway] Using imageToVideo with gen4_turbo, ratio: ${imageRatio}...`);
         task = await client.imageToVideo
           .create({
             model: 'gen4_turbo',
-            promptImage: options.imageUrl,
+            promptImage: resolvedImageUrl,
             promptText: formattedPrompt,
             ratio: imageRatio as any,
             duration: duration,
