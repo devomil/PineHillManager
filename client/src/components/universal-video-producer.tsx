@@ -1417,6 +1417,7 @@ function ScenePreview({
   const [overlayPreviewMode, setOverlayPreviewMode] = useState<Record<string, boolean>>({});
   const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
   const [overlaysExpanded, setOverlaysExpanded] = useState<Record<string, boolean>>({});
+  const [selectedProductAsset, setSelectedProductAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
   const [workflowAnalysis, setWorkflowAnalysis] = useState<Record<string, {
     decision: WorkflowDecision;
     matchedAssets: { products: any[]; logos: any[]; locations: any[] };
@@ -3099,17 +3100,21 @@ function ScenePreview({
                         });
                         toast({ title: 'Asset swapped', description: `Using ${newAsset.name} instead.` });
                       }}
-                      onGenerateVideoFromAsset={(asset, provider) => {
-                        regenerateVideo(scene.id, provider, asset.url);
+                      onSelectProductAsset={(asset) => {
+                        setSelectedProductAsset(prev => ({
+                          ...prev,
+                          [scene.id]: { id: asset.id, url: asset.url, name: asset.name }
+                        }));
+                        toast({ title: 'Product selected', description: `${asset.name} selected for regeneration.` });
                       }}
-                      isRegenerating={regenerating === `video-${scene.id}`}
+                      selectedProductAssetId={selectedProductAsset[scene.id]?.id}
                     />
                   )}
                 </div>
                 
                 {/* Overlays Section - Collapsible */}
                 <Collapsible 
-                  open={overlaysExpanded[scene.id] ?? true}
+                  open={overlaysExpanded[scene.id] ?? false}
                   onOpenChange={(open) => setOverlaysExpanded(prev => ({ ...prev, [scene.id]: open }))}
                   className="space-y-3"
                 >
@@ -3120,7 +3125,7 @@ function ScenePreview({
                         <Label className="text-sm font-medium cursor-pointer">Overlays</Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        {overlaysExpanded[scene.id] ?? true ? (
+                        {overlaysExpanded[scene.id] ?? false ? (
                           <ChevronUp className="w-4 h-4 text-muted-foreground" />
                         ) : (
                           <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -3284,6 +3289,74 @@ function ScenePreview({
                       </div>
                   </CollapsibleContent>
                 </Collapsible>
+                
+                {/* Regenerate Section - With provider selection */}
+                <div className="space-y-3 mt-4 pt-4 border-t">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Regenerate Scene
+                  </Label>
+                  
+                  {/* Selected Asset Indicator */}
+                  {selectedProductAsset[scene.id] && (
+                    <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                      <Package className="w-4 h-4 text-green-600" />
+                      <span className="text-sm text-green-700">
+                        Using: <strong>{selectedProductAsset[scene.id]?.name}</strong>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 ml-auto text-green-600 hover:text-green-700"
+                        onClick={() => setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }))}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Provider Selection */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Video Provider</Label>
+                    <Select
+                      value={selectedProviders[scene.id] || 'runway_gen4_turbo'}
+                      onValueChange={(val) => setSelectedProviders(prev => ({ ...prev, [scene.id]: val }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="runway_gen4_turbo">Runway Gen-4 Turbo</SelectItem>
+                        <SelectItem value="kling_1.6">Kling 1.6</SelectItem>
+                        <SelectItem value="minimax">MiniMax</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Regenerate Button */}
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    disabled={regenerating === `video-${scene.id}`}
+                    onClick={() => {
+                      const selectedAsset = selectedProductAsset[scene.id];
+                      const provider = selectedProviders[scene.id] || 'runway_gen4_turbo';
+                      regenerateVideo(scene.id, provider, selectedAsset?.url);
+                    }}
+                  >
+                    {regenerating === `video-${scene.id}` ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Regenerate Video
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
             
