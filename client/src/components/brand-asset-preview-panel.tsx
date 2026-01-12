@@ -119,45 +119,48 @@ function AssetCard({
           </div>
         </div>
         
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {category === 'products' && onGenerateVideo && (
-            <DropdownMenu open={providerMenuOpen} onOpenChange={setProviderMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                  title="Generate video from this product image (I2V)"
-                  disabled={isRegenerating}
+        {/* Video regenerate button - always visible for products */}
+        {category === 'products' && onGenerateVideo && (
+          <DropdownMenu open={providerMenuOpen} onOpenChange={setProviderMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                title="Generate video from this product image (I2V)"
+                disabled={isRegenerating}
+              >
+                {isRegenerating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Video className="w-3.5 h-3.5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Select Video Provider
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {VIDEO_PROVIDERS.map((provider) => (
+                <DropdownMenuItem 
+                  key={provider.id}
+                  onClick={() => {
+                    onGenerateVideo(provider.id);
+                    setProviderMenuOpen(false);
+                  }}
+                  className="flex flex-col items-start gap-0.5"
                 >
-                  {isRegenerating ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Video className="w-3.5 h-3.5" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Select Video Provider
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {VIDEO_PROVIDERS.map((provider) => (
-                  <DropdownMenuItem 
-                    key={provider.id}
-                    onClick={() => {
-                      onGenerateVideo(provider.id);
-                      setProviderMenuOpen(false);
-                    }}
-                    className="flex flex-col items-start gap-0.5"
-                  >
-                    <span className="font-medium">{provider.name}</span>
-                    <span className="text-xs text-muted-foreground">{provider.description}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                  <span className="font-medium">{provider.name}</span>
+                  <span className="text-xs text-muted-foreground">{provider.description}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        
+        {/* Other action buttons - show on hover */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {isLogoCategory && onApplyToOverlay && !isApplied && (
             <Button 
               variant="ghost" 
@@ -380,7 +383,7 @@ export function BrandAssetPreviewPanel({
         </div>
         {products.length > 0 && onGenerateVideoFromAsset && (
           <p className="text-xs text-muted-foreground mt-1">
-            Hover over a product and click <Video className="w-3 h-3 inline text-green-600" /> to generate a video using that image
+            Click <Video className="w-3 h-3 inline text-green-600" /> on a product to generate a video using that image
           </p>
         )}
       </CardHeader>
