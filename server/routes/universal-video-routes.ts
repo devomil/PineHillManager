@@ -3155,12 +3155,24 @@ router.post('/:projectId/regenerate-all-videos', isAuthenticated, async (req: Re
             existingProvider
           );
           
-          if (result.success) {
+          if (result.success && result.newVideoUrl) {
+            // Update the scene with the new video URL
+            const sceneIndex = projectData.scenes.findIndex((s: any) => s.id === scene.id);
+            if (sceneIndex >= 0) {
+              const updatedScene = projectData.scenes[sceneIndex];
+              updatedScene.background = updatedScene.background || { type: 'video', source: '' };
+              updatedScene.background.videoUrl = result.newVideoUrl;
+              updatedScene.background.type = 'video';
+              updatedScene.background.videoSource = result.source || existingProvider;
+              updatedScene.assets = updatedScene.assets || {};
+              updatedScene.assets.videoUrl = result.newVideoUrl;
+              console.log(`[BulkRegen] Updated scene ${scene.id} with new video URL: ${result.newVideoUrl.substring(0, 80)}...`);
+            }
             status.completed++;
             console.log(`[BulkRegen] Scene ${scene.id} completed (${status.completed}/${status.total})`);
           } else {
             status.failed++;
-            status.errors.push(`Scene ${scene.id}: ${result.error}`);
+            status.errors.push(`Scene ${scene.id}: ${result.error || 'No video URL returned'}`);
             console.error(`[BulkRegen] Scene ${scene.id} failed:`, result.error);
           }
           
