@@ -9,7 +9,21 @@ import {
   Image as ImageIcon, ChevronDown, ChevronUp, Eye, Layers, Video, Loader2
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
+
+const VIDEO_PROVIDERS = [
+  { id: 'runway', name: 'Runway Gen-4', description: 'Best quality, slower' },
+  { id: 'kling', name: 'Kling 1.6', description: 'Fast, good quality' },
+  { id: 'fal-minimax', name: 'MiniMax (fal.ai)', description: 'Budget option' },
+] as const;
 
 interface MatchedAsset {
   id: number;
@@ -51,12 +65,13 @@ function AssetCard({
   onSwap?: (asset: BrandAsset) => void;
   onRemove?: () => void;
   onApplyToOverlay?: (overlayType: 'logo' | 'watermark') => void;
-  onGenerateVideo?: () => void; // For I2V: animate this product photo into video
+  onGenerateVideo?: (provider?: string) => void;
   isApplied?: boolean;
   isRegenerating?: boolean;
 }) {
   const [showSelector, setShowSelector] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   
   const thumbnailUrl = asset.thumbnailUrl || asset.url;
   const isValidUrl = thumbnailUrl && (thumbnailUrl.startsWith('http') || thumbnailUrl.startsWith('/'));
@@ -106,20 +121,42 @@ function AssetCard({
         
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {category === 'products' && onGenerateVideo && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={() => onGenerateVideo()}
-              title="Generate video from this product image (I2V)"
-              disabled={isRegenerating}
-            >
-              {isRegenerating ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Video className="w-3.5 h-3.5" />
-              )}
-            </Button>
+            <DropdownMenu open={providerMenuOpen} onOpenChange={setProviderMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  title="Generate video from this product image (I2V)"
+                  disabled={isRegenerating}
+                >
+                  {isRegenerating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Video className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Select Video Provider
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {VIDEO_PROVIDERS.map((provider) => (
+                  <DropdownMenuItem 
+                    key={provider.id}
+                    onClick={() => {
+                      onGenerateVideo(provider.id);
+                      setProviderMenuOpen(false);
+                    }}
+                    className="flex flex-col items-start gap-0.5"
+                  >
+                    <span className="font-medium">{provider.name}</span>
+                    <span className="text-xs text-muted-foreground">{provider.description}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {isLogoCategory && onApplyToOverlay && !isApplied && (
             <Button 
@@ -209,7 +246,7 @@ function AssetSection({
   onSwap?: (oldId: number, newAsset: BrandAsset) => void;
   onRemove?: (assetId: number) => void;
   onApplyToOverlay?: (asset: MatchedAsset, overlayType: 'logo' | 'watermark') => void;
-  onGenerateVideo?: (asset: MatchedAsset) => void;
+  onGenerateVideo?: (asset: MatchedAsset, provider?: string) => void;
   appliedAssetId?: number;
   defaultExpanded?: boolean;
   isRegenerating?: boolean;
@@ -248,7 +285,7 @@ function AssetSection({
               onSwap={onSwap ? (newAsset) => onSwap(asset.id, newAsset) : undefined}
               onRemove={onRemove ? () => onRemove(asset.id) : undefined}
               onApplyToOverlay={onApplyToOverlay ? (overlayType) => onApplyToOverlay(asset, overlayType) : undefined}
-              onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(asset) : undefined}
+              onGenerateVideo={onGenerateVideo ? (provider) => onGenerateVideo(asset, provider) : undefined}
               isApplied={appliedAssetId === asset.id}
               isRegenerating={isRegenerating}
             />
@@ -358,7 +395,7 @@ export function BrandAssetPreviewPanel({
               category="products"
               onSwap={onSwapAsset ? (oldId, newAsset) => onSwapAsset('products', oldId, newAsset) : undefined}
               onRemove={onRemoveAsset ? (assetId) => onRemoveAsset('products', assetId) : undefined}
-              onGenerateVideo={onGenerateVideoFromAsset ? (asset) => onGenerateVideoFromAsset(asset) : undefined}
+              onGenerateVideo={onGenerateVideoFromAsset ? (asset, provider) => onGenerateVideoFromAsset(asset, provider) : undefined}
               isRegenerating={isRegenerating}
             />
             

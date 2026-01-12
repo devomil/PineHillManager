@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { VoiceSelector } from "./voice-selector";
 import { QualityReport } from "./quality-report";
 import { QADashboard } from "./qa-dashboard";
@@ -1415,6 +1416,7 @@ function ScenePreview({
   const [bulkRegenerateProgress, setBulkRegenerateProgress] = useState({ current: 0, total: 0 });
   const [overlayPreviewMode, setOverlayPreviewMode] = useState<Record<string, boolean>>({});
   const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
+  const [overlaysExpanded, setOverlaysExpanded] = useState<Record<string, boolean>>({});
   const [workflowAnalysis, setWorkflowAnalysis] = useState<Record<string, {
     decision: WorkflowDecision;
     matchedAssets: { products: any[]; logos: any[]; locations: any[] };
@@ -3097,26 +3099,46 @@ function ScenePreview({
                         });
                         toast({ title: 'Asset swapped', description: `Using ${newAsset.name} instead.` });
                       }}
-                      onGenerateVideoFromAsset={(asset) => {
-                        regenerateVideo(scene.id, undefined, asset.url);
+                      onGenerateVideoFromAsset={(asset, provider) => {
+                        regenerateVideo(scene.id, provider, asset.url);
                       }}
                       isRegenerating={regenerating === `video-${scene.id}`}
                     />
                   )}
                 </div>
                 
-                {/* Product Overlay Settings */}
+                {/* Overlays Section - Collapsible */}
                 {hasAIBackground && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-muted-foreground" />
-                        <Label className="text-sm font-medium">Show Product Overlay</Label>
+                  <Collapsible 
+                    open={overlaysExpanded[scene.id] ?? true}
+                    onOpenChange={(open) => setOverlaysExpanded(prev => ({ ...prev, [scene.id]: open }))}
+                    className="space-y-3"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-muted-foreground" />
+                          <Label className="text-sm font-medium cursor-pointer">Overlays</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {overlaysExpanded[scene.id] ?? true ? (
+                            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {!defaultOverlay && (
-                          <span className="text-xs text-muted-foreground">(Off by default for {scene.type})</span>
-                        )}
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent className="space-y-3">
+                      {/* Product Overlay Toggle */}
+                      <div className="flex items-center justify-between p-2 pl-3">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm">Product Overlay</Label>
+                          {!defaultOverlay && (
+                            <span className="text-xs text-muted-foreground">(Off by default)</span>
+                          )}
+                        </div>
                         <Switch 
                           checked={showsProductOverlay}
                           onCheckedChange={(checked) => {
@@ -3127,7 +3149,6 @@ function ScenePreview({
                           data-testid={`switch-product-overlay-modal-${scene.id}`}
                         />
                       </div>
-                    </div>
                     
                     {showsProductOverlay && projectId && scene.assets?.productOverlayUrl && (
                       <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
@@ -3226,7 +3247,8 @@ function ScenePreview({
                         </div>
                       </div>
                     )}
-                  </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
                 
                 {/* Phase 11C: Overlay Editor */}
