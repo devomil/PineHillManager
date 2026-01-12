@@ -3140,13 +3140,19 @@ router.post('/:projectId/regenerate-all-videos', isAuthenticated, async (req: Re
       
       for (const scene of scenes) {
         try {
-          console.log(`[BulkRegen] Regenerating video for scene ${scene.id}`);
+          // Determine provider: use existing scene's videoSource, or default to 'runway'
+          const existingProvider = scene.background?.videoSource || 
+                                   (scene.assets as any)?.requestedProvider || 
+                                   'runway';
+          console.log(`[BulkRegen] Regenerating video for scene ${scene.id} with provider: ${existingProvider}`);
           
-          // Use the existing video regeneration logic
+          // Use the existing video regeneration logic with proper parameters
+          const customQuery = scene.visualDirection || scene.title;
           const result = await universalVideoService.regenerateSceneVideo(
             projectData, 
             scene.id,
-            { query: scene.visualDirection || scene.title }
+            customQuery,
+            existingProvider
           );
           
           if (result.success) {
