@@ -1953,8 +1953,13 @@ function ScenePreview({
   };
 
   const regenerateAllVideos = async () => {
-    if (!projectId || bulkRegeneratingVideos) return;
+    console.log('[regenerateAllVideos] Button clicked, projectId:', projectId, 'bulkRegeneratingVideos:', bulkRegeneratingVideos, 'scenes.length:', scenes.length);
+    if (!projectId || bulkRegeneratingVideos) {
+      console.log('[regenerateAllVideos] Early return - projectId:', projectId, 'bulkRegeneratingVideos:', bulkRegeneratingVideos);
+      return;
+    }
     
+    console.log('[regenerateAllVideos] Starting bulk regeneration...');
     setBulkRegeneratingVideos(true);
     setBulkRegenerateProgress({ current: 0, total: scenes.length });
     
