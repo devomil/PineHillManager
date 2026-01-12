@@ -3108,30 +3108,30 @@ function ScenePreview({
                 </div>
                 
                 {/* Overlays Section - Collapsible */}
-                {hasAIBackground && (
-                  <Collapsible 
-                    open={overlaysExpanded[scene.id] ?? true}
-                    onOpenChange={(open) => setOverlaysExpanded(prev => ({ ...prev, [scene.id]: open }))}
-                    className="space-y-3"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors">
-                        <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-muted-foreground" />
-                          <Label className="text-sm font-medium cursor-pointer">Overlays</Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {overlaysExpanded[scene.id] ?? true ? (
-                            <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </div>
+                <Collapsible 
+                  open={overlaysExpanded[scene.id] ?? true}
+                  onOpenChange={(open) => setOverlaysExpanded(prev => ({ ...prev, [scene.id]: open }))}
+                  className="space-y-3"
+                >
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-muted-foreground" />
+                        <Label className="text-sm font-medium cursor-pointer">Overlays</Label>
                       </div>
-                    </CollapsibleTrigger>
-                    
-                    <CollapsibleContent className="space-y-3">
-                      {/* Product Overlay Toggle */}
+                      <div className="flex items-center gap-2">
+                        {overlaysExpanded[scene.id] ?? true ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent className="space-y-3">
+                    {/* Product Overlay Toggle - Only show when AI background exists */}
+                    {hasAIBackground && (
                       <div className="flex items-center justify-between p-2 pl-3">
                         <div className="flex items-center gap-2">
                           <Label className="text-sm">Product Overlay</Label>
@@ -3149,6 +3149,7 @@ function ScenePreview({
                           data-testid={`switch-product-overlay-modal-${scene.id}`}
                         />
                       </div>
+                    )}
                     
                     {showsProductOverlay && projectId && scene.assets?.productOverlayUrl && (
                       <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
@@ -3247,48 +3248,42 @@ function ScenePreview({
                         </div>
                       </div>
                     )}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-                
-                {/* Phase 11C: Overlay Editor */}
-                <div className="space-y-3 mt-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Layers className="w-4 h-4 text-muted-foreground" />
-                    <Label className="text-sm font-medium">Scene Overlays</Label>
-                  </div>
-                  <OverlayEditor
-                    config={previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general')}
-                    onChange={async (config) => {
-                      if (projectId) {
-                        try {
-                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: config });
-                          setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
-                          onSceneUpdate?.();
-                          toast({
-                            title: 'Saved',
-                            description: 'Overlay settings saved successfully',
-                          });
-                        } catch (err) {
-                          console.error('Failed to update overlay config:', err);
-                          toast({
-                            title: 'Error',
-                            description: 'Failed to save overlay settings',
-                            variant: 'destructive',
-                          });
-                        }
-                      }
-                    }}
-                    onPreview={(config) => {
-                      setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
-                      if (!overlayPreviewMode[scene.id]) {
-                        setOverlayPreviewMode(prev => ({ ...prev, [scene.id]: true }));
-                      }
-                    }}
-                    extractedText={scene.extractedOverlayText ?? []}
-                    sceneType={scene.type ?? 'general'}
-                  />
-                </div>
+                      {/* Scene Overlays (Text, Logo, Watermark, etc.) */}
+                      <div className="space-y-3 pt-2 border-t">
+                        <OverlayEditor
+                          config={previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general')}
+                          onChange={async (config) => {
+                            if (projectId) {
+                              try {
+                                await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: config });
+                                setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
+                                onSceneUpdate?.();
+                                toast({
+                                  title: 'Saved',
+                                  description: 'Overlay settings saved successfully',
+                                });
+                              } catch (err) {
+                                console.error('Failed to update overlay config:', err);
+                                toast({
+                                  title: 'Error',
+                                  description: 'Failed to save overlay settings',
+                                  variant: 'destructive',
+                                });
+                              }
+                            }
+                          }}
+                          onPreview={(config) => {
+                            setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
+                            if (!overlayPreviewMode[scene.id]) {
+                              setOverlayPreviewMode(prev => ({ ...prev, [scene.id]: true }));
+                            }
+                          }}
+                          extractedText={scene.extractedOverlayText ?? []}
+                          sceneType={scene.type ?? 'general'}
+                        />
+                      </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
             
