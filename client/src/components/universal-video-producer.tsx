@@ -1807,8 +1807,8 @@ function ScenePreview({
     }
   };
 
-  const regenerateVideo = async (sceneId: string, provider?: string) => {
-    console.log('[regenerateVideo] FUNCTION CALLED with sceneId:', sceneId, 'provider:', provider, 'projectId:', projectId);
+  const regenerateVideo = async (sceneId: string, provider?: string, sourceImageUrl?: string) => {
+    console.log('[regenerateVideo] FUNCTION CALLED with sceneId:', sceneId, 'provider:', provider, 'sourceImageUrl:', sourceImageUrl?.substring(0, 50), 'projectId:', projectId);
     if (!projectId) {
       console.error('[regenerateVideo] EARLY RETURN - projectId is undefined');
       toast({ title: 'Error', description: 'Project ID is missing', variant: 'destructive' });
@@ -1819,7 +1819,8 @@ function ScenePreview({
     const url = `/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-video`;
     const body = { 
       query: customPrompt[sceneId] || undefined,
-      provider: provider || undefined 
+      provider: provider || undefined,
+      sourceImageUrl: sourceImageUrl || undefined, // For I2V: matched brand asset product photo
     };
     console.log('[regenerateVideo] About to fetch:', url, 'with body:', JSON.stringify(body));
     try {
@@ -2756,16 +2757,8 @@ function ScenePreview({
                       isGenerating={regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`}
                     />
                     
-                    {/* Phase 13D: Reference Image Section - Phase 12 Addendum: Now persists to database */}
-                    <ReferenceImageSection
-                      projectId={projectId}
-                      sceneId={scene.id}
-                      currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
-                      currentMediaType={scene.background?.type === 'video' ? 'video' : 'image'}
-                      onReferenceApplied={() => {
-                        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
-                      }}
-                    />
+                    {/* DEPRECATED: Phase 13D Reference Image Section - replaced by Matched Brand Assets for I2V */}
+                    {/* Use the "Matched Brand Assets" panel below instead for I2V generation with product photos */}
                     
                     {/* Phase 13D: Regeneration Options with History */}
                     <RegenerationOptions
@@ -3104,6 +3097,10 @@ function ScenePreview({
                         });
                         toast({ title: 'Asset swapped', description: `Using ${newAsset.name} instead.` });
                       }}
+                      onGenerateVideoFromAsset={(asset) => {
+                        regenerateVideo(scene.id, undefined, asset.url);
+                      }}
+                      isRegenerating={regenerating === `video-${scene.id}`}
                     />
                   )}
                 </div>

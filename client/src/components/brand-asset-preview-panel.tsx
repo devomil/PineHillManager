@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { 
   Package, Star, MapPin, RefreshCw, Check, X, 
-  Image as ImageIcon, ChevronDown, ChevronUp, Eye, Layers
+  Image as ImageIcon, ChevronDown, ChevronUp, Eye, Layers, Video, Loader2
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
@@ -30,8 +30,10 @@ interface BrandAssetPreviewPanelProps {
   onSwapAsset?: (category: 'products' | 'logos' | 'locations', oldId: number, newAsset: BrandAsset) => void;
   onRemoveAsset?: (category: 'products' | 'logos' | 'locations', assetId: number) => void;
   onApplyToOverlay?: (asset: MatchedAsset, overlayType: 'logo' | 'watermark') => void;
+  onGenerateVideoFromAsset?: (asset: MatchedAsset, provider?: string) => void; // For I2V: animate product photo into video
   appliedAssetId?: number;
   compact?: boolean;
+  isRegenerating?: boolean;
 }
 
 function AssetCard({ 
@@ -40,14 +42,18 @@ function AssetCard({
   onSwap,
   onRemove,
   onApplyToOverlay,
+  onGenerateVideo,
   isApplied,
+  isRegenerating,
 }: { 
   asset: MatchedAsset;
   category: 'products' | 'logos' | 'locations';
   onSwap?: (asset: BrandAsset) => void;
   onRemove?: () => void;
   onApplyToOverlay?: (overlayType: 'logo' | 'watermark') => void;
+  onGenerateVideo?: () => void; // For I2V: animate this product photo into video
   isApplied?: boolean;
+  isRegenerating?: boolean;
 }) {
   const [showSelector, setShowSelector] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -99,6 +105,22 @@ function AssetCard({
         </div>
         
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {category === 'products' && onGenerateVideo && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+              onClick={() => onGenerateVideo()}
+              title="Generate video from this product image (I2V)"
+              disabled={isRegenerating}
+            >
+              {isRegenerating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Video className="w-3.5 h-3.5" />
+              )}
+            </Button>
+          )}
           {isLogoCategory && onApplyToOverlay && !isApplied && (
             <Button 
               variant="ghost" 
@@ -175,8 +197,10 @@ function AssetSection({
   onSwap,
   onRemove,
   onApplyToOverlay,
+  onGenerateVideo,
   appliedAssetId,
   defaultExpanded = true,
+  isRegenerating,
 }: {
   title: string;
   icon: typeof Package;
@@ -185,8 +209,10 @@ function AssetSection({
   onSwap?: (oldId: number, newAsset: BrandAsset) => void;
   onRemove?: (assetId: number) => void;
   onApplyToOverlay?: (asset: MatchedAsset, overlayType: 'logo' | 'watermark') => void;
+  onGenerateVideo?: (asset: MatchedAsset) => void;
   appliedAssetId?: number;
   defaultExpanded?: boolean;
+  isRegenerating?: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   
@@ -222,7 +248,9 @@ function AssetSection({
               onSwap={onSwap ? (newAsset) => onSwap(asset.id, newAsset) : undefined}
               onRemove={onRemove ? () => onRemove(asset.id) : undefined}
               onApplyToOverlay={onApplyToOverlay ? (overlayType) => onApplyToOverlay(asset, overlayType) : undefined}
+              onGenerateVideo={onGenerateVideo ? () => onGenerateVideo(asset) : undefined}
               isApplied={appliedAssetId === asset.id}
+              isRegenerating={isRegenerating}
             />
           ))}
         </div>
@@ -239,8 +267,10 @@ export function BrandAssetPreviewPanel({
   onSwapAsset,
   onRemoveAsset,
   onApplyToOverlay,
+  onGenerateVideoFromAsset,
   appliedAssetId,
   compact = false,
+  isRegenerating = false,
 }: BrandAssetPreviewPanelProps) {
   const totalAssets = products.length + logos.length + locations.length;
   
@@ -311,6 +341,11 @@ export function BrandAssetPreviewPanel({
           </CardTitle>
           <Badge variant="secondary">{totalAssets} asset{totalAssets > 1 ? 's' : ''}</Badge>
         </div>
+        {products.length > 0 && onGenerateVideoFromAsset && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Hover over a product and click <Video className="w-3 h-3 inline text-green-600" /> to generate a video using that image
+          </p>
+        )}
       </CardHeader>
       <Separator />
       <CardContent className="py-3 px-4">
@@ -323,6 +358,8 @@ export function BrandAssetPreviewPanel({
               category="products"
               onSwap={onSwapAsset ? (oldId, newAsset) => onSwapAsset('products', oldId, newAsset) : undefined}
               onRemove={onRemoveAsset ? (assetId) => onRemoveAsset('products', assetId) : undefined}
+              onGenerateVideo={onGenerateVideoFromAsset ? (asset) => onGenerateVideoFromAsset(asset) : undefined}
+              isRegenerating={isRegenerating}
             />
             
             <AssetSection

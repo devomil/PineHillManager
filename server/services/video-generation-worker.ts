@@ -17,6 +17,7 @@ interface VideoGenerationRequest {
   negativePrompt?: string;
   style?: string;
   triggeredBy?: string;
+  sourceImageUrl?: string; // For I2V: matched brand asset product photo URL
 }
 
 type JobUpdateCallback = (job: VideoGenerationJob) => void;
@@ -70,6 +71,7 @@ class VideoGenerationWorker {
       triggeredBy: request.triggeredBy || null,
       retryCount: 0,
       maxRetries: 3,
+      sourceImageUrl: request.sourceImageUrl || null,
     });
     
     log.debug(` Job ${jobId} created successfully`);
@@ -176,6 +178,11 @@ class VideoGenerationWorker {
           ? job.aspectRatio 
           : '16:9';
         
+        const hasSourceImage = !!job.sourceImageUrl;
+        if (hasSourceImage) {
+          log.debug(` Job ${job.jobId} using I2V with source image: ${job.sourceImageUrl?.substring(0, 50)}...`);
+        }
+        
         const result = await aiVideoService.generateVideo({
           prompt: job.prompt || '',
           duration: job.duration || 6,
@@ -184,6 +191,7 @@ class VideoGenerationWorker {
           preferredProvider: provider,
           negativePrompt: job.negativePrompt || undefined,
           visualStyle: job.style || 'professional',
+          imageUrl: job.sourceImageUrl || undefined, // For I2V: pass the matched brand asset image
         });
 
         // Log which provider actually fulfilled the request

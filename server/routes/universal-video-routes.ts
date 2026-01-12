@@ -2648,9 +2648,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { query, provider } = req.body;
+    const { query, provider, sourceImageUrl } = req.body;
     
-    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}`);
+    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -2685,6 +2685,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     const prompt = query || scene.visualDirection || (scene as any).description || 'Professional wellness video';
     const fallbackPrompt = (scene as any).summary || 'professional video';
     
+    // Determine source image for I2V - use provided sourceImageUrl or scene's brandAssetUrl
+    const finalSourceImageUrl = sourceImageUrl || scene.brandAssetUrl || undefined;
+    
     // Create async job - returns immediately
     const job = await videoGenerationWorker.createJob({
       projectId,
@@ -2696,6 +2699,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       aspectRatio: (projectData as any).settings?.aspectRatio || '16:9',
       style: (projectData as any).settings?.visualStyle || 'professional',
       triggeredBy: userId,
+      sourceImageUrl: finalSourceImageUrl, // For I2V: matched brand asset product photo
     });
     
     console.log(`[Phase9B-Async] Created job ${job.jobId} for scene ${sceneId}`);

@@ -5571,6 +5571,7 @@ export const videoGenerationJobs = pgTable("video_generation_jobs", {
   aspectRatio: varchar("aspect_ratio", { length: 20 }).default("16:9"),
   negativePrompt: text("negative_prompt"),
   style: varchar("style", { length: 50 }),
+  sourceImageUrl: text("source_image_url"), // For I2V: matched brand asset product photo URL
   
   // Output
   videoUrl: text("video_url"),
