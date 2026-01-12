@@ -3315,12 +3315,12 @@ function ScenePreview({
                     </div>
                   )}
                   
-                  {/* Provider Selection */}
+                  {/* Video Provider Selection (I2V) */}
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Video Provider (I2V)</Label>
                     <Select
-                      value={selectedProviders[scene.id] || 'runway'}
-                      onValueChange={(val) => setSelectedProviders(prev => ({ ...prev, [scene.id]: val }))}
+                      value={selectedProviders[`video-${scene.id}`] || 'runway'}
+                      onValueChange={(val) => setSelectedProviders(prev => ({ ...prev, [`video-${scene.id}`]: val }))}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select provider" />
@@ -3335,26 +3335,69 @@ function ScenePreview({
                     </Select>
                   </div>
                   
-                  {/* Regenerate Button */}
+                  {/* Regenerate Video Button */}
                   <Button
                     variant="destructive"
                     className="w-full"
                     disabled={regenerating === `video-${scene.id}`}
                     onClick={() => {
                       const selectedAsset = selectedProductAsset[scene.id];
-                      const provider = selectedProviders[scene.id] || 'runway_gen4_turbo';
+                      const provider = selectedProviders[`video-${scene.id}`] || 'runway';
                       regenerateVideo(scene.id, provider, selectedAsset?.url);
                     }}
                   >
                     {regenerating === `video-${scene.id}` ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Regenerating...
+                        Regenerating Video...
                       </>
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Regenerate Video
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Image Provider Selection (I2I) */}
+                  <div className="space-y-2 mt-3 pt-3 border-t border-dashed">
+                    <Label className="text-xs text-muted-foreground">Image Provider (I2I)</Label>
+                    <Select
+                      value={selectedProviders[`image-${scene.id}`] || 'flux'}
+                      onValueChange={(val) => setSelectedProviders(prev => ({ ...prev, [`image-${scene.id}`]: val }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IMAGE_PROVIDERS.filter(p => p.supportsI2I).map(provider => (
+                          <SelectItem key={provider.id} value={provider.id}>
+                            {provider.icon} {provider.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Regenerate Image Button */}
+                  <Button
+                    variant="outline"
+                    className="w-full border-orange-300 text-orange-600 hover:bg-orange-50"
+                    disabled={regenerating === `image-${scene.id}`}
+                    onClick={() => {
+                      const provider = selectedProviders[`image-${scene.id}`] || 'flux';
+                      regenerateImage(scene.id, provider);
+                    }}
+                  >
+                    {regenerating === `image-${scene.id}` ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Regenerating Image...
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-4 h-4 mr-2" />
+                        Regenerate Image
                       </>
                     )}
                   </Button>
