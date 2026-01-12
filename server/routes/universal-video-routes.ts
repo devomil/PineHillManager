@@ -27,7 +27,7 @@ import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { videoFrameExtractor } from '../services/video-frame-extractor';
 import { db } from '../db';
-import { universalVideoProjects } from '../../shared/schema';
+import { universalVideoProjects, sceneRegenerationHistory } from '../../shared/schema';
 import type { 
   VideoProject, 
   ProductVideoInput,
@@ -2796,8 +2796,54 @@ router.get('/:projectId/scenes/:sceneId/video-job/:jobId', isAuthenticated, asyn
           success: true
         });
         
+        // Record to scene regeneration history for UI tracking
+        const priorHistory = await intelligentRegenerationService.getSceneHistory(sceneId, projectId);
+        const attemptNumber = priorHistory.length + 1;
+        try {
+          await db.insert(sceneRegenerationHistory).values({
+            sceneId,
+            projectId,
+            attemptNumber,
+            provider: job.provider || 'unknown',
+            strategy: projectData.scenes[sceneIndex].generationMethod || 'T2V',
+            prompt: job.prompt || '',
+            result: 'success',
+            qualityScore: projectData.scenes[sceneIndex].qualityScore?.toString() || null,
+            issues: null,
+            reasoning: `Video generation completed via ${job.provider || 'unknown'}`,
+            confidenceScore: '1.0',
+          });
+          console.log(`[Regeneration] Recorded successful attempt #${attemptNumber} for scene ${sceneId}`);
+        } catch (historyErr) {
+          console.warn('[Regeneration] Failed to record history:', historyErr);
+        }
+        
         await saveProjectToDb(projectData, projectData.ownerId);
         updatedProject = projectData;
+      }
+    }
+    
+    // Record failed attempts to history
+    if (job.status === 'failed') {
+      try {
+        const priorHistory = await intelligentRegenerationService.getSceneHistory(sceneId, projectId);
+        const attemptNumber = priorHistory.length + 1;
+        await db.insert(sceneRegenerationHistory).values({
+          sceneId,
+          projectId,
+          attemptNumber,
+          provider: job.provider || 'unknown',
+          strategy: 'T2V',
+          prompt: job.prompt || '',
+          result: 'failure',
+          qualityScore: null,
+          issues: job.errorMessage || 'Unknown error',
+          reasoning: `Video generation failed: ${job.errorMessage || 'Unknown error'}`,
+          confidenceScore: '0',
+        });
+        console.log(`[Regeneration] Recorded failed attempt #${attemptNumber} for scene ${sceneId}`);
+      } catch (historyErr) {
+        console.warn('[Regeneration] Failed to record failure history:', historyErr);
       }
     }
     
