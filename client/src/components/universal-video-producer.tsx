@@ -2016,11 +2016,16 @@ function ScenePreview({
                   } else {
                     toast({
                       title: 'All videos regenerated!',
-                      description: `Successfully regenerated ${statusData.completed} scene videos.`
+                      description: `Successfully regenerated ${statusData.completed} scene videos. Refreshing...`
                     });
                   }
                   onSceneUpdate?.();
                   queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+                  // Force a page-level refetch after a short delay
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1500);
                 } else if (statusData.status === 'failed') {
                   completed = true;
                   toast({
