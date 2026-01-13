@@ -2787,70 +2787,7 @@ function ScenePreview({
                     {/* DEPRECATED: Phase 13D Reference Image Section - replaced by Matched Brand Assets for I2V */}
                     {/* Use the "Matched Brand Assets" panel below instead for I2V generation with product photos */}
                     
-                    {/* Phase 13D: Regeneration Options with History */}
-                    <RegenerationOptions
-                      sceneId={scene.id}
-                      sceneIndex={index}
-                      projectId={projectId}
-                      currentMediaUrl={scene.assets?.backgroundUrl || scene.background?.videoUrl || ''}
-                      mediaType={sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image')}
-                      qualityIssues={scene.analysisResult?.issues?.map(issue => issue.description) || []}
-                      suggestedImprovement={scene.analysisResult?.improvedPrompt}
-                      referenceMode={scene.referenceConfig?.mode || 'none'}
-                      complexity={(() => {
-                        const prompt = scene.visualDirection || '';
-                        const wordCount = prompt.split(/\s+/).length;
-                        const hasMultipleSubjects = /\b(and|with|plus|also|including)\b/gi.test(prompt);
-                        const hasComplexActions = /\b(while|simultaneously|together|both|multiple)\b/gi.test(prompt);
-                        const hasNegatives = /\b(not|no|without|never|don't|doesn't)\b/gi.test(prompt);
-                        
-                        if (wordCount > 100 || (hasMultipleSubjects && hasComplexActions)) {
-                          return {
-                            category: 'impossible' as const,
-                            warning: 'This prompt is extremely complex with multiple subjects and actions. AI may struggle to render this accurately.',
-                            simplifiedPrompt: prompt.split('.')[0] + '.',
-                          };
-                        } else if (wordCount > 50 || hasNegatives || hasComplexActions) {
-                          return {
-                            category: 'complex' as const,
-                            warning: 'This prompt contains complex elements. Consider simplifying for more predictable results.',
-                            simplifiedPrompt: prompt.substring(0, 150).trim() + '...',
-                          };
-                        } else if (wordCount > 30) {
-                          return {
-                            category: 'moderate' as const,
-                            warning: undefined,
-                            simplifiedPrompt: undefined,
-                          };
-                        }
-                        return {
-                          category: 'simple' as const,
-                          warning: undefined,
-                          simplifiedPrompt: undefined,
-                        };
-                      })()}
-                      onRegenerate={async (options: RegenerateOptions) => {
-                        const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                        
-                        if (options.newPrompt) {
-                          setCustomPrompt(prev => ({ ...prev, [scene.id]: options.newPrompt! }));
-                        }
-                        
-                        if (options.newProvider) {
-                          setSelectedProviders(prev => ({ ...prev, [`${mediaType}-${scene.id}`]: options.newProvider! }));
-                        }
-                        
-                        if (options.mode === 'stock-search') {
-                          toast({ title: 'Searching stock footage...', description: 'Looking for matching stock content.' });
-                        }
-                        
-                        if (mediaType === 'video') {
-                          regenerateVideo(scene.id, options.newProvider);
-                        } else {
-                          regenerateImage(scene.id, options.newProvider);
-                        }
-                      }}
-                    />
+                    {/* NOTE: RegenerationOptions component removed - duplicate functionality now consolidated in right panel */}
                   </div>
                 )}
               </div>
