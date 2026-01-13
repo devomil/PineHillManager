@@ -3364,9 +3364,9 @@ function ScenePreview({
                   </Button>
                   
                   {/* Regeneration History Panel */}
-                  {project?.id && (
+                  {projectId && (
                     <RegenerationHistoryPanel
-                      projectId={project.id}
+                      projectId={projectId}
                       sceneId={scene.id}
                       sceneIndex={selectedSceneIndex}
                     />
