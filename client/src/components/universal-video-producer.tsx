@@ -2750,9 +2750,10 @@ function ScenePreview({
                       onGenerate={() => {
                         const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                         const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
-                        console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider);
+                        const selectedAsset = selectedProductAsset[scene.id];
+                        console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'selectedAssetUrl:', selectedAsset?.url?.substring(0, 50));
                         if (mediaType === 'video') {
-                          regenerateVideo(scene.id, provider);
+                          regenerateVideo(scene.id, provider, selectedAsset?.url);
                         } else {
                           regenerateImage(scene.id, provider);
                         }
