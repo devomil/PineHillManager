@@ -400,12 +400,11 @@ function VideoCreatorForm({
   onSubmitScript,
   isLoading 
 }: { 
-  onSubmitProduct: (data: ProductFormData & { productImages?: ProductImage[] }) => void;
+  onSubmitProduct: (data: ProductFormData) => void;
   onSubmitScript: (data: ScriptFormData) => void;
   isLoading: boolean;
 }) {
   const [scriptMode, setScriptMode] = useState<ScriptMode>("ai-generate");
-  const [productImages, setProductImages] = useState<ProductImage[]>([]);
   
   const defaultFormData: UnifiedFormData = {
     mode: "ai-generate",
@@ -436,61 +435,28 @@ function VideoCreatorForm({
 
   const handleModeChange = (newMode: ScriptMode) => {
     setScriptMode(newMode);
-    if (newMode === "ai-generate") {
-      setFormData(prev => ({
-        ...prev,
-        mode: newMode,
-        benefits: prev.benefits.some(b => b.trim()) ? prev.benefits : [""],
-        callToAction: prev.callToAction || "Visit pinehillfarm.com",
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        mode: newMode,
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      mode: newMode,
+      callToAction: newMode === "ai-generate" ? (prev.callToAction || "Visit pinehillfarm.com") : prev.callToAction,
+    }));
   };
 
   const visualStyles = getAvailableStyles();
 
-  const addBenefit = () => {
-    setFormData(prev => ({
-      ...prev,
-      benefits: [...prev.benefits, ""]
-    }));
-  };
-
-  const updateBenefit = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      benefits: prev.benefits.map((b, i) => i === index ? value : b)
-    }));
-  };
-
-  const removeBenefit = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      benefits: prev.benefits.filter((_, i) => i !== index)
-    }));
-  };
-
   const handleSubmit = () => {
     if (scriptMode === "ai-generate") {
-      const filteredBenefits = formData.benefits.filter(b => b.trim());
-      if (filteredBenefits.length === 0) return;
-      
       onSubmitProduct({
         productName: formData.productName,
         productDescription: formData.productDescription,
         targetAudience: formData.targetAudience,
-        benefits: filteredBenefits,
+        benefits: [],
         duration: formData.duration,
         platform: formData.platform,
         style: formData.style as any,
         callToAction: formData.callToAction,
         voiceId: formData.voiceId,
         voiceName: formData.voiceName,
-        productImages,
       });
     } else {
       onSubmitScript({
@@ -511,8 +477,7 @@ function VideoCreatorForm({
     ? formData.productName.trim() && 
       formData.productDescription.trim() && 
       formData.targetAudience.trim() && 
-      formData.callToAction.trim() && 
-      formData.benefits.some(b => b.trim())
+      formData.callToAction.trim()
     : formData.title.trim() && formData.customScript.length >= 50;
 
   return (
@@ -581,38 +546,6 @@ function VideoCreatorForm({
               onChange={(e) => setFormData(prev => ({ ...prev, productDescription: e.target.value }))}
               rows={3}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Key Benefits</Label>
-            {formData.benefits.map((benefit, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  data-testid={`input-benefit-${index}`}
-                  placeholder={`Benefit ${index + 1}`}
-                  value={benefit}
-                  onChange={(e) => updateBenefit(index, e.target.value)}
-                />
-                {formData.benefits.length > 1 && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => removeBenefit(index)}
-                    data-testid={`button-remove-benefit-${index}`}
-                  >
-                    ×
-                  </Button>
-                )}
-              </div>
-            ))}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={addBenefit}
-              data-testid="button-add-benefit"
-            >
-              + Add Benefit
-            </Button>
           </div>
 
           <div className="space-y-2">
@@ -741,17 +674,6 @@ function VideoCreatorForm({
           setFormData(prev => ({ ...prev, voiceId, voiceName }))
         }
       />
-
-      {scriptMode === "ai-generate" && (
-        <>
-          <Separator />
-          <ProductImageUpload
-            projectId={null}
-            images={productImages}
-            onImagesChange={setProductImages}
-          />
-        </>
-      )}
 
       <BrandSettingsPanel
         settings={formData.brandSettings}

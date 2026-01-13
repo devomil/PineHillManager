@@ -441,11 +441,15 @@ class UniversalVideoService {
       throw new Error("Anthropic API not configured");
     }
 
+    const benefitsText = input.benefits?.length 
+      ? `Key Benefits: ${input.benefits.join(', ')}` 
+      : 'Key Benefits: (derive from product description)';
+    
     const prompt = `Create a ${input.duration}-second video script for:
 Product: ${input.productName}
 Description: ${input.productDescription}
 Target Audience: ${input.targetAudience}
-Key Benefits: ${input.benefits.join(', ')}
+${benefitsText}
 Style: ${input.style}
 CTA: ${input.callToAction}
 

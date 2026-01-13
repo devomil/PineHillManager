@@ -76,7 +76,7 @@ const productVideoInputSchema = z.object({
   productName: z.string().min(1),
   productDescription: z.string().min(1),
   targetAudience: z.string().min(1),
-  benefits: z.array(z.string()).min(1),
+  benefits: z.array(z.string()).optional().default([]),
   duration: z.union([z.literal(30), z.literal(60), z.literal(90)]),
   platform: z.enum(['youtube', 'tiktok', 'instagram', 'facebook', 'website']),
   style: z.enum(['professional', 'casual', 'energetic', 'calm', 'cinematic', 'documentary', 'luxury', 'minimal', 'instructional', 'educational', 'training']),
