@@ -33,7 +33,7 @@ import { ProviderRegistryPanel } from "./provider-registry-panel";
 import { OverlayEditor, OverlayConfig, defaultOverlayConfig, getDefaultOverlayConfig } from "./overlay-editor";
 import { OverlayPreview } from "./overlay-preview";
 import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
-import { ReferenceImageSection, RegenerationOptions } from "./scene-editor";
+import { ReferenceImageSection, RegenerationOptions, RegenerationHistoryPanel } from "./scene-editor";
 import { WorkflowPathIndicator, WorkflowPathBadge } from "./workflow-path-indicator";
 import { BrandAssetPreviewPanel, BrandAssetSummary } from "./brand-asset-preview-panel";
 import { I2VSettingsPanel, I2VSettings, defaultI2VSettings } from "./i2v-settings-panel";
@@ -3362,6 +3362,15 @@ function ScenePreview({
                       </>
                     )}
                   </Button>
+                  
+                  {/* Regeneration History Panel */}
+                  {project?.id && (
+                    <RegenerationHistoryPanel
+                      projectId={project.id}
+                      sceneId={scene.id}
+                      sceneIndex={selectedSceneIndex}
+                    />
+                  )}
                 </div>
               </div>
             </div>
