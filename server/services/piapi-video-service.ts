@@ -669,12 +669,19 @@ class PiAPIVideoService {
     aspectRatio: '16:9' | '9:16' | '1:1';
     model: string;
   }, sanitizedPrompt: string): any {
+    // For I2V: Use a product-preserving prompt that maintains the source image fidelity
+    // Add subtle animation directive while preserving the exact product appearance
+    const i2vPrompt = `Subtle, gentle animation of the product shown in the source image. Preserve exact product appearance, labels, and text. Maintain the source composition. ${sanitizedPrompt}. Keep product labels and text exactly as shown in source image.`;
+    
+    // I2V-specific negative prompt: DO NOT include "text" as we want to preserve label text
+    const i2vNegativePrompt = 'blurry, low quality, distorted, morphing face, warping, watermark, dramatic camera movement, aggressive zoom, black screen, fade from black, altered text on products, changed labels, different product';
+    
     const baseInput = {
-      prompt: sanitizedPrompt,
+      prompt: i2vPrompt,
       image_url: options.imageUrl,
       duration: options.duration,
       aspect_ratio: options.aspectRatio,
-      negative_prompt: 'blurry, low quality, distorted, morphing, warping, text, watermark',
+      negative_prompt: i2vNegativePrompt,
     };
     
     if (options.model.startsWith('kling')) {
