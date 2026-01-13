@@ -29,6 +29,7 @@ import { BulletList } from "./components/BulletList";
 import { CTAButton } from "./components/CTAButton";
 import { KenBurnsImage } from "./components/KenBurnsImage";
 import { mapSceneToOverlays, shouldShowLogo, shouldShowWatermark } from "./utils/overlay-mapper";
+import { MotionGraphicsScene } from "./compositions/MotionGraphicsScene";
 
 // ============================================================
 // BRAND OVERLAY TYPES (Phase 4E)
@@ -1300,6 +1301,10 @@ const SceneRenderer: React.FC<{
   const hasValidVideo = videoStatus === 'valid' && scene.background?.type === 'video';
   const hasValidBrandAsset = useBrandMedia && brandStatus === 'valid';
   
+  const motionGraphicsData = (scene.assets as any)?.motionGraphics;
+  const hasMotionGraphics = motionGraphicsData?.enabled && motionGraphicsData?.config;
+  const isMotionGraphicScene = scene.background?.type === 'motion-graphic' as any || hasMotionGraphics;
+  
   React.useEffect(() => {
     console.log(`[SceneRenderer] Scene ${scene.id} (${scene.type}):`);
     console.log(`  - videoUrl: ${videoUrl?.substring(0, 60) || 'none'}`);
@@ -1321,10 +1326,20 @@ const SceneRenderer: React.FC<{
       isFirst={isFirst}
       isLast={isLast}
     >
-      {/* Background Layer - Brand Media, Video or Image with AI-powered Ken Burns */}
+      {/* Background Layer - Brand Media, Motion Graphics, Video or Image with AI-powered Ken Burns */}
       <AbsoluteFill>
-        {/* Phase 11D: Priority 1 - Brand media assets with Ken Burns animation */}
-        {hasValidBrandAsset && brandAssetType === 'video' ? (
+        {/* Phase 12: Priority 0 - Motion Graphics rendering */}
+        {isMotionGraphicScene && hasMotionGraphics ? (
+          <MotionGraphicsScene
+            configs={[{
+              type: motionGraphicsData.config.type,
+              startFrame: 0,
+              durationInFrames: durationInFrames,
+              props: motionGraphicsData.renderInstructions || motionGraphicsData.config,
+            }]}
+            backgroundColor="transparent"
+          />
+        ) : hasValidBrandAsset && brandAssetType === 'video' ? (
           <Video
             src={brandAssetUrl}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
