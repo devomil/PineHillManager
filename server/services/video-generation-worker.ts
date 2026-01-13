@@ -3,6 +3,7 @@ import { aiVideoService } from './ai-video-service';
 import { nanoid } from 'nanoid';
 import type { VideoGenerationJob } from '@shared/schema';
 import { createLogger } from '../utils/logger';
+import { intelligentRegenerationService } from './intelligent-regeneration-service';
 
 const log = createLogger('VideoWorker');
 
@@ -244,6 +245,17 @@ class VideoGenerationWorker {
           });
           this.notifyJobUpdate(failedJob);
           log.debug(` Job ${job.jobId} failed permanently`);
+          
+          // Record regeneration history for failed video generation (max retries exhausted)
+          await intelligentRegenerationService.recordVideoAttempt({
+            sceneId: job.sceneId,
+            projectId: job.projectId,
+            provider: job.provider,
+            prompt: job.prompt || '',
+            result: 'failure',
+            errorMessage: genError.message || 'Video generation failed after max retries',
+            sourceImageUrl: job.sourceImageUrl || undefined,
+          });
         }
         
         return;
@@ -258,6 +270,17 @@ class VideoGenerationWorker {
         });
         this.notifyJobUpdate(completedJob);
         log.debug(` Job ${job.jobId} completed successfully: ${videoUrl}`);
+        
+        // Record regeneration history for successful video generation
+        await intelligentRegenerationService.recordVideoAttempt({
+          sceneId: job.sceneId,
+          projectId: job.projectId,
+          provider: job.provider,
+          prompt: job.prompt || '',
+          result: 'success',
+          videoUrl,
+          sourceImageUrl: job.sourceImageUrl || undefined,
+        });
       } else {
         const failedJob = await storage.updateVideoGenerationJob(job.jobId, {
           status: 'failed',
@@ -267,6 +290,17 @@ class VideoGenerationWorker {
         });
         this.notifyJobUpdate(failedJob);
         log.debug(` Job ${job.jobId} failed - no video URL returned`);
+        
+        // Record regeneration history for failed video generation
+        await intelligentRegenerationService.recordVideoAttempt({
+          sceneId: job.sceneId,
+          projectId: job.projectId,
+          provider: job.provider,
+          prompt: job.prompt || '',
+          result: 'failure',
+          errorMessage: 'No video URL returned from generation',
+          sourceImageUrl: job.sourceImageUrl || undefined,
+        });
       }
 
     } catch (error: any) {
@@ -280,6 +314,17 @@ class VideoGenerationWorker {
           errorMessage: error.message || 'Unknown error during job processing',
         });
         this.notifyJobUpdate(failedJob);
+        
+        // Record regeneration history for failed video generation
+        await intelligentRegenerationService.recordVideoAttempt({
+          sceneId: job.sceneId,
+          projectId: job.projectId,
+          provider: job.provider,
+          prompt: job.prompt || '',
+          result: 'failure',
+          errorMessage: error.message || 'Unknown error during job processing',
+          sourceImageUrl: job.sourceImageUrl || undefined,
+        });
       } catch (updateError) {
         log.error(`Failed to update job status:`, updateError);
       }

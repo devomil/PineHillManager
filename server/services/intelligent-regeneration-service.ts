@@ -384,6 +384,49 @@ class IntelligentRegenerationService {
       console.error('[IntelligentRegen] Error clearing history:', error);
     }
   }
+  
+  /**
+   * Public method to record video regeneration attempts from the video generation worker.
+   * This handles attempt numbering automatically and stores the result in the database.
+   */
+  async recordVideoAttempt(params: {
+    sceneId: string;
+    projectId: string;
+    provider: string;
+    prompt: string;
+    result: 'success' | 'failure';
+    videoUrl?: string;
+    errorMessage?: string;
+    sourceImageUrl?: string;
+  }): Promise<void> {
+    try {
+      // Get prior attempts for this scene to determine attempt number
+      const priorAttempts = await this.getPriorAttempts(params.sceneId);
+      const attemptNumber = priorAttempts.length + 1;
+      
+      // Determine strategy based on whether this was I2V or T2V
+      const strategy = params.sourceImageUrl ? 'i2v' : 't2v';
+      
+      await this.recordAttempt(
+        params.sceneId,
+        params.projectId,
+        attemptNumber,
+        {
+          provider: params.provider,
+          strategy,
+          prompt: params.prompt,
+          result: params.result,
+          reasoning: params.result === 'success' 
+            ? `Video generated via ${params.provider}${params.sourceImageUrl ? ' (Image-to-Video)' : ''}` 
+            : params.errorMessage || 'Generation failed',
+        }
+      );
+      
+      console.log(`[IntelligentRegen] Recorded video attempt #${attemptNumber} for scene ${params.sceneId}: ${params.result}`);
+    } catch (error) {
+      console.error('[IntelligentRegen] Error recording video attempt:', error);
+    }
+  }
 }
 
 export const intelligentRegenerationService = new IntelligentRegenerationService();
