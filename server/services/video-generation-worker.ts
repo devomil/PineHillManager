@@ -6,6 +6,12 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('VideoWorker');
 
+interface I2VSettings {
+  imageControlStrength?: number; // 0-1: how much to preserve source image
+  animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
+  motionStrength?: number; // 0-1: how much motion/animation
+}
+
 interface VideoGenerationRequest {
   projectId: string;
   sceneId: string;
@@ -18,6 +24,7 @@ interface VideoGenerationRequest {
   style?: string;
   triggeredBy?: string;
   sourceImageUrl?: string; // For I2V: matched brand asset product photo URL
+  i2vSettings?: I2VSettings; // I2V-specific settings from UI
 }
 
 type JobUpdateCallback = (job: VideoGenerationJob) => void;
@@ -72,6 +79,7 @@ class VideoGenerationWorker {
       retryCount: 0,
       maxRetries: 3,
       sourceImageUrl: request.sourceImageUrl || null,
+      i2vSettings: request.i2vSettings || null,
     });
     
     log.debug(` Job ${jobId} created successfully`);
@@ -179,8 +187,12 @@ class VideoGenerationWorker {
           : '16:9';
         
         const hasSourceImage = !!job.sourceImageUrl;
+        const jobI2vSettings = job.i2vSettings as I2VSettings | null;
         if (hasSourceImage) {
           log.debug(` Job ${job.jobId} using I2V with source image: ${job.sourceImageUrl?.substring(0, 50)}...`);
+          if (jobI2vSettings) {
+            log.debug(` I2V Settings: fidelity=${jobI2vSettings.imageControlStrength}, style=${jobI2vSettings.animationStyle}, motion=${jobI2vSettings.motionStrength}`);
+          }
         }
         
         const result = await aiVideoService.generateVideo({
@@ -192,6 +204,7 @@ class VideoGenerationWorker {
           negativePrompt: job.negativePrompt || undefined,
           visualStyle: job.style || 'professional',
           imageUrl: job.sourceImageUrl || undefined, // For I2V: pass the matched brand asset image
+          i2vSettings: jobI2vSettings || undefined, // I2V-specific settings from UI
         });
 
         // Log which provider actually fulfilled the request

@@ -36,6 +36,7 @@ import { BrandMediaSelector, BrandAsset } from "./brand-media-selector";
 import { ReferenceImageSection, RegenerationOptions } from "./scene-editor";
 import { WorkflowPathIndicator, WorkflowPathBadge } from "./workflow-path-indicator";
 import { BrandAssetPreviewPanel, BrandAssetSummary } from "./brand-asset-preview-panel";
+import { I2VSettingsPanel, I2VSettings, defaultI2VSettings } from "./i2v-settings-panel";
 import type { WorkflowDecision } from "@shared/types/brand-workflow-types";
 import type { AnimationSettings, ReferenceConfig, RegenerateOptions, PromptComplexityAnalysis } from "@shared/video-types";
 import { 
@@ -1418,6 +1419,7 @@ function ScenePreview({
   const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
   const [overlaysExpanded, setOverlaysExpanded] = useState<Record<string, boolean>>({});
   const [selectedProductAsset, setSelectedProductAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
+  const [i2vSettings, setI2vSettings] = useState<Record<string, I2VSettings>>({});
   const [workflowAnalysis, setWorkflowAnalysis] = useState<Record<string, {
     decision: WorkflowDecision;
     matchedAssets: { products: any[]; logos: any[]; locations: any[] };
@@ -1820,10 +1822,19 @@ function ScenePreview({
     console.log('[regenerateVideo] Setting regenerating state...');
     setRegenerating(`video-${sceneId}`);
     const url = `/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-video`;
+    
+    // Get I2V settings for this scene (if sourceImageUrl provided, it's an I2V request)
+    const sceneI2vSettings = sourceImageUrl ? (i2vSettings[sceneId] || defaultI2VSettings) : undefined;
+    
     const body = { 
       query: customPrompt[sceneId] || undefined,
       provider: provider || undefined,
       sourceImageUrl: sourceImageUrl || undefined, // For I2V: matched brand asset product photo
+      i2vSettings: sceneI2vSettings ? {
+        imageControlStrength: sceneI2vSettings.imageControlStrength / 100, // Convert to 0-1
+        animationStyle: sceneI2vSettings.animationStyle,
+        motionStrength: sceneI2vSettings.motionStrength / 100, // Convert to 0-1
+      } : undefined,
     };
     console.log('[regenerateVideo] About to fetch:', url, 'with body:', JSON.stringify(body));
     try {
@@ -2760,6 +2771,18 @@ function ScenePreview({
                       }}
                       isGenerating={regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`}
                     />
+                    
+                    {/* I2V Settings Panel - shown when a product asset is selected for I2V generation */}
+                    {selectedProductAsset[scene.id] && (
+                      <I2VSettingsPanel
+                        settings={i2vSettings[scene.id] || defaultI2VSettings}
+                        onChange={(newSettings) => {
+                          setI2vSettings(prev => ({ ...prev, [scene.id]: newSettings }));
+                        }}
+                        disabled={!!regenerating}
+                        compact
+                      />
+                    )}
                     
                     {/* DEPRECATED: Phase 13D Reference Image Section - replaced by Matched Brand Assets for I2V */}
                     {/* Use the "Matched Brand Assets" panel below instead for I2V generation with product photos */}

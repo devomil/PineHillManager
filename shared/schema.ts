@@ -5572,6 +5572,7 @@ export const videoGenerationJobs = pgTable("video_generation_jobs", {
   negativePrompt: text("negative_prompt"),
   style: varchar("style", { length: 50 }),
   sourceImageUrl: text("source_image_url"), // For I2V: matched brand asset product photo URL
+  i2vSettings: jsonb("i2v_settings"), // I2V-specific settings: { imageControlStrength, animationStyle, motionStrength }
   
   // Output
   videoUrl: text("video_url"),

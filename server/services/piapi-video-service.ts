@@ -583,6 +583,11 @@ class PiAPIVideoService {
     aspectRatio: '16:9' | '9:16' | '1:1';
     model: string;
     negativePrompt?: string;
+    i2vSettings?: {
+      imageControlStrength?: number;
+      animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
+      motionStrength?: number;
+    };
   }): Promise<PiAPIGenerationResult> {
     if (!this.isAvailable()) {
       return { success: false, error: 'PiAPI key not configured' };
@@ -668,6 +673,11 @@ class PiAPIVideoService {
     duration: number;
     aspectRatio: '16:9' | '9:16' | '1:1';
     model: string;
+    i2vSettings?: {
+      imageControlStrength?: number;
+      animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
+      motionStrength?: number;
+    };
   }, sanitizedPrompt: string): any {
     // For I2V: Use a product-preserving prompt that maintains the source image fidelity
     // Add subtle animation directive while preserving the exact product appearance
@@ -777,19 +787,32 @@ class PiAPIVideoService {
       };
     }
     
-    // Hailuo/Minimax Family - with high image control strength to preserve source image
+    // Hailuo/Minimax Family - with user-configurable I2V settings
     if (options.model.includes('hailuo') || options.model.includes('minimax')) {
-      console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with high image control strength`);
+      // Use user-provided settings or sensible defaults for product preservation
+      const imageControlStrength = options.i2vSettings?.imageControlStrength ?? 1.0;
+      const motionStrength = options.i2vSettings?.motionStrength ?? 0.3;
+      const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
+      
+      // Determine camera motion based on animation style
+      let cameraMotion = 'static';
+      if (animationStyle === 'dynamic') {
+        cameraMotion = 'zoom_in';
+      } else if (animationStyle === 'subtle-motion') {
+        cameraMotion = 'static';
+      }
+      
+      console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with settings: fidelity=${imageControlStrength}, motion=${motionStrength}, style=${animationStyle}`);
       return {
         model: 'hailuo',
         task_type: 'image_to_video',
         input: {
           ...baseInput,
           model: 'i2v-01',
-          // Critical I2V settings to preserve the source image fidelity
-          image_control_strength: 1.0, // Maximum: keep source image exactly
-          motion_strength: 0.3, // Low motion: subtle animation only
-          camera_motion: 'static', // No camera movement
+          // Critical I2V settings from user UI controls
+          image_control_strength: imageControlStrength, // User-configured: 0-1 (higher = more source image fidelity)
+          motion_strength: motionStrength, // User-configured: 0-1 (lower = subtler animation)
+          camera_motion: cameraMotion, // Based on animation style
         },
       };
     }

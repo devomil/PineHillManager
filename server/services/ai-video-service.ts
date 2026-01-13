@@ -22,6 +22,12 @@ interface AIVideoResult {
   generationTimeMs?: number;
 }
 
+interface I2VSettingsInput {
+  imageControlStrength?: number; // 0-1: how much to preserve source image
+  animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
+  motionStrength?: number; // 0-1: how much motion/animation
+}
+
 interface AIVideoOptions {
   prompt: string;
   duration: number;
@@ -35,6 +41,7 @@ interface AIVideoOptions {
   visualStyle?: string;
   imageUrl?: string;
   qualityTier?: 'ultra' | 'premium' | 'standard';
+  i2vSettings?: I2VSettingsInput; // I2V-specific settings from UI
 }
 
 // Maps base provider + quality tier to the appropriate versioned provider
@@ -256,6 +263,9 @@ class AIVideoService {
     // If imageUrl provided, use I2V (image-to-video) instead of T2V (text-to-video)
     if (options.imageUrl) {
       console.log(`[AIVideo] Using I2V for ${providerKey} with source image: ${options.imageUrl.substring(0, 50)}...`);
+      if (options.i2vSettings) {
+        console.log(`[AIVideo] I2V Settings: fidelity=${options.i2vSettings.imageControlStrength}, style=${options.i2vSettings.animationStyle}, motion=${options.i2vSettings.motionStrength}`);
+      }
       const result = await piapiVideoService.generateImageToVideo({
         imageUrl: options.imageUrl,
         prompt: options.prompt,
@@ -263,6 +273,7 @@ class AIVideoService {
         aspectRatio: options.aspectRatio,
         model: providerKey,
         negativePrompt: options.negativePrompt,
+        i2vSettings: options.i2vSettings, // Pass I2V settings to provider
       });
       
       return {

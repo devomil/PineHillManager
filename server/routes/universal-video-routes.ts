@@ -2648,9 +2648,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { query, provider, sourceImageUrl } = req.body;
+    const { query, provider, sourceImageUrl, i2vSettings } = req.body;
     
-    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}`);
+    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}${i2vSettings ? ', with I2V settings' : ''}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -2700,6 +2700,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       style: (projectData as any).settings?.visualStyle || 'professional',
       triggeredBy: userId,
       sourceImageUrl: finalSourceImageUrl, // For I2V: matched brand asset product photo
+      i2vSettings: i2vSettings || undefined, // I2V-specific settings from UI
     });
     
     console.log(`[Phase9B-Async] Created job ${job.jobId} for scene ${sceneId}`);
