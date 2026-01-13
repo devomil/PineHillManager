@@ -84,6 +84,7 @@ const productVideoInputSchema = z.object({
   productImages: z.array(productImageSchema).optional(),
   voiceId: z.string().optional(),
   voiceName: z.string().optional(),
+  qualityTier: z.enum(['standard', 'premium', 'ultra']).optional().default('premium'),
 });
 
 // Phase 13: Audio generation settings schema
@@ -153,6 +154,7 @@ const scriptVideoInputSchema = z.object({
   musicMood: z.string().optional(),
   voiceId: z.string().optional(),
   voiceName: z.string().optional(),
+  qualityTier: z.enum(['standard', 'premium', 'ultra']).optional().default('premium'),
   // Phase 13: Audio and motion control generation settings
   generationSettings: generationSettingsSchema.optional(),
 });
@@ -506,6 +508,10 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
+    // Set quality tier (defaults to premium)
+    (project as any).qualityTier = validatedInput.qualityTier || 'premium';
+    console.log(`[UniversalVideo] Script project quality tier: ${(project as any).qualityTier}`);
     
     await saveProjectToDb(project, userId);
     console.log('[UniversalVideo] Script project saved to database:', project.id);

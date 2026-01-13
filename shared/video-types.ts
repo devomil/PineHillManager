@@ -460,7 +460,7 @@ export interface ProductVideoInput {
   productName: string;
   productDescription: string;
   targetAudience: string;
-  benefits: string[];
+  benefits?: string[];
   duration: 30 | 60 | 90;
   platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'website';
   style: 'professional' | 'friendly' | 'energetic' | 'calm';
@@ -468,6 +468,7 @@ export interface ProductVideoInput {
   productImages?: ProductImage[];
   voiceId?: string;
   voiceName?: string;
+  qualityTier?: 'standard' | 'premium' | 'ultra';
 }
 
 export interface ScriptVideoInput {
@@ -483,6 +484,7 @@ export interface ScriptVideoInput {
   };
   musicEnabled?: boolean;
   musicMood?: string;
+  qualityTier?: 'standard' | 'premium' | 'ultra';
 }
 
 // Pine Hill Farm Official Brand Colors

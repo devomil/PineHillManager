@@ -2468,6 +2468,10 @@ Total: 90 seconds` : ''}
     project.targetAudience = input.targetAudience;
     project.totalDuration = input.duration;
     
+    // Set quality tier (defaults to premium)
+    (project as any).qualityTier = input.qualityTier || 'premium';
+    console.log(`[UniversalVideoService] Quality tier set to: ${(project as any).qualityTier}`);
+    
     if (input.voiceId) {
       project.voiceId = input.voiceId;
       project.voiceName = input.voiceName;

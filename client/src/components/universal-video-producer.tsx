@@ -84,6 +84,7 @@ interface ProductFormData {
   callToAction: string;
   voiceId?: string;
   voiceName?: string;
+  qualityTier: "standard" | "premium" | "ultra";
 }
 
 interface ScriptFormData {
@@ -113,6 +114,7 @@ interface UnifiedFormData {
   musicEnabled: boolean;
   musicMood: string;
   brandSettings: UIBrandSettings;
+  qualityTier: "standard" | "premium" | "ultra";
 }
 
 const STEP_ICONS: Record<string, any> = {
@@ -429,6 +431,7 @@ function VideoCreatorForm({
       watermarkPosition: 'bottom-right',
       watermarkOpacity: 0.7,
     },
+    qualityTier: "premium",
   };
 
   const [formData, setFormData] = useState<UnifiedFormData>(defaultFormData);
@@ -457,6 +460,7 @@ function VideoCreatorForm({
         callToAction: formData.callToAction,
         voiceId: formData.voiceId,
         voiceName: formData.voiceName,
+        qualityTier: formData.qualityTier,
       });
     } else {
       onSubmitScript({
@@ -469,6 +473,7 @@ function VideoCreatorForm({
         musicMood: formData.musicMood,
         voiceId: formData.voiceId,
         voiceName: formData.voiceName,
+        qualityTier: formData.qualityTier,
       } as any);
     }
   };
@@ -630,6 +635,51 @@ function VideoCreatorForm({
               <SelectItem value="website">Website</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Quality Tier</Label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, qualityTier: "standard" }))}
+            className={`p-3 rounded-lg border text-center transition-all ${
+              formData.qualityTier === "standard" 
+                ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            data-testid="quality-standard"
+          >
+            <p className="font-medium text-sm">Standard</p>
+            <p className="text-xs text-gray-500 mt-1">AI Images</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, qualityTier: "premium" }))}
+            className={`p-3 rounded-lg border text-center transition-all ${
+              formData.qualityTier === "premium" 
+                ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            data-testid="quality-premium"
+          >
+            <p className="font-medium text-sm">Premium</p>
+            <p className="text-xs text-gray-500 mt-1">AI Videos</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, qualityTier: "ultra" }))}
+            className={`p-3 rounded-lg border text-center transition-all ${
+              formData.qualityTier === "ultra" 
+                ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            data-testid="quality-ultra"
+          >
+            <p className="font-medium text-sm">Ultra</p>
+            <p className="text-xs text-gray-500 mt-1">Premium AI Videos</p>
+          </button>
         </div>
       </div>
 
