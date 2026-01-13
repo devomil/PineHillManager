@@ -33,16 +33,27 @@ export const RegenerationHistoryPanel = ({
 }: RegenerationHistoryPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const historyUrl = `/api/universal-video/projects/${projectId}/scenes/${sceneId}/regeneration-history`;
+  
   const { data, isLoading, error, refetch } = useQuery<{
     success: boolean;
     sceneId: string;
     history: RegenerationAttempt[];
     attemptCount: number;
   }>({
-    queryKey: [`/api/universal-video/projects/${projectId}/scenes/${sceneId}/regeneration-history`],
+    queryKey: [historyUrl],
     enabled: !!projectId && !!sceneId,
     staleTime: 30000,
   });
+
+  if (error) {
+    console.error('[RegenerationHistory] Error loading history:', { 
+      url: historyUrl,
+      projectId, 
+      sceneId, 
+      error: error.message 
+    });
+  }
 
   const history = data?.history || [];
   const hasHistory = history.length > 0;
