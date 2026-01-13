@@ -763,28 +763,33 @@ class PiAPIVideoService {
       };
     }
     
-    // Luma Family
+    // Luma Family - with high fidelity settings
     if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
-      console.log(`[PiAPI I2V] Using Luma Dream Machine`);
+      console.log(`[PiAPI I2V] Using Luma Dream Machine with high fidelity`);
       return {
         model: 'luma',
         task_type: 'image_to_video',
         input: {
           ...baseInput,
           loop: false,
+          keyframes: { frame0: { type: 'image', url: options.imageUrl } }, // Ensure start frame is the source image
         },
       };
     }
     
-    // Hailuo/Minimax Family
+    // Hailuo/Minimax Family - with high image control strength to preserve source image
     if (options.model.includes('hailuo') || options.model.includes('minimax')) {
-      console.log(`[PiAPI I2V] Using Hailuo (i2v-01)`);
+      console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with high image control strength`);
       return {
         model: 'hailuo',
         task_type: 'image_to_video',
         input: {
           ...baseInput,
           model: 'i2v-01',
+          // Critical I2V settings to preserve the source image fidelity
+          image_control_strength: 1.0, // Maximum: keep source image exactly
+          motion_strength: 0.3, // Low motion: subtle animation only
+          camera_motion: 'static', // No camera movement
         },
       };
     }
