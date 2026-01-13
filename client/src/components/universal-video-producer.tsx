@@ -3368,7 +3368,7 @@ function ScenePreview({
                     <RegenerationHistoryPanel
                       projectId={projectId}
                       sceneId={scene.id}
-                      sceneIndex={selectedSceneIndex}
+                      sceneIndex={index}
                     />
                   )}
                 </div>
