@@ -253,6 +253,30 @@ class AIVideoService {
       return { success: false, error: 'PiAPI not configured' };
     }
     
+    // If imageUrl provided, use I2V (image-to-video) instead of T2V (text-to-video)
+    if (options.imageUrl) {
+      console.log(`[AIVideo] Using I2V for ${providerKey} with source image: ${options.imageUrl.substring(0, 50)}...`);
+      const result = await piapiVideoService.generateImageToVideo({
+        imageUrl: options.imageUrl,
+        prompt: options.prompt,
+        duration: options.duration,
+        aspectRatio: options.aspectRatio,
+        model: providerKey,
+        negativePrompt: options.negativePrompt,
+      });
+      
+      return {
+        success: result.success,
+        videoUrl: result.videoUrl,
+        s3Url: result.s3Url,
+        duration: result.duration,
+        cost: result.cost,
+        error: result.error,
+        generationTimeMs: result.generationTimeMs,
+      };
+    }
+    
+    // Standard T2V generation
     const result = await piapiVideoService.generateVideo({
       prompt: options.prompt,
       duration: options.duration,
