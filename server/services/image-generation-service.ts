@@ -8,6 +8,7 @@ import {
   isLegNextProvider 
 } from '../config/image-providers';
 import { QualityTier } from '../config/quality-tiers';
+import { resolvePlacementRules, I2IConfig } from './placement-resolver-service';
 
 interface ImageGenerationOptions {
   prompt: string;
@@ -28,6 +29,8 @@ interface I2IRequest {
   qualityTier?: QualityTier;
   width?: number;
   height?: number;
+  assetType?: string;
+  useCase?: 'background-generation' | 'style-transfer' | 'scene-integration' | 'product-placement';
 }
 
 interface GeneratedImage {
@@ -70,7 +73,23 @@ class ImageGenerationService {
   
   async generateImageToImage(request: I2IRequest): Promise<GeneratedImage> {
     const qualityTier = request.qualityTier || 'premium';
-    const strength = request.strength ?? 0.6;
+    
+    let i2iConfig: I2IConfig | null = null;
+    let strength = request.strength ?? 0.6;
+    
+    if (request.assetType) {
+      const placementRules = resolvePlacementRules(request.assetType, {
+        frameWidth: request.width || 1920,
+        frameHeight: request.height || 1080,
+        useCase: request.useCase || 'scene-integration',
+      });
+      i2iConfig = placementRules.i2i;
+      strength = request.strength ?? i2iConfig.strength;
+      
+      console.log(`[I2I] Asset-type-aware generation for: ${request.assetType}`);
+      console.log(`[I2I] Using resolved I2I config: strength=${strength}, guidanceScale=${i2iConfig.guidanceScale}`);
+      console.log(`[I2I] Config description: ${i2iConfig.description}`);
+    }
     
     console.log(`[I2I] Reference: ${request.referenceImageUrl.substring(0, 50)}...`);
     console.log(`[I2I] Strength: ${strength}`);
@@ -100,6 +119,9 @@ class ImageGenerationService {
     
     const model = piapiModelMap[providerId] || 'flux-pro';
     
+    const guidanceScale = i2iConfig?.guidanceScale ?? 7.5;
+    console.log(`[I2I] Using guidance scale: ${guidanceScale}`);
+    
     try {
       const response = await fetch('https://api.piapi.ai/api/v1/task', {
         method: 'POST',
@@ -114,7 +136,7 @@ class ImageGenerationService {
             image_url: request.referenceImageUrl,
             prompt: request.prompt,
             strength,
-            guidance_scale: 7.5,
+            guidance_scale: guidanceScale,
           },
         }),
       });

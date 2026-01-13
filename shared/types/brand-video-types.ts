@@ -10,6 +10,7 @@ export type MotionStyle =
 export interface ImageToVideoRequest {
   sourceImageUrl: string;
   sourceType: 'composed' | 'brand-asset' | 'product-photo';
+  assetType?: string;
   
   sceneId: string;
   visualDirection: string;

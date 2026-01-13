@@ -6,6 +6,7 @@ import {
 import { selectI2VProvider, I2V_PROVIDER_CAPABILITIES } from './i2v-provider-capabilities';
 import { piapiVideoService } from './piapi-video-service';
 import { runwayVideoService } from './runway-video-service';
+import { resolvePlacementRules, buildMotionPrompt as buildPlacementMotionPrompt, ResolvedPlacementRules } from './placement-resolver-service';
 
 class ImageToVideoService {
   
@@ -13,9 +14,23 @@ class ImageToVideoService {
     console.log(`[I2V] Generating video for scene ${request.sceneId}`);
     console.log(`[I2V] Motion style: ${request.motion.style}, Duration: ${request.motion.duration}s`);
     console.log(`[I2V] Source image: ${request.sourceImageUrl.substring(0, 80)}...`);
+    if (request.assetType) {
+      console.log(`[I2V] Asset type: ${request.assetType}`);
+    }
     
     try {
       const qualityTier = request.qualityTier || 'premium';
+      
+      let placementRules: ResolvedPlacementRules | null = null;
+      if (request.assetType) {
+        placementRules = resolvePlacementRules(request.assetType, {
+          frameWidth: request.output.width,
+          frameHeight: request.output.height,
+          sceneDuration: request.motion.duration,
+        });
+        console.log(`[I2V] Placement resolver: canUseI2V=${placementRules.canUseI2V}, motion=${placementRules.i2v.motionIntensity}`);
+      }
+      
       const providerId = selectI2VProvider(
         request.motion.style,
         request.motion.duration,
@@ -25,7 +40,7 @@ class ImageToVideoService {
       
       console.log(`[I2V] Selected provider: ${providerId}`);
       
-      const motionPrompt = this.buildMotionPrompt(request);
+      const motionPrompt = this.buildMotionPrompt(request, placementRules);
       console.log(`[I2V] Motion prompt: ${motionPrompt.substring(0, 100)}...`);
       
       const result = await this.executeGeneration(providerId, request, motionPrompt);
@@ -64,47 +79,54 @@ class ImageToVideoService {
     }
   }
   
-  private buildMotionPrompt(request: ImageToVideoRequest): string {
+  private buildMotionPrompt(request: ImageToVideoRequest, placementRules?: ResolvedPlacementRules | null): string {
     const { motion, visualDirection } = request;
     
     let prompt = '';
     
-    switch (motion.style) {
-      case 'environmental':
-        prompt = this.buildEnvironmentalPrompt(motion);
-        break;
-        
-      case 'subtle':
-        prompt = this.buildSubtleMotionPrompt(motion);
-        break;
-        
-      case 'reveal':
-        prompt = this.buildRevealPrompt(motion);
-        break;
-        
-      case 'zoom-in':
-        prompt = 'Slow, smooth zoom in toward center of frame, maintaining sharp focus';
-        if (motion.intensity === 'minimal') {
-          prompt += ', very subtle almost imperceptible movement';
-        }
-        break;
-        
-      case 'zoom-out':
-        prompt = 'Gentle pull back revealing full scene, smooth cinematic motion';
-        break;
-        
-      case 'pan':
-        const dir = motion.cameraMovement?.direction || 'right';
-        const movement = dir === 'left' || dir === 'right' ? 'horizontal' : 'vertical';
-        prompt = `Slow ${movement} pan ${dir}, cinematic camera movement, steady and smooth`;
-        break;
-        
-      case 'static':
-        prompt = 'Completely static frame, no movement, still image';
-        break;
-        
-      default:
-        prompt = 'Subtle atmospheric motion, gentle and professional';
+    if (placementRules) {
+      prompt = buildPlacementMotionPrompt(visualDirection || '', placementRules.i2v);
+      console.log(`[I2V] Using placement resolver motion prompt: ${prompt.substring(0, 60)}...`);
+    }
+    
+    if (!prompt) {
+      switch (motion.style) {
+        case 'environmental':
+          prompt = this.buildEnvironmentalPrompt(motion);
+          break;
+          
+        case 'subtle':
+          prompt = this.buildSubtleMotionPrompt(motion);
+          break;
+          
+        case 'reveal':
+          prompt = this.buildRevealPrompt(motion);
+          break;
+          
+        case 'zoom-in':
+          prompt = 'Slow, smooth zoom in toward center of frame, maintaining sharp focus';
+          if (motion.intensity === 'minimal') {
+            prompt += ', very subtle almost imperceptible movement';
+          }
+          break;
+          
+        case 'zoom-out':
+          prompt = 'Gentle pull back revealing full scene, smooth cinematic motion';
+          break;
+          
+        case 'pan':
+          const dir = motion.cameraMovement?.direction || 'right';
+          const movement = dir === 'left' || dir === 'right' ? 'horizontal' : 'vertical';
+          prompt = `Slow ${movement} pan ${dir}, cinematic camera movement, steady and smooth`;
+          break;
+          
+        case 'static':
+          prompt = 'Completely static frame, no movement, still image';
+          break;
+          
+        default:
+          prompt = 'Subtle atmospheric motion, gentle and professional';
+      }
     }
     
     if (request.productRegions && request.productRegions.length > 0) {
@@ -125,7 +147,7 @@ class ImageToVideoService {
     
     prompt += ', professional quality, smooth motion, no artifacts, no morphing, no distortion';
     
-    if (visualDirection && visualDirection.length > 10) {
+    if (!placementRules && visualDirection && visualDirection.length > 10) {
       const contextWords = visualDirection.split(' ').slice(0, 10).join(' ');
       prompt += `, ${contextWords}`;
     }
