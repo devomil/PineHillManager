@@ -679,12 +679,28 @@ class PiAPIVideoService {
       motionStrength?: number;
     };
   }, sanitizedPrompt: string): any {
-    // For I2V: Use a product-preserving prompt that maintains the source image fidelity
-    // Add subtle animation directive while preserving the exact product appearance
-    const i2vPrompt = `Subtle, gentle animation of the product shown in the source image. Preserve exact product appearance, labels, and text. Maintain the source composition. ${sanitizedPrompt}. Keep product labels and text exactly as shown in source image.`;
+    // For I2V: Use a minimal prompt that emphasizes source image preservation
+    // Too much prompt direction causes the AI to generate new content instead of animating the source
+    const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
+    
+    // Different prompt styles based on animation intention
+    let i2vPrompt: string;
+    if (animationStyle === 'product-static') {
+      // Maximum fidelity - minimal animation directive
+      i2vPrompt = `Gently animate this exact product image. Preserve all details, labels, and text exactly as shown. Subtle ambient motion only.`;
+    } else if (animationStyle === 'product-hero') {
+      // Gentle cinematic treatment while preserving source
+      i2vPrompt = `Cinematic product shot. Animate this exact product image with gentle, smooth camera motion. Preserve all product details, labels, and text exactly as shown. ${sanitizedPrompt.substring(0, 100)}`;
+    } else if (animationStyle === 'subtle-motion') {
+      // Subtle environmental motion
+      i2vPrompt = `Animate this image with subtle environmental motion. Preserve the product exactly as shown. Gentle lighting shifts and ambient movement. ${sanitizedPrompt.substring(0, 80)}`;
+    } else {
+      // Dynamic - more creative freedom but still source-based
+      i2vPrompt = `Dynamic product animation. Animate from this exact image with energetic camera motion. Preserve product appearance and labels. ${sanitizedPrompt.substring(0, 100)}`;
+    }
     
     // I2V-specific negative prompt: DO NOT include "text" as we want to preserve label text
-    const i2vNegativePrompt = 'blurry, low quality, distorted, morphing face, warping, watermark, dramatic camera movement, aggressive zoom, black screen, fade from black, altered text on products, changed labels, different product';
+    const i2vNegativePrompt = 'blurry, low quality, distorted, morphing face, warping, watermark, dramatic camera movement, aggressive zoom, black screen, fade from black, altered text on products, changed labels, different product, new objects appearing, scene change';
     
     const baseInput = {
       prompt: i2vPrompt,
@@ -762,13 +778,46 @@ class PiAPIVideoService {
         console.log(`[PiAPI I2V] Using Kling ${version} (extracted, pro mode)`);
       }
       
+      // Apply user I2V settings for Kling
+      // PiAPI Kling I2V parameters:
+      // - cfg_scale: 0.0-1.0, controls prompt vs source image balance (lower = more source fidelity)
+      // - static_mask: controls what parts of image to animate (we want full frame)
+      const imageControlStrength = options.i2vSettings?.imageControlStrength ?? 1.0;
+      const motionStrength = options.i2vSettings?.motionStrength ?? 0.3;
+      const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
+      
+      // Map user's Image Fidelity slider (0-1 where 1 = max fidelity) to cfg_scale
+      // Higher fidelity = lower cfg (more source preservation)
+      // cfg_scale range: 0.0 (full source) to 1.0 (full prompt)
+      const cfgScale = Math.max(0.1, 1.0 - imageControlStrength * 0.8); // Invert: high fidelity = low cfg
+      
+      // Map motion strength to animation intensity
+      // Kling uses a subtle approach - lower values mean less dramatic motion
+      // The prompt-based approach is our primary control since Kling I2V has limited motion params
+      
+      // Different camera/animation directive for each style
+      const motionDirectiveMap: Record<string, string> = {
+        'product-hero': 'slow smooth push towards product, steady focus',
+        'product-static': 'static camera, minimal ambient motion only',
+        'subtle-motion': 'very gentle pan, subtle lighting shift',
+        'dynamic': 'energetic camera movement, engaging motion',
+      };
+      const motionDirective = motionDirectiveMap[animationStyle] || 'gentle camera motion';
+      
+      console.log(`[PiAPI I2V] Kling settings: fidelity=${imageControlStrength} → cfg=${cfgScale.toFixed(2)}, motion=${motionStrength}, style=${animationStyle}`);
+      
+      // Append motion directive to prompt for better control
+      const klingI2vPrompt = `${baseInput.prompt}. Camera: ${motionDirective}.`;
+      
       return {
         model: 'kling',
         task_type: 'image_to_video',
         input: {
           ...baseInput,
+          prompt: klingI2vPrompt,
           mode,
           version,
+          cfg_scale: cfgScale, // User's fidelity slider mapped to cfg
         },
       };
     }

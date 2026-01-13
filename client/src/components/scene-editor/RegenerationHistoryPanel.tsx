@@ -39,7 +39,7 @@ export const RegenerationHistoryPanel = ({
     history: RegenerationAttempt[];
     attemptCount: number;
   }>({
-    queryKey: ['/api/universal-video/projects', projectId, 'scenes', sceneId, 'regeneration-history'],
+    queryKey: [`/api/universal-video/projects/${projectId}/scenes/${sceneId}/regeneration-history`],
     enabled: !!projectId && !!sceneId,
     staleTime: 30000,
   });
