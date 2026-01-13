@@ -794,15 +794,21 @@ class PiAPIVideoService {
       const motionStrength = options.i2vSettings?.motionStrength ?? 0.3;
       const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
       
-      // Determine camera motion based on animation style
-      let cameraMotion = 'static';
-      if (animationStyle === 'dynamic') {
-        cameraMotion = 'zoom_in';
-      } else if (animationStyle === 'subtle-motion') {
-        cameraMotion = 'static';
-      }
+      // Map animation style to Hailuo camera_motion parameter
+      // Each style provides distinct visual behavior:
+      // - 'product-hero': slow push zoom to draw attention (gentle motion)
+      // - 'product-static': no camera movement for clean presentation
+      // - 'subtle-motion': slight pan for visual interest
+      // - 'dynamic': zoom in for energetic feel
+      const cameraMotionMap: Record<string, string> = {
+        'product-hero': 'push',      // Slow push to product
+        'product-static': 'static',  // No camera movement at all
+        'subtle-motion': 'pan_left', // Subtle horizontal movement
+        'dynamic': 'zoom_in',        // Energetic zoom
+      };
+      const cameraMotion = cameraMotionMap[animationStyle] || 'static';
       
-      console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with settings: fidelity=${imageControlStrength}, motion=${motionStrength}, style=${animationStyle}`);
+      console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with settings: fidelity=${imageControlStrength}, motion=${motionStrength}, style=${animationStyle} → camera=${cameraMotion}`);
       return {
         model: 'hailuo',
         task_type: 'image_to_video',
@@ -812,7 +818,7 @@ class PiAPIVideoService {
           // Critical I2V settings from user UI controls
           image_control_strength: imageControlStrength, // User-configured: 0-1 (higher = more source image fidelity)
           motion_strength: motionStrength, // User-configured: 0-1 (lower = subtler animation)
-          camera_motion: cameraMotion, // Based on animation style
+          camera_motion: cameraMotion, // Mapped from animation style
         },
       };
     }
