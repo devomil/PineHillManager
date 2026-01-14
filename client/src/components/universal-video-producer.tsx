@@ -2915,7 +2915,7 @@ function ScenePreview({
                           <Sparkles className="w-4 h-4 text-amber-600" />
                           <span className="text-sm font-medium text-amber-800">Suggested Improvement</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <Button
                             size="sm"
                             variant="outline"
@@ -2928,8 +2928,9 @@ function ScenePreview({
                                 await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}/visual-direction`, {
                                   visualDirection: scene.analysisResult.improvedPrompt,
                                 });
+                                setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.analysisResult?.improvedPrompt || '' }));
                                 onSceneUpdate?.();
-                                toast({ title: 'Applied!', description: 'Suggested improvement applied to visual direction.' });
+                                toast({ title: 'Applied!', description: 'Visual direction updated. Click regenerate when ready.' });
                               } catch (err) {
                                 toast({ title: 'Error', description: 'Failed to apply suggestion.', variant: 'destructive' });
                               } finally {
@@ -2944,6 +2945,43 @@ function ScenePreview({
                               <Check className="w-3 h-3 mr-1" />
                             )}
                             Apply
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-700"
+                            disabled={savingVisualDirection === scene.id || !!regenerating}
+                            onClick={async () => {
+                              if (!projectId || !scene.analysisResult?.improvedPrompt) return;
+                              setSavingVisualDirection(scene.id);
+                              try {
+                                await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}/visual-direction`, {
+                                  visualDirection: scene.analysisResult.improvedPrompt,
+                                });
+                                setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.analysisResult?.improvedPrompt || '' }));
+                                onSceneUpdate?.();
+                                toast({ title: 'Applied!', description: 'Now regenerating with improved direction...' });
+                                setSavingVisualDirection(null);
+                                const currentMediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
+                                const provider = selectedProviders[`${currentMediaType}-${scene.id}`] || getRecommendedProvider(currentMediaType as any, scene.type, scene.analysisResult.improvedPrompt);
+                                if (currentMediaType === 'video') {
+                                  await regenerateVideo(scene.id, provider);
+                                } else {
+                                  await regenerateImage(scene.id, provider);
+                                }
+                              } catch (err) {
+                                toast({ title: 'Error', description: 'Failed to apply and regenerate.', variant: 'destructive' });
+                                setSavingVisualDirection(null);
+                              }
+                            }}
+                            data-testid={`button-apply-and-regenerate-${scene.id}`}
+                          >
+                            {(savingVisualDirection === scene.id || regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`) ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                            )}
+                            Apply & Regen
                           </Button>
                           <Button
                             size="sm"
