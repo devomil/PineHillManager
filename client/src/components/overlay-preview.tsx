@@ -21,9 +21,11 @@ export const OverlayPreview = memo(function OverlayPreview({
     
     const positions: Record<string, React.CSSProperties> = {
       'top-left': { top: '5%', left: '5%' },
+      'top-center': { top: '5%', left: '50%', transform: 'translateX(-50%)' },
       'top-right': { top: '5%', right: '5%' },
       'center': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
       'bottom-left': { bottom: '15%', left: '5%' },
+      'bottom-center': { bottom: '15%', left: '50%', transform: 'translateX(-50%)' },
       'bottom-right': { bottom: '15%', right: '5%' },
     };
     
@@ -44,8 +46,10 @@ export const OverlayPreview = memo(function OverlayPreview({
     
     const positions: Record<string, React.CSSProperties> = {
       'top-left': { top: '3%', left: '3%' },
+      'top-center': { top: '3%', left: '50%', transform: 'translateX(-50%)' },
       'top-right': { top: '3%', right: '3%' },
       'bottom-left': { bottom: '3%', left: '3%' },
+      'bottom-center': { bottom: '3%', left: '50%', transform: 'translateX(-50%)' },
       'bottom-right': { bottom: '3%', right: '3%' },
     };
     
@@ -147,6 +151,34 @@ export const OverlayPreview = memo(function OverlayPreview({
           />
         </div>
       )}
+      
+      {(config.additionalLogos || []).map((badge, idx) => {
+        const badgePositions: Record<string, React.CSSProperties> = {
+          'top-left': { top: '8%', left: '8%' },
+          'top-center': { top: '8%', left: '50%', transform: 'translateX(-50%)' },
+          'top-right': { top: '8%', right: '8%' },
+          'bottom-left': { bottom: '18%', left: '8%' },
+          'bottom-center': { bottom: '18%', left: '50%', transform: 'translateX(-50%)' },
+          'bottom-right': { bottom: '18%', right: '8%' },
+        };
+        return (
+          <div
+            key={badge.id}
+            className="absolute"
+            style={{
+              ...badgePositions[badge.position] || badgePositions['bottom-left'],
+              opacity: badge.opacity / 100,
+            }}
+            data-testid={`preview-badge-${idx}`}
+          >
+            <img 
+              src={convertUrl(badge.logoUrl)}
+              alt={badge.logoName}
+              className="w-10 h-auto object-contain drop-shadow-md"
+            />
+          </div>
+        );
+      })}
       
       {config.lowerThirds.map((lt, idx) => (
         <div

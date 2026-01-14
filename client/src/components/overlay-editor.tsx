@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SCENE_OVERLAY_DEFAULTS } from '@shared/video-types';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -34,7 +34,7 @@ interface TextOverlayItem {
 
 interface LogoConfig {
   enabled: boolean;
-  position: 'top-left' | 'top-right' | 'center' | 'bottom-left' | 'bottom-right';
+  position: 'top-left' | 'top-center' | 'top-right' | 'center' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   size: 'small' | 'medium' | 'large';
   showTagline: boolean;
   logoUrl?: string;
@@ -43,7 +43,7 @@ interface LogoConfig {
 
 interface WatermarkConfig {
   enabled: boolean;
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  position: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   opacity: number;
   watermarkUrl?: string;
   watermarkName?: string;
@@ -54,7 +54,7 @@ interface AdditionalLogoItem {
   type: 'certification' | 'partner' | 'trust';
   logoUrl: string;
   logoName: string;
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  position: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   size: 'small' | 'medium';
   opacity: number;
 }
@@ -501,8 +501,8 @@ export const OverlayEditor = memo(function OverlayEditor({
                       No logos found. Upload logos to the Brand Media Library.
                     </div>
                   ) : (
-                    <ScrollArea className="h-24">
-                      <div className="flex gap-2 pb-2">
+                    <ScrollArea className="w-full whitespace-nowrap">
+                      <div className="flex gap-2 pb-4">
                         {logos.map((logo) => (
                           <button
                             key={logo.id}
@@ -531,6 +531,7 @@ export const OverlayEditor = memo(function OverlayEditor({
                           </button>
                         ))}
                       </div>
+                      <ScrollBar orientation="horizontal" />
                     </ScrollArea>
                   )}
                   {draft.logo.logoName && (
@@ -555,9 +556,11 @@ export const OverlayEditor = memo(function OverlayEditor({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="top-left">Top Left</SelectItem>
+                        <SelectItem value="top-center">Top Center</SelectItem>
                         <SelectItem value="top-right">Top Right</SelectItem>
                         <SelectItem value="center">Center</SelectItem>
                         <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                        <SelectItem value="bottom-center">Bottom Center</SelectItem>
                         <SelectItem value="bottom-right">Bottom Right</SelectItem>
                       </SelectContent>
                     </Select>
@@ -627,8 +630,8 @@ export const OverlayEditor = memo(function OverlayEditor({
                       No watermarks found. Upload watermarks to the Brand Media Library.
                     </div>
                   ) : (
-                    <ScrollArea className="h-24">
-                      <div className="flex gap-2 pb-2">
+                    <ScrollArea className="w-full whitespace-nowrap">
+                      <div className="flex gap-2 pb-4">
                         {watermarks.map((wm) => (
                           <button
                             key={wm.id}
@@ -657,6 +660,7 @@ export const OverlayEditor = memo(function OverlayEditor({
                           </button>
                         ))}
                       </div>
+                      <ScrollBar orientation="horizontal" />
                     </ScrollArea>
                   )}
                   {draft.watermark.watermarkName && (
@@ -680,8 +684,10 @@ export const OverlayEditor = memo(function OverlayEditor({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="top-left">Top Left</SelectItem>
+                      <SelectItem value="top-center">Top Center</SelectItem>
                       <SelectItem value="top-right">Top Right</SelectItem>
                       <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                      <SelectItem value="bottom-center">Bottom Center</SelectItem>
                       <SelectItem value="bottom-right">Bottom Right</SelectItem>
                     </SelectContent>
                   </Select>
@@ -730,8 +736,8 @@ export const OverlayEditor = memo(function OverlayEditor({
                     No certification badges found. Upload USDA, partner, or trust logos to the Brand Media Library.
                   </div>
                 ) : (
-                  <ScrollArea className="h-28">
-                    <div className="flex flex-wrap gap-2 pb-2">
+                  <ScrollArea className="w-full whitespace-nowrap">
+                    <div className="flex gap-2 pb-4">
                       {certifications.map((cert) => {
                         const isAdded = (draft.additionalLogos || []).some(l => l.logoUrl === cert.url);
                         return (
@@ -764,6 +770,7 @@ export const OverlayEditor = memo(function OverlayEditor({
                         );
                       })}
                     </div>
+                    <ScrollBar orientation="horizontal" />
                   </ScrollArea>
                 )}
               </div>
@@ -789,8 +796,10 @@ export const OverlayEditor = memo(function OverlayEditor({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="top-left">Top Left</SelectItem>
+                            <SelectItem value="top-center">Top Center</SelectItem>
                             <SelectItem value="top-right">Top Right</SelectItem>
                             <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                            <SelectItem value="bottom-center">Bottom Center</SelectItem>
                             <SelectItem value="bottom-right">Bottom Right</SelectItem>
                           </SelectContent>
                         </Select>
