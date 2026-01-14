@@ -106,19 +106,27 @@ export function OverlayPreview({
       ))}
       
       {logoPosition && config.logo.logoUrl && (() => {
+        const baseStyle: React.CSSProperties = {
+          position: 'absolute',
+          top: 'auto',
+          right: 'auto',
+          bottom: 'auto',
+          left: 'auto',
+          transform: 'none',
+        };
         const positionStyles: Record<string, React.CSSProperties> = {
-          'top-left': { top: '5%', left: '5%', right: 'auto', bottom: 'auto' },
-          'top-center': { top: '5%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
-          'top-right': { top: '5%', right: '5%', left: 'auto', bottom: 'auto' },
-          'center': { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
-          'bottom-left': { bottom: '15%', left: '5%', right: 'auto', top: 'auto' },
-          'bottom-center': { bottom: '15%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
-          'bottom-right': { bottom: '15%', right: '5%', left: 'auto', top: 'auto' },
+          'top-left': { top: '5%', left: '5%' },
+          'top-center': { top: '5%', left: '50%', transform: 'translateX(-50%)' },
+          'top-right': { top: '5%', right: '5%' },
+          'center': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+          'bottom-left': { bottom: '15%', left: '5%' },
+          'bottom-center': { bottom: '15%', left: '50%', transform: 'translateX(-50%)' },
+          'bottom-right': { bottom: '15%', right: '5%' },
         };
         const posStyle = positionStyles[logoPosition.pos] || positionStyles['center'];
         return (
           <div
-            style={{ position: 'absolute', ...posStyle }}
+            style={{ ...baseStyle, ...posStyle }}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
