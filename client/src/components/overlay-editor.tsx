@@ -49,6 +49,16 @@ interface WatermarkConfig {
   watermarkName?: string;
 }
 
+interface AdditionalLogoItem {
+  id: string;
+  type: 'certification' | 'partner' | 'trust';
+  logoUrl: string;
+  logoName: string;
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  size: 'small' | 'medium';
+  opacity: number;
+}
+
 interface LowerThirdItem {
   id: string;
   name: string;
@@ -60,6 +70,7 @@ export interface OverlayConfig {
   texts: TextOverlayItem[];
   logo: LogoConfig;
   watermark: WatermarkConfig;
+  additionalLogos?: AdditionalLogoItem[];
   lowerThirds: LowerThirdItem[];
 }
 
@@ -88,6 +99,7 @@ export const defaultOverlayConfig: OverlayConfig = {
     watermarkUrl: undefined,
     watermarkName: undefined,
   },
+  additionalLogos: [],
   lowerThirds: [],
 };
 
@@ -180,6 +192,26 @@ export const OverlayEditor = memo(function OverlayEditor({
     );
   }), [brandMedia]);
   
+  const certifications = useMemo(() => brandMedia.filter(a => {
+    if (a.mediaType !== 'image' && a.mediaType !== 'photo' && a.mediaType !== 'logo') return false;
+    const nameLower = a.name?.toLowerCase() || '';
+    const categoryLower = a.assetCategory?.toLowerCase() || '';
+    const typeLower = a.assetType?.toLowerCase() || '';
+    return (
+      categoryLower === 'trust' ||
+      typeLower.includes('certification') ||
+      typeLower.includes('trust') ||
+      typeLower.includes('partner') ||
+      typeLower.includes('badge') ||
+      nameLower.includes('usda') ||
+      nameLower.includes('organic') ||
+      nameLower.includes('certified') ||
+      nameLower.includes('association') ||
+      nameLower.includes('society') ||
+      nameLower.includes('women owned')
+    );
+  }), [brandMedia]);
+  
   const [draft, setDraft] = useState<OverlayConfig>(config);
   const [hasChanges, setHasChanges] = useState(false);
   
@@ -263,20 +295,63 @@ export const OverlayEditor = memo(function OverlayEditor({
     });
   };
   
+  const addCertificationLogo = (asset: BrandMediaAsset, type: 'certification' | 'partner' | 'trust' = 'certification') => {
+    const isAlreadyAdded = (draft.additionalLogos || []).some(l => l.logoUrl === asset.url);
+    if (isAlreadyAdded) {
+      toast({ title: 'Already added', description: `${asset.name} is already in your overlays.` });
+      return;
+    }
+    
+    const positions: ('top-left' | 'top-right' | 'bottom-left' | 'bottom-right')[] = ['bottom-left', 'top-right', 'top-left', 'bottom-right'];
+    const usedPositions = (draft.additionalLogos || []).map(l => l.position);
+    const availablePosition = positions.find(p => !usedPositions.includes(p)) || 'bottom-left';
+    
+    const newLogo: AdditionalLogoItem = {
+      id: `cert-${Date.now()}`,
+      type,
+      logoUrl: asset.url,
+      logoName: asset.name,
+      position: availablePosition,
+      size: 'small',
+      opacity: 0.9,
+    };
+    updateDraft({
+      ...draft,
+      additionalLogos: [...(draft.additionalLogos || []), newLogo],
+    });
+  };
+  
+  const updateAdditionalLogo = (id: string, updates: Partial<AdditionalLogoItem>) => {
+    updateDraft({
+      ...draft,
+      additionalLogos: (draft.additionalLogos || []).map(l => l.id === id ? { ...l, ...updates } : l),
+    });
+  };
+  
+  const removeAdditionalLogo = (id: string) => {
+    updateDraft({
+      ...draft,
+      additionalLogos: (draft.additionalLogos || []).filter(l => l.id !== id),
+    });
+  };
+  
   return (
     <div className="space-y-4" data-testid="overlay-editor">
       <Tabs defaultValue="text">
-        <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="text" className="flex items-center gap-1" data-testid="tab-text">
+        <TabsList className="grid grid-cols-5 w-full">
+          <TabsTrigger value="text" className="flex items-center gap-1 text-xs px-2" data-testid="tab-text">
             <Type className="h-3 w-3" /> Text
           </TabsTrigger>
-          <TabsTrigger value="logo" className="flex items-center gap-1" data-testid="tab-logo">
+          <TabsTrigger value="logo" className="flex items-center gap-1 text-xs px-2" data-testid="tab-logo">
             <Image className="h-3 w-3" /> Logo
           </TabsTrigger>
-          <TabsTrigger value="watermark" className="flex items-center gap-1" data-testid="tab-watermark">
-            <Droplet className="h-3 w-3" /> Watermark
+          <TabsTrigger value="watermark" className="flex items-center gap-1 text-xs px-2" data-testid="tab-watermark">
+            <Droplet className="h-3 w-3" /> Mark
           </TabsTrigger>
-          <TabsTrigger value="lowerthird" className="flex items-center gap-1" data-testid="tab-lowerthird">
+          <TabsTrigger value="badges" className="flex items-center gap-1 text-xs px-2" data-testid="tab-badges">
+            <Check className="h-3 w-3" /> Badges
+          </TabsTrigger>
+          <TabsTrigger value="lowerthird" className="flex items-center gap-1 text-xs px-2" data-testid="tab-lowerthird">
             <User className="h-3 w-3" /> Names
           </TabsTrigger>
         </TabsList>
@@ -632,6 +707,108 @@ export const OverlayEditor = memo(function OverlayEditor({
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+        
+        <TabsContent value="badges" className="space-y-4 mt-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Certification & Trust Badges</Label>
+            <span className="text-xs text-muted-foreground">
+              {(draft.additionalLogos || []).length} added
+            </span>
+          </div>
+          
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              <div>
+                <Label className="text-xs mb-2 block">Click to Add Badges (USDA, Partner Logos, etc.)</Label>
+                {brandMediaLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : certifications.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-4 text-center">
+                    No certification badges found. Upload USDA, partner, or trust logos to the Brand Media Library.
+                  </div>
+                ) : (
+                  <ScrollArea className="h-28">
+                    <div className="flex flex-wrap gap-2 pb-2">
+                      {certifications.map((cert) => {
+                        const isAdded = (draft.additionalLogos || []).some(l => l.logoUrl === cert.url);
+                        return (
+                          <button
+                            key={cert.id}
+                            type="button"
+                            onClick={() => addCertificationLogo(cert, 
+                              cert.name.toLowerCase().includes('usda') ? 'certification' :
+                              cert.name.toLowerCase().includes('association') || cert.name.toLowerCase().includes('society') ? 'partner' : 'trust'
+                            )}
+                            className={`relative flex-shrink-0 w-16 h-16 rounded-lg border-2 overflow-hidden transition-all ${
+                              isAdded 
+                                ? 'border-green-500 ring-2 ring-green-500/30 opacity-50' 
+                                : 'border-muted hover:border-primary/50'
+                            }`}
+                            disabled={isAdded}
+                            data-testid={`button-add-certification-${cert.id}`}
+                          >
+                            <img 
+                              src={cert.thumbnailUrl || cert.url} 
+                              alt={cert.name}
+                              className="w-full h-full object-contain bg-white p-1"
+                            />
+                            {isAdded && (
+                              <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+                                <Check className="h-4 w-4 text-green-600" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+              
+              {(draft.additionalLogos || []).length > 0 && (
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-xs font-medium">Active Badges</Label>
+                  {(draft.additionalLogos || []).map((logo) => (
+                    <div key={logo.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <img 
+                        src={logo.logoUrl} 
+                        alt={logo.logoName}
+                        className="w-10 h-10 object-contain bg-white rounded p-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate">{logo.logoName}</div>
+                        <Select
+                          value={logo.position}
+                          onValueChange={(v) => updateAdditionalLogo(logo.id, { position: v as AdditionalLogoItem['position'] })}
+                        >
+                          <SelectTrigger className="h-7 text-xs mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="top-left">Top Left</SelectItem>
+                            <SelectItem value="top-right">Top Right</SelectItem>
+                            <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                            <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeAdditionalLogo(logo.id)}
+                        className="h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         
         <TabsContent value="lowerthird" className="space-y-4 mt-4">
