@@ -20,13 +20,13 @@ export const OverlayPreview = memo(function OverlayPreview({
     if (!config.logo.enabled || !config.logo.logoUrl) return null;
     
     const positions: Record<string, React.CSSProperties> = {
-      'top-left': { top: '5%', left: '5%' },
-      'top-center': { top: '5%', left: '50%', transform: 'translateX(-50%)' },
-      'top-right': { top: '5%', right: '5%' },
-      'center': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
-      'bottom-left': { bottom: '15%', left: '5%' },
-      'bottom-center': { bottom: '15%', left: '50%', transform: 'translateX(-50%)' },
-      'bottom-right': { bottom: '15%', right: '5%' },
+      'top-left': { top: '5%', left: '5%', right: 'auto', bottom: 'auto' },
+      'top-center': { top: '5%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
+      'top-right': { top: '5%', right: '5%', left: 'auto', bottom: 'auto' },
+      'center': { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
+      'bottom-left': { bottom: '15%', left: '5%', right: 'auto', top: 'auto' },
+      'bottom-center': { bottom: '15%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
+      'bottom-right': { bottom: '15%', right: '5%', left: 'auto', top: 'auto' },
     };
     
     const sizes: Record<string, string> = {
@@ -45,12 +45,12 @@ export const OverlayPreview = memo(function OverlayPreview({
     if (!config.watermark.enabled || !config.watermark.watermarkUrl) return null;
     
     const positions: Record<string, React.CSSProperties> = {
-      'top-left': { top: '3%', left: '3%' },
-      'top-center': { top: '3%', left: '50%', transform: 'translateX(-50%)' },
-      'top-right': { top: '3%', right: '3%' },
-      'bottom-left': { bottom: '3%', left: '3%' },
-      'bottom-center': { bottom: '3%', left: '50%', transform: 'translateX(-50%)' },
-      'bottom-right': { bottom: '3%', right: '3%' },
+      'top-left': { top: '3%', left: '3%', right: 'auto', bottom: 'auto' },
+      'top-center': { top: '3%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
+      'top-right': { top: '3%', right: '3%', left: 'auto', bottom: 'auto' },
+      'bottom-left': { bottom: '3%', left: '3%', right: 'auto', top: 'auto' },
+      'bottom-center': { bottom: '3%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
+      'bottom-right': { bottom: '3%', right: '3%', left: 'auto', top: 'auto' },
     };
     
     return positions[config.watermark.position] || positions['bottom-right'];
@@ -114,8 +114,10 @@ export const OverlayPreview = memo(function OverlayPreview({
       
       {logoPosition && config.logo.logoUrl && (
         <div
-          className="absolute"
-          style={logoPosition.position}
+          style={{
+            position: 'absolute',
+            ...logoPosition.position,
+          }}
           data-testid="preview-logo"
         >
           <img 
@@ -137,8 +139,8 @@ export const OverlayPreview = memo(function OverlayPreview({
       
       {watermarkPosition && config.watermark.watermarkUrl && (
         <div
-          className="absolute"
           style={{
+            position: 'absolute',
             ...watermarkPosition,
             opacity: config.watermark.opacity / 100,
           }}
@@ -154,18 +156,18 @@ export const OverlayPreview = memo(function OverlayPreview({
       
       {(config.additionalLogos || []).map((badge, idx) => {
         const badgePositions: Record<string, React.CSSProperties> = {
-          'top-left': { top: '8%', left: '8%' },
-          'top-center': { top: '8%', left: '50%', transform: 'translateX(-50%)' },
-          'top-right': { top: '8%', right: '8%' },
-          'bottom-left': { bottom: '18%', left: '8%' },
-          'bottom-center': { bottom: '18%', left: '50%', transform: 'translateX(-50%)' },
-          'bottom-right': { bottom: '18%', right: '8%' },
+          'top-left': { top: '8%', left: '8%', right: 'auto', bottom: 'auto' },
+          'top-center': { top: '8%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
+          'top-right': { top: '8%', right: '8%', left: 'auto', bottom: 'auto' },
+          'bottom-left': { bottom: '18%', left: '8%', right: 'auto', top: 'auto' },
+          'bottom-center': { bottom: '18%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
+          'bottom-right': { bottom: '18%', right: '8%', left: 'auto', top: 'auto' },
         };
         return (
           <div
             key={badge.id}
-            className="absolute"
             style={{
+              position: 'absolute',
               ...badgePositions[badge.position] || badgePositions['bottom-left'],
               opacity: badge.opacity / 100,
             }}
