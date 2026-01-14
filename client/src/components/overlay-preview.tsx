@@ -19,24 +19,17 @@ export const OverlayPreview = memo(function OverlayPreview({
   const logoPosition = useMemo(() => {
     if (!config.logo.enabled || !config.logo.logoUrl) return null;
     
-    const positions: Record<string, React.CSSProperties> = {
-      'top-left': { top: '5%', left: '5%', right: 'auto', bottom: 'auto' },
-      'top-center': { top: '5%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
-      'top-right': { top: '5%', right: '5%', left: 'auto', bottom: 'auto' },
-      'center': { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
-      'bottom-left': { bottom: '15%', left: '5%', right: 'auto', top: 'auto' },
-      'bottom-center': { bottom: '15%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
-      'bottom-right': { bottom: '15%', right: '5%', left: 'auto', top: 'auto' },
-    };
-    
+    const pos = config.logo.position || 'center';
     const sizes: Record<string, string> = {
       'small': '10%',
       'medium': '15%',
       'large': '20%',
     };
     
+    console.log('[OverlayPreview] Computing position for:', pos);
+    
     return {
-      position: positions[config.logo.position] || positions['center'],
+      pos,
       size: sizes[config.logo.size] || '15%',
     };
   }, [config.logo]);
@@ -112,30 +105,39 @@ export const OverlayPreview = memo(function OverlayPreview({
         </div>
       ))}
       
-      {logoPosition && config.logo.logoUrl && (
-        <div
-          style={{
-            position: 'absolute',
-            ...logoPosition.position,
-          }}
-          data-testid="preview-logo"
-        >
-          <img 
-            src={convertUrl(config.logo.logoUrl)}
-            alt="Logo"
-            style={{ width: logoPosition.size, height: 'auto', maxHeight: '20%' }}
-            className="object-contain drop-shadow-lg"
-          />
-          {config.logo.showTagline && (
-            <div 
-              className="text-white text-xs mt-1 font-medium drop-shadow-lg"
-              style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
-            >
-              Cultivating Wellness
-            </div>
-          )}
-        </div>
-      )}
+      {logoPosition && config.logo.logoUrl && (() => {
+        const posClasses: Record<string, string> = {
+          'top-left': 'top-[5%] left-[5%]',
+          'top-center': 'top-[5%] left-1/2 -translate-x-1/2',
+          'top-right': 'top-[5%] right-[5%]',
+          'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
+          'bottom-left': 'bottom-[15%] left-[5%]',
+          'bottom-center': 'bottom-[15%] left-1/2 -translate-x-1/2',
+          'bottom-right': 'bottom-[15%] right-[5%]',
+        };
+        return (
+          <div
+            className={`absolute ${posClasses[logoPosition.pos] || posClasses['center']}`}
+            data-testid="preview-logo"
+            data-position={logoPosition.pos}
+          >
+            <img 
+              src={convertUrl(config.logo.logoUrl)}
+              alt="Logo"
+              style={{ width: logoPosition.size, height: 'auto', maxHeight: '20%' }}
+              className="object-contain drop-shadow-lg"
+            />
+            {config.logo.showTagline && (
+              <div 
+                className="text-white text-xs mt-1 font-medium drop-shadow-lg"
+                style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
+              >
+                Cultivating Wellness
+              </div>
+            )}
+          </div>
+        );
+      })()}
       
       {watermarkPosition && config.watermark.watermarkUrl && (
         <div
