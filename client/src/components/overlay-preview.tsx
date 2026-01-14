@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react';
+import { useMemo } from 'react';
 import type { OverlayConfig } from './overlay-editor';
 
 interface OverlayPreviewProps {
@@ -9,7 +9,7 @@ interface OverlayPreviewProps {
   convertUrl?: (url: string) => string;
 }
 
-export const OverlayPreview = memo(function OverlayPreview({ 
+export function OverlayPreview({ 
   mediaUrl, 
   mediaType, 
   config,
@@ -106,31 +106,32 @@ export const OverlayPreview = memo(function OverlayPreview({
       ))}
       
       {logoPosition && config.logo.logoUrl && (() => {
+        const base: React.CSSProperties = { position: 'absolute', top: 'auto', right: 'auto', bottom: 'auto', left: 'auto', transform: 'none' };
         const getPositionStyles = (pos: string): React.CSSProperties => {
           switch (pos) {
             case 'top-left':
-              return { inset: 'unset', top: '5%', left: '5%' };
+              return { ...base, top: '5%', left: '5%' };
             case 'top-center':
-              return { inset: 'unset', top: '5%', left: '50%', transform: 'translateX(-50%)' };
+              return { ...base, top: '5%', left: '50%', transform: 'translateX(-50%)' };
             case 'top-right':
-              return { inset: 'unset', top: '5%', right: '5%' };
+              return { ...base, top: '5%', right: '5%' };
             case 'center':
-              return { inset: 'unset', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+              return { ...base, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
             case 'bottom-left':
-              return { inset: 'unset', bottom: '15%', left: '5%' };
+              return { ...base, bottom: '15%', left: '5%' };
             case 'bottom-center':
-              return { inset: 'unset', bottom: '15%', left: '50%', transform: 'translateX(-50%)' };
+              return { ...base, bottom: '15%', left: '50%', transform: 'translateX(-50%)' };
             case 'bottom-right':
-              return { inset: 'unset', bottom: '15%', right: '5%' };
+              return { ...base, bottom: '15%', right: '5%' };
             default:
-              return { inset: 'unset', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+              return { ...base, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
           }
         };
         const posStyles = getPositionStyles(logoPosition.pos);
-        console.log('[OverlayPreview] Logo position:', logoPosition.pos, 'Styles:', JSON.stringify(posStyles));
+        console.log('[OverlayPreview] Logo position:', logoPosition.pos, 'Styles:', posStyles);
         return (
           <div
-            style={{ position: 'absolute', ...posStyles }}
+            style={posStyles}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
@@ -218,4 +219,4 @@ export const OverlayPreview = memo(function OverlayPreview({
       </div>
     </div>
   );
-});
+}
