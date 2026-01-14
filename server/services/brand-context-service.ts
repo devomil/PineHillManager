@@ -429,6 +429,60 @@ Only mention "Pine Hill Farm" explicitly in CTA or product scenes.
     this.loadedAt = 0;
     console.log('[BrandContext] Cache cleared');
   }
+
+  /**
+   * Get comprehensive context for "Ask Suzzie" visual direction generation
+   * This creates more detailed, brand-aligned visual directions from the start
+   */
+  async getVisualDirectionGenerationContext(): Promise<string> {
+    const data = await this.loadBrandContext();
+    const rules = data.visualDirectionRules;
+
+    return `# Pine Hill Farm Visual Direction Guidelines
+
+## Brand Identity
+${data.brand.name} is ${data.brand.tagline}. Founded ${data.brand.founded}, women-owned by 3 sisters.
+
+## Visual Aesthetic (MUST FOLLOW)
+**LIGHTING:** ${rules?.aestheticDescriptors?.lighting?.join(', ') || 'Warm, golden, natural, diffused sunlight, soft studio lighting, dappled light through leaves'}
+**SETTINGS:** ${rules?.aestheticDescriptors?.settings?.join(', ') || 'Organic farms, herb gardens, wellness spaces, rustic kitchens, natural outdoor settings'}
+**COLORS:** ${rules?.aestheticDescriptors?.colors?.join(', ') || 'Earth tones, forest greens, warm golds, cream, natural wood tones, sage'}
+**TEXTURES:** ${rules?.aestheticDescriptors?.textures?.join(', ') || 'Natural wood, woven baskets, ceramic, linen, fresh produce, terracotta'}
+**SUBJECTS:** ${rules?.aestheticDescriptors?.subjects?.join(', ') || 'Real women 35-65, farm scenes, organic produce, wellness activities, cooking, gardening'}
+
+## CRITICAL: What to AVOID
+${data.visualIdentity.avoid.map(a => `- ${a}`).join('\n')}
+- Stock photo perfect people
+- Cold, clinical lighting
+- Blue/gray sterile environments
+- Corporate office settings
+- Fake or plastic appearance
+
+## Scene Type Considerations
+- **intro/hook**: Cinematic establishing shot, peaceful farm morning, golden hour
+- **problem**: Subtle visual metaphor (NOT dark/scary), relatable everyday scene
+- **solution**: Bright, hopeful transformation, organic ingredients, natural wellness
+- **benefit**: Active lifestyle, garden scenes, healthy cooking, wellness practices
+- **testimonial**: Authentic person in natural setting, genuine expressions
+- **product**: Professional product photography, natural backgrounds, lifestyle context
+- **cta**: Brand-aligned closing, inviting atmosphere, clear call to action
+
+## Content Tone
+${data.contentGuidelines.tone.join(', ')}
+
+## Target Audience Resonance
+${data.targetAudience.primary.description}
+- Demographics: ${data.targetAudience.primary.demographics}
+- Health concerns: ${data.targetAudience.conditions.slice(0, 5).join(', ')}
+
+## Brand Phrases to Use
+${data.terminology.brandSpecificPhrases.slice(0, 5).map(p => `- "${p}"`).join('\n')}
+
+## DO NOT include these phrases in visual directions:
+${rules?.forbiddenPhrases?.slice(0, 5)?.map(p => `- "${p}"`).join('\n') || '- "Pine Hill Farm kitchen"\n- "Pine Hill Farm garden"'}
+
+Only reference "Pine Hill Farm" explicitly in CTA/outro scenes.`;
+  }
 }
 
 export const brandContextService = new BrandContextService();
