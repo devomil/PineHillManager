@@ -234,15 +234,17 @@ export const OverlayEditor = memo(function OverlayEditor({
   );
   
   const updateDraft = (newConfig: OverlayConfig) => {
-    console.log('[OverlayEditor v3.0] updateDraft called with:', {
+    console.log('[OverlayEditor v3.1] updateDraft called with:', {
       logoEnabled: newConfig.logo.enabled,
       logoPosition: newConfig.logo.position,
       logoUrl: newConfig.logo.logoUrl?.substring(0, 50),
+      additionalLogosCount: (newConfig.additionalLogos || []).length,
+      additionalLogos: (newConfig.additionalLogos || []).map(l => ({ id: l.id, pos: l.position, url: l.logoUrl?.substring(0, 40) })),
     });
     setDraft(newConfig);
     setHasChanges(true);
     if (onPreview) {
-      console.log('[OverlayEditor v3.0] Calling onPreview with new config');
+      console.log('[OverlayEditor v3.1] Calling onPreview with additionalLogos:', (newConfig.additionalLogos || []).length);
       onPreview(newConfig);
     }
   };
@@ -310,15 +312,18 @@ export const OverlayEditor = memo(function OverlayEditor({
   };
   
   const addCertificationLogo = (asset: BrandMediaAsset, type: 'certification' | 'partner' | 'trust' = 'certification') => {
+    console.log('[OverlayEditor v3.1] addCertificationLogo called with:', { name: asset.name, url: asset.url?.substring(0, 50), type });
+    
     const isAlreadyAdded = (draft.additionalLogos || []).some(l => l.logoUrl === asset.url);
     if (isAlreadyAdded) {
+      console.log('[OverlayEditor v3.1] Badge already added, skipping');
       toast({ title: 'Already added', description: `${asset.name} is already in your overlays.` });
       return;
     }
     
-    const positions: ('top-left' | 'top-right' | 'bottom-left' | 'bottom-right')[] = ['bottom-left', 'top-right', 'top-left', 'bottom-right'];
+    const positions: ('top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'bottom-center')[] = ['bottom-center', 'bottom-left', 'top-right', 'top-left', 'bottom-right'];
     const usedPositions = (draft.additionalLogos || []).map(l => l.position);
-    const availablePosition = positions.find(p => !usedPositions.includes(p)) || 'bottom-left';
+    const availablePosition = positions.find(p => !usedPositions.includes(p)) || 'bottom-center';
     
     const newLogo: AdditionalLogoItem = {
       id: `cert-${Date.now()}`,
@@ -329,9 +334,15 @@ export const OverlayEditor = memo(function OverlayEditor({
       size: 'small',
       opacity: 0.9,
     };
+    
+    console.log('[OverlayEditor v3.1] Creating new badge:', { id: newLogo.id, position: newLogo.position, logoUrl: newLogo.logoUrl?.substring(0, 40) });
+    
+    const newAdditionalLogos = [...(draft.additionalLogos || []), newLogo];
+    console.log('[OverlayEditor v3.1] New additionalLogos count:', newAdditionalLogos.length);
+    
     updateDraft({
       ...draft,
-      additionalLogos: [...(draft.additionalLogos || []), newLogo],
+      additionalLogos: newAdditionalLogos,
     });
   };
   
