@@ -17,11 +17,13 @@ export function OverlayPreview({
   convertUrl = (url) => url
 }: OverlayPreviewProps) {
   // Debug logging
-  console.log('[OverlayPreview v3.0] Received config:', {
+  console.log('[OverlayPreview v3.3] Received config:', {
     logoEnabled: config.logo.enabled,
     logoUrl: config.logo.logoUrl?.substring(0, 50),
     logoPosition: config.logo.position,
     logoSize: config.logo.size,
+    additionalLogosCount: (config.additionalLogos || []).length,
+    additionalLogos: (config.additionalLogos || []).map(l => ({ id: l.id, pos: l.position, url: l.logoUrl?.substring(0, 30) })),
   });
   
   // Compute logo position directly without useMemo to avoid caching issues

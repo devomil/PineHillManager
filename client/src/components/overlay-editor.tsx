@@ -121,6 +121,7 @@ export function getDefaultOverlayConfig(sceneType: string): OverlayConfig {
       watermarkUrl: undefined,
       watermarkName: undefined,
     },
+    additionalLogos: [],
     lowerThirds: [],
   };
   
@@ -212,13 +213,19 @@ export const OverlayEditor = memo(function OverlayEditor({
     );
   }), [brandMedia]);
   
-  const [draft, setDraft] = useState<OverlayConfig>(config);
+  const normalizedConfig = useMemo(() => ({
+    ...config,
+    additionalLogos: config.additionalLogos || [],
+    lowerThirds: config.lowerThirds || [],
+  }), [config]);
+  
+  const [draft, setDraft] = useState<OverlayConfig>(normalizedConfig);
   const [hasChanges, setHasChanges] = useState(false);
   
-  const configString = useMemo(() => JSON.stringify(config), [config]);
+  const configString = useMemo(() => JSON.stringify(normalizedConfig), [normalizedConfig]);
   
   useEffect(() => {
-    setDraft(config);
+    setDraft(normalizedConfig);
     setHasChanges(false);
   }, [configString]);
   
