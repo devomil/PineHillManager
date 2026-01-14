@@ -16,9 +16,20 @@ export function OverlayPreview({
   aspectRatio = '16/9',
   convertUrl = (url) => url
 }: OverlayPreviewProps) {
+  // Debug logging
+  console.log('[OverlayPreview v3.0] Received config:', {
+    logoEnabled: config.logo.enabled,
+    logoUrl: config.logo.logoUrl?.substring(0, 50),
+    logoPosition: config.logo.position,
+    logoSize: config.logo.size,
+  });
+  
   // Compute logo position directly without useMemo to avoid caching issues
   const logoPosition = (() => {
-    if (!config.logo.enabled || !config.logo.logoUrl) return null;
+    if (!config.logo.enabled || !config.logo.logoUrl) {
+      console.log('[OverlayPreview v3.0] Logo not rendered - enabled:', config.logo.enabled, 'hasUrl:', !!config.logo.logoUrl);
+      return null;
+    }
     
     const pos = config.logo.position || 'center';
     const sizes: Record<string, string> = {
@@ -26,6 +37,8 @@ export function OverlayPreview({
       'medium': '15%',
       'large': '20%',
     };
+    
+    console.log('[OverlayPreview v3.0] Logo WILL render at position:', pos);
     
     return {
       pos,

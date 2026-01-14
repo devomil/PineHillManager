@@ -227,9 +227,15 @@ export const OverlayEditor = memo(function OverlayEditor({
   );
   
   const updateDraft = (newConfig: OverlayConfig) => {
+    console.log('[OverlayEditor v3.0] updateDraft called with:', {
+      logoEnabled: newConfig.logo.enabled,
+      logoPosition: newConfig.logo.position,
+      logoUrl: newConfig.logo.logoUrl?.substring(0, 50),
+    });
     setDraft(newConfig);
     setHasChanges(true);
     if (onPreview) {
+      console.log('[OverlayEditor v3.0] Calling onPreview with new config');
       onPreview(newConfig);
     }
   };
