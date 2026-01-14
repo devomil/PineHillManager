@@ -2583,6 +2583,7 @@ function ScenePreview({
                 {/* Overlay Preview Mode */}
                 {overlayPreviewMode[scene.id] && (hasBrollVideo || hasAIBackground || imageAsset?.url) ? (
                   <OverlayPreview
+                    key={`overlay-${scene.id}-${JSON.stringify((previewOverlayConfig[scene.id] || scene.overlayConfig)?.logo?.position || 'center')}`}
                     mediaUrl={convertToDisplayUrl(
                       hasBrollVideo ? scene.background!.videoUrl! :
                       hasAIBackground ? scene.assets!.backgroundUrl! :

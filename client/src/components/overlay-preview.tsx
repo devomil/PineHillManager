@@ -16,7 +16,8 @@ export function OverlayPreview({
   aspectRatio = '16/9',
   convertUrl = (url) => url
 }: OverlayPreviewProps) {
-  const logoPosition = useMemo(() => {
+  // Compute logo position directly without useMemo to avoid caching issues
+  const logoPosition = (() => {
     if (!config.logo.enabled || !config.logo.logoUrl) return null;
     
     const pos = config.logo.position || 'center';
@@ -26,13 +27,11 @@ export function OverlayPreview({
       'large': '20%',
     };
     
-    console.log('[OverlayPreview] Computing position for:', pos);
-    
     return {
       pos,
       size: sizes[config.logo.size] || '15%',
     };
-  }, [config.logo]);
+  })();
   
   const watermarkPosition = useMemo(() => {
     if (!config.watermark.enabled || !config.watermark.watermarkUrl) return null;
@@ -106,27 +105,21 @@ export function OverlayPreview({
       ))}
       
       {logoPosition && config.logo.logoUrl && (() => {
-        const baseStyle: React.CSSProperties = {
-          position: 'absolute',
-          top: 'auto',
-          right: 'auto',
-          bottom: 'auto',
-          left: 'auto',
-          transform: 'none',
-        };
         const positionStyles: Record<string, React.CSSProperties> = {
-          'top-left': { top: '5%', left: '5%' },
-          'top-center': { top: '5%', left: '50%', transform: 'translateX(-50%)' },
-          'top-right': { top: '5%', right: '5%' },
-          'center': { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
-          'bottom-left': { bottom: '15%', left: '5%' },
-          'bottom-center': { bottom: '15%', left: '50%', transform: 'translateX(-50%)' },
-          'bottom-right': { bottom: '15%', right: '5%' },
+          'top-left': { position: 'absolute', top: '5%', left: '5%', right: 'auto', bottom: 'auto', transform: 'none' },
+          'top-center': { position: 'absolute', top: '5%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
+          'top-right': { position: 'absolute', top: '5%', right: '5%', left: 'auto', bottom: 'auto', transform: 'none' },
+          'center': { position: 'absolute', top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
+          'bottom-left': { position: 'absolute', bottom: '15%', left: '5%', right: 'auto', top: 'auto', transform: 'none' },
+          'bottom-center': { position: 'absolute', bottom: '15%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
+          'bottom-right': { position: 'absolute', bottom: '15%', right: '5%', left: 'auto', top: 'auto', transform: 'none' },
         };
         const posStyle = positionStyles[logoPosition.pos] || positionStyles['center'];
+        console.log('[OverlayPreview v2.1] Logo position:', logoPosition.pos, 'Style:', JSON.stringify(posStyle));
         return (
           <div
-            style={{ ...baseStyle, ...posStyle }}
+            key={`logo-pos-${logoPosition.pos}-${Date.now()}`}
+            style={posStyle}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
