@@ -45,6 +45,8 @@ class LogoAssetSelector {
     
     try {
       const keywordConditions = keywords.map(k => ilike(brandMediaLibrary.name, `%${k}%`));
+      const assetTypeConditions = keywords.map(k => ilike(brandMediaLibrary.assetType, `%${k}%`));
+      const categoryConditions = keywords.map(k => ilike(brandMediaLibrary.assetCategory, `%${k}%`));
       
       const results = await db
         .select()
@@ -52,8 +54,12 @@ class LogoAssetSelector {
         .where(
           and(
             eq(brandMediaLibrary.isActive, true),
-            eq(brandMediaLibrary.mediaType, 'logo'),
-            or(...keywordConditions)
+            or(
+              eq(brandMediaLibrary.mediaType, 'logo'),
+              eq(brandMediaLibrary.mediaType, 'photo'),
+              eq(brandMediaLibrary.mediaType, 'image')
+            ),
+            or(...keywordConditions, ...assetTypeConditions, ...categoryConditions)
           )
         )
         .orderBy(sql`${brandMediaLibrary.priority} DESC`);

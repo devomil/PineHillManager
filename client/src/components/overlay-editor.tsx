@@ -131,12 +131,13 @@ export const OverlayEditor = memo(function OverlayEditor({
   });
 
   const logos = useMemo(() => brandMedia.filter(a => {
-    if (a.mediaType !== 'image' && a.mediaType !== 'photo') return false;
+    if (a.mediaType !== 'image' && a.mediaType !== 'photo' && a.mediaType !== 'logo') return false;
     const nameLower = a.name?.toLowerCase() || '';
     const categoryLower = a.assetCategory?.toLowerCase() || '';
     const typeLower = a.assetType?.toLowerCase() || '';
     const entityLower = a.entityType?.toLowerCase() || '';
     return (
+      a.mediaType === 'logo' ||
       entityLower === 'logo' || 
       entityLower === 'brand' || 
       entityLower === 'certification' ||
@@ -148,22 +149,27 @@ export const OverlayEditor = memo(function OverlayEditor({
       typeLower.includes('certification') ||
       typeLower.includes('partner') ||
       typeLower.includes('badge') ||
+      typeLower.includes('trust') ||
       nameLower.includes('logo') ||
       nameLower.includes('usda') ||
       nameLower.includes('organic') ||
       nameLower.includes('certified') ||
       nameLower.includes('badge') ||
-      nameLower.includes('seal')
+      nameLower.includes('seal') ||
+      nameLower.includes('association') ||
+      nameLower.includes('society') ||
+      nameLower.includes('women owned')
     );
   }), [brandMedia]);
   
   const watermarks = useMemo(() => brandMedia.filter(a => {
-    if (a.mediaType !== 'image' && a.mediaType !== 'photo') return false;
+    if (a.mediaType !== 'image' && a.mediaType !== 'photo' && a.mediaType !== 'logo') return false;
     const nameLower = a.name?.toLowerCase() || '';
     const categoryLower = a.assetCategory?.toLowerCase() || '';
     const typeLower = a.assetType?.toLowerCase() || '';
     const entityLower = a.entityType?.toLowerCase() || '';
     return (
+      a.mediaType === 'logo' ||
       entityLower === 'watermark' || 
       entityLower === 'brand' || 
       categoryLower === 'logos' ||
