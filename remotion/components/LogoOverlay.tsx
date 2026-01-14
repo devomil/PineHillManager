@@ -1,13 +1,6 @@
 import React from 'react';
 import { Img, interpolate, useCurrentFrame, spring, useVideoConfig } from 'remotion';
-
-export interface LogoShadowProps {
-  enabled: boolean;
-  color: string;
-  blur: number;
-  offsetX: number;
-  offsetY: number;
-}
+import type { LogoAnimation, LogoShadow } from '../../shared/types/logo-composition-types';
 
 export interface LogoOverlayProps {
   logoUrl: string;
@@ -16,7 +9,7 @@ export interface LogoOverlayProps {
   size: number;
   opacity: number;
   animation: {
-    type: 'none' | 'fade' | 'fade-in' | 'zoom' | 'scale-up' | 'slide' | 'slide-in' | 'pulse';
+    type: LogoAnimation;
     duration: number;
     delay: number;
   };
@@ -29,7 +22,7 @@ export interface LogoOverlayProps {
     fontSize: number;
     color: string;
   };
-  shadow?: LogoShadowProps;
+  shadow?: LogoShadow;
 }
 
 export const LogoOverlay: React.FC<LogoOverlayProps> = ({
@@ -56,7 +49,25 @@ export const LogoOverlay: React.FC<LogoOverlayProps> = ({
   
   let opacity = maxOpacity;
   const animType = animation.type;
-  if (animType !== 'none') {
+  
+  if (animType === 'none') {
+    opacity = maxOpacity;
+  } else if (animType === 'fade-in') {
+    opacity = interpolate(
+      localFrame,
+      [animation.delay, animation.delay + animation.duration],
+      [0, maxOpacity],
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+    );
+  } else if (animType === 'fade-out-end') {
+    const fadeOutStart = duration - fps * 0.5;
+    opacity = interpolate(
+      localFrame,
+      [0, fadeOutStart, duration],
+      [maxOpacity, maxOpacity, 0],
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+    );
+  } else {
     opacity = interpolate(
       localFrame,
       [animation.delay, animation.delay + animation.duration, duration - fps * 0.5, duration],
@@ -66,14 +77,14 @@ export const LogoOverlay: React.FC<LogoOverlayProps> = ({
   }
   
   let transform = '';
-  if (animType === 'zoom' || animType === 'scale-up') {
+  if (animType === 'scale-up') {
     const scale = spring({
       frame: localFrame - animation.delay,
       fps,
       config: { damping: 15, stiffness: 180 },
     });
     transform = `scale(${Math.min(scale, 1)})`;
-  } else if (animType === 'slide' || animType === 'slide-in') {
+  } else if (animType === 'slide-in') {
     const translateY = interpolate(
       localFrame,
       [animation.delay, animation.delay + animation.duration],
