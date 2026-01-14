@@ -3192,23 +3192,34 @@ function ScenePreview({
                         <OverlayEditor
                           config={previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general')}
                           onChange={async (config) => {
-                            if (projectId) {
-                              try {
-                                await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: config });
-                                setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
-                                onSceneUpdate?.();
-                                toast({
-                                  title: 'Saved',
-                                  description: 'Overlay settings saved successfully',
-                                });
-                              } catch (err) {
-                                console.error('Failed to update overlay config:', err);
-                                toast({
-                                  title: 'Error',
-                                  description: 'Failed to save overlay settings',
-                                  variant: 'destructive',
-                                });
-                              }
+                            console.log('[OverlayEditor] onChange called - projectId:', projectId, 'sceneId:', scene.id, 'config:', config);
+                            if (!projectId) {
+                              console.error('[OverlayEditor] Cannot save - projectId is undefined');
+                              setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
+                              toast({
+                                title: 'Warning',
+                                description: 'Project not saved yet. Overlay settings will be applied when you save the project.',
+                                variant: 'default',
+                              });
+                              return;
+                            }
+                            try {
+                              console.log('[OverlayEditor] Making PATCH request to save overlay config');
+                              await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { overlayConfig: config });
+                              setPreviewOverlayConfig(prev => ({ ...prev, [scene.id]: config }));
+                              onSceneUpdate?.();
+                              console.log('[OverlayEditor] Save successful');
+                              toast({
+                                title: 'Saved',
+                                description: 'Overlay settings saved successfully',
+                              });
+                            } catch (err) {
+                              console.error('[OverlayEditor] Failed to update overlay config:', err);
+                              toast({
+                                title: 'Error',
+                                description: 'Failed to save overlay settings',
+                                variant: 'destructive',
+                              });
                             }
                           }}
                           onPreview={(config) => {

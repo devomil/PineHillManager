@@ -235,12 +235,10 @@ export const OverlayEditor = memo(function OverlayEditor({
   };
   
   const handleSave = () => {
+    console.log('[OverlayEditor] handleSave called - draft:', draft);
+    console.log('[OverlayEditor] Calling onChange with draft config');
     onChange(draft);
     setHasChanges(false);
-    toast({
-      title: "Overlays saved",
-      description: "Your overlay settings have been saved.",
-    });
   };
   
   const addTextOverlay = (text: string = 'New Text') => {
