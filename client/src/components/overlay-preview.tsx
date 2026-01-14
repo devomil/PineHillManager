@@ -128,11 +128,18 @@ export function OverlayPreview({
           'bottom-right': { position: 'absolute', bottom: '15%', right: '5%', left: 'auto', top: 'auto', transform: 'none' },
         };
         const posStyle = positionStyles[logoPosition.pos] || positionStyles['center'];
-        console.log('[OverlayPreview v2.1] Logo position:', logoPosition.pos, 'Style:', JSON.stringify(posStyle));
+        console.log('[OverlayPreview v3.1] Logo RENDERING at position:', logoPosition.pos, 'URL:', config.logo.logoUrl?.substring(0, 50));
         return (
           <div
             key={`logo-pos-${logoPosition.pos}-${Date.now()}`}
-            style={posStyle}
+            style={{
+              ...posStyle,
+              border: '3px solid #00ff00',
+              backgroundColor: 'rgba(0,255,0,0.1)',
+              padding: '4px',
+              borderRadius: '4px',
+              zIndex: 50,
+            }}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
