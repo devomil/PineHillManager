@@ -128,14 +128,16 @@ export function OverlayPreview({
           'bottom-right': { position: 'absolute', bottom: '15%', right: '5%', left: 'auto', top: 'auto', transform: 'none' },
         };
         const posStyle = positionStyles[logoPosition.pos] || positionStyles['center'];
-        console.log('[OverlayPreview v3.1] Logo RENDERING at position:', logoPosition.pos, 'URL:', config.logo.logoUrl?.substring(0, 50));
+        console.log('[OverlayPreview v3.2] Logo at:', logoPosition.pos, 'style:', JSON.stringify(posStyle));
         return (
           <div
             key={`logo-pos-${logoPosition.pos}-${Date.now()}`}
             style={{
               ...posStyle,
+              width: 'fit-content',
+              maxWidth: '25%',
               border: '3px solid #00ff00',
-              backgroundColor: 'rgba(0,255,0,0.1)',
+              backgroundColor: 'rgba(0,255,0,0.2)',
               padding: '4px',
               borderRadius: '4px',
               zIndex: 50,
@@ -146,12 +148,12 @@ export function OverlayPreview({
             <img 
               src={convertUrl(config.logo.logoUrl)}
               alt="Logo"
-              style={{ width: logoPosition.size, height: 'auto', maxHeight: '20%' }}
+              style={{ width: logoPosition.size, minWidth: '60px', height: 'auto', maxHeight: '20%' }}
               className="object-contain drop-shadow-lg"
             />
             {config.logo.showTagline && (
               <div 
-                className="text-white text-xs mt-1 font-medium drop-shadow-lg"
+                className="text-white text-xs mt-1 font-medium drop-shadow-lg text-center"
                 style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
               >
                 Cultivating Wellness
