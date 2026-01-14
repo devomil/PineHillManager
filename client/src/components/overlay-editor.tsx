@@ -229,6 +229,9 @@ export const OverlayEditor = memo(function OverlayEditor({
   const updateDraft = (newConfig: OverlayConfig) => {
     setDraft(newConfig);
     setHasChanges(true);
+    if (onPreview) {
+      onPreview(newConfig);
+    }
   };
   
   const handleSave = () => {
