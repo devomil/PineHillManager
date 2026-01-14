@@ -234,17 +234,9 @@ export const OverlayEditor = memo(function OverlayEditor({
   );
   
   const updateDraft = (newConfig: OverlayConfig) => {
-    console.log('[OverlayEditor v3.1] updateDraft called with:', {
-      logoEnabled: newConfig.logo.enabled,
-      logoPosition: newConfig.logo.position,
-      logoUrl: newConfig.logo.logoUrl?.substring(0, 50),
-      additionalLogosCount: (newConfig.additionalLogos || []).length,
-      additionalLogos: (newConfig.additionalLogos || []).map(l => ({ id: l.id, pos: l.position, url: l.logoUrl?.substring(0, 40) })),
-    });
     setDraft(newConfig);
     setHasChanges(true);
     if (onPreview) {
-      console.log('[OverlayEditor v3.1] Calling onPreview with additionalLogos:', (newConfig.additionalLogos || []).length);
       onPreview(newConfig);
     }
   };
@@ -312,11 +304,8 @@ export const OverlayEditor = memo(function OverlayEditor({
   };
   
   const addCertificationLogo = (asset: BrandMediaAsset, type: 'certification' | 'partner' | 'trust' = 'certification') => {
-    console.log('[OverlayEditor v3.1] addCertificationLogo called with:', { name: asset.name, url: asset.url?.substring(0, 50), type });
-    
     const isAlreadyAdded = (draft.additionalLogos || []).some(l => l.logoUrl === asset.url);
     if (isAlreadyAdded) {
-      console.log('[OverlayEditor v3.1] Badge already added, skipping');
       toast({ title: 'Already added', description: `${asset.name} is already in your overlays.` });
       return;
     }
@@ -335,14 +324,9 @@ export const OverlayEditor = memo(function OverlayEditor({
       opacity: 90,
     };
     
-    console.log('[OverlayEditor v3.1] Creating new badge:', { id: newLogo.id, position: newLogo.position, logoUrl: newLogo.logoUrl?.substring(0, 40) });
-    
-    const newAdditionalLogos = [...(draft.additionalLogos || []), newLogo];
-    console.log('[OverlayEditor v3.1] New additionalLogos count:', newAdditionalLogos.length);
-    
     updateDraft({
       ...draft,
-      additionalLogos: newAdditionalLogos,
+      additionalLogos: [...(draft.additionalLogos || []), newLogo],
     });
   };
   

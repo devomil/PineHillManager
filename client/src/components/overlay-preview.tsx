@@ -193,7 +193,6 @@ export function OverlayPreview({
         };
         const posStyle = badgePositions[badge.position] || badgePositions['bottom-left'];
         const opacityValue = badge.opacity <= 1 ? badge.opacity : badge.opacity / 100;
-        console.log('[OverlayPreview v3.3] Badge', idx, 'at:', badge.position, 'opacity:', badge.opacity, '-> effective:', opacityValue);
         return (
           <div
             key={badge.id}
