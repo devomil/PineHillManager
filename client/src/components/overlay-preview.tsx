@@ -106,19 +106,19 @@ export function OverlayPreview({
       ))}
       
       {logoPosition && config.logo.logoUrl && (() => {
-        const positionClasses: Record<string, string> = {
-          'top-left': 'top-[5%] left-[5%]',
-          'top-center': 'top-[5%] left-1/2 -translate-x-1/2',
-          'top-right': 'top-[5%] right-[5%]',
-          'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-          'bottom-left': 'bottom-[15%] left-[5%]',
-          'bottom-center': 'bottom-[15%] left-1/2 -translate-x-1/2',
-          'bottom-right': 'bottom-[15%] right-[5%]',
+        const positionStyles: Record<string, React.CSSProperties> = {
+          'top-left': { top: '5%', left: '5%', right: 'auto', bottom: 'auto' },
+          'top-center': { top: '5%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
+          'top-right': { top: '5%', right: '5%', left: 'auto', bottom: 'auto' },
+          'center': { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
+          'bottom-left': { bottom: '15%', left: '5%', right: 'auto', top: 'auto' },
+          'bottom-center': { bottom: '15%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
+          'bottom-right': { bottom: '15%', right: '5%', left: 'auto', top: 'auto' },
         };
-        const posClass = positionClasses[logoPosition.pos] || positionClasses['center'];
+        const posStyle = positionStyles[logoPosition.pos] || positionStyles['center'];
         return (
           <div
-            className={`absolute ${posClass}`}
+            style={{ position: 'absolute', ...posStyle }}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
