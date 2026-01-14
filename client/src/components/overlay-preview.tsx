@@ -192,7 +192,8 @@ export function OverlayPreview({
           'bottom-right': { position: 'absolute', bottom: '18%', right: '8%', left: 'auto', top: 'auto', transform: 'none' },
         };
         const posStyle = badgePositions[badge.position] || badgePositions['bottom-left'];
-        console.log('[OverlayPreview v3.2] Badge', idx, 'at:', badge.position);
+        const opacityValue = badge.opacity <= 1 ? badge.opacity : badge.opacity / 100;
+        console.log('[OverlayPreview v3.3] Badge', idx, 'at:', badge.position, 'opacity:', badge.opacity, '-> effective:', opacityValue);
         return (
           <div
             key={badge.id}
@@ -200,7 +201,7 @@ export function OverlayPreview({
               ...posStyle,
               width: 'fit-content',
               maxWidth: '15%',
-              opacity: badge.opacity / 100,
+              opacity: opacityValue,
               border: '2px solid #ff00ff',
               backgroundColor: 'rgba(255,0,255,0.15)',
               padding: '3px',

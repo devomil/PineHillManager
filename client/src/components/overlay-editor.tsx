@@ -332,7 +332,7 @@ export const OverlayEditor = memo(function OverlayEditor({
       logoName: asset.name,
       position: availablePosition,
       size: 'small',
-      opacity: 0.9,
+      opacity: 90,
     };
     
     console.log('[OverlayEditor v3.1] Creating new badge:', { id: newLogo.id, position: newLogo.position, logoUrl: newLogo.logoUrl?.substring(0, 40) });
