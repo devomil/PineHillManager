@@ -106,18 +106,31 @@ export const OverlayPreview = memo(function OverlayPreview({
       ))}
       
       {logoPosition && config.logo.logoUrl && (() => {
-        const posClasses: Record<string, string> = {
-          'top-left': 'top-[5%] left-[5%]',
-          'top-center': 'top-[5%] left-1/2 -translate-x-1/2',
-          'top-right': 'top-[5%] right-[5%]',
-          'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-          'bottom-left': 'bottom-[15%] left-[5%]',
-          'bottom-center': 'bottom-[15%] left-1/2 -translate-x-1/2',
-          'bottom-right': 'bottom-[15%] right-[5%]',
+        const getPositionStyles = (pos: string): React.CSSProperties => {
+          switch (pos) {
+            case 'top-left':
+              return { inset: 'unset', top: '5%', left: '5%' };
+            case 'top-center':
+              return { inset: 'unset', top: '5%', left: '50%', transform: 'translateX(-50%)' };
+            case 'top-right':
+              return { inset: 'unset', top: '5%', right: '5%' };
+            case 'center':
+              return { inset: 'unset', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+            case 'bottom-left':
+              return { inset: 'unset', bottom: '15%', left: '5%' };
+            case 'bottom-center':
+              return { inset: 'unset', bottom: '15%', left: '50%', transform: 'translateX(-50%)' };
+            case 'bottom-right':
+              return { inset: 'unset', bottom: '15%', right: '5%' };
+            default:
+              return { inset: 'unset', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+          }
         };
+        const posStyles = getPositionStyles(logoPosition.pos);
+        console.log('[OverlayPreview] Logo position:', logoPosition.pos, 'Styles:', JSON.stringify(posStyles));
         return (
           <div
-            className={`absolute ${posClasses[logoPosition.pos] || posClasses['center']}`}
+            style={{ position: 'absolute', ...posStyles }}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
