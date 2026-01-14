@@ -182,27 +182,37 @@ export function OverlayPreview({
       
       {(config.additionalLogos || []).map((badge, idx) => {
         const badgePositions: Record<string, React.CSSProperties> = {
-          'top-left': { top: '8%', left: '8%', right: 'auto', bottom: 'auto' },
-          'top-center': { top: '8%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
-          'top-right': { top: '8%', right: '8%', left: 'auto', bottom: 'auto' },
-          'bottom-left': { bottom: '18%', left: '8%', right: 'auto', top: 'auto' },
-          'bottom-center': { bottom: '18%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
-          'bottom-right': { bottom: '18%', right: '8%', left: 'auto', top: 'auto' },
+          'top-left': { position: 'absolute', top: '8%', left: '8%', right: 'auto', bottom: 'auto', transform: 'none' },
+          'top-center': { position: 'absolute', top: '8%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' },
+          'top-right': { position: 'absolute', top: '8%', right: '8%', left: 'auto', bottom: 'auto', transform: 'none' },
+          'bottom-left': { position: 'absolute', bottom: '18%', left: '8%', right: 'auto', top: 'auto', transform: 'none' },
+          'bottom-center': { position: 'absolute', bottom: '18%', left: '50%', right: 'auto', top: 'auto', transform: 'translateX(-50%)' },
+          'bottom-right': { position: 'absolute', bottom: '18%', right: '8%', left: 'auto', top: 'auto', transform: 'none' },
         };
+        const posStyle = badgePositions[badge.position] || badgePositions['bottom-left'];
+        console.log('[OverlayPreview v3.2] Badge', idx, 'at:', badge.position);
         return (
           <div
             key={badge.id}
             style={{
-              position: 'absolute',
-              ...badgePositions[badge.position] || badgePositions['bottom-left'],
+              ...posStyle,
+              width: 'fit-content',
+              maxWidth: '15%',
               opacity: badge.opacity / 100,
+              border: '2px solid #ff00ff',
+              backgroundColor: 'rgba(255,0,255,0.15)',
+              padding: '3px',
+              borderRadius: '4px',
+              zIndex: 49,
             }}
             data-testid={`preview-badge-${idx}`}
+            data-position={badge.position}
           >
             <img 
               src={convertUrl(badge.logoUrl)}
               alt={badge.logoName}
-              className="w-10 h-auto object-contain drop-shadow-md"
+              style={{ width: '40px', height: 'auto', minWidth: '30px' }}
+              className="object-contain drop-shadow-md"
             />
           </div>
         );
