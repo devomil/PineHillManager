@@ -106,32 +106,19 @@ export function OverlayPreview({
       ))}
       
       {logoPosition && config.logo.logoUrl && (() => {
-        const base: React.CSSProperties = { position: 'absolute', top: 'auto', right: 'auto', bottom: 'auto', left: 'auto', transform: 'none' };
-        const getPositionStyles = (pos: string): React.CSSProperties => {
-          switch (pos) {
-            case 'top-left':
-              return { ...base, top: '5%', left: '5%' };
-            case 'top-center':
-              return { ...base, top: '5%', left: '50%', transform: 'translateX(-50%)' };
-            case 'top-right':
-              return { ...base, top: '5%', right: '5%' };
-            case 'center':
-              return { ...base, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
-            case 'bottom-left':
-              return { ...base, bottom: '15%', left: '5%' };
-            case 'bottom-center':
-              return { ...base, bottom: '15%', left: '50%', transform: 'translateX(-50%)' };
-            case 'bottom-right':
-              return { ...base, bottom: '15%', right: '5%' };
-            default:
-              return { ...base, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
-          }
+        const positionClasses: Record<string, string> = {
+          'top-left': 'top-[5%] left-[5%]',
+          'top-center': 'top-[5%] left-1/2 -translate-x-1/2',
+          'top-right': 'top-[5%] right-[5%]',
+          'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
+          'bottom-left': 'bottom-[15%] left-[5%]',
+          'bottom-center': 'bottom-[15%] left-1/2 -translate-x-1/2',
+          'bottom-right': 'bottom-[15%] right-[5%]',
         };
-        const posStyles = getPositionStyles(logoPosition.pos);
-        console.log('[OverlayPreview] Logo position:', logoPosition.pos, 'Styles:', posStyles);
+        const posClass = positionClasses[logoPosition.pos] || positionClasses['center'];
         return (
           <div
-            style={posStyles}
+            className={`absolute ${posClass}`}
             data-testid="preview-logo"
             data-position={logoPosition.pos}
           >
