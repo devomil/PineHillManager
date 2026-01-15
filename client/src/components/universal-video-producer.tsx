@@ -3207,7 +3207,7 @@ function ScenePreview({
                         try {
                           await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { qualityTier: null });
                           onSceneUpdate?.();
-                          toast({ title: 'Using project default', description: `Scene will use project quality tier (${project?.qualityTier || 'premium'})` });
+                          toast({ title: 'Using project default', description: `Scene will use project quality tier (${projectQualityTier || 'premium'})` });
                         } catch (err) {
                           toast({ title: 'Error', description: 'Failed to update quality tier', variant: 'destructive' });
                         }
@@ -3219,7 +3219,7 @@ function ScenePreview({
                       }`}
                     >
                       <div className="font-medium">Default</div>
-                      <div className="text-muted-foreground text-[10px]">{project?.qualityTier || 'Premium'}</div>
+                      <div className="text-muted-foreground text-[10px]">{projectQualityTier || 'Premium'}</div>
                     </button>
                     <button
                       onClick={async () => {
