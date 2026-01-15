@@ -2264,21 +2264,22 @@ function ScenePreview({
     );
   };
 
-  // Filter scenes based on selected filter
+  // Filter scenes based on selected filter (include manually approved scenes)
   const filteredScenes = scenes.filter(scene => {
+    const isManuallyApproved = (scene as any).userApproved === true;
     if (sceneFilter === 'all') return true;
-    if (sceneFilter === 'needs_review') return scene.analysisResult?.recommendation === 'needs_review';
-    if (sceneFilter === 'approved') return scene.analysisResult?.recommendation === 'approved';
-    if (sceneFilter === 'rejected') return scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail';
+    if (sceneFilter === 'needs_review') return !isManuallyApproved && scene.analysisResult?.recommendation === 'needs_review';
+    if (sceneFilter === 'approved') return isManuallyApproved || scene.analysisResult?.recommendation === 'approved';
+    if (sceneFilter === 'rejected') return !isManuallyApproved && (scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail');
     return true;
   });
   
-  // Count scenes by status
+  // Count scenes by status (include manually approved scenes)
   const statusCounts = {
     all: scenes.length,
-    needs_review: scenes.filter(s => s.analysisResult?.recommendation === 'needs_review').length,
-    approved: scenes.filter(s => s.analysisResult?.recommendation === 'approved').length,
-    rejected: scenes.filter(s => s.analysisResult?.recommendation === 'regenerate' || s.analysisResult?.recommendation === 'critical_fail').length,
+    needs_review: scenes.filter(s => !(s as any).userApproved && s.analysisResult?.recommendation === 'needs_review').length,
+    approved: scenes.filter(s => (s as any).userApproved === true || s.analysisResult?.recommendation === 'approved').length,
+    rejected: scenes.filter(s => !(s as any).userApproved && (s.analysisResult?.recommendation === 'regenerate' || s.analysisResult?.recommendation === 'critical_fail')).length,
   };
   
   // Handle reject with dialog
@@ -2384,14 +2385,17 @@ function ScenePreview({
             const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
             const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
             
-            // Phase 9A: Determine border styling based on analysis status
-            const borderClass = scene.analysisResult?.recommendation === 'needs_review' 
-              ? 'border-2 border-yellow-400' 
-              : (scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail')
-                ? 'border-2 border-red-400'
-                : scene.analysisResult?.recommendation === 'approved'
-                  ? 'border-2 border-green-400'
-                  : '';
+            // Phase 9A: Determine border styling based on analysis status and manual approval
+            const isManuallyApproved = (scene as any).userApproved === true;
+            const borderClass = isManuallyApproved
+              ? 'border-2 border-green-400'
+              : scene.analysisResult?.recommendation === 'needs_review' 
+                ? 'border-2 border-yellow-400' 
+                : (scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail')
+                  ? 'border-2 border-red-400'
+                  : scene.analysisResult?.recommendation === 'approved'
+                    ? 'border-2 border-green-400'
+                    : '';
             
             return (
               <SortableSceneItem key={scene.id} scene={scene} index={index}>
