@@ -1607,8 +1607,9 @@ function ScenePreview({
       const data = await res.json();
       
       if (data.success) {
-        const sceneResult = data.sceneReports?.[sceneIndex];
-        const score = sceneResult?.analysis?.overallScore ?? data.overallScore ?? 0;
+        // Extract scene score from sceneStatuses array (correct API response structure)
+        const sceneStatus = data.sceneStatuses?.[sceneIndex];
+        const score = sceneStatus?.score ?? data.overallScore ?? 0;
         toast({ 
           title: 'Quality Analysis Complete', 
           description: `Scene ${sceneIndex + 1} scored ${score}/100` 
