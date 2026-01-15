@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { Plus, Trash2, Eye, Type, Image, Droplet, User, Check, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -227,18 +227,22 @@ export const OverlayEditor = memo(function OverlayEditor({
   }), [config]);
   
   const [draft, setDraft] = useState<OverlayConfig>(normalizedConfig);
-  const [savedConfig, setSavedConfig] = useState<OverlayConfig>(normalizedConfig);
-  
-  const configString = useMemo(() => JSON.stringify(normalizedConfig), [normalizedConfig]);
+  const savedConfigRef = useRef<string>(JSON.stringify(normalizedConfig));
+  const isInitialMount = useRef(true);
   
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      savedConfigRef.current = JSON.stringify(normalizedConfig);
+    }
     setDraft(normalizedConfig);
-    setSavedConfig(normalizedConfig);
-  }, [configString]);
+  }, [normalizedConfig]);
   
   const hasChanges = useMemo(() => {
-    return JSON.stringify(draft) !== JSON.stringify(savedConfig);
-  }, [draft, savedConfig]);
+    const draftString = JSON.stringify(draft);
+    const hasChanged = draftString !== savedConfigRef.current;
+    return hasChanged;
+  }, [draft]);
   
   const suggestedTexts = extractedText.filter(
     text => !draft.texts.some(t => t.text === text)
@@ -255,7 +259,7 @@ export const OverlayEditor = memo(function OverlayEditor({
     console.log('[OverlayEditor] handleSave called - draft:', draft);
     console.log('[OverlayEditor] Calling onChange with draft config');
     onChange(draft);
-    setSavedConfig(draft);
+    savedConfigRef.current = JSON.stringify(draft);
   };
   
   const addTextOverlay = (text: string = 'New Text') => {
