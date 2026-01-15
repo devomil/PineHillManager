@@ -1618,8 +1618,10 @@ function ScenePreview({
         try {
           const refreshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
           const refreshData = await refreshRes.json();
+          console.log('[Re-analyze] Fetched updated project:', refreshData.project?.scenes?.[sceneIndex]?.qualityScore);
           if (refreshData.project) {
             onProjectUpdate?.(refreshData.project);
+            console.log('[Re-analyze] Called onProjectUpdate with new project data');
           }
         } catch (err) {
           console.error('Failed to refresh project after analysis:', err);
@@ -2560,7 +2562,7 @@ function ScenePreview({
       }
       
       return (
-        <Dialog open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
+        <Dialog key={`scene-editor-${scene.id}-${scene.qualityScore || 0}-${scene.analysisResult?.overallScore || 0}`} open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
           <DialogContent className="w-[calc(100vw-4rem)] h-[calc(100vh-4rem)] max-w-[1920px] max-h-[1080px] flex flex-col overflow-hidden">
             <DialogHeader className="flex-shrink-0">
               <DialogTitle className="flex items-center gap-2">
