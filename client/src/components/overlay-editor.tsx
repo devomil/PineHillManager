@@ -227,14 +227,18 @@ export const OverlayEditor = memo(function OverlayEditor({
   }), [config]);
   
   const [draft, setDraft] = useState<OverlayConfig>(normalizedConfig);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [savedConfig, setSavedConfig] = useState<OverlayConfig>(normalizedConfig);
   
   const configString = useMemo(() => JSON.stringify(normalizedConfig), [normalizedConfig]);
   
   useEffect(() => {
     setDraft(normalizedConfig);
-    setHasChanges(false);
+    setSavedConfig(normalizedConfig);
   }, [configString]);
+  
+  const hasChanges = useMemo(() => {
+    return JSON.stringify(draft) !== JSON.stringify(savedConfig);
+  }, [draft, savedConfig]);
   
   const suggestedTexts = extractedText.filter(
     text => !draft.texts.some(t => t.text === text)
@@ -242,7 +246,6 @@ export const OverlayEditor = memo(function OverlayEditor({
   
   const updateDraft = (newConfig: OverlayConfig) => {
     setDraft(newConfig);
-    setHasChanges(true);
     if (onPreview) {
       onPreview(newConfig);
     }
@@ -252,7 +255,7 @@ export const OverlayEditor = memo(function OverlayEditor({
     console.log('[OverlayEditor] handleSave called - draft:', draft);
     console.log('[OverlayEditor] Calling onChange with draft config');
     onChange(draft);
-    setHasChanges(false);
+    setSavedConfig(draft);
   };
   
   const addTextOverlay = (text: string = 'New Text') => {
