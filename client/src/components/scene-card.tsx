@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { GripVertical, ChevronDown, ChevronUp, Clock, Video, Volume2, Eye, Type, Shuffle } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { GripVertical, ChevronDown, ChevronUp, Clock, Video, Volume2, Eye, Type, Shuffle, Minus, Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ContentTypeSelector, ContentType, getContentTypeIcon } from './content-type-selector';
@@ -74,7 +74,81 @@ export function SceneCard({
 }: SceneCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [savingBrandAssets, setSavingBrandAssets] = useState(false);
+  const [localDuration, setLocalDuration] = useState<number>(scene.duration);
+  const [savingDuration, setSavingDuration] = useState(false);
+  const [durationInputValue, setDurationInputValue] = useState<string>(String(scene.duration));
+  const durationDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setLocalDuration(scene.duration);
+    setDurationInputValue(String(scene.duration));
+  }, [scene.duration]);
+
+  useEffect(() => {
+    return () => {
+      if (durationDebounceRef.current) {
+        clearTimeout(durationDebounceRef.current);
+      }
+    };
+  }, []);
+
+  const saveDuration = useCallback(async (newDuration: number) => {
+    const clampedDuration = Math.max(1, Math.min(60, newDuration));
+    setSavingDuration(true);
+    try {
+      await onUpdate(scene.id, { duration: clampedDuration });
+      toast({ title: 'Duration updated', description: `Scene duration set to ${clampedDuration}s` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: 'Failed to update duration', variant: 'destructive' });
+      setLocalDuration(scene.duration);
+      setDurationInputValue(String(scene.duration));
+    } finally {
+      setSavingDuration(false);
+    }
+  }, [scene.id, scene.duration, onUpdate, toast]);
+
+  const handleDurationChange = (newDuration: number, immediate = false) => {
+    const clampedDuration = Math.max(1, Math.min(60, newDuration));
+    setLocalDuration(clampedDuration);
+    setDurationInputValue(String(clampedDuration));
+    
+    if (durationDebounceRef.current) {
+      clearTimeout(durationDebounceRef.current);
+    }
+    
+    if (immediate) {
+      saveDuration(clampedDuration);
+    } else {
+      durationDebounceRef.current = setTimeout(() => {
+        saveDuration(clampedDuration);
+      }, 800);
+    }
+  };
+
+  const handleDurationInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDurationInputValue(value);
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 60) {
+      setLocalDuration(parsed);
+      if (durationDebounceRef.current) {
+        clearTimeout(durationDebounceRef.current);
+      }
+      durationDebounceRef.current = setTimeout(() => {
+        saveDuration(parsed);
+      }, 800);
+    }
+  };
+
+  const handleDurationBlur = () => {
+    const parsed = parseInt(durationInputValue, 10);
+    if (isNaN(parsed) || parsed < 1 || parsed > 60) {
+      setDurationInputValue(String(localDuration));
+    } else if (parsed !== scene.duration) {
+      handleDurationChange(parsed, true);
+    }
+  };
 
   const handleContentTypeChange = async (contentType: ContentType) => {
     await onUpdate(scene.id, { contentType });
@@ -187,6 +261,46 @@ export function SceneCard({
               </label>
               <p className="text-sm text-gray-700 bg-gray-50 rounded p-2" data-testid="scene-narration-full">
                 {scene.narration}
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">
+                <Clock className="h-3 w-3 inline mr-1" />
+                Duration (seconds)
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDurationChange(localDuration - 1, true)}
+                  disabled={disabled || savingDuration || localDuration <= 1}
+                  className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  data-testid="btn-decrease-duration"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={durationInputValue}
+                  onChange={handleDurationInputChange}
+                  onBlur={handleDurationBlur}
+                  disabled={disabled || savingDuration}
+                  className="w-16 text-center border rounded px-2 py-1 text-sm disabled:opacity-50"
+                  data-testid="input-scene-duration"
+                />
+                <button
+                  onClick={() => handleDurationChange(localDuration + 1, true)}
+                  disabled={disabled || savingDuration || localDuration >= 60}
+                  className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  data-testid="btn-increase-duration"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                {savingDuration && <span className="text-xs text-gray-400">Saving...</span>}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Controls how long this scene plays in the final video (1-60 seconds)
               </p>
             </div>
 
