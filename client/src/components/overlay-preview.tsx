@@ -145,11 +145,10 @@ export function OverlayPreview({
             key={`logo-pos-${logoPosition.pos}-${Date.now()}`}
             style={{
               ...posStyle,
-              width: 'fit-content',
-              maxWidth: `${Math.max(logoSizePercent + 10, 30)}%`,
-              border: '3px solid #00ff00',
-              backgroundColor: 'rgba(0,255,0,0.2)',
-              padding: '4px',
+              width: `${logoSizePercent}%`,
+              border: '2px solid #00ff00',
+              backgroundColor: 'rgba(0,255,0,0.15)',
+              padding: '2px',
               borderRadius: '4px',
               zIndex: 50,
             }}
@@ -159,7 +158,7 @@ export function OverlayPreview({
             <img 
               src={convertUrl(config.logo.logoUrl)}
               alt="Logo"
-              style={{ width: logoPosition.size, minWidth: '50px', height: 'auto' }}
+              style={{ width: '100%', height: 'auto' }}
               className="object-contain drop-shadow-lg"
             />
             {config.logo.showTagline && (
