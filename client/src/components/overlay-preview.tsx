@@ -34,17 +34,25 @@ export function OverlayPreview({
     }
     
     const pos = config.logo.position || 'center';
-    const sizes: Record<string, string> = {
-      'small': '10%',
-      'medium': '15%',
-      'large': '20%',
-    };
+    // Use sizePercent if available, otherwise fall back to size string mapping
+    const sizePercent = (config.logo as any).sizePercent;
+    let size: string;
+    if (sizePercent !== undefined) {
+      size = `${sizePercent}%`;
+    } else {
+      const sizes: Record<string, string> = {
+        'small': '10%',
+        'medium': '15%',
+        'large': '20%',
+      };
+      size = sizes[config.logo.size] || '15%';
+    }
     
-    console.log('[OverlayPreview v3.0] Logo WILL render at position:', pos);
+    console.log('[OverlayPreview v3.0] Logo WILL render at position:', pos, 'size:', size);
     
     return {
       pos,
-      size: sizes[config.logo.size] || '15%',
+      size,
     };
   })();
   
@@ -131,13 +139,14 @@ export function OverlayPreview({
         };
         const posStyle = positionStyles[logoPosition.pos] || positionStyles['center'];
         console.log('[OverlayPreview v3.2] Logo at:', logoPosition.pos, 'style:', JSON.stringify(posStyle));
+        const logoSizePercent = (config.logo as any).sizePercent ?? 25;
         return (
           <div
             key={`logo-pos-${logoPosition.pos}-${Date.now()}`}
             style={{
               ...posStyle,
               width: 'fit-content',
-              maxWidth: '25%',
+              maxWidth: `${Math.max(logoSizePercent + 10, 30)}%`,
               border: '3px solid #00ff00',
               backgroundColor: 'rgba(0,255,0,0.2)',
               padding: '4px',
@@ -150,7 +159,7 @@ export function OverlayPreview({
             <img 
               src={convertUrl(config.logo.logoUrl)}
               alt="Logo"
-              style={{ width: logoPosition.size, minWidth: '60px', height: 'auto', maxHeight: '20%' }}
+              style={{ width: logoPosition.size, minWidth: '50px', height: 'auto' }}
               className="object-contain drop-shadow-lg"
             />
             {config.logo.showTagline && (
@@ -165,22 +174,26 @@ export function OverlayPreview({
         );
       })()}
       
-      {watermarkPosition && config.watermark.watermarkUrl && (
-        <div
-          style={{
-            position: 'absolute',
-            ...watermarkPosition,
-            opacity: config.watermark.opacity / 100,
-          }}
-          data-testid="preview-watermark"
-        >
-          <img 
-            src={convertUrl(config.watermark.watermarkUrl)}
-            alt="Watermark"
-            className="w-12 h-auto object-contain"
-          />
-        </div>
-      )}
+      {watermarkPosition && config.watermark.watermarkUrl && (() => {
+        const wmSizePercent = (config.watermark as any).sizePercent ?? 15;
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              ...watermarkPosition,
+              opacity: config.watermark.opacity / 100,
+            }}
+            data-testid="preview-watermark"
+          >
+            <img 
+              src={convertUrl(config.watermark.watermarkUrl)}
+              alt="Watermark"
+              style={{ width: `${wmSizePercent * 3}px`, minWidth: '30px', height: 'auto' }}
+              className="object-contain"
+            />
+          </div>
+        );
+      })()}
       
       {(config.additionalLogos || []).map((badge, idx) => {
         const badgePositions: Record<string, React.CSSProperties> = {
@@ -193,13 +206,15 @@ export function OverlayPreview({
         };
         const posStyle = badgePositions[badge.position] || badgePositions['bottom-left'];
         const opacityValue = badge.opacity <= 1 ? badge.opacity : badge.opacity / 100;
+        const badgeSizePercent = (badge as any).sizePercent ?? 12;
+        const badgeWidth = Math.max(30, badgeSizePercent * 4);
         return (
           <div
             key={badge.id}
             style={{
               ...posStyle,
               width: 'fit-content',
-              maxWidth: '15%',
+              maxWidth: `${badgeSizePercent}%`,
               opacity: opacityValue,
               border: '2px solid #ff00ff',
               backgroundColor: 'rgba(255,0,255,0.15)',
@@ -213,7 +228,7 @@ export function OverlayPreview({
             <img 
               src={convertUrl(badge.logoUrl)}
               alt={badge.logoName}
-              style={{ width: '40px', height: 'auto', minWidth: '30px' }}
+              style={{ width: `${badgeWidth}px`, height: 'auto', minWidth: '30px' }}
               className="object-contain drop-shadow-md"
             />
           </div>

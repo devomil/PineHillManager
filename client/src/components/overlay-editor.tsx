@@ -36,6 +36,7 @@ interface LogoConfig {
   enabled: boolean;
   position: 'top-left' | 'top-center' | 'top-right' | 'center' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   size: 'small' | 'medium' | 'large';
+  sizePercent?: number;
   showTagline: boolean;
   logoUrl?: string;
   logoName?: string;
@@ -45,6 +46,7 @@ interface WatermarkConfig {
   enabled: boolean;
   position: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   opacity: number;
+  sizePercent?: number;
   watermarkUrl?: string;
   watermarkName?: string;
 }
@@ -56,6 +58,7 @@ interface AdditionalLogoItem {
   logoName: string;
   position: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   size: 'small' | 'medium';
+  sizePercent?: number;
   opacity: number;
 }
 
@@ -88,6 +91,7 @@ export const defaultOverlayConfig: OverlayConfig = {
     enabled: false,
     position: 'center',
     size: 'medium',
+    sizePercent: 25,
     showTagline: true,
     logoUrl: undefined,
     logoName: undefined,
@@ -96,6 +100,7 @@ export const defaultOverlayConfig: OverlayConfig = {
     enabled: true,
     position: 'bottom-right',
     opacity: 70,
+    sizePercent: 15,
     watermarkUrl: undefined,
     watermarkName: undefined,
   },
@@ -110,6 +115,7 @@ export function getDefaultOverlayConfig(sceneType: string): OverlayConfig {
       enabled: SCENE_OVERLAY_DEFAULTS[sceneType] ?? false,
       position: 'center',
       size: 'medium',
+      sizePercent: 25,
       showTagline: true,
       logoUrl: undefined,
       logoName: undefined,
@@ -118,6 +124,7 @@ export function getDefaultOverlayConfig(sceneType: string): OverlayConfig {
       enabled: true,
       position: 'bottom-right',
       opacity: 70,
+      sizePercent: 15,
       watermarkUrl: undefined,
       watermarkName: undefined,
     },
@@ -321,6 +328,7 @@ export const OverlayEditor = memo(function OverlayEditor({
       logoName: asset.name,
       position: availablePosition,
       size: 'small',
+      sizePercent: 12,
       opacity: 90,
     };
     
@@ -550,49 +558,49 @@ export const OverlayEditor = memo(function OverlayEditor({
                   )}
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs">Position</Label>
-                    <Select
-                      value={draft.logo.position}
-                      onValueChange={(v) => updateDraft({
-                        ...draft,
-                        logo: { ...draft.logo, position: v as LogoConfig['position'] }
-                      })}
-                    >
-                      <SelectTrigger data-testid="select-logo-position">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="top-left">Top Left</SelectItem>
-                        <SelectItem value="top-center">Top Center</SelectItem>
-                        <SelectItem value="top-right">Top Right</SelectItem>
-                        <SelectItem value="center">Center</SelectItem>
-                        <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                        <SelectItem value="bottom-center">Bottom Center</SelectItem>
-                        <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
+                <div>
+                  <Label className="text-xs">Position</Label>
+                  <Select
+                    value={draft.logo.position}
+                    onValueChange={(v) => updateDraft({
+                      ...draft,
+                      logo: { ...draft.logo, position: v as LogoConfig['position'] }
+                    })}
+                  >
+                    <SelectTrigger data-testid="select-logo-position">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="top-left">Top Left</SelectItem>
+                      <SelectItem value="top-center">Top Center</SelectItem>
+                      <SelectItem value="top-right">Top Right</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                      <SelectItem value="bottom-center">Bottom Center</SelectItem>
+                      <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <div className="flex items-center justify-between mb-2">
                     <Label className="text-xs">Size</Label>
-                    <Select
-                      value={draft.logo.size}
-                      onValueChange={(v) => updateDraft({
-                        ...draft,
-                        logo: { ...draft.logo, size: v as LogoConfig['size'] }
-                      })}
-                    >
-                      <SelectTrigger data-testid="select-logo-size">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="small">Small (10%)</SelectItem>
-                        <SelectItem value="medium">Medium (15%)</SelectItem>
-                        <SelectItem value="large">Large (20%)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <span className="text-xs text-muted-foreground">{draft.logo.sizePercent ?? 25}%</span>
+                  </div>
+                  <Slider
+                    value={[draft.logo.sizePercent ?? 25]}
+                    onValueChange={([v]) => updateDraft({
+                      ...draft,
+                      logo: { ...draft.logo, sizePercent: v }
+                    })}
+                    min={10}
+                    max={60}
+                    step={5}
+                    data-testid="slider-logo-size"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>Small</span>
+                    <span>Large</span>
                   </div>
                 </div>
                 
@@ -704,6 +712,28 @@ export const OverlayEditor = memo(function OverlayEditor({
                 
                 <div>
                   <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs">Size</Label>
+                    <span className="text-xs text-muted-foreground">{draft.watermark.sizePercent ?? 15}%</span>
+                  </div>
+                  <Slider
+                    value={[draft.watermark.sizePercent ?? 15]}
+                    onValueChange={([v]) => updateDraft({
+                      ...draft,
+                      watermark: { ...draft.watermark, sizePercent: v }
+                    })}
+                    min={5}
+                    max={40}
+                    step={5}
+                    data-testid="slider-watermark-size"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>Small</span>
+                    <span>Large</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex items-center justify-between mb-2">
                     <Label className="text-xs">Opacity</Label>
                     <span className="text-xs text-muted-foreground">{draft.watermark.opacity}%</span>
                   </div>
@@ -785,42 +815,58 @@ export const OverlayEditor = memo(function OverlayEditor({
               </div>
               
               {(draft.additionalLogos || []).length > 0 && (
-                <div className="space-y-2 border-t pt-3">
+                <div className="space-y-3 border-t pt-3">
                   <Label className="text-xs font-medium">Active Badges</Label>
                   {(draft.additionalLogos || []).map((logo) => (
-                    <div key={logo.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                      <img 
-                        src={logo.logoUrl} 
-                        alt={logo.logoName}
-                        className="w-10 h-10 object-contain bg-white rounded p-1"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium truncate">{logo.logoName}</div>
-                        <Select
-                          value={logo.position}
-                          onValueChange={(v) => updateAdditionalLogo(logo.id, { position: v as AdditionalLogoItem['position'] })}
+                    <div key={logo.id} className="p-3 bg-muted/50 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={logo.logoUrl} 
+                          alt={logo.logoName}
+                          className="w-10 h-10 object-contain bg-white rounded p-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate">{logo.logoName}</div>
+                          <Select
+                            value={logo.position}
+                            onValueChange={(v) => updateAdditionalLogo(logo.id, { position: v as AdditionalLogoItem['position'] })}
+                          >
+                            <SelectTrigger className="h-7 text-xs mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="top-left">Top Left</SelectItem>
+                              <SelectItem value="top-center">Top Center</SelectItem>
+                              <SelectItem value="top-right">Top Right</SelectItem>
+                              <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                              <SelectItem value="bottom-center">Bottom Center</SelectItem>
+                              <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeAdditionalLogo(logo.id)}
+                          className="h-8 w-8"
                         >
-                          <SelectTrigger className="h-7 text-xs mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="top-left">Top Left</SelectItem>
-                            <SelectItem value="top-center">Top Center</SelectItem>
-                            <SelectItem value="top-right">Top Right</SelectItem>
-                            <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                            <SelectItem value="bottom-center">Bottom Center</SelectItem>
-                            <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
                       </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeAdditionalLogo(logo.id)}
-                        className="h-8 w-8"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                      <div className="pl-12">
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-[10px]">Size</Label>
+                          <span className="text-[10px] text-muted-foreground">{logo.sizePercent ?? 12}%</span>
+                        </div>
+                        <Slider
+                          value={[logo.sizePercent ?? 12]}
+                          onValueChange={([v]) => updateAdditionalLogo(logo.id, { sizePercent: v })}
+                          min={5}
+                          max={30}
+                          step={1}
+                          className="h-4"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
