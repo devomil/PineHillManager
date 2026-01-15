@@ -21,6 +21,9 @@ class PromptEnhancementService {
   
   /**
    * Enhance a video generation prompt with brand context and safety measures
+   * 
+   * IMPORTANT: If the original prompt is detailed (from Ask Suzzie), use it as the 
+   * PRIMARY focus and only add quality terms. Generic guidance dilutes specificity.
    */
   async enhanceVideoPrompt(
     originalPrompt: string,
@@ -30,37 +33,57 @@ class PromptEnhancementService {
     
     console.log(`[PromptEnhance] Enhancing prompt for ${options.sceneType} scene`);
     
+    // Detect if this is a detailed visual direction (from Ask Suzzie or user-crafted)
+    // Detailed directions typically have: 50+ words, multiple sentences, specific descriptors
+    const isDetailedDirection = this.isDetailedVisualDirection(originalPrompt);
+    
     // Build enhanced prompt parts
     const enhancedParts: string[] = [];
     
-    // 1. Brand context first
-    enhancedParts.push(bible.promptContext);
-    
-    // 2. Scene-type specific guidance
-    enhancedParts.push(this.getSceneTypeGuidance(options.sceneType));
-    
-    // 3. Content-type guidance if specified
-    if (options.contentType) {
-      enhancedParts.push(this.getContentTypeGuidance(options.contentType));
+    if (isDetailedDirection) {
+      // DETAILED MODE: Visual direction IS the prompt, only add quality terms
+      console.log(`[PromptEnhance] DETAILED MODE: Using visual direction as primary prompt`);
+      
+      // 1. Original prompt FIRST (cleaned) - this is the core
+      enhancedParts.push(this.cleanPrompt(originalPrompt));
+      
+      // 2. Minimal quality enhancers only
+      enhancedParts.push('cinematic 4K, smooth motion, professional quality');
+      
+    } else {
+      // BASIC MODE: Short/vague prompt needs full enhancement
+      console.log(`[PromptEnhance] BASIC MODE: Adding full brand context and guidance`);
+      
+      // 1. Brand context first
+      enhancedParts.push(bible.promptContext);
+      
+      // 2. Scene-type specific guidance
+      enhancedParts.push(this.getSceneTypeGuidance(options.sceneType));
+      
+      // 3. Content-type guidance if specified
+      if (options.contentType) {
+        enhancedParts.push(this.getContentTypeGuidance(options.contentType));
+      }
+      
+      // 4. Mood guidance if specified
+      if (options.mood) {
+        enhancedParts.push(this.getMoodGuidance(options.mood));
+      }
+      
+      // 5. Original prompt (cleaned of problematic elements)
+      enhancedParts.push(this.cleanPrompt(originalPrompt));
+      
+      // 6. Quality enhancers
+      enhancedParts.push('cinematic quality, professional videography, 4K, smooth motion');
     }
-    
-    // 4. Mood guidance if specified
-    if (options.mood) {
-      enhancedParts.push(this.getMoodGuidance(options.mood));
-    }
-    
-    // 5. Original prompt (cleaned of problematic elements)
-    enhancedParts.push(this.cleanPrompt(originalPrompt));
-    
-    // 6. Quality enhancers
-    enhancedParts.push('cinematic quality, professional videography, 4K, smooth motion');
     
     // Build comprehensive negative prompt
     const negativePrompt = this.buildNegativePrompt(bible, options);
     
     const enhancedPrompt = enhancedParts.filter(p => p.length > 0).join('. ');
     
-    console.log(`[PromptEnhance] Original: "${originalPrompt.substring(0, 50)}..."`);
+    console.log(`[PromptEnhance] Mode: ${isDetailedDirection ? 'DETAILED' : 'BASIC'}`);
+    console.log(`[PromptEnhance] Final prompt: "${enhancedPrompt.substring(0, 100)}..."`);
     console.log(`[PromptEnhance] Negative: "${negativePrompt.substring(0, 80)}..."`);
     
     return {
@@ -68,6 +91,32 @@ class PromptEnhancementService {
       negativePrompt,
       brandContext: bible.promptContext,
     };
+  }
+
+  /**
+   * Detect if a prompt is a detailed visual direction (should be used as-is)
+   * vs a basic/short prompt that needs full enhancement
+   */
+  private isDetailedVisualDirection(prompt: string): boolean {
+    if (!prompt) return false;
+    
+    const wordCount = prompt.split(/\s+/).length;
+    const sentenceCount = (prompt.match(/[.!?]+/g) || []).length;
+    
+    // Detailed direction indicators:
+    // - Has 30+ words (typical Ask Suzzie output is 50-80 words)
+    // - Has multiple sentences (2+)
+    // - Contains specific visual terms
+    const hasSpecificTerms = /\b(camera|angle|shot|lighting|golden hour|close-up|medium|wide|composition|rule of thirds|eye level|diffused|dappled|warm|palette|earth tones|foreground|background)\b/i.test(prompt);
+    
+    const isDetailed = (wordCount >= 30 && sentenceCount >= 2) || 
+                       (wordCount >= 20 && hasSpecificTerms);
+    
+    if (isDetailed) {
+      console.log(`[PromptEnhance] Detected DETAILED direction: ${wordCount} words, ${sentenceCount} sentences, specific terms: ${hasSpecificTerms}`);
+    }
+    
+    return isDetailed;
   }
 
   /**
