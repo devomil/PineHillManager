@@ -43,7 +43,7 @@ import {
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
-  FolderOpen, Plus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
+  FolderOpen, Plus, Minus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
   Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy, Check
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -3125,6 +3125,74 @@ function ScenePreview({
                       selectedProductAssetId={selectedProductAsset[scene.id]?.id}
                     />
                   )}
+                </div>
+                
+                {/* Scene Duration Section */}
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    Scene Duration
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={async () => {
+                        const newDuration = Math.max(1, (scene.duration || 5) - 1);
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { duration: newDuration });
+                          onSceneUpdate?.();
+                          toast({ title: 'Duration updated', description: `Scene duration set to ${newDuration}s` });
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update duration', variant: 'destructive' });
+                        }
+                      }}
+                      disabled={(scene.duration || 5) <= 1}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={scene.duration || 5}
+                      onChange={async (e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 1 && val <= 60) {
+                          try {
+                            await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { duration: val });
+                            onSceneUpdate?.();
+                          } catch (err) {
+                            toast({ title: 'Error', description: 'Failed to update duration', variant: 'destructive' });
+                          }
+                        }
+                      }}
+                      className="w-20 text-center h-8"
+                    />
+                    <span className="text-sm text-muted-foreground">seconds</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={async () => {
+                        const newDuration = Math.min(60, (scene.duration || 5) + 1);
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { duration: newDuration });
+                          onSceneUpdate?.();
+                          toast({ title: 'Duration updated', description: `Scene duration set to ${newDuration}s` });
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update duration', variant: 'destructive' });
+                        }
+                      }}
+                      disabled={(scene.duration || 5) >= 60}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Controls how long this scene plays in the final video (1-60 seconds)
+                  </p>
                 </div>
                 
                 {/* Overlays Section - Collapsible */}
