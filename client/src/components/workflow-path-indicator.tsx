@@ -15,6 +15,7 @@ interface WorkflowPathIndicatorProps {
   isLoading?: boolean;
   compact?: boolean;
   projectQualityTier?: QualityTier;
+  sceneQualityTier?: QualityTier | null;
 }
 
 const WORKFLOW_INFO: Record<WorkflowPath, {
@@ -95,7 +96,7 @@ function getCostLabel(multiplier: number): { label: string; color: string } {
   return { label: `${multiplier}x Cost`, color: 'text-orange-600' };
 }
 
-export function WorkflowPathIndicator({ decision, isLoading, compact = false, projectQualityTier }: WorkflowPathIndicatorProps) {
+export function WorkflowPathIndicator({ decision, isLoading, compact = false, projectQualityTier, sceneQualityTier }: WorkflowPathIndicatorProps) {
   if (isLoading) {
     return (
       <Card className="border-dashed animate-pulse">
@@ -115,7 +116,9 @@ export function WorkflowPathIndicator({ decision, isLoading, compact = false, pr
 
   const info = WORKFLOW_INFO[decision.path];
   const Icon = info.icon;
-  const qualityInfo = getQualityLabel(decision.qualityImpact, projectQualityTier);
+  // Scene-level quality tier overrides project-level
+  const effectiveQualityTier = sceneQualityTier || projectQualityTier;
+  const qualityInfo = getQualityLabel(decision.qualityImpact, effectiveQualityTier);
   const costInfo = getCostLabel(decision.costMultiplier);
 
   if (compact) {

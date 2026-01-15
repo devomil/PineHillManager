@@ -2587,7 +2587,12 @@ function ScenePreview({
                   </Badge>
                 )}
                 {sceneWorkflow && (
-                  <WorkflowPathIndicator decision={sceneWorkflow.decision} compact projectQualityTier={projectQualityTier} />
+                  <WorkflowPathIndicator 
+                    decision={sceneWorkflow.decision} 
+                    compact 
+                    projectQualityTier={projectQualityTier} 
+                    sceneQualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier}
+                  />
                 )}
               </DialogTitle>
               <DialogDescription>
@@ -3053,6 +3058,7 @@ function ScenePreview({
                     decision={sceneWorkflow?.decision || null} 
                     isLoading={analyzingWorkflow[scene.id] || false}
                     projectQualityTier={projectQualityTier}
+                    sceneQualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier}
                   />
                   
                   {/* Phase 14B: Brand Asset Preview Panel */}
