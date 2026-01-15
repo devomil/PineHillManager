@@ -264,27 +264,29 @@ export function AssetUploadModal({
                   </button>
 
                   {selectedCategory === category.id && (
-                    <div className="ml-4 grid grid-cols-2 gap-2">
-                      {category.types.map((type) => (
-                        <button
-                          key={type.id}
-                          type="button"
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            selectedType === type.id
-                              ? 'border-primary bg-primary/5'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                          onClick={() => handleTypeSelect(type)}
-                        >
-                          <div className="flex items-center gap-2">
-                            {renderIcon(type.icon, "w-4 h-4")}
-                            <span className="font-medium text-sm">{type.label}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                            {type.description}
-                          </p>
-                        </button>
-                      ))}
+                    <div className="ml-4 max-h-[200px] overflow-y-auto pr-1">
+                      <div className="grid grid-cols-2 gap-2">
+                        {category.types.map((type) => (
+                          <button
+                            key={type.id}
+                            type="button"
+                            className={`p-3 rounded-lg border text-left transition-colors ${
+                              selectedType === type.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                            onClick={() => handleTypeSelect(type)}
+                          >
+                            <div className="flex items-center gap-2">
+                              {renderIcon(type.icon, "w-4 h-4")}
+                              <span className="font-medium text-sm">{type.label}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {type.description}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
