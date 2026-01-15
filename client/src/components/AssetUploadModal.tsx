@@ -230,7 +230,7 @@ export function AssetUploadModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {step === 'select-type' && 'What are you uploading?'}
@@ -240,7 +240,7 @@ export function AssetUploadModal({
         </DialogHeader>
 
         {step === 'select-type' && (
-          <ScrollArea className="flex-1 pr-4 max-h-[70vh]">
+          <ScrollArea className="flex-1 pr-4 max-h-[80vh]">
             <div className="space-y-3">
               {ASSET_CATEGORIES.map((category) => (
                 <div key={category.id} className="space-y-2">
@@ -264,7 +264,7 @@ export function AssetUploadModal({
                   </button>
 
                   {selectedCategory === category.id && (
-                    <div className="ml-4 max-h-[280px] overflow-y-auto pr-1">
+                    <div className="ml-4 max-h-[350px] overflow-y-auto pr-1">
                       <div className="grid grid-cols-2 gap-2">
                         {category.types.map((type) => (
                           <button
@@ -377,7 +377,7 @@ export function AssetUploadModal({
         )}
 
         {step === 'details' && assetType && (
-          <ScrollArea className="flex-1 pr-4 max-h-[70vh]">
+          <ScrollArea className="flex-1 pr-4 max-h-[80vh]">
             <div className="space-y-4">
               {preview && (
                 <div className="relative">
