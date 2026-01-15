@@ -151,6 +151,7 @@ export interface Scene {
   duration: number;
   narration: string;
   visualDirection?: string;
+  qualityTier?: 'standard' | 'premium' | 'ultra'; // Per-scene quality tier override
   searchQuery?: string;
   fallbackQuery?: string;
   textOverlays: TextOverlay[];

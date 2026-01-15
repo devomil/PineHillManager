@@ -3195,6 +3195,95 @@ function ScenePreview({
                   </p>
                 </div>
                 
+                {/* Per-Scene Quality Tier Section */}
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-muted-foreground" />
+                    Scene Quality Tier
+                  </Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { qualityTier: null });
+                          onSceneUpdate?.();
+                          toast({ title: 'Using project default', description: `Scene will use project quality tier (${project?.qualityTier || 'premium'})` });
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update quality tier', variant: 'destructive' });
+                        }
+                      }}
+                      className={`p-2 rounded-lg border text-center transition-all text-xs ${
+                        !scene.qualityTier 
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium">Default</div>
+                      <div className="text-muted-foreground text-[10px]">{project?.qualityTier || 'Premium'}</div>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { qualityTier: 'standard' });
+                          onSceneUpdate?.();
+                          toast({ title: 'Standard quality', description: 'Scene set to Standard quality (AI images)' });
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update quality tier', variant: 'destructive' });
+                        }
+                      }}
+                      className={`p-2 rounded-lg border text-center transition-all text-xs ${
+                        scene.qualityTier === 'standard' 
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium">Standard</div>
+                      <div className="text-muted-foreground text-[10px]">AI Images</div>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { qualityTier: 'premium' });
+                          onSceneUpdate?.();
+                          toast({ title: 'Premium quality', description: 'Scene set to Premium quality (AI videos)' });
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update quality tier', variant: 'destructive' });
+                        }
+                      }}
+                      className={`p-2 rounded-lg border text-center transition-all text-xs ${
+                        scene.qualityTier === 'premium' 
+                          ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium text-amber-700">Premium</div>
+                      <div className="text-muted-foreground text-[10px]">AI Videos</div>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, { qualityTier: 'ultra' });
+                          onSceneUpdate?.();
+                          toast({ title: 'Ultra quality', description: 'Scene set to Ultra quality (Premium AI videos)' });
+                        } catch (err) {
+                          toast({ title: 'Error', description: 'Failed to update quality tier', variant: 'destructive' });
+                        }
+                      }}
+                      className={`p-2 rounded-lg border text-center transition-all text-xs ${
+                        scene.qualityTier === 'ultra' 
+                          ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium text-purple-700">Ultra</div>
+                      <div className="text-muted-foreground text-[10px]">Best Quality</div>
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Override project quality for this scene. Ultra uses best AI video providers for maximum quality.
+                  </p>
+                </div>
+                
                 {/* Overlays Section - Collapsible */}
                 <Collapsible 
                   open={overlaysExpanded[scene.id] ?? false}
