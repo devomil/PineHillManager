@@ -4724,12 +4724,31 @@ export default function UniversalVideoProducer() {
                   )}
                   
                   {project.status === 'complete' && outputUrl && (
-                    <Button asChild data-testid="button-download-video">
-                      <a href={outputUrl} target="_blank" rel="noopener noreferrer">
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Video
-                      </a>
-                    </Button>
+                    <>
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm('This will re-render the video with the latest overlay and scene settings. Continue?')) {
+                            renderMutation.mutate();
+                          }
+                        }}
+                        disabled={renderMutation.isPending}
+                        data-testid="button-rerender-video"
+                      >
+                        {renderMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                        )}
+                        Re-render
+                      </Button>
+                      <Button asChild data-testid="button-download-video">
+                        <a href={outputUrl} target="_blank" rel="noopener noreferrer">
+                          <Download className="w-4 h-4 mr-2" />
+                          Download Video
+                        </a>
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
