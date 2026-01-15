@@ -1406,6 +1406,48 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     
     // Map scene-level overlayConfig to brandInstructions format for Remotion
     const sceneBrandOverlays: Record<string, any> = {};
+    
+    // Helper to convert relative API URLs to full public URLs for Remotion Lambda
+    const getPublicAssetUrl = async (relativeUrl: string): Promise<string> => {
+      if (!relativeUrl) return '';
+      // If already a full URL, return as-is
+      if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+        return relativeUrl;
+      }
+      // For /api/brand-assets/file/:id URLs, fetch the actual URL from brand_media table
+      const brandAssetMatch = relativeUrl.match(/\/api\/brand-assets\/file\/(\d+)/);
+      if (brandAssetMatch) {
+        const assetId = parseInt(brandAssetMatch[1], 10);
+        try {
+          const result = await db.select({ url: brandMedia.url }).from(brandMedia).where(eq(brandMedia.id, assetId)).limit(1);
+          if (result.length > 0 && result[0].url) {
+            console.log(`[UniversalVideo] Resolved brand asset ${assetId} to URL: ${result[0].url.substring(0, 60)}...`);
+            return result[0].url;
+          }
+        } catch (err) {
+          console.error(`[UniversalVideo] Failed to resolve brand asset ${assetId}:`, err);
+        }
+      }
+      // Fallback: prepend server URL (won't work for Lambda, but better than nothing)
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
+      return `${baseUrl}${relativeUrl}`;
+    };
+    
+    // Normalize anchor to supported BrandOverlay types: 'top-left'|'top-right'|'bottom-left'|'bottom-right'|'center'
+    // Map center variants to corners but use x/y coordinates to maintain correct position
+    const normalizeAnchor = (pos: string): 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' => {
+      if (pos === 'top-center') return 'top-left'; // Use top-left anchor with x=50 for horizontal center
+      if (pos === 'bottom-center') return 'bottom-left'; // Use bottom-left anchor with x=50 for horizontal center
+      if (pos === 'center-left') return 'top-left'; // Use top-left anchor with y=50 for vertical center
+      if (pos === 'center-right') return 'top-right'; // Use top-right anchor with y=50 for vertical center
+      if (['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'].includes(pos)) {
+        return pos as any;
+      }
+      return 'center';
+    };
+    
     for (const scene of preparedProject.scenes) {
       const overlayConfig = (scene as any).overlayConfig;
       if (overlayConfig) {
@@ -1416,19 +1458,6 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         };
         
         // Map logo to brand overlay format
-        // Normalize anchor to supported BrandOverlay types: 'top-left'|'top-right'|'bottom-left'|'bottom-right'|'center'
-        // Map center variants to corners but use x/y coordinates to maintain correct position
-        const normalizeAnchor = (pos: string): 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' => {
-          if (pos === 'top-center') return 'top-left'; // Use top-left anchor with x=50 for horizontal center
-          if (pos === 'bottom-center') return 'bottom-left'; // Use bottom-left anchor with x=50 for horizontal center
-          if (pos === 'center-left') return 'top-left'; // Use top-left anchor with y=50 for vertical center
-          if (pos === 'center-right') return 'top-right'; // Use top-right anchor with y=50 for vertical center
-          if (['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'].includes(pos)) {
-            return pos as any;
-          }
-          return 'center';
-        };
-        
         if (overlayConfig.logo?.enabled && overlayConfig.logo?.logoUrl) {
           const positionMap: Record<string, { x: number; y: number }> = {
             'top-left': { x: 5, y: 5 },
@@ -1444,10 +1473,11 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
           const pos = positionMap[overlayConfig.logo.position] || { x: 50, y: 50 };
           const sizePercent = overlayConfig.logo.sizePercent || 25;
           const normalizedAnchor = normalizeAnchor(overlayConfig.logo.position);
+          const resolvedLogoUrl = await getPublicAssetUrl(overlayConfig.logo.logoUrl);
           
           sceneOverlays.overlays.push({
             type: 'logo',
-            assetUrl: overlayConfig.logo.logoUrl,
+            assetUrl: resolvedLogoUrl,
             position: { x: pos.x, y: pos.y, anchor: normalizedAnchor },
             size: { width: sizePercent, maxHeight: 30 }, // Width/maxHeight in percentage
             animation: { type: 'fade', duration: 0.5 },
@@ -1471,10 +1501,11 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
           const watermarkOpacity = (overlayConfig.watermark.opacity || 70) / 100;
           const watermarkSizePercent = overlayConfig.watermark.sizePercent || 15;
           const normalizedWatermarkAnchor = normalizeAnchor(watermarkPos);
+          const resolvedWatermarkUrl = await getPublicAssetUrl(overlayConfig.watermark.watermarkUrl);
           
           sceneOverlays.watermark = {
             type: 'watermark',
-            assetUrl: overlayConfig.watermark.watermarkUrl,
+            assetUrl: resolvedWatermarkUrl,
             position: { x: wPos.x, y: wPos.y, anchor: normalizedWatermarkAnchor },
             size: { width: watermarkSizePercent }, // Width in percentage
             animation: { type: 'fade', duration: 0.3 },
@@ -1498,10 +1529,11 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
               const bPos = badgePosMap[badge.position] || { x: 95, y: 5 };
               const badgeSizePercent = badge.sizePercent || 12;
               const normalizedBadgeAnchor = normalizeAnchor(badge.position);
+              const resolvedBadgeUrl = await getPublicAssetUrl(badge.logoUrl);
               
               sceneOverlays.overlays.push({
                 type: 'logo', // Use 'logo' type for compatibility with BrandOverlay types
-                assetUrl: badge.logoUrl,
+                assetUrl: resolvedBadgeUrl,
                 position: { x: bPos.x, y: bPos.y, anchor: normalizedBadgeAnchor },
                 size: { width: badgeSizePercent }, // Width in percentage
                 animation: { type: 'fade', duration: 0.3 },
