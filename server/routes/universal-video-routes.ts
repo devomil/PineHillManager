@@ -1173,7 +1173,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    if (projectData.status !== 'ready' && projectData.status !== 'error') {
+    // Allow re-render for complete projects, first-time render for ready projects, and retry for error projects
+    if (projectData.status !== 'ready' && projectData.status !== 'error' && projectData.status !== 'complete') {
       return res.status(400).json({ 
         success: false, 
         error: 'Project must be ready before rendering. Generate assets first.' 
