@@ -1403,6 +1403,133 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     
     const compositionId = getCompositionId(preparedProject.outputFormat.aspectRatio);
     
+    // Map scene-level overlayConfig to brandInstructions format for Remotion
+    const sceneBrandOverlays: Record<string, any> = {};
+    for (const scene of preparedProject.scenes) {
+      const overlayConfig = (scene as any).overlayConfig;
+      if (overlayConfig) {
+        const sceneOverlays: any = {
+          sceneId: scene.id,
+          overlays: [],
+          showWatermark: overlayConfig.watermark?.enabled !== false,
+        };
+        
+        // Map logo to brand overlay format
+        // Normalize anchor to supported BrandOverlay types: 'top-left'|'top-right'|'bottom-left'|'bottom-right'|'center'
+        // Map center variants to corners but use x/y coordinates to maintain correct position
+        const normalizeAnchor = (pos: string): 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' => {
+          if (pos === 'top-center') return 'top-left'; // Use top-left anchor with x=50 for horizontal center
+          if (pos === 'bottom-center') return 'bottom-left'; // Use bottom-left anchor with x=50 for horizontal center
+          if (pos === 'center-left') return 'top-left'; // Use top-left anchor with y=50 for vertical center
+          if (pos === 'center-right') return 'top-right'; // Use top-right anchor with y=50 for vertical center
+          if (['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'].includes(pos)) {
+            return pos as any;
+          }
+          return 'center';
+        };
+        
+        if (overlayConfig.logo?.enabled && overlayConfig.logo?.logoUrl) {
+          const positionMap: Record<string, { x: number; y: number }> = {
+            'top-left': { x: 5, y: 5 },
+            'top-center': { x: 50, y: 5 },
+            'top-right': { x: 95, y: 5 },
+            'center-left': { x: 5, y: 50 },
+            'center': { x: 50, y: 50 },
+            'center-right': { x: 95, y: 50 },
+            'bottom-left': { x: 5, y: 95 },
+            'bottom-center': { x: 50, y: 95 },
+            'bottom-right': { x: 95, y: 95 },
+          };
+          const pos = positionMap[overlayConfig.logo.position] || { x: 50, y: 50 };
+          const sizePercent = overlayConfig.logo.sizePercent || 25;
+          const normalizedAnchor = normalizeAnchor(overlayConfig.logo.position);
+          
+          sceneOverlays.overlays.push({
+            type: 'logo',
+            assetUrl: overlayConfig.logo.logoUrl,
+            position: { x: pos.x, y: pos.y, anchor: normalizedAnchor },
+            size: { width: sizePercent, maxHeight: 30 }, // Width/maxHeight in percentage
+            animation: { type: 'fade', duration: 0.5 },
+            timing: { startTime: 0, duration: scene.duration || 5 },
+            opacity: 1,
+          });
+        }
+        
+        // Map watermark to brand overlay format
+        if (overlayConfig.watermark?.enabled && overlayConfig.watermark?.watermarkUrl) {
+          const watermarkPos = overlayConfig.watermark.position || 'bottom-right';
+          const watermarkPosMap: Record<string, { x: number; y: number }> = {
+            'top-left': { x: 5, y: 5 },
+            'top-center': { x: 50, y: 5 },
+            'top-right': { x: 95, y: 5 },
+            'bottom-left': { x: 5, y: 95 },
+            'bottom-center': { x: 50, y: 95 },
+            'bottom-right': { x: 95, y: 95 },
+          };
+          const wPos = watermarkPosMap[watermarkPos] || { x: 95, y: 95 };
+          const watermarkOpacity = (overlayConfig.watermark.opacity || 70) / 100;
+          const watermarkSizePercent = overlayConfig.watermark.sizePercent || 15;
+          const normalizedWatermarkAnchor = normalizeAnchor(watermarkPos);
+          
+          sceneOverlays.watermark = {
+            type: 'watermark',
+            assetUrl: overlayConfig.watermark.watermarkUrl,
+            position: { x: wPos.x, y: wPos.y, anchor: normalizedWatermarkAnchor },
+            size: { width: watermarkSizePercent }, // Width in percentage
+            animation: { type: 'fade', duration: 0.3 },
+            timing: { startTime: 0, duration: scene.duration || 5 },
+            opacity: watermarkOpacity,
+          };
+        }
+        
+        // Map additional logos (badges/certifications) - use 'logo' type for compatibility
+        if (overlayConfig.additionalLogos && overlayConfig.additionalLogos.length > 0) {
+          for (const badge of overlayConfig.additionalLogos) {
+            if (badge.logoUrl) {
+              const badgePosMap: Record<string, { x: number; y: number }> = {
+                'top-left': { x: 5, y: 5 },
+                'top-center': { x: 50, y: 5 },
+                'top-right': { x: 95, y: 5 },
+                'bottom-left': { x: 5, y: 95 },
+                'bottom-center': { x: 50, y: 95 },
+                'bottom-right': { x: 95, y: 95 },
+              };
+              const bPos = badgePosMap[badge.position] || { x: 95, y: 5 };
+              const badgeSizePercent = badge.sizePercent || 12;
+              const normalizedBadgeAnchor = normalizeAnchor(badge.position);
+              
+              sceneOverlays.overlays.push({
+                type: 'logo', // Use 'logo' type for compatibility with BrandOverlay types
+                assetUrl: badge.logoUrl,
+                position: { x: bPos.x, y: bPos.y, anchor: normalizedBadgeAnchor },
+                size: { width: badgeSizePercent }, // Width in percentage
+                animation: { type: 'fade', duration: 0.3 },
+                timing: { startTime: 0, duration: scene.duration || 5 },
+                opacity: (badge.opacity || 100) / 100,
+              });
+            }
+          }
+        }
+        
+        sceneBrandOverlays[scene.id] = sceneOverlays;
+      }
+    }
+    
+    // Build brandInstructions from project-level settings and scene overlays
+    const projectBrandInstructions = (preparedProject as any).brandInstructions || {};
+    const mergedBrandInstructions = {
+      ...projectBrandInstructions,
+      sceneOverlays: {
+        ...projectBrandInstructions.sceneOverlays,
+        ...sceneBrandOverlays,
+      },
+    };
+    
+    console.log('[UniversalVideo] Brand instructions prepared:', {
+      hasProjectBrandInstructions: !!projectBrandInstructions.watermark,
+      sceneOverlaysCount: Object.keys(mergedBrandInstructions.sceneOverlays || {}).length,
+    });
+    
     const inputProps = {
       scenes: preparedProject.scenes,
       voiceoverUrl: preparedProject.assets.voiceover.fullTrackUrl || null,
@@ -1410,6 +1537,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       musicVolume: preparedProject.assets.music?.volume || 0.18,
       brand: preparedProject.brand,
       outputFormat: preparedProject.outputFormat,
+      brandInstructions: Object.keys(mergedBrandInstructions).length > 0 ? mergedBrandInstructions : undefined,
     };
     
     // Log video B-roll details for each scene
