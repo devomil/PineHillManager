@@ -252,6 +252,7 @@ export function GenerationPreviewPanel({
 
   // Phase 14C: Quality tier state
   const [qualityTier, setQualityTier] = useState<QualityTier>('premium');
+  const [hasUserChangedTier, setHasUserChangedTier] = useState(false);
 
   // State to track batch updates
   const [batchUpdateCount, setBatchUpdateCount] = useState(0);
@@ -283,6 +284,7 @@ export function GenerationPreviewPanel({
   });
   
   const handleQualityTierChange = (tier: QualityTier) => {
+    setHasUserChangedTier(true);
     setQualityTier(tier);
     updateQualityTierMutation.mutate(tier);
   };
@@ -385,10 +387,11 @@ export function GenerationPreviewPanel({
   });
   
   useEffect(() => {
-    if (estimate?.qualityTier && estimate.qualityTier !== qualityTier) {
+    // Only sync from backend on initial load, not after user has changed the tier
+    if (!hasUserChangedTier && estimate?.qualityTier && estimate.qualityTier !== qualityTier) {
       setQualityTier(estimate.qualityTier);
     }
-  }, [estimate?.qualityTier]);
+  }, [estimate?.qualityTier, hasUserChangedTier]);
 
   if (isLoading) {
     return (
