@@ -11,6 +11,7 @@ import type { Phase8AnalysisResult } from '../../shared/video-types';
 import { sceneRegenerationService } from '../services/scene-regeneration-service';
 import { autoRegenerationService, SceneForRegeneration, RegenerationResult } from '../services/auto-regeneration-service';
 import { intelligentRegenerationService } from '../services/intelligent-regeneration-service';
+import { intelligentPromptImprover } from '../services/intelligent-prompt-improver';
 import { regenerationStrategyEngine } from '../services/regeneration-strategy-engine';
 import { promptComplexityAnalyzer } from '../services/prompt-complexity-analyzer';
 import { brandContextService } from '../services/brand-context-service';
@@ -5687,6 +5688,95 @@ router.get('/auto-regeneration/config', isAuthenticated, async (req: Request, re
     const config = autoRegenerationService.getConfig();
     res.json({ success: true, config });
   } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// INTELLIGENT PROMPT IMPROVEMENT (Issue-Aware)
+// ============================================================
+
+router.post('/projects/:projectId/scenes/:sceneIndex/improve-prompt', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneIndex } = req.params;
+    const { issues, scores } = req.body;
+    
+    const projectRows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+    
+    if (projectRows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const projectData = dbRowToVideoProject(projectRows[0]);
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIdx = parseInt(sceneIndex, 10);
+    if (sceneIdx < 0 || sceneIdx >= projectData.scenes.length) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const scene = projectData.scenes[sceneIdx];
+    
+    // Determine if scene has brand assets
+    const hasBrandAssets = !!(scene.brandAssetId || (scene as any).matchedBrandAssets?.length > 0);
+    const brandAssetTypes = (scene as any).matchedBrandAssets?.map((a: any) => a.assetType) || [];
+    
+    // Determine generation type based on quality tier and brand assets
+    const qualityTier = projectData.qualityTier || 'standard';
+    let generationType: 'T2I' | 'T2V' | 'I2I' | 'I2V' = 'T2I';
+    
+    if (qualityTier === 'premium' || qualityTier === 'ultra') {
+      generationType = hasBrandAssets ? 'I2V' : 'T2V';
+    } else {
+      generationType = hasBrandAssets ? 'I2I' : 'T2I';
+    }
+    
+    console.log(`[PromptImprover] Scene ${sceneIdx + 1}: ${generationType}, hasBrandAssets: ${hasBrandAssets}`);
+    
+    const sceneRequirements = {
+      sceneIndex: sceneIdx,
+      sceneType: scene.type || 'content',
+      narration: scene.narration || '',
+      originalPrompt: scene.visualDirection || '',
+      hasBrandAssets,
+      brandAssetTypes,
+      generationType,
+      qualityTier: qualityTier as 'standard' | 'premium' | 'ultra',
+      aspectRatio: projectData.aspectRatio as '16:9' | '9:16' | '1:1' || '16:9',
+    };
+    
+    const issueContext = {
+      issues: issues || (scene.analysisResult as any)?.issues || [],
+      overallScore: scores?.overall || (scene.analysisResult as any)?.overallScore || 50,
+      scores: {
+        technical: scores?.technical || (scene.analysisResult as any)?.technicalScore || 70,
+        contentMatch: scores?.contentMatch || (scene.analysisResult as any)?.contentMatchScore || 70,
+        composition: scores?.composition || (scene.analysisResult as any)?.compositionScore || 70,
+      },
+    };
+    
+    const result = await intelligentPromptImprover.improvePrompt(sceneRequirements, issueContext);
+    
+    res.json({
+      success: true,
+      sceneIndex: sceneIdx,
+      originalPrompt: scene.visualDirection,
+      improvedPrompt: result.improvedPrompt,
+      promptStrategy: result.promptStrategy,
+      keyChanges: result.keyChanges,
+      confidence: result.confidence,
+      generationType,
+      hasBrandAssets,
+    });
+    
+  } catch (error: any) {
+    console.error('[PromptImprover] Failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

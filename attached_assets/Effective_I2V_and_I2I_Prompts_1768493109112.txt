@@ -1,0 +1,37 @@
+Effective I2V Prompts
+A comprehensive I2V prompt typically includes the following layers to provide the AI model with precise instructions: 
+Subject: A detailed description of the main focus (person, object, animal, etc.), including appearance details, using adjectives and short phrases.
+Scene/Environment: The background and foreground context where the subject is located, such as "a foggy battlefield" or "a beach at sunset".
+Motion: This is crucial for I2V. Explicitly describe both the subject's actions and general movement in the scene using strong verbs (e.g., "drifting," "zooming in").
+Camera Movement: Non-compulsory but highly effective for cinematic results. Specify movements like "panning," "zooming," "tracking," or "camera pulls back".
+Aesthetics/Stylization: Additional keywords and style modifiers to control the visual quality, lighting, and overall feel of the video (e.g., "golden rim-light," "cinematic," "low contrast"). 
+Effective prompts in I2V typically follow a specific formula to maximize control over the output: 
+Subject: A detailed description of the main focus (person, object, animal, etc.).
+Motion: This is vital for I2V, as models often default to static videos without explicit instructions. Describe specific actions for the subject and general motion in the scene.
+Scene/Environment: The background and foreground where the action takes place.
+Aesthetics/Style: Keywords for desired visual style (e.g., "cinematic lighting", "cartoon style", "golden hour").
+Camera Movement: Crucial for dynamic videos; examples include "pan left", "zoom in", "tracking shot", or "dolly out". 
+Prompt Formulas and Tips
+A common and effective prompt structure is: [Subject Description] + [Scene Description] + [Motion Description] + [Aesthetic Controls] + [Stylization]. 
+Be Specific: Use clear, descriptive language and detailed verbs that imply motion (e.g., "drifting", "rotating", "fading in and out").
+Focus on Action: For I2V, the text prompt should primarily focus on actions or changes relative to the input image, as the image handles the initial appearance and layout.
+Manage Consistency: The input image helps maintain visual consistency. Explicitly constrain motion to prevent the AI from introducing new elements or unwanted actions.
+Use Negative Prompts: Employ negative prompts (e.g., "blurry", "low detail", "distorted") to refine output quality. 
+
+
+
+
+
+
+
+I2I Visual Prompts
+Initial Image as a Guide: Unlike text-to-image (T2I) generation, which starts from a blank canvas, I2I uses your uploaded image as a foundational "visual prompt." This provides a strong starting point for composition, color, and structure that is difficult to convey with text alone.
+Text Prompt for Modification: The accompanying text prompt gives specific instructions for the desired output. This is where you specify the style change ("turn into a watercolor painting"), subject modification ("add a red coat"), or environmental shift ("place her in a coffee shop").
+Denoise/Strength Setting: Most I2I tools feature a "denoise" or "strength" slider that controls how much the AI is allowed to deviate from the original image.
+Low Denoise keeps the output very close to the input, useful for minor touch-ups or style transfer.
+High Denoise allows the AI to make significant changes, effectively using the input image only as a general layout guide. 
+Best Practices for I2I Prompting
+Be Descriptive: Use clear and detailed language for the subject, setting, lighting, and colors.
+Prioritize Order: Words at the beginning of your prompt often carry more weight with the AI model.
+Use Style Modifiers: Incorporate artistic references (e.g., "in the style of Greg Rutkowski") to achieve a specific aesthetic.
+Specify What to Keep Constant: If using iterative edits, mention aspects that should remain unchanged ("keep her hairstyle and face") to maintain consistency. 

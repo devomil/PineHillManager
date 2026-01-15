@@ -4,6 +4,7 @@
 import { sceneAnalysisService, SceneContext } from './scene-analysis-service';
 import { imageGenerationService } from './image-generation-service';
 import { piapiVideoService } from './piapi-video-service';
+import { intelligentPromptImprover, type SceneRequirements, type IssueContext } from './intelligent-prompt-improver';
 import type { Phase8AnalysisResult, Phase8AnalysisIssue } from '../../shared/video-types';
 
 export interface RegenerationAttempt {
@@ -41,6 +42,9 @@ export interface SceneForRegeneration {
   aspectRatio?: '16:9' | '9:16' | '1:1';
   totalScenes: number;
   qualityTier?: 'ultra' | 'premium' | 'standard';
+  hasBrandAssets?: boolean;
+  brandAssetTypes?: string[];
+  generationType?: 'T2I' | 'T2V' | 'I2I' | 'I2V';
 }
 
 export interface ReviewQueueEntry {
@@ -86,8 +90,8 @@ class AutoRegenerationService {
       console.log(`[AutoRegen] Strategy: ${strategy.approach}`);
       console.log(`[AutoRegen] Provider: ${strategy.provider}`);
       
-      const improvedPrompt = this.improvePrompt(
-        scene.visualDirection,
+      const improvedPrompt = await this.improvePromptIntelligent(
+        scene,
         currentAnalysis,
         attempt
       );
@@ -290,7 +294,51 @@ class AutoRegenerationService {
     return providerOrder[0];
   }
 
-  private improvePrompt(
+  private async improvePromptIntelligent(
+    scene: SceneForRegeneration,
+    analysis: Phase8AnalysisResult,
+    attempt: number
+  ): Promise<string> {
+    if (intelligentPromptImprover.isAvailable() && attempt === 1) {
+      try {
+        const sceneReqs: SceneRequirements = {
+          sceneIndex: scene.sceneIndex,
+          sceneType: scene.sceneType,
+          narration: scene.narration,
+          originalPrompt: scene.visualDirection,
+          hasBrandAssets: scene.hasBrandAssets || false,
+          brandAssetTypes: scene.brandAssetTypes,
+          generationType: scene.generationType || (this.isVideoScene(scene) ? 'T2V' : 'T2I'),
+          qualityTier: scene.qualityTier || 'standard',
+          aspectRatio: scene.aspectRatio,
+        };
+
+        const issueContext: IssueContext = {
+          issues: analysis.issues || [],
+          overallScore: analysis.overallScore,
+          scores: {
+            technical: analysis.technicalScore ?? 70,
+            contentMatch: analysis.contentMatchScore ?? 70,
+            composition: analysis.compositionScore ?? 70,
+          },
+        };
+
+        const result = await intelligentPromptImprover.improvePrompt(sceneReqs, issueContext);
+        
+        if (result.improvedPrompt && result.confidence > 0.5) {
+          console.log(`[AutoRegen] Using intelligent prompt improvement (${result.promptStrategy})`);
+          console.log(`[AutoRegen] Key changes: ${result.keyChanges.join(', ')}`);
+          return result.improvedPrompt;
+        }
+      } catch (error: any) {
+        console.error(`[AutoRegen] Intelligent prompt improvement failed: ${error.message}`);
+      }
+    }
+
+    return this.improvePromptBasic(scene.visualDirection, analysis, attempt);
+  }
+
+  private improvePromptBasic(
     originalPrompt: string,
     analysis: Phase8AnalysisResult,
     attempt: number
