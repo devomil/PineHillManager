@@ -1521,6 +1521,18 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Scene Approved', description: 'Scene manually approved for final render.' });
+        
+        // Fetch updated project to refresh local state
+        try {
+          const refreshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+          const refreshData = await refreshRes.json();
+          if (refreshData.project) {
+            onProjectUpdate?.(refreshData.project);
+          }
+        } catch (err) {
+          console.error('Failed to refresh project after approval:', err);
+        }
+        
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
         onSceneUpdate?.();
@@ -1550,6 +1562,18 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Scene Rejected', description: 'Scene marked for regeneration.' });
+        
+        // Fetch updated project to refresh local state
+        try {
+          const refreshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+          const refreshData = await refreshRes.json();
+          if (refreshData.project) {
+            onProjectUpdate?.(refreshData.project);
+          }
+        } catch (err) {
+          console.error('Failed to refresh project after rejection:', err);
+        }
+        
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
         onSceneUpdate?.();
@@ -1589,6 +1613,18 @@ function ScenePreview({
           title: 'Quality Analysis Complete', 
           description: `Scene ${sceneIndex + 1} scored ${score}/100` 
         });
+        
+        // Fetch updated project to refresh local state
+        try {
+          const refreshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+          const refreshData = await refreshRes.json();
+          if (refreshData.project) {
+            onProjectUpdate?.(refreshData.project);
+          }
+        } catch (err) {
+          console.error('Failed to refresh project after analysis:', err);
+        }
+        
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
         queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
         onSceneUpdate?.();
@@ -3503,27 +3539,44 @@ function ScenePreview({
                   </div>
                 )}
                 {(scene.analysisResult?.recommendation === 'regenerate' || scene.analysisResult?.recommendation === 'critical_fail') && projectId && (
-                  <div className="flex gap-2 mt-4">
-                    <Alert variant="destructive" className="flex-1">
+                  <div className="space-y-3 mt-4">
+                    <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-sm">
-                        Quality analysis failed. Use AI providers above to generate video, then re-analyze.
+                        Quality analysis found issues. You can regenerate the scene, re-analyze, or approve anyway to proceed with rendering.
                       </AlertDescription>
                     </Alert>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleSceneRegenerate(index)}
-                      disabled={!!sceneActionPending}
-                      data-testid={`button-regenerate-critical-${scene.id}`}
-                    >
-                      {sceneActionPending === scene.id ? (
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 mr-1" />
-                      )}
-                      Re-analyze
-                    </Button>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                        onClick={() => handleSceneApprove(index)}
+                        disabled={!!sceneActionPending}
+                        data-testid={`button-force-approve-${scene.id}`}
+                      >
+                        {sceneActionPending === scene.id ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <ThumbsUp className="w-4 h-4 mr-1" />
+                        )}
+                        Approve Anyway
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSceneRegenerate(index)}
+                        disabled={!!sceneActionPending}
+                        data-testid={`button-regenerate-critical-${scene.id}`}
+                      >
+                        {sceneActionPending === scene.id ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Eye className="w-4 h-4 mr-1" />
+                        )}
+                        Re-analyze
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
