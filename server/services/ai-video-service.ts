@@ -230,12 +230,17 @@ class AIVideoService {
         return { success: false, error: 'Runway not configured' };
       }
       
+      if (options.imageUrl && options.i2vSettings) {
+        console.log(`[AIVideo] Using Runway I2V with settings: style=${options.i2vSettings.animationStyle}, fidelity=${options.i2vSettings.imageControlStrength}`);
+      }
+      
       const result = await runwayVideoService.generateVideo({
         prompt: options.prompt,
         duration: options.duration,
         aspectRatio: options.aspectRatio,
         negativePrompt: options.negativePrompt,
         imageUrl: options.imageUrl,
+        i2vSettings: options.i2vSettings,
       });
       
       return {

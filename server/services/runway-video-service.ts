@@ -24,6 +24,11 @@ interface RunwayGenerationOptions {
   aspectRatio: '16:9' | '9:16' | '1:1';
   negativePrompt?: string;
   imageUrl?: string;
+  i2vSettings?: {
+    imageControlStrength?: number;
+    animationStyle?: string;
+    motionStrength?: number;
+  };
 }
 
 class RunwayVideoService {
@@ -172,11 +177,30 @@ class RunwayVideoService {
         console.log(`[Runway] Resolved image URL: ${resolvedImageUrl.substring(0, 80)}...`);
         const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
         console.log(`[Runway] Using imageToVideo with gen4_turbo, ratio: ${imageRatio}...`);
+        
+        // For I2V with product images, use a product-focused prompt that emphasizes 
+        // preserving the source image while adding subtle cinematic motion
+        const animationStyle = options.i2vSettings?.animationStyle || 'product-hero';
+        let i2vPrompt: string;
+        
+        if (animationStyle === 'product-static') {
+          i2vPrompt = `Gently animate this exact product image. Preserve all details, labels, and text exactly as shown. Subtle ambient lighting shifts only. Do not change the product appearance.`;
+        } else if (animationStyle === 'product-hero') {
+          i2vPrompt = `Cinematic product hero shot. Animate this exact product with smooth, gentle camera motion. Keep the product centered and preserve all product details, labels, and packaging exactly as shown. Soft focus background, professional studio lighting.`;
+        } else if (animationStyle === 'subtle-motion') {
+          i2vPrompt = `Animate this product image with subtle environmental motion. Preserve the product exactly as shown. Gentle atmospheric particles, soft lighting shifts. Product remains static and in focus.`;
+        } else {
+          // Dynamic style
+          i2vPrompt = `Dynamic product animation. Energetic yet controlled camera motion around this exact product. Preserve all product details and labels. Professional commercial style.`;
+        }
+        
+        console.log(`[Runway] I2V prompt (${animationStyle}): ${i2vPrompt.substring(0, 80)}...`);
+        
         task = await client.imageToVideo
           .create({
             model: 'gen4_turbo',
             promptImage: resolvedImageUrl,
-            promptText: formattedPrompt,
+            promptText: i2vPrompt,
             ratio: imageRatio as any,
             duration: duration,
           })
