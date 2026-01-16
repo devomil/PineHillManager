@@ -2812,8 +2812,8 @@ function ScenePreview({
                     
                     {/* Phase 13D: Provider Selector Panel with dropdowns */}
                     <ProviderSelectorPanel
-                      selectedImageProvider={selectedProviders[`image-${scene.id}`]}
-                      selectedVideoProvider={selectedProviders[`video-${scene.id}`]}
+                      selectedImageProvider={selectedProviders[`image-${scene.id}`] || 'flux'}
+                      selectedVideoProvider={selectedProviders[`video-${scene.id}`] || 'runway'}
                       onSelectImageProvider={(provider) => {
                         const newProviders = { ...selectedProviders };
                         newProviders[`image-${scene.id}`] = provider;
@@ -2838,8 +2838,8 @@ function ScenePreview({
                           openMediaPicker(scene.id, 'video', 'library');
                         }
                       }}
-                      recommendedImageProvider={getRecommendedProvider('image', scene.type, scene.visualDirection)}
-                      recommendedVideoProvider={getRecommendedProvider('video', scene.type, scene.visualDirection)}
+                      recommendedImageProvider="flux"
+                      recommendedVideoProvider="runway"
                       sceneContentType={scene.visualDirection || scene.type}
                       disabled={!!regenerating || !!applyingMedia}
                       referenceMode={scene.referenceConfig?.mode || 'none'}
