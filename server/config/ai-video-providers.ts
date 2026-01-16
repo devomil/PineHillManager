@@ -113,8 +113,29 @@ const providerConfigs: Record<string, AIVideoProvider> = {
 };
 
 export function getProvider(providerKey: string): AIVideoProviderWithKey | null {
-  const config = providerConfigs[providerKey];
-  if (!config) return null;
+  let config = providerConfigs[providerKey];
+  
+  // If versioned provider not found, try base provider name
+  // e.g., 'kling-2.5' -> 'kling', 'kling-2.6-master' -> 'kling'
+  if (!config) {
+    const baseName = providerKey.split('-')[0];
+    config = providerConfigs[baseName];
+    if (config) {
+      // Create a version-specific config
+      return {
+        name: `${config.name} (${providerKey})`,
+        type: config.type,
+        endpoint: config.endpoint,
+        model: providerKey, // Use the full versioned name as the model
+        maxDuration: config.maxDuration,
+        costPerSecond: config.costPerSecond,
+        strengths: config.strengths,
+        priority: config.priority,
+        apiKey: config.getApiKey(),
+      };
+    }
+    return null;
+  }
   
   return {
     name: config.name,
