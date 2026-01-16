@@ -605,6 +605,9 @@ class PiAPIVideoService {
     try {
       const requestBody = this.buildI2VRequestBody(options, sanitizedPrompt);
       
+      // Log full request body for debugging I2V issues
+      console.log(`[PiAPI:${options.model}] I2V Request body:`, JSON.stringify(requestBody, null, 2).substring(0, 1500));
+      
       const response = await fetch(`${this.baseUrl}/task`, {
         method: 'POST',
         headers: {
@@ -809,15 +812,23 @@ class PiAPIVideoService {
       // Append motion directive to prompt for better control
       const klingI2vPrompt = `${baseInput.prompt}. Camera: ${motionDirective}.`;
       
+      // For Kling I2V: use both image_url AND first_frame_image for compatibility
+      // Also use elements array for Kling 1.6+ which prefers that format
       return {
         model: 'kling',
         task_type: 'video_generation',
         input: {
-          ...baseInput,
           prompt: klingI2vPrompt,
+          image_url: options.imageUrl,
+          first_frame_image: options.imageUrl, // Some Kling versions use this
+          duration: options.duration,
+          aspect_ratio: options.aspectRatio,
+          negative_prompt: baseInput.negative_prompt,
           mode,
           version,
           cfg_scale: cfgScale,
+          // Elements array is preferred for Kling 1.6+
+          elements: [{ image_url: options.imageUrl }],
         },
       };
     }
