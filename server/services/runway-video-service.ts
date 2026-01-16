@@ -73,58 +73,69 @@ class RunwayVideoService {
   }
 
   private async resolveImageUrl(imageUrl: string): Promise<string> {
-    if (!imageUrl) return imageUrl;
+    console.log(`[Runway URL Resolver] Starting resolution for: ${imageUrl}`);
+    
+    if (!imageUrl) {
+      console.log(`[Runway URL Resolver] No image URL provided`);
+      return imageUrl;
+    }
     
     if (imageUrl.startsWith('https://')) {
-      console.log(`[Runway] Image URL already HTTPS, using as-is`);
+      console.log(`[Runway URL Resolver] Image URL already HTTPS, using as-is`);
       return imageUrl;
     }
     
     if (imageUrl.startsWith('/api/brand-assets/file/')) {
       const assetId = parseInt(imageUrl.split('/').pop() || '0');
-      console.log(`[Runway] Resolving brand asset ID: ${assetId}`);
+      console.log(`[Runway URL Resolver] Extracted brand asset ID: ${assetId}`);
       
       if (assetId > 0) {
         try {
+          console.log(`[Runway URL Resolver] Querying database for asset ${assetId}...`);
           const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
-          console.log(`[Runway] Asset found:`, asset ? 'yes' : 'no');
+          console.log(`[Runway URL Resolver] Asset query result:`, asset ? `found (name: ${asset.name})` : 'NOT FOUND');
           
           if (asset) {
-            console.log(`[Runway] Asset settings type:`, typeof asset.settings);
-            console.log(`[Runway] Asset settings:`, JSON.stringify(asset.settings));
+            console.log(`[Runway URL Resolver] Asset settings type:`, typeof asset.settings);
+            console.log(`[Runway URL Resolver] Asset settings raw:`, JSON.stringify(asset.settings).substring(0, 200));
             
             const settings = asset.settings as any;
             if (settings?.storagePath) {
-              console.log(`[Runway] Storage path:`, settings.storagePath);
+              console.log(`[Runway URL Resolver] Storage path found:`, settings.storagePath);
               const parts = settings.storagePath.split('|');
               const bucketName = parts[0];
               const filePath = parts[1];
-              console.log(`[Runway] Bucket: ${bucketName}, Path: ${filePath}`);
+              console.log(`[Runway URL Resolver] Parsed bucket: "${bucketName}", path: "${filePath}"`);
               
               if (bucketName && filePath) {
+                console.log(`[Runway URL Resolver] Calling signObjectURL...`);
                 const signedUrl = await signObjectURL({
                   bucketName,
                   objectName: filePath,
                   method: 'GET',
-                  ttlSec: 3600, // 1 hour expiry
+                  ttlSec: 3600,
                 });
-                console.log(`[Runway] Resolved brand asset ${assetId} to signed URL: ${signedUrl.substring(0, 80)}...`);
+                console.log(`[Runway URL Resolver] ✓ Signed URL generated: ${signedUrl.substring(0, 100)}...`);
                 return signedUrl;
               } else {
-                console.warn(`[Runway] Missing bucket or path: bucket=${bucketName}, path=${filePath}`);
+                console.error(`[Runway URL Resolver] ❌ Invalid bucket or path - bucket: "${bucketName}", path: "${filePath}"`);
               }
             } else {
-              console.warn(`[Runway] No storagePath in settings`);
+              console.error(`[Runway URL Resolver] ❌ No storagePath in asset settings`);
+              console.log(`[Runway URL Resolver] Available settings keys:`, Object.keys(settings || {}));
             }
+          } else {
+            console.error(`[Runway URL Resolver] ❌ Asset ID ${assetId} not found in database`);
           }
-          console.warn(`[Runway] Could not resolve brand asset ${assetId} - no storage path found`);
         } catch (error) {
-          console.error(`[Runway] Failed to resolve brand asset URL:`, error);
+          console.error(`[Runway URL Resolver] ❌ Error resolving brand asset URL:`, error);
         }
+      } else {
+        console.error(`[Runway URL Resolver] ❌ Invalid asset ID parsed: ${assetId}`);
       }
     }
     
-    console.warn(`[Runway] Unable to resolve image URL to HTTPS: ${imageUrl.substring(0, 50)}`);
+    console.error(`[Runway URL Resolver] ❌ Unable to resolve image URL to HTTPS: ${imageUrl}`);
     return imageUrl;
   }
 
@@ -164,15 +175,19 @@ class RunwayVideoService {
       let task: any;
 
       if (options.imageUrl) {
+        console.log(`[Runway] Attempting to resolve image URL: ${options.imageUrl}`);
         const resolvedImageUrl = await this.resolveImageUrl(options.imageUrl);
+        console.log(`[Runway] Resolved URL: ${resolvedImageUrl?.substring(0, 100) || 'null'}`);
         
-        if (!resolvedImageUrl.startsWith('https://')) {
+        if (!resolvedImageUrl || !resolvedImageUrl.startsWith('https://')) {
+          console.error(`[Runway] ❌ Failed to resolve image URL - cannot proceed with I2V`);
           return {
             success: false,
             error: `Unable to resolve image URL to public HTTPS URL: ${options.imageUrl.substring(0, 50)}`,
             generationTimeMs: Date.now() - startTime,
           };
         }
+        console.log(`[Runway] ✓ Image URL resolved successfully for I2V`);
         
         console.log(`[Runway] Resolved image URL: ${resolvedImageUrl.substring(0, 80)}...`);
         const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
