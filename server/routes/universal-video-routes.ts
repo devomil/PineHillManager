@@ -3190,7 +3190,13 @@ router.get('/:projectId/scenes/:sceneId/active-jobs', isAuthenticated, async (re
 
 // Video Object Replacement Schema
 const replaceObjectSchema = z.object({
-  replacementImageUrl: z.string().url('Invalid replacement image URL'),
+  replacementImageUrl: z.string().min(1, 'Replacement image URL is required').refine(
+    (url) => {
+      // Accept full URLs or relative paths starting with /api or https
+      return url.startsWith('http') || url.startsWith('/api') || url.startsWith('blob:');
+    },
+    { message: 'Invalid replacement image URL format' }
+  ),
   objectDescription: z.string().max(200).optional().default('the product bottle'),
   prompt: z.string().max(500).optional(),
 });
@@ -3201,10 +3207,14 @@ router.post('/:projectId/scenes/:sceneId/replace-object', isAuthenticated, async
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
     
+    // Debug logging
+    console.log('[ObjectReplace] Raw request body:', JSON.stringify(req.body, null, 2));
+    
     // Validate request body with Zod
     const validationResult = replaceObjectSchema.safeParse(req.body);
     if (!validationResult.success) {
       console.error('[ObjectReplace] Validation failed:', validationResult.error.errors);
+      console.error('[ObjectReplace] Received replacementImageUrl:', req.body?.replacementImageUrl);
       return res.status(400).json({ 
         success: false, 
         error: 'Invalid request: ' + validationResult.error.errors.map(e => e.message).join(', ')
@@ -3212,6 +3222,7 @@ router.post('/:projectId/scenes/:sceneId/replace-object', isAuthenticated, async
     }
     
     const { replacementImageUrl, objectDescription, prompt } = validationResult.data;
+    console.log('[ObjectReplace] Validated replacementImageUrl:', replacementImageUrl);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
