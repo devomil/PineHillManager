@@ -197,38 +197,37 @@ class RunwayVideoService {
         // The visual direction describes the environment/scene, and we add instructions to preserve the product
         const animationStyle = options.i2vSettings?.animationStyle || 'product-hero';
         
-        // Product preservation suffix based on animation style
-        // CRITICAL: For I2V, tell Runway to animate the SOURCE IMAGE directly, not generate new content
-        // The prompt should describe how to animate what's already in the image, not create a new scene
-        let preservationSuffix: string;
+        // I2V PROMPT STRATEGY: Tell Runway to place the product bottle INTO the described environment
+        // The visual direction describes the environment, and we add a prefix that tells Runway
+        // to composite/place the product INTO that scene, then animate
+        
+        // Motion instruction based on animation style
+        let motionInstruction: string;
         if (animationStyle === 'product-static') {
-          preservationSuffix = `ANIMATE THIS IMAGE: Add subtle ambient lighting shifts to this product photo. Keep the product exactly as shown. Do not add people or new objects.`;
+          motionInstruction = 'with subtle ambient lighting shifts';
         } else if (animationStyle === 'product-hero') {
-          preservationSuffix = `ANIMATE THIS IMAGE: Add smooth, slow camera push-in motion toward this product. Keep product centered and all labels visible. Do not add people or change the product.`;
+          motionInstruction = 'with slow cinematic camera push-in toward the bottle';
         } else if (animationStyle === 'subtle-motion') {
-          preservationSuffix = `ANIMATE THIS IMAGE: Add gentle floating particles and soft light rays around this product. Keep the product in sharp focus. Do not add people.`;
+          motionInstruction = 'with gentle floating dust particles and soft light rays';
         } else {
-          // Dynamic style
-          preservationSuffix = `ANIMATE THIS IMAGE: Add dynamic camera orbit motion around this product. Keep all product details and labels visible. Do not add people or new objects.`;
+          motionInstruction = 'with dynamic camera orbit around the bottle';
         }
         
-        // Combine the visual direction (scene/environment) with product preservation instructions
-        // Runway API has a 1000 character limit for promptText
+        // Build prompt: Place product in environment + describe environment + motion
+        // Key: Tell Runway the product bottle is the SUBJECT placed in the described SCENE
         const RUNWAY_MAX_PROMPT_LENGTH = 1000;
-        const fullPrompt = `${formattedPrompt}. ${preservationSuffix}`;
+        const productPrefix = `Place this product bottle prominently in the center of the scene. `;
+        const motionSuffix = `. Animate ${motionInstruction}. Keep bottle labels readable. No people.`;
         
-        // Truncate prompt if too long, preserving the preservation suffix
-        let i2vPrompt = fullPrompt;
-        if (fullPrompt.length > RUNWAY_MAX_PROMPT_LENGTH) {
-          // Calculate how much space we have for the main prompt
-          const suffixWithDot = `. ${preservationSuffix}`;
-          const availableForPrompt = RUNWAY_MAX_PROMPT_LENGTH - suffixWithDot.length - 3; // -3 for "..."
-          const truncatedMainPrompt = formattedPrompt.substring(0, availableForPrompt) + '...';
-          i2vPrompt = `${truncatedMainPrompt}${suffixWithDot}`;
-          console.log(`[Runway] Prompt truncated from ${fullPrompt.length} to ${i2vPrompt.length} chars (max: ${RUNWAY_MAX_PROMPT_LENGTH})`);
-        }
+        // Calculate available space for visual direction
+        const availableForDirection = RUNWAY_MAX_PROMPT_LENGTH - productPrefix.length - motionSuffix.length - 10;
+        const truncatedDirection = formattedPrompt.length > availableForDirection 
+          ? formattedPrompt.substring(0, availableForDirection) + '...'
+          : formattedPrompt;
         
-        console.log(`[Runway] I2V prompt (${animationStyle}): ${i2vPrompt.substring(0, 120)}...`);
+        const i2vPrompt = `${productPrefix}${truncatedDirection}${motionSuffix}`;
+        
+        console.log(`[Runway] I2V prompt (${animationStyle}, ${i2vPrompt.length} chars): ${i2vPrompt.substring(0, 150)}...`);
         
         task = await client.imageToVideo
           .create({
