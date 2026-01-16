@@ -3250,7 +3250,41 @@ router.post('/:projectId/scenes/:sceneId/replace-object', isAuthenticated, async
     
     console.log(`[ObjectReplace] Starting object replacement for scene ${sceneId}`);
     console.log(`[ObjectReplace] Source video: ${currentVideoUrl.substring(0, 80)}...`);
-    console.log(`[ObjectReplace] Replacement image: ${replacementImageUrl.substring(0, 80)}...`);
+    console.log(`[ObjectReplace] Replacement image (raw): ${replacementImageUrl.substring(0, 80)}...`);
+    
+    // Resolve internal URLs to public HTTPS URLs for external API access
+    let resolvedImageUrl = replacementImageUrl;
+    if (replacementImageUrl.startsWith('/api/brand-assets/file/')) {
+      const assetId = parseInt(replacementImageUrl.split('/').pop() || '0');
+      console.log(`[ObjectReplace] Resolving brand asset ID: ${assetId}`);
+      
+      if (assetId > 0) {
+        try {
+          const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
+          if (asset) {
+            const settings = asset.settings as any;
+            if (settings?.storagePath) {
+              const parts = settings.storagePath.split('|');
+              const bucketName = parts[0];
+              const filePath = parts[1];
+              
+              if (bucketName && filePath) {
+                const { signObjectURL } = await import('@replit/object-storage');
+                resolvedImageUrl = await signObjectURL({
+                  bucketName,
+                  objectName: filePath,
+                  method: 'GET',
+                  ttlSec: 3600,
+                });
+                console.log(`[ObjectReplace] Resolved to signed URL: ${resolvedImageUrl.substring(0, 80)}...`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`[ObjectReplace] Error resolving URL:`, error);
+        }
+      }
+    }
     
     // Import and use the PiAPI service for object replacement
     const { piapiVideoService } = await import('../services/piapi-video-service');
@@ -3260,7 +3294,7 @@ router.post('/:projectId/scenes/:sceneId/replace-object', isAuthenticated, async
     
     const result = await piapiVideoService.replaceObjectInVideo({
       videoUrl: currentVideoUrl,
-      replacementImageUrl,
+      replacementImageUrl: resolvedImageUrl,
       prompt: replacementPrompt,
       objectDescription: objectDescription || 'the product bottle',
       duration: scene.duration || 5,

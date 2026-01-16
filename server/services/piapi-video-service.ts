@@ -981,12 +981,11 @@ class PiAPIVideoService {
     console.log(`[PiAPI:ObjectReplace] Prompt: ${options.prompt}`);
 
     try {
-      // Build the multi-elements request for Kling
+      // Build the multi-elements request for Kling 1.6 (elements only supported in v1.6)
       const requestBody = {
         model: 'kling',
-        task_type: 'elements_video',
+        task_type: 'video_generation',
         input: {
-          video_url: options.videoUrl,
           prompt: options.prompt,
           elements: [
             {
@@ -995,8 +994,8 @@ class PiAPIVideoService {
             }
           ],
           mode: 'pro',
-          version: '2.6',
-          duration: options.duration || 5,
+          version: '1.6',  // Elements feature only available in v1.6
+          duration: Math.min(options.duration || 5, 10),  // v1.6 max 10s
           aspect_ratio: options.aspectRatio || '16:9',
           negative_prompt: 'blurry, low quality, distorted, morphing, warping, watermark',
         },
@@ -1081,27 +1080,18 @@ class PiAPIVideoService {
     aspectRatio?: '16:9' | '9:16' | '1:1';
   }, startTime: number): Promise<PiAPIGenerationResult> {
     try {
-      // Alternative approach: Use video_generation with reference images
+      // Alternative approach: Image-to-video with the product image as source
       const requestBody = {
         model: 'kling',
         task_type: 'video_generation',
         input: {
-          video_url: options.videoUrl,
-          image_url: options.replacementImageUrl,
-          prompt: `${options.prompt}. Replace the ${options.objectDescription || 'object'} with the product shown in the reference image. Maintain the same motion and camera movement.`,
+          image_url: options.replacementImageUrl,  // Use product image as starting point
+          prompt: `${options.prompt}. Feature the ${options.objectDescription || 'product'} prominently with cinematic motion and professional lighting.`,
           mode: 'pro',
-          version: '2.6',
-          duration: options.duration || 5,
+          version: '1.6',  // v1.6 for better I2V support
+          duration: Math.min(options.duration || 5, 10),
           aspect_ratio: options.aspectRatio || '16:9',
           negative_prompt: 'blurry, low quality, distorted, morphing, warping, watermark, different product, wrong product',
-          // Multi-element reference
-          first_frame_image: options.replacementImageUrl,
-          elements: [
-            {
-              image_url: options.replacementImageUrl,
-              prompt: options.objectDescription || 'product bottle',
-            }
-          ],
         },
       };
 
