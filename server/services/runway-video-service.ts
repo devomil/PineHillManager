@@ -178,23 +178,27 @@ class RunwayVideoService {
         const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
         console.log(`[Runway] Using imageToVideo with gen4_turbo, ratio: ${imageRatio}...`);
         
-        // For I2V with product images, use a product-focused prompt that emphasizes 
-        // preserving the source image while adding subtle cinematic motion
+        // For I2V with product images, COMBINE the visual direction with product preservation instructions
+        // The visual direction describes the environment/scene, and we add instructions to preserve the product
         const animationStyle = options.i2vSettings?.animationStyle || 'product-hero';
-        let i2vPrompt: string;
         
+        // Product preservation suffix based on animation style
+        let preservationSuffix: string;
         if (animationStyle === 'product-static') {
-          i2vPrompt = `Gently animate this exact product image. Preserve all details, labels, and text exactly as shown. Subtle ambient lighting shifts only. Do not change the product appearance.`;
+          preservationSuffix = `IMPORTANT: The product shown in this image must remain exactly as depicted - preserve all labels, text, and packaging details. Only add subtle ambient lighting shifts. Do not alter the product appearance.`;
         } else if (animationStyle === 'product-hero') {
-          i2vPrompt = `Cinematic product hero shot. Animate this exact product with smooth, gentle camera motion. Keep the product centered and preserve all product details, labels, and packaging exactly as shown. Soft focus background, professional studio lighting.`;
+          preservationSuffix = `IMPORTANT: Keep the product from this image prominently featured and centered. Preserve all product details, labels, and packaging exactly as shown. Add smooth, gentle cinematic camera motion around the product.`;
         } else if (animationStyle === 'subtle-motion') {
-          i2vPrompt = `Animate this product image with subtle environmental motion. Preserve the product exactly as shown. Gentle atmospheric particles, soft lighting shifts. Product remains static and in focus.`;
+          preservationSuffix = `IMPORTANT: The product in this image must remain exactly as shown and stay in sharp focus. Add subtle environmental motion like gentle atmospheric particles and soft lighting shifts around it.`;
         } else {
           // Dynamic style
-          i2vPrompt = `Dynamic product animation. Energetic yet controlled camera motion around this exact product. Preserve all product details and labels. Professional commercial style.`;
+          preservationSuffix = `IMPORTANT: Preserve all product details and labels from this image exactly. Add dynamic, energetic camera motion around the product in professional commercial style.`;
         }
         
-        console.log(`[Runway] I2V prompt (${animationStyle}): ${i2vPrompt.substring(0, 80)}...`);
+        // Combine the visual direction (scene/environment) with product preservation instructions
+        const i2vPrompt = `${formattedPrompt}. ${preservationSuffix}`;
+        
+        console.log(`[Runway] I2V prompt (${animationStyle}): ${i2vPrompt.substring(0, 120)}...`);
         
         task = await client.imageToVideo
           .create({
