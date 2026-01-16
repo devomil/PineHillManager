@@ -211,7 +211,20 @@ class RunwayVideoService {
         }
         
         // Combine the visual direction (scene/environment) with product preservation instructions
-        const i2vPrompt = `${formattedPrompt}. ${preservationSuffix}`;
+        // Runway API has a 1000 character limit for promptText
+        const RUNWAY_MAX_PROMPT_LENGTH = 1000;
+        const fullPrompt = `${formattedPrompt}. ${preservationSuffix}`;
+        
+        // Truncate prompt if too long, preserving the preservation suffix
+        let i2vPrompt = fullPrompt;
+        if (fullPrompt.length > RUNWAY_MAX_PROMPT_LENGTH) {
+          // Calculate how much space we have for the main prompt
+          const suffixWithDot = `. ${preservationSuffix}`;
+          const availableForPrompt = RUNWAY_MAX_PROMPT_LENGTH - suffixWithDot.length - 3; // -3 for "..."
+          const truncatedMainPrompt = formattedPrompt.substring(0, availableForPrompt) + '...';
+          i2vPrompt = `${truncatedMainPrompt}${suffixWithDot}`;
+          console.log(`[Runway] Prompt truncated from ${fullPrompt.length} to ${i2vPrompt.length} chars (max: ${RUNWAY_MAX_PROMPT_LENGTH})`);
+        }
         
         console.log(`[Runway] I2V prompt (${animationStyle}): ${i2vPrompt.substring(0, 120)}...`);
         
@@ -238,11 +251,14 @@ class RunwayVideoService {
           const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
           console.log(`[Runway] Using imageToVideo with gen4_turbo (from generated image), ratio: ${imageRatio}...`);
           
+          // Truncate prompt if needed (Runway has 1000 char limit)
+          const truncatedPrompt = this.truncatePrompt(formattedPrompt, 1000);
+          
           task = await client.imageToVideo
             .create({
               model: 'gen4_turbo',
               promptImage: imageResult.imageUrl,
-              promptText: formattedPrompt,
+              promptText: truncatedPrompt,
               ratio: imageRatio as any,
               duration: duration,
             })
@@ -255,10 +271,13 @@ class RunwayVideoService {
           const textRatio = this.formatRatioForTextToVideo(options.aspectRatio);
           console.log(`[Runway] Using textToVideo with veo3.1, ratio: ${textRatio}...`);
           
+          // Truncate prompt if needed (Runway has 1000 char limit)
+          const truncatedPrompt = this.truncatePrompt(formattedPrompt, 1000);
+          
           task = await client.textToVideo
             .create({
               model: 'veo3.1',
-              promptText: formattedPrompt,
+              promptText: truncatedPrompt,
               ratio: textRatio as any,
               duration: duration,
             })
@@ -397,6 +416,15 @@ class RunwayVideoService {
     }
 
     return formatted;
+  }
+
+  private truncatePrompt(prompt: string, maxLength: number = 1000): string {
+    if (prompt.length <= maxLength) {
+      return prompt;
+    }
+    const truncated = prompt.substring(0, maxLength - 3) + '...';
+    console.log(`[Runway] Prompt truncated from ${prompt.length} to ${truncated.length} chars`);
+    return truncated;
   }
 
   private formatRatioForTextToVideo(aspectRatio: string): string {
