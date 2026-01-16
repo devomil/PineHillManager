@@ -811,77 +811,76 @@ class PiAPIVideoService {
       
       return {
         model: 'kling',
-        task_type: 'image_to_video',
+        task_type: 'video_generation',
         input: {
           ...baseInput,
           prompt: klingI2vPrompt,
           mode,
           version,
-          cfg_scale: cfgScale, // User's fidelity slider mapped to cfg
+          cfg_scale: cfgScale,
         },
       };
     }
     
-    // Luma Family - with high fidelity settings
+    // Luma Family - uses video_generation task_type with keyframes for I2V
     if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
       console.log(`[PiAPI I2V] Using Luma Dream Machine with high fidelity`);
       return {
         model: 'luma',
-        task_type: 'image_to_video',
+        task_type: 'video_generation',
         input: {
-          ...baseInput,
+          prompt: baseInput.prompt,
+          aspect_ratio: baseInput.aspect_ratio,
           loop: false,
-          keyframes: { frame0: { type: 'image', url: options.imageUrl } }, // Ensure start frame is the source image
+          keyframes: { 
+            frame0: { type: 'image', url: options.imageUrl }
+          },
         },
       };
     }
     
-    // Hailuo/Minimax Family - with user-configurable I2V settings
+    // Hailuo/Minimax Family - uses video_generation task_type
     if (options.model.includes('hailuo') || options.model.includes('minimax')) {
-      // Use user-provided settings or sensible defaults for product preservation
       const imageControlStrength = options.i2vSettings?.imageControlStrength ?? 1.0;
       const motionStrength = options.i2vSettings?.motionStrength ?? 0.3;
       const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
       
-      // Map animation style to Hailuo camera_motion parameter
-      // Each style provides distinct visual behavior:
-      // - 'product-hero': slow push zoom to draw attention (gentle motion)
-      // - 'product-static': no camera movement for clean presentation
-      // - 'subtle-motion': slight pan for visual interest
-      // - 'dynamic': zoom in for energetic feel
       const cameraMotionMap: Record<string, string> = {
-        'product-hero': 'push',      // Slow push to product
-        'product-static': 'static',  // No camera movement at all
-        'subtle-motion': 'pan_left', // Subtle horizontal movement
-        'dynamic': 'zoom_in',        // Energetic zoom
+        'product-hero': 'push',
+        'product-static': 'static',
+        'subtle-motion': 'pan_left',
+        'dynamic': 'zoom_in',
       };
       const cameraMotion = cameraMotionMap[animationStyle] || 'static';
       
       console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with settings: fidelity=${imageControlStrength}, motion=${motionStrength}, style=${animationStyle} → camera=${cameraMotion}`);
       return {
         model: 'hailuo',
-        task_type: 'image_to_video',
+        task_type: 'video_generation',
         input: {
-          ...baseInput,
+          prompt: baseInput.prompt,
           model: 'i2v-01',
-          // Critical I2V settings from user UI controls
-          image_control_strength: imageControlStrength, // User-configured: 0-1 (higher = more source image fidelity)
-          motion_strength: motionStrength, // User-configured: 0-1 (lower = subtler animation)
-          camera_motion: cameraMotion, // Mapped from animation style
+          image_url: options.imageUrl,
+          expand_prompt: true,
         },
       };
     }
     
-    // Wan Family (Alibaba)
+    // Wan Family (Alibaba) - uses wan26-img2video task_type
     if (options.model.includes('wan')) {
-      const wanModel = options.model === 'wan-2.6' ? 'wan-2.6-i2v' : 'wan-2.1-i2v';
-      console.log(`[PiAPI I2V] Using ${wanModel}`);
+      console.log(`[PiAPI I2V] Using Wan 2.6 I2V`);
       return {
-        model: 'hailuo',
-        task_type: 'image_to_video',
+        model: 'Wan',
+        task_type: 'wan26-img2video',
         input: {
-          ...baseInput,
-          model: wanModel,
+          prompt: baseInput.prompt,
+          negative_prompt: baseInput.negative_prompt,
+          image: options.imageUrl,
+          prompt_extend: true,
+          shot_type: 'single',
+          resolution: '720p',
+          duration: Math.min(options.duration, 5),
+          watermark: false,
         },
       };
     }
@@ -891,43 +890,54 @@ class PiAPIVideoService {
       console.log(`[PiAPI I2V] Using Seedance 1.0 I2V`);
       return {
         model: 'hailuo',
-        task_type: 'image_to_video',
+        task_type: 'video_generation',
         input: {
-          ...baseInput,
+          prompt: baseInput.prompt,
           model: 'seedance-1.0-i2v',
+          image_url: options.imageUrl,
         },
       };
     }
     
-    // Veo Family (Google)
+    // Veo Family (Google) - uses veo3-video-fast or veo3.1-video-fast task_type
     if (options.model.includes('veo')) {
-      let veoModel = 'veo-2';
-      if (options.model === 'veo-3.1') {
-        veoModel = 'veo-3.1';
-      } else if (options.model === 'veo-3' || options.model === 'veo') {
-        veoModel = 'veo-3';
+      let veoModel = 'veo3';
+      let taskType = 'veo3-video-fast';
+      if (options.model === 'veo-3.1' || options.model === 'veo3.1') {
+        veoModel = 'veo3.1';
+        taskType = 'veo3.1-video-fast';
       }
-      console.log(`[PiAPI I2V] Using ${veoModel}`);
+      console.log(`[PiAPI I2V] Using ${veoModel} with task_type: ${taskType}`);
       return {
         model: veoModel,
-        task_type: 'image_to_video',
-        input: baseInput,
+        task_type: taskType,
+        input: {
+          image_url: options.imageUrl,
+          prompt: baseInput.prompt,
+          aspect_ratio: 'auto',
+          duration: `${Math.min(options.duration, 8)}s`,
+          resolution: '720p',
+          generate_audio: false,
+        },
       };
     }
     
-    // Hunyuan
+    // Hunyuan - uses video_generation task_type
     if (options.model === 'hunyuan') {
       console.log(`[PiAPI I2V] Using Hunyuan`);
       return {
         model: 'hunyuan',
-        task_type: 'image_to_video',
-        input: baseInput,
+        task_type: 'video_generation',
+        input: {
+          ...baseInput,
+        },
       };
     }
     
+    // Default to Kling with video_generation
     return {
       model: 'kling',
-      task_type: 'image_to_video',
+      task_type: 'video_generation',
       input: {
         ...baseInput,
         mode: 'pro',

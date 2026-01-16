@@ -193,47 +193,38 @@ class RunwayVideoService {
         const imageRatio = this.formatRatioForImageToVideo(options.aspectRatio);
         console.log(`[Runway] Using imageToVideo with gen4_turbo, ratio: ${imageRatio}...`);
         
-        // For I2V with product images, COMBINE the visual direction with product preservation instructions
-        // The visual direction describes the environment/scene, and we add instructions to preserve the product
+        // For I2V with product images: ANIMATE the source image, don't create new content
+        // The prompt should describe motion/animation, NOT scene creation
         const animationStyle = options.i2vSettings?.animationStyle || 'product-hero';
         
-        // I2V PROMPT STRATEGY: Tell Runway to place the product bottle INTO the described environment
-        // The visual direction describes the environment, and we add a prefix that tells Runway
-        // to composite/place the product INTO that scene, then animate
+        // I2V PROMPT STRATEGY: Tell Runway to ANIMATE this exact image
+        // Key: Start from the source image on frame 1, then add motion
         
-        // Motion instruction based on animation style
-        let motionInstruction: string;
+        // Motion instruction based on animation style - focus on camera/motion, not scene
+        let i2vPrompt: string;
         if (animationStyle === 'product-static') {
-          motionInstruction = 'with subtle ambient lighting shifts';
+          i2vPrompt = `Animate this exact product image with very subtle motion. Gentle ambient lighting shifts, slight sparkle on highlights. Keep the product completely still and centered. Preserve all text and labels exactly as shown. Smooth, professional product photography feel.`;
         } else if (animationStyle === 'product-hero') {
-          motionInstruction = 'with slow cinematic camera push-in toward the bottle';
+          i2vPrompt = `Cinematic product shot animation. Start with this exact image and slowly push the camera toward the product. Gentle bokeh shift in background. Keep product sharp and centered. Preserve all text and labels exactly. Smooth, elegant motion. Professional advertising quality.`;
         } else if (animationStyle === 'subtle-motion') {
-          motionInstruction = 'with gentle floating dust particles and soft light rays';
+          i2vPrompt = `Animate this product image with subtle environmental motion. Gentle light rays or floating dust particles in the background. Product stays perfectly still and sharp. Preserve all text and labels exactly as shown. Ethereal, premium feel.`;
         } else {
-          motionInstruction = 'with dynamic camera orbit around the bottle';
+          i2vPrompt = `Dynamic product animation. Camera slowly orbits around this product while keeping it in focus. Dramatic lighting with subtle shifts. Preserve all text and labels exactly as shown. Energetic but professional.`;
         }
         
-        // Build prompt: Place product in environment + describe environment + motion
-        // Key: Tell Runway the product bottle is the SUBJECT placed in the described SCENE
+        // Truncate if needed
         const RUNWAY_MAX_PROMPT_LENGTH = 1000;
-        const productPrefix = `Place this product bottle prominently in the center of the scene. `;
-        const motionSuffix = `. Animate ${motionInstruction}. Keep bottle labels readable. No people.`;
+        const truncatedPrompt = i2vPrompt.length > RUNWAY_MAX_PROMPT_LENGTH 
+          ? i2vPrompt.substring(0, RUNWAY_MAX_PROMPT_LENGTH - 3) + '...'
+          : i2vPrompt;
         
-        // Calculate available space for visual direction
-        const availableForDirection = RUNWAY_MAX_PROMPT_LENGTH - productPrefix.length - motionSuffix.length - 10;
-        const truncatedDirection = formattedPrompt.length > availableForDirection 
-          ? formattedPrompt.substring(0, availableForDirection) + '...'
-          : formattedPrompt;
-        
-        const i2vPrompt = `${productPrefix}${truncatedDirection}${motionSuffix}`;
-        
-        console.log(`[Runway] I2V prompt (${animationStyle}, ${i2vPrompt.length} chars): ${i2vPrompt.substring(0, 150)}...`);
+        console.log(`[Runway] I2V prompt (${animationStyle}, ${truncatedPrompt.length} chars): ${truncatedPrompt.substring(0, 150)}...`);
         
         task = await client.imageToVideo
           .create({
             model: 'gen4_turbo',
             promptImage: resolvedImageUrl,
-            promptText: i2vPrompt,
+            promptText: truncatedPrompt,
             ratio: imageRatio as any,
             duration: duration,
           })
