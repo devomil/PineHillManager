@@ -956,6 +956,223 @@ class PiAPIVideoService {
       },
     };
   }
+
+  /**
+   * Video Object Replacement using Kling Multi-Elements
+   * Takes an existing video and replaces a specific object with a product image
+   */
+  async replaceObjectInVideo(options: {
+    videoUrl: string;
+    replacementImageUrl: string;
+    prompt: string;
+    objectDescription?: string;
+    duration?: number;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+  }): Promise<PiAPIGenerationResult> {
+    if (!this.isAvailable()) {
+      return { success: false, error: 'PiAPI key not configured' };
+    }
+
+    const startTime = Date.now();
+    
+    console.log(`[PiAPI:ObjectReplace] Starting video object replacement...`);
+    console.log(`[PiAPI:ObjectReplace] Source video: ${options.videoUrl.substring(0, 80)}...`);
+    console.log(`[PiAPI:ObjectReplace] Replacement image: ${options.replacementImageUrl.substring(0, 80)}...`);
+    console.log(`[PiAPI:ObjectReplace] Prompt: ${options.prompt}`);
+
+    try {
+      // Build the multi-elements request for Kling
+      const requestBody = {
+        model: 'kling',
+        task_type: 'elements_video',
+        input: {
+          video_url: options.videoUrl,
+          prompt: options.prompt,
+          elements: [
+            {
+              image_url: options.replacementImageUrl,
+              prompt: options.objectDescription || 'the product bottle',
+            }
+          ],
+          mode: 'pro',
+          version: '2.6',
+          duration: options.duration || 5,
+          aspect_ratio: options.aspectRatio || '16:9',
+          negative_prompt: 'blurry, low quality, distorted, morphing, warping, watermark',
+        },
+      };
+
+      console.log(`[PiAPI:ObjectReplace] Request body:`, JSON.stringify(requestBody, null, 2).substring(0, 1500));
+
+      const response = await fetch(`${this.baseUrl}/task`, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[PiAPI:ObjectReplace] API error: ${response.status} - ${errorText}`);
+        
+        // Try alternative task_type if elements_video fails
+        console.log(`[PiAPI:ObjectReplace] Trying fallback with video_generation + elements...`);
+        return await this.replaceObjectFallback(options, startTime);
+      }
+
+      const data = await response.json();
+      const taskId = data.data?.task_id || data.task_id;
+
+      if (!taskId) {
+        console.log(`[PiAPI:ObjectReplace] No task ID, trying fallback...`);
+        return await this.replaceObjectFallback(options, startTime);
+      }
+
+      console.log(`[PiAPI:ObjectReplace] Task created: ${taskId}`);
+
+      const result = await this.pollForCompletion(taskId, 'kling-object-replace');
+
+      if (!result.success || !result.videoUrl) {
+        return {
+          ...result,
+          generationTimeMs: Date.now() - startTime,
+        };
+      }
+
+      console.log(`[PiAPI:ObjectReplace] Complete, uploading to S3...`);
+      const s3Url = await this.uploadToS3(result.videoUrl, 'object-replace');
+
+      const generationTimeMs = Date.now() - startTime;
+      const cost = (options.duration || 5) * 0.05; // Estimated cost for object replacement
+
+      console.log(`[PiAPI:ObjectReplace] Complete! Time: ${(generationTimeMs / 1000).toFixed(1)}s, Cost: $${cost.toFixed(3)}`);
+
+      return {
+        success: true,
+        videoUrl: result.videoUrl,
+        s3Url,
+        duration: options.duration || 5,
+        cost,
+        generationTimeMs,
+        taskId,
+      };
+
+    } catch (error: any) {
+      console.error(`[PiAPI:ObjectReplace] Failed:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        generationTimeMs: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Fallback method using video_generation with multi-elements input
+   */
+  private async replaceObjectFallback(options: {
+    videoUrl: string;
+    replacementImageUrl: string;
+    prompt: string;
+    objectDescription?: string;
+    duration?: number;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+  }, startTime: number): Promise<PiAPIGenerationResult> {
+    try {
+      // Alternative approach: Use video_generation with reference images
+      const requestBody = {
+        model: 'kling',
+        task_type: 'video_generation',
+        input: {
+          video_url: options.videoUrl,
+          image_url: options.replacementImageUrl,
+          prompt: `${options.prompt}. Replace the ${options.objectDescription || 'object'} with the product shown in the reference image. Maintain the same motion and camera movement.`,
+          mode: 'pro',
+          version: '2.6',
+          duration: options.duration || 5,
+          aspect_ratio: options.aspectRatio || '16:9',
+          negative_prompt: 'blurry, low quality, distorted, morphing, warping, watermark, different product, wrong product',
+          // Multi-element reference
+          first_frame_image: options.replacementImageUrl,
+          elements: [
+            {
+              image_url: options.replacementImageUrl,
+              prompt: options.objectDescription || 'product bottle',
+            }
+          ],
+        },
+      };
+
+      console.log(`[PiAPI:ObjectReplace:Fallback] Trying alternative request...`);
+
+      const response = await fetch(`${this.baseUrl}/task`, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[PiAPI:ObjectReplace:Fallback] API error: ${response.status} - ${errorText}`);
+        return {
+          success: false,
+          error: `Object replacement not supported: ${errorText}`,
+          generationTimeMs: Date.now() - startTime,
+        };
+      }
+
+      const data = await response.json();
+      const taskId = data.data?.task_id || data.task_id;
+
+      if (!taskId) {
+        return {
+          success: false,
+          error: 'No task ID in fallback response',
+          generationTimeMs: Date.now() - startTime,
+        };
+      }
+
+      console.log(`[PiAPI:ObjectReplace:Fallback] Task created: ${taskId}`);
+
+      const result = await this.pollForCompletion(taskId, 'kling-object-replace-fallback');
+
+      if (!result.success || !result.videoUrl) {
+        return {
+          ...result,
+          generationTimeMs: Date.now() - startTime,
+        };
+      }
+
+      const s3Url = await this.uploadToS3(result.videoUrl, 'object-replace');
+      const generationTimeMs = Date.now() - startTime;
+      const cost = (options.duration || 5) * 0.05;
+
+      console.log(`[PiAPI:ObjectReplace:Fallback] Complete! Time: ${(generationTimeMs / 1000).toFixed(1)}s`);
+
+      return {
+        success: true,
+        videoUrl: result.videoUrl,
+        s3Url,
+        duration: options.duration || 5,
+        cost,
+        generationTimeMs,
+        taskId,
+      };
+
+    } catch (error: any) {
+      console.error(`[PiAPI:ObjectReplace:Fallback] Failed:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        generationTimeMs: Date.now() - startTime,
+      };
+    }
+  }
 }
 
 export const piapiVideoService = new PiAPIVideoService();

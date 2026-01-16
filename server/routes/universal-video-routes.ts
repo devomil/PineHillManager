@@ -3188,6 +3188,130 @@ router.get('/:projectId/scenes/:sceneId/active-jobs', isAuthenticated, async (re
   }
 });
 
+// Video Object Replacement Schema
+const replaceObjectSchema = z.object({
+  replacementImageUrl: z.string().url('Invalid replacement image URL'),
+  objectDescription: z.string().max(200).optional().default('the product bottle'),
+  prompt: z.string().max(500).optional(),
+});
+
+// Video Object Replacement - Replace product/object in existing video with brand asset
+router.post('/:projectId/scenes/:sceneId/replace-object', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    
+    // Validate request body with Zod
+    const validationResult = replaceObjectSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      console.error('[ObjectReplace] Validation failed:', validationResult.error.errors);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid request: ' + validationResult.error.errors.map(e => e.message).join(', ')
+      });
+    }
+    
+    const { replacementImageUrl, objectDescription, prompt } = validationResult.data;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    // Find the scene
+    const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    // Get the current video URL
+    const currentVideoUrl = scene.assets?.videoUrl;
+    if (!currentVideoUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Scene has no video to edit - generate a video first' 
+      });
+    }
+    
+    console.log(`[ObjectReplace] Starting object replacement for scene ${sceneId}`);
+    console.log(`[ObjectReplace] Source video: ${currentVideoUrl.substring(0, 80)}...`);
+    console.log(`[ObjectReplace] Replacement image: ${replacementImageUrl.substring(0, 80)}...`);
+    
+    // Import and use the PiAPI service for object replacement
+    const { piapiVideoService } = await import('../services/piapi-video-service');
+    
+    const replacementPrompt = prompt || 
+      `Replace the product/bottle in this video with the Pine Hill Farm product shown in the reference image. Maintain the same motion, lighting, and camera movement.`;
+    
+    const result = await piapiVideoService.replaceObjectInVideo({
+      videoUrl: currentVideoUrl,
+      replacementImageUrl,
+      prompt: replacementPrompt,
+      objectDescription: objectDescription || 'the product bottle',
+      duration: scene.duration || 5,
+      aspectRatio: (projectData as any).settings?.aspectRatio || '16:9',
+    });
+    
+    if (!result.success) {
+      console.error(`[ObjectReplace] Failed:`, result.error);
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Object replacement failed'
+      });
+    }
+    
+    // Store the old video as an alternative
+    if (!scene.assets!.alternativeVideos) {
+      scene.assets!.alternativeVideos = [];
+    }
+    scene.assets!.alternativeVideos.push({
+      url: currentVideoUrl,
+      query: 'before-object-replacement',
+      source: scene.assets!.videoSource || 'ai-generated',
+    });
+    
+    // Update scene with new video
+    scene.assets!.videoUrl = result.s3Url || result.videoUrl;
+    scene.assets!.videoSource = 'object-replacement';
+    scene.generatedAt = new Date().toISOString();
+    
+    // Record in regeneration history
+    if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
+    projectData.regenerationHistory.push({
+      id: `objreplace_${Date.now()}`,
+      sceneId,
+      assetType: 'video',
+      previousUrl: currentVideoUrl,
+      newUrl: result.s3Url || result.videoUrl,
+      prompt: replacementPrompt,
+      timestamp: new Date().toISOString(),
+      success: true,
+      method: 'object-replacement',
+    });
+    
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[ObjectReplace] Success! New video: ${(result.s3Url || result.videoUrl || '').substring(0, 80)}...`);
+    
+    return res.json({
+      success: true,
+      newVideoUrl: result.s3Url || result.videoUrl,
+      scene,
+      project: projectData,
+      generationTimeMs: result.generationTimeMs,
+      cost: result.cost,
+    });
+    
+  } catch (error: any) {
+    console.error('[UniversalVideo] Replace object error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/:projectId/scenes/:sceneId/switch-background', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;

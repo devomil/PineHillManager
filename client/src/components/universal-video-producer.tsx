@@ -44,7 +44,8 @@ import {
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
   FolderOpen, Plus, Minus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
-  Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy, Check
+  Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy, Check,
+  Replace, ArrowLeftRight
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -1356,6 +1357,7 @@ function ScenePreview({
 }) {
   const [sceneEditorOpen, setSceneEditorOpen] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [replacingObject, setReplacingObject] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState<Record<string, string>>({});
   const [editingNarration, setEditingNarration] = useState<string | null>(null);
   const [editedNarration, setEditedNarration] = useState<Record<string, string>>({});
@@ -1987,6 +1989,58 @@ function ScenePreview({
       console.error('[regenerateVideo] FETCH ERROR:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
       setRegenerating(null);
+    }
+  };
+
+  const replaceObjectInVideo = async (sceneId: string, replacementImageUrl: string, objectDescription?: string) => {
+    if (!projectId) {
+      toast({ title: 'Error', description: 'Project ID is missing', variant: 'destructive' });
+      return;
+    }
+    
+    if (!replacementImageUrl) {
+      toast({ title: 'Select a brand asset', description: 'Please select a product image to replace the object with', variant: 'destructive' });
+      return;
+    }
+    
+    setReplacingObject(sceneId);
+    const url = `/api/universal-video/${projectId}/scenes/${sceneId}/replace-object`;
+    
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          replacementImageUrl,
+          objectDescription: objectDescription || 'the product bottle',
+          prompt: `Replace the product/bottle in this video with the Pine Hill Farm product shown in the reference image. Maintain the same motion, lighting, and camera movement.`,
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        toast({ 
+          title: 'Object replaced!', 
+          description: 'The product in the video has been replaced with your brand asset.' 
+        });
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
+        onSceneUpdate?.();
+      } else {
+        toast({ 
+          title: 'Object replacement failed', 
+          description: data.error || 'Unable to replace object in video', 
+          variant: 'destructive' 
+        });
+      }
+    } catch (err: any) {
+      console.error('[replaceObjectInVideo] Error:', err);
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setReplacingObject(null);
     }
   };
 
@@ -3572,6 +3626,38 @@ function ScenePreview({
                       </>
                     )}
                   </Button>
+                  
+                  {/* Replace Object in Video Button - Only show when video exists and asset selected */}
+                  {scene.assets?.videoUrl && (
+                    <Button
+                      variant="outline"
+                      className="w-full border-purple-300 text-purple-600 hover:bg-purple-50 mt-2"
+                      disabled={replacingObject === scene.id || !selectedProductAsset[scene.id]}
+                      onClick={() => {
+                        const selectedAsset = selectedProductAsset[scene.id];
+                        if (selectedAsset?.url) {
+                          replaceObjectInVideo(scene.id, selectedAsset.url, 'the product bottle');
+                        }
+                      }}
+                    >
+                      {replacingObject === scene.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Replacing Product...
+                        </>
+                      ) : (
+                        <>
+                          <ArrowLeftRight className="w-4 h-4 mr-2" />
+                          Replace Product in Video
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {scene.assets?.videoUrl && !selectedProductAsset[scene.id] && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Select a brand asset above to replace the product in the video
+                    </p>
+                  )}
                   
                   {/* Image Provider Selection (I2I) */}
                   <div className="space-y-2 mt-3 pt-3 border-t border-dashed">
