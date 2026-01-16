@@ -3631,6 +3631,7 @@ function ScenePreview({
                   </Button>
                   
                   {/* Replace Object in Video Button - Only show when video exists and asset selected */}
+                  {/* Note: This uses Kling's unique "elements" feature which is not available in other providers */}
                   {scene.assets?.videoUrl && (
                     <Button
                       variant="outline"
@@ -3642,16 +3643,17 @@ function ScenePreview({
                           replaceObjectInVideo(scene.id, selectedAsset.url, 'the product bottle');
                         }
                       }}
+                      title="Uses Kling 1.6 Elements feature (Kling-exclusive capability)"
                     >
                       {replacingObject === scene.id ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Replacing Product...
+                          Replacing with Kling...
                         </>
                       ) : (
                         <>
                           <ArrowLeftRight className="w-4 h-4 mr-2" />
-                          Replace Product in Video
+                          Replace Product (Kling)
                         </>
                       )}
                     </Button>
