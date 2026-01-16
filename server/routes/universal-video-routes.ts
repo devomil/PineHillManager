@@ -317,6 +317,11 @@ router.post('/ask-suzzie', isAuthenticated, async (req: Request, res: Response) 
   try {
     const { narration, sceneType, projectTitle, workflowPath, matchedAssets, selectedProduct } = req.body;
     
+    // Debug logging for I2V context
+    console.log(`[AskSuzzie] Request received - sceneType: ${sceneType}, workflowPath: ${workflowPath}`);
+    console.log(`[AskSuzzie] selectedProduct: ${selectedProduct?.name || 'none'}`);
+    console.log(`[AskSuzzie] matchedAssets products: ${matchedAssets?.products?.length || 0}`);
+    
     if (!narration) {
       return res.status(400).json({ success: false, error: 'Narration is required' });
     }
@@ -336,11 +341,18 @@ router.post('/ask-suzzie', isAuthenticated, async (req: Request, res: Response) 
     
     // Determine if this is an I2V (Image-to-Video) workflow that uses a real product photo
     const isProductWorkflow = workflowPath && ['product-video', 'product-image', 'product-hero'].includes(workflowPath);
-    const hasSelectedProduct = selectedProduct?.name;
+    const hasSelectedProduct = !!selectedProduct?.name;
     const productNames = matchedAssets?.products?.map((p: any) => p.name).join(', ') || '';
+    
+    console.log(`[AskSuzzie] I2V detection - isProductWorkflow: ${isProductWorkflow}, hasSelectedProduct: ${hasSelectedProduct}`);
     
     // Build workflow-specific context
     let workflowContext = '';
+    if (isProductWorkflow || hasSelectedProduct) {
+      console.log(`[AskSuzzie] ✓ Activating I2V workflow context for product: ${selectedProduct?.name || 'auto-matched'}`);
+    } else {
+      console.log(`[AskSuzzie] Standard T2V workflow (no product selected)`);
+    }
     if (isProductWorkflow || hasSelectedProduct) {
       workflowContext = `
 ## IMPORTANT: IMAGE-TO-VIDEO (I2V) WORKFLOW ACTIVE
@@ -4927,6 +4939,11 @@ router.post('/projects/:projectId/scenes/:sceneIndex/analyze', isAuthenticated, 
     const buffer = Buffer.from(await response.arrayBuffer());
     const base64 = buffer.toString('base64');
     
+    // Get matched brand assets and workflow path for I2V context
+    const matchedAssets = (scene as any).matchedBrandAssets || [];
+    const selectedProduct = matchedAssets.find((a: any) => a.assetType === 'product');
+    const workflowPath = (scene as any).workflowPath || (selectedProduct ? 'product-hero' : undefined);
+    
     const context: SceneContext = {
       sceneIndex: sceneIdx,
       sceneType: scene.type || 'content',
@@ -4934,6 +4951,12 @@ router.post('/projects/:projectId/scenes/:sceneIndex/analyze', isAuthenticated, 
       visualDirection: scene.visualDirection || '',
       expectedContentType: (scene as any).contentType || 'lifestyle',
       totalScenes: scenes.length,
+      selectedBrandAsset: selectedProduct ? {
+        name: selectedProduct.name || selectedProduct.assetName || 'Unknown Product',
+        type: selectedProduct.assetType || 'product',
+        url: selectedProduct.url || selectedProduct.assetUrl,
+      } : undefined,
+      workflowPath,
     };
     
     const analysisResult = await sceneAnalysisService.analyzeScenePhase8(base64, context);

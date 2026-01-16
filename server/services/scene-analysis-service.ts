@@ -16,6 +16,12 @@ export interface SceneContext {
   visualDirection: string;
   expectedContentType: string;
   totalScenes: number;
+  selectedBrandAsset?: {
+    name: string;
+    type: 'product' | 'logo' | 'location' | 'photo';
+    url?: string;
+  };
+  workflowPath?: string;
 }
 
 // Internal alias for the shared type
@@ -1042,17 +1048,49 @@ Return ONLY the JSON object.`;
   private buildPhase8AnalysisPrompt(context: SceneContext, brandContext: string): string {
     const requiredElements = this.extractRequiredElements(context.visualDirection);
     
+    // Build I2V context if a brand asset is selected
+    let i2vContext = '';
+    if (context.selectedBrandAsset) {
+      const isProductWorkflow = context.workflowPath?.includes('product') || 
+                                 context.selectedBrandAsset.type === 'product';
+      if (isProductWorkflow) {
+        i2vContext = `
+## I2V WORKFLOW CONTEXT (CRITICAL FOR IMPROVED PROMPT)
+A product brand asset has been selected: "${context.selectedBrandAsset.name}" (${context.selectedBrandAsset.type})
+Workflow: ${context.workflowPath || 'product-hero'}
+
+This scene will use Image-to-Video (I2V) generation where the product image will be animated.
+When generating the "improvedPrompt", you MUST follow these I2V best practices:
+
+1. DO NOT describe the product appearance in the prompt (the product image is the source)
+2. DO describe the ENVIRONMENT and SCENE around the product:
+   - Camera angle and movement (slow zoom, gentle pan, static with atmospheric motion)
+   - Lighting style (soft morning light, golden hour, studio lighting)
+   - Background elements (wooden table, marble counter, natural setting)
+   - Atmospheric effects (gentle steam, floating particles, light rays)
+   - Mood and tone (peaceful, energetic, professional)
+
+3. Example I2V-appropriate prompt:
+   "Medium close-up shot with soft morning light streaming through a window. Natural wooden surface with fresh herbs and ceramic bowls in soft focus background. Gentle atmospheric particles floating in golden light rays. Camera holds steady with subtle environmental motion. Warm earth tones and peaceful wellness atmosphere."
+
+4. DO NOT say things like "Black Cohosh bottle" or describe product labels - the actual product photo provides this.
+`;
+      }
+    }
+    
     return `You are a STRICT quality assurance analyst for video production. Your job is to determine if this generated image ACTUALLY matches what was requested.
 
 ## CRITICAL INSTRUCTION
 You must be STRICT about content matching. If the visual direction asks for specific elements and they are missing or wrong, the score MUST be low. Do NOT give high scores to technically good images that don't match what was requested.
-
+${i2vContext}
 ## SCENE CONTEXT
 - Scene ${context.sceneIndex + 1} of ${context.totalScenes}
 - Scene Type: ${context.sceneType}
 - Expected Content: ${context.expectedContentType}
 - Narration: "${context.narration}"
 - Visual Direction: "${context.visualDirection}"
+${context.selectedBrandAsset ? `- Selected Brand Asset: "${context.selectedBrandAsset.name}" (${context.selectedBrandAsset.type})` : ''}
+${context.workflowPath ? `- Workflow Path: ${context.workflowPath}` : ''}
 
 ## BRAND GUIDELINES
 ${brandContext}
