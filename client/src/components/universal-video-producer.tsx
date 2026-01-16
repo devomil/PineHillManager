@@ -3025,7 +3025,9 @@ function ScenePreview({
                                 const currentMediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                                 const provider = selectedProviders[`${currentMediaType}-${scene.id}`] || getRecommendedProvider(currentMediaType as any, scene.type, scene.analysisResult.improvedPrompt);
                                 if (currentMediaType === 'video') {
-                                  await regenerateVideo(scene.id, provider);
+                                  // Include selected product asset for I2V workflows
+                                  const selectedAsset = selectedProductAsset[scene.id];
+                                  await regenerateVideo(scene.id, provider, selectedAsset?.url);
                                 } else {
                                   await regenerateImage(scene.id, provider);
                                 }
