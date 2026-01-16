@@ -198,17 +198,18 @@ class RunwayVideoService {
         const animationStyle = options.i2vSettings?.animationStyle || 'product-hero';
         
         // Product preservation suffix based on animation style
-        // Key: Tell Runway the environment is already visible from frame 1, not fading in
+        // CRITICAL: For I2V, tell Runway to animate the SOURCE IMAGE directly, not generate new content
+        // The prompt should describe how to animate what's already in the image, not create a new scene
         let preservationSuffix: string;
         if (animationStyle === 'product-static') {
-          preservationSuffix = `The environment is fully visible from the first frame. Preserve the product exactly as shown with all labels and text. Only add subtle ambient lighting shifts.`;
+          preservationSuffix = `ANIMATE THIS IMAGE: Add subtle ambient lighting shifts to this product photo. Keep the product exactly as shown. Do not add people or new objects.`;
         } else if (animationStyle === 'product-hero') {
-          preservationSuffix = `The environment is fully visible from the first frame, not fading in. Keep the product centered and preserve all labels exactly. Add smooth cinematic camera motion.`;
+          preservationSuffix = `ANIMATE THIS IMAGE: Add smooth, slow camera push-in motion toward this product. Keep product centered and all labels visible. Do not add people or change the product.`;
         } else if (animationStyle === 'subtle-motion') {
-          preservationSuffix = `The environment is fully visible from frame one. Keep the product in sharp focus exactly as shown. Add subtle atmospheric particles and soft lighting shifts.`;
+          preservationSuffix = `ANIMATE THIS IMAGE: Add gentle floating particles and soft light rays around this product. Keep the product in sharp focus. Do not add people.`;
         } else {
           // Dynamic style
-          preservationSuffix = `The environment is fully visible from the start. Preserve all product details exactly. Add dynamic, energetic camera motion in commercial style.`;
+          preservationSuffix = `ANIMATE THIS IMAGE: Add dynamic camera orbit motion around this product. Keep all product details and labels visible. Do not add people or new objects.`;
         }
         
         // Combine the visual direction (scene/environment) with product preservation instructions
