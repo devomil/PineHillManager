@@ -389,10 +389,12 @@ ${isProductWorkflow ? '5. I2V-OPTIMIZED - Focus on environment/background for pr
 ## OUTPUT FORMAT
 Return a JSON object with exactly these fields:
 {
-  "visualDirection": "3-4 sentences with SPECIFIC details: camera angle, lighting type, color palette, ${isProductWorkflow ? 'environment, camera motion, atmospheric effects' : 'subject, setting'}, mood, composition. Be concrete enough that any AI would generate the same vision.",
+  "visualDirection": "${isProductWorkflow ? '[I2V Environment for PRODUCT_NAME] ' : ''}3-4 sentences with SPECIFIC details: camera angle, lighting type, color palette, ${isProductWorkflow ? 'environment, camera motion, atmospheric effects' : 'subject, setting'}, mood, composition. Be concrete enough that any AI would generate the same vision.",
   "searchQuery": "3-5 word stock video search query",
   "fallbackQuery": "alternative 3-5 word search query (completely different visual approach)"
 }
+${isProductWorkflow ? `
+CRITICAL I2V OUTPUT RULE: Your visualDirection MUST start with "[I2V Environment for ${selectedProduct?.name || 'Product'}]" to confirm you are describing the environment where the product photo will be placed, NOT the product itself.` : ''}
 
 ## VISUAL DIRECTION QUALITY CHECKLIST
 Before outputting, verify your visual direction includes:
