@@ -315,7 +315,7 @@ router.delete('/projects/:projectId', isAuthenticated, async (req: Request, res:
 // Ask Suzzie (Claude AI) to generate visual direction idea for a scene
 router.post('/ask-suzzie', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const { narration, sceneType, projectTitle } = req.body;
+    const { narration, sceneType, projectTitle, workflowPath, matchedAssets, selectedProduct } = req.body;
     
     if (!narration) {
       return res.status(400).json({ success: false, error: 'Narration is required' });
@@ -334,10 +334,37 @@ router.post('/ask-suzzie', isAuthenticated, async (req: Request, res: Response) 
     // Get comprehensive brand context for better initial directions
     const brandContext = await brandContextService.getVisualDirectionGenerationContext();
     
+    // Determine if this is an I2V (Image-to-Video) workflow that uses a real product photo
+    const isProductWorkflow = workflowPath && ['product-video', 'product-image', 'product-hero'].includes(workflowPath);
+    const hasSelectedProduct = selectedProduct?.name;
+    const productNames = matchedAssets?.products?.map((p: any) => p.name).join(', ') || '';
+    
+    // Build workflow-specific context
+    let workflowContext = '';
+    if (isProductWorkflow || hasSelectedProduct) {
+      workflowContext = `
+## IMPORTANT: IMAGE-TO-VIDEO (I2V) WORKFLOW ACTIVE
+This scene will use a REAL PRODUCT PHOTO that gets animated into video. Your visual direction must:
+1. Describe the ENVIRONMENT/BACKGROUND where the product will be placed (NOT the product itself)
+2. Focus on lighting, atmosphere, and motion that will be ADDED to the static product image
+3. Include camera motion suggestions (slow zoom, gentle pan, parallax depth)
+4. The product photo will be composited INTO the AI-generated environment
+
+${hasSelectedProduct ? `SELECTED PRODUCT: "${selectedProduct.name}" - The product photo will be the hero element. Describe an environment that complements and showcases this product.` : ''}
+${productNames ? `AVAILABLE PRODUCTS: ${productNames}` : ''}
+
+## I2V PROMPT BEST PRACTICES:
+- Describe background/environment motion (swirling steam, floating particles, gentle wind)
+- Include lighting effects that enhance the product (rim lighting, warm glow, soft shadows)
+- Suggest subtle camera movements (slow push-in, gentle orbit, depth reveal)
+- DO NOT describe the product details - focus on the SCENE around it`;
+    }
+    
     const systemPrompt = `You are Suzzie, an expert visual director for Pine Hill Farm marketing videos with deep brand knowledge. 
 You create broadcast-quality visual directions that are ALREADY OPTIMIZED for AI generation - no "suggested improvements" needed.
 
 ${brandContext}
+${workflowContext}
 
 ## YOUR TASK
 Create a visual direction that is:
@@ -345,11 +372,12 @@ Create a visual direction that is:
 2. AI-GENERATION READY - Achievable with current AI video/image models (no complex multi-person scenes)
 3. BRAND-ALIGNED - Follows Pine Hill Farm aesthetic (warm, natural, organic, inviting)
 4. SCENE-TYPE APPROPRIATE - Matches the purpose of this scene in the video
+${isProductWorkflow ? '5. I2V-OPTIMIZED - Focus on environment/background for product photo animation' : ''}
 
 ## OUTPUT FORMAT
 Return a JSON object with exactly these fields:
 {
-  "visualDirection": "3-4 sentences with SPECIFIC details: camera angle, lighting type, color palette, subject, setting, mood, composition. Be concrete enough that any AI would generate the same vision.",
+  "visualDirection": "3-4 sentences with SPECIFIC details: camera angle, lighting type, color palette, ${isProductWorkflow ? 'environment, camera motion, atmospheric effects' : 'subject, setting'}, mood, composition. Be concrete enough that any AI would generate the same vision.",
   "searchQuery": "3-5 word stock video search query",
   "fallbackQuery": "alternative 3-5 word search query (completely different visual approach)"
 }
@@ -359,9 +387,9 @@ Before outputting, verify your visual direction includes:
 ✓ Camera angle (wide/medium/close-up, high/eye-level/low)
 ✓ Lighting description (golden hour, diffused, dappled, soft studio)
 ✓ Color palette (earth tones, warm golds, greens)
-✓ Subject description (what/who is in frame)
-✓ Setting/environment (farm, kitchen, garden, wellness space)
-✓ Mood/atmosphere (peaceful, hopeful, inviting, authentic)
+${isProductWorkflow ? '✓ Environment/background description (where the product will be placed)' : '✓ Subject description (what/who is in frame)'}
+${isProductWorkflow ? '✓ Camera motion (slow zoom, gentle pan, parallax)' : '✓ Setting/environment (farm, kitchen, garden, wellness space)'}
+${isProductWorkflow ? '✓ Atmospheric effects (steam, particles, light rays)' : '✓ Mood/atmosphere (peaceful, hopeful, inviting, authentic)'}
 ✓ Composition notes (centered, rule of thirds, leading lines)
 
 ## CRITICAL RULES FOR SEARCH QUERIES:
@@ -373,11 +401,13 @@ Before outputting, verify your visual direction includes:
 
     const userPrompt = `Scene Type: ${sceneType || 'general'}
 Project: ${projectTitle || 'Marketing Video'}
+${workflowPath ? `Workflow: ${workflowPath}` : ''}
+${hasSelectedProduct ? `Selected Product: ${selectedProduct.name}` : ''}
 
 Narration for this scene:
 "${narration}"
 
-Create an OPTIMIZED visual direction that requires NO IMPROVEMENT. Include specific camera angles, lighting, colors, subject, setting, and mood. Return JSON with visualDirection, searchQuery, and fallbackQuery.`;
+Create an OPTIMIZED visual direction that requires NO IMPROVEMENT. ${isProductWorkflow ? 'Focus on the ENVIRONMENT where the product will be placed, not the product itself. Include camera motion and atmospheric effects for I2V animation.' : 'Include specific camera angles, lighting, colors, subject, setting, and mood.'} Return JSON with visualDirection, searchQuery, and fallbackQuery.`;
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',

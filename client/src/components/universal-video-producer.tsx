@@ -1728,6 +1728,10 @@ function ScenePreview({
     if (!projectId) return;
     setAskingSuzzie(sceneId);
     try {
+      // Get matched brand assets and workflow info for this scene
+      const sceneWorkflowData = workflowAnalysis[sceneId];
+      const selectedProduct = selectedProductAsset[sceneId];
+      
       const res = await fetch(`/api/universal-video/ask-suzzie`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1735,7 +1739,14 @@ function ScenePreview({
         body: JSON.stringify({ 
           narration, 
           sceneType,
-          projectTitle: projectTitle || 'Marketing Video'
+          projectTitle: projectTitle || 'Marketing Video',
+          // Include workflow and brand asset context
+          workflowPath: sceneWorkflowData?.decision?.path,
+          matchedAssets: sceneWorkflowData?.matchedAssets,
+          selectedProduct: selectedProduct ? {
+            name: selectedProduct.name,
+            url: selectedProduct.url
+          } : undefined
         })
       });
       const data = await res.json();
