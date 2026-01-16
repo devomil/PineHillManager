@@ -2030,9 +2030,12 @@ function ScenePreview({
         }
         onSceneUpdate?.();
       } else {
+        const errorMessage = typeof data.error === 'string' 
+          ? data.error 
+          : (data.error?.message || data.error?.raw_message || JSON.stringify(data.error) || 'Unable to replace object in video');
         toast({ 
           title: 'Object replacement failed', 
-          description: data.error || 'Unable to replace object in video', 
+          description: errorMessage, 
           variant: 'destructive' 
         });
       }
