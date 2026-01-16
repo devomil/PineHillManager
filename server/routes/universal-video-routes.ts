@@ -2925,6 +2925,8 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     const { query, provider, sourceImageUrl, i2vSettings } = req.body;
     
     console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}${i2vSettings ? ', with I2V settings' : ''}`);
+    console.log(`[Phase9B-Async] Source image URL from request: ${sourceImageUrl?.substring(0, 80) || 'none'}`);
+    console.log(`[Phase9B-Async] I2V settings: ${JSON.stringify(i2vSettings || 'none')}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -2961,6 +2963,13 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     
     // Determine source image for I2V - use provided sourceImageUrl or scene's brandAssetUrl
     const finalSourceImageUrl = sourceImageUrl || scene.brandAssetUrl || undefined;
+    console.log(`[Phase9B-Async] Scene brandAssetUrl: ${scene.brandAssetUrl?.substring(0, 80) || 'none'}`);
+    console.log(`[Phase9B-Async] Final source image URL for I2V: ${finalSourceImageUrl?.substring(0, 80) || 'none (T2V mode)'}`);
+    if (finalSourceImageUrl) {
+      console.log(`[Phase9B-Async] ✓ I2V mode active - will animate source image`);
+    } else {
+      console.log(`[Phase9B-Async] ✓ T2V mode - will generate from text prompt only`);
+    }
     
     // Create async job - returns immediately
     const job = await videoGenerationWorker.createJob({
