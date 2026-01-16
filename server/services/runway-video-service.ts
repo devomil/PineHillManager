@@ -198,16 +198,17 @@ class RunwayVideoService {
         const animationStyle = options.i2vSettings?.animationStyle || 'product-hero';
         
         // Product preservation suffix based on animation style
+        // Key: Tell Runway the environment is already visible from frame 1, not fading in
         let preservationSuffix: string;
         if (animationStyle === 'product-static') {
-          preservationSuffix = `IMPORTANT: The product shown in this image must remain exactly as depicted - preserve all labels, text, and packaging details. Only add subtle ambient lighting shifts. Do not alter the product appearance.`;
+          preservationSuffix = `The environment is fully visible from the first frame. Preserve the product exactly as shown with all labels and text. Only add subtle ambient lighting shifts.`;
         } else if (animationStyle === 'product-hero') {
-          preservationSuffix = `IMPORTANT: Keep the product from this image prominently featured and centered. Preserve all product details, labels, and packaging exactly as shown. Add smooth, gentle cinematic camera motion around the product.`;
+          preservationSuffix = `The environment is fully visible from the first frame, not fading in. Keep the product centered and preserve all labels exactly. Add smooth cinematic camera motion.`;
         } else if (animationStyle === 'subtle-motion') {
-          preservationSuffix = `IMPORTANT: The product in this image must remain exactly as shown and stay in sharp focus. Add subtle environmental motion like gentle atmospheric particles and soft lighting shifts around it.`;
+          preservationSuffix = `The environment is fully visible from frame one. Keep the product in sharp focus exactly as shown. Add subtle atmospheric particles and soft lighting shifts.`;
         } else {
           // Dynamic style
-          preservationSuffix = `IMPORTANT: Preserve all product details and labels from this image exactly. Add dynamic, energetic camera motion around the product in professional commercial style.`;
+          preservationSuffix = `The environment is fully visible from the start. Preserve all product details exactly. Add dynamic, energetic camera motion in commercial style.`;
         }
         
         // Combine the visual direction (scene/environment) with product preservation instructions
