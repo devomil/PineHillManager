@@ -910,25 +910,26 @@ class PiAPIVideoService {
       };
     }
     
-    // Veo Family (Google) - uses veo3-video-fast or veo3.1-video-fast task_type
+    // Veo Family (Google) - uses image_to_video task_type for I2V
+    // Reference: PiAPI playground shows task_type: "image_to_video" with model: "veo3.1"
     if (options.model.includes('veo')) {
-      let veoModel = 'veo3';
-      let taskType = 'veo3-video-fast';
-      if (options.model === 'veo-3.1' || options.model === 'veo3.1') {
-        veoModel = 'veo3.1';
-        taskType = 'veo3.1-video-fast';
+      let veoModel = 'veo3.1';
+      if (options.model === 'veo-3' || options.model === 'veo3' || options.model === 'veo') {
+        veoModel = 'veo3';
+      } else if (options.model === 'veo-2' || options.model === 'veo2') {
+        veoModel = 'veo2';
       }
-      console.log(`[PiAPI I2V] Using ${veoModel} with task_type: ${taskType}`);
+      
+      console.log(`[PiAPI I2V] Using ${veoModel} with task_type: image_to_video`);
+      console.log(`[PiAPI I2V] Image URL: ${options.imageUrl.substring(0, 100)}...`);
+      console.log(`[PiAPI I2V] Prompt: ${baseInput.prompt.substring(0, 100)}...`);
+      
       return {
         model: veoModel,
-        task_type: taskType,
+        task_type: 'image_to_video',
         input: {
           image_url: options.imageUrl,
           prompt: baseInput.prompt,
-          aspect_ratio: 'auto',
-          duration: `${Math.min(options.duration, 8)}s`,
-          resolution: '720p',
-          generate_audio: false,
         },
       };
     }
