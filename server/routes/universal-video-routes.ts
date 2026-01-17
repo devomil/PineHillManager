@@ -92,61 +92,69 @@ async function uploadImageToPiAPIStorage(
     
     console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes) to PiAPI storage...`);
     
-    // Use form-data package with https module for reliable multipart upload
-    const formData = new FormData();
-    formData.append('file', imageBuffer, {
+    // Approach 1: Try JSON body with base64 encoded image
+    const base64Data = imageBuffer.toString('base64');
+    const jsonBody = JSON.stringify({
+      file: `data:${mimeType};base64,${base64Data}`,
       filename: filename,
-      contentType: mimeType,
     });
     
-    return new Promise((resolve) => {
-      const req = https.request({
-        hostname: 'upload.theapi.app',
-        path: '/api/ephemeral_resource',
+    console.log(`[PiAPI Upload] Using base64 JSON approach, payload size: ${jsonBody.length} bytes`);
+    
+    const response = await fetch('https://upload.theapi.app/api/ephemeral_resource', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: jsonBody,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[PiAPI Upload] Base64 approach failed: ${response.status} - ${errorText}`);
+      
+      // Fallback: Try direct binary upload
+      console.log('[PiAPI Upload] Trying direct binary upload...');
+      const binaryResponse = await fetch('https://upload.theapi.app/api/ephemeral_resource', {
         method: 'POST',
         headers: {
+          'Content-Type': mimeType,
           'x-api-key': apiKey,
-          ...formData.getHeaders(),
+          'Content-Disposition': `attachment; filename="${filename}"`,
         },
-      }, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            if (res.statusCode !== 200) {
-              console.error(`[PiAPI Upload] Failed: ${res.statusCode} - ${data}`);
-              resolve(null);
-              return;
-            }
-            
-            const json = JSON.parse(data);
-            console.log(`[PiAPI Upload] Response:`, JSON.stringify(json));
-            
-            // Extract URL from various possible response formats
-            const imageUrl = json.url || json.data?.url || json.image_url || json.data?.image_url || json.file_url;
-            
-            if (imageUrl) {
-              console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
-              resolve(imageUrl);
-            } else {
-              console.log('[PiAPI Upload] Unexpected response format:', JSON.stringify(json));
-              resolve(null);
-            }
-          } catch (e: any) {
-            console.error('[PiAPI Upload] Parse error:', e.message, 'Raw:', data);
-            resolve(null);
-          }
-        });
+        body: imageBuffer,
       });
       
-      req.on('error', (error) => {
-        console.error('[PiAPI Upload] Request error:', error.message);
-        resolve(null);
-      });
+      if (!binaryResponse.ok) {
+        const binaryError = await binaryResponse.text();
+        console.error(`[PiAPI Upload] Binary approach failed: ${binaryResponse.status} - ${binaryError}`);
+        return null;
+      }
       
-      // Pipe the form data to the request
-      formData.pipe(req);
-    });
+      const binaryData = await binaryResponse.json();
+      console.log(`[PiAPI Upload] Binary response:`, JSON.stringify(binaryData));
+      const binaryUrl = binaryData.url || binaryData.data?.url || binaryData.image_url || binaryData.data?.image_url || binaryData.file_url;
+      if (binaryUrl) {
+        console.log(`[PiAPI Upload] Success via binary! URL: ${binaryUrl}`);
+        return binaryUrl;
+      }
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log(`[PiAPI Upload] Response:`, JSON.stringify(data));
+    
+    // Extract URL from various possible response formats
+    const imageUrl = data.url || data.data?.url || data.image_url || data.data?.image_url || data.file_url;
+    
+    if (imageUrl) {
+      console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
+      return imageUrl;
+    }
+    
+    console.log('[PiAPI Upload] Unexpected response format:', JSON.stringify(data));
+    return null;
     
   } catch (error: any) {
     console.error('[PiAPI Upload] Error:', error.message);
