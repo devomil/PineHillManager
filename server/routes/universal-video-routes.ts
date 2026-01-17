@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
 import FormData from 'form-data';
+import https from 'https';
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
@@ -85,49 +86,67 @@ async function uploadImageToPiAPIStorage(
   }
   
   try {
-    const uploadUrl = 'https://upload.theapi.app/api/ephemeral_resource';
-    
     const mimeType = filename.endsWith('.jpg') || filename.endsWith('.jpeg') 
       ? 'image/jpeg' 
       : 'image/png';
     
     console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes) to PiAPI storage...`);
     
-    // Use form-data package for proper Node.js multipart encoding
+    // Use form-data package with https module for reliable multipart upload
     const formData = new FormData();
     formData.append('file', imageBuffer, {
       filename: filename,
       contentType: mimeType,
     });
     
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        ...formData.getHeaders(),
-      },
-      body: formData.getBuffer(),
+    return new Promise((resolve) => {
+      const req = https.request({
+        hostname: 'upload.theapi.app',
+        path: '/api/ephemeral_resource',
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          ...formData.getHeaders(),
+        },
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            if (res.statusCode !== 200) {
+              console.error(`[PiAPI Upload] Failed: ${res.statusCode} - ${data}`);
+              resolve(null);
+              return;
+            }
+            
+            const json = JSON.parse(data);
+            console.log(`[PiAPI Upload] Response:`, JSON.stringify(json));
+            
+            // Extract URL from various possible response formats
+            const imageUrl = json.url || json.data?.url || json.image_url || json.data?.image_url || json.file_url;
+            
+            if (imageUrl) {
+              console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
+              resolve(imageUrl);
+            } else {
+              console.log('[PiAPI Upload] Unexpected response format:', JSON.stringify(json));
+              resolve(null);
+            }
+          } catch (e: any) {
+            console.error('[PiAPI Upload] Parse error:', e.message, 'Raw:', data);
+            resolve(null);
+          }
+        });
+      });
+      
+      req.on('error', (error) => {
+        console.error('[PiAPI Upload] Request error:', error.message);
+        resolve(null);
+      });
+      
+      // Pipe the form data to the request
+      formData.pipe(req);
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[PiAPI Upload] Failed: ${response.status} - ${errorText}`);
-      return null;
-    }
-    
-    const data = await response.json();
-    console.log(`[PiAPI Upload] Response:`, JSON.stringify(data));
-    
-    // Extract URL from various possible response formats
-    const imageUrl = data.url || data.data?.url || data.image_url || data.data?.image_url || data.file_url;
-    
-    if (imageUrl) {
-      console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
-      return imageUrl;
-    }
-    
-    console.log('[PiAPI Upload] Unexpected response format:', JSON.stringify(data));
-    return null;
     
   } catch (error: any) {
     console.error('[PiAPI Upload] Error:', error.message);
