@@ -2033,6 +2033,19 @@ function ScenePreview({
                 `/api/universal-video/${projectId}/scenes/${sceneId}/video-job/${data.jobId}`,
                 { credentials: 'include' }
               );
+              
+              // Handle 404 - job not found (e.g., server restarted, job lost)
+              if (statusRes.status === 404) {
+                console.warn('[regenerateVideo] Job not found (may have been lost on server restart)');
+                toast({ 
+                  title: 'Job not found', 
+                  description: 'The generation job was lost. Please try again.', 
+                  variant: 'destructive' 
+                });
+                cleanupPolling();
+                return;
+              }
+              
               const statusData = await statusRes.json();
               
               if (statusData.success && statusData.job) {
@@ -3741,40 +3754,6 @@ function ScenePreview({
                       </>
                     )}
                   </Button>
-                  
-                  {/* Replace Object in Video Button - Only show when video exists and asset selected */}
-                  {/* Note: This uses Kling's unique "elements" feature which is not available in other providers */}
-                  {scene.assets?.videoUrl && (
-                    <Button
-                      variant="outline"
-                      className="w-full border-purple-300 text-purple-600 hover:bg-purple-50 mt-2"
-                      disabled={replacingObject === scene.id || !selectedProductAsset[scene.id]}
-                      onClick={() => {
-                        const selectedAsset = selectedProductAsset[scene.id];
-                        if (selectedAsset?.url) {
-                          replaceObjectInVideo(scene.id, selectedAsset.url, 'the product bottle');
-                        }
-                      }}
-                      title="Uses Kling 1.6 Elements feature (Kling-exclusive capability)"
-                    >
-                      {replacingObject === scene.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Replacing with Kling...
-                        </>
-                      ) : (
-                        <>
-                          <ArrowLeftRight className="w-4 h-4 mr-2" />
-                          Replace Product (Kling)
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  {scene.assets?.videoUrl && !selectedProductAsset[scene.id] && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      Select a brand asset above to replace the product in the video
-                    </p>
-                  )}
                   
                   {/* Image Provider Selection (I2I) */}
                   <div className="space-y-2 mt-3 pt-3 border-t border-dashed">
