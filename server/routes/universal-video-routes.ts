@@ -66,7 +66,7 @@ const objectStorageService = new ObjectStorageService();
 
 const router = Router();
 
-// Helper: Convert relative brand asset URL to signed public URL for external video providers
+// Helper: Convert relative brand asset URL to public URL for external video providers
 async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | null> {
   if (!relativeUrl || !relativeUrl.startsWith('/api/brand-assets/file/')) {
     // Already a public URL or invalid
@@ -105,7 +105,16 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
       return null;
     }
     
-    // Generate signed URL (valid for 1 hour)
+    // Brand assets are stored in public/ folder, so they're publicly accessible via direct GCS URL
+    // Format: https://storage.googleapis.com/{bucketName}/{objectPath}
+    if (objectPath.startsWith('public/')) {
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${objectPath}`;
+      console.log('[PublicURL] Generated public GCS URL for asset', assetId, ':', publicUrl);
+      return publicUrl;
+    }
+    
+    // For non-public files, try signed URL as fallback
+    console.log('[PublicURL] Asset not in public folder, attempting signed URL for:', objectPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectPath);
     
@@ -117,7 +126,7 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
     console.log('[PublicURL] Generated signed URL for asset', assetId, ':', signedUrl.substring(0, 80) + '...');
     return signedUrl;
   } catch (error) {
-    console.error('[PublicURL] Error generating signed URL:', error);
+    console.error('[PublicURL] Error generating public URL:', error);
     return null;
   }
 }
