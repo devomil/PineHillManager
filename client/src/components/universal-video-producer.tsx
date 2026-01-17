@@ -2974,9 +2974,11 @@ function ScenePreview({
                         const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                         const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
                         const selectedAsset = selectedProductAsset[scene.id];
-                        console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'selectedAssetUrl:', selectedAsset?.url?.substring(0, 50));
+                        // Use selected product asset, or fall back to scene's brandAssetUrl for I2V
+                        const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl;
+                        console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'sourceImageUrl:', sourceImageUrl?.substring(0, 50));
                         if (mediaType === 'video') {
-                          regenerateVideo(scene.id, provider, selectedAsset?.url);
+                          regenerateVideo(scene.id, provider, sourceImageUrl);
                         } else {
                           regenerateImage(scene.id, provider);
                         }
@@ -3204,9 +3206,10 @@ function ScenePreview({
                                 const currentMediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                                 const provider = selectedProviders[`${currentMediaType}-${scene.id}`] || getRecommendedProvider(currentMediaType as any, scene.type, scene.analysisResult.improvedPrompt);
                                 if (currentMediaType === 'video') {
-                                  // Include selected product asset for I2V workflows
+                                  // Include selected product asset or scene's brand asset for I2V workflows
                                   const selectedAsset = selectedProductAsset[scene.id];
-                                  await regenerateVideo(scene.id, provider, selectedAsset?.url);
+                                  const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl;
+                                  await regenerateVideo(scene.id, provider, sourceImageUrl);
                                 } else {
                                   await regenerateImage(scene.id, provider);
                                 }
@@ -3739,7 +3742,9 @@ function ScenePreview({
                     onClick={() => {
                       const selectedAsset = selectedProductAsset[scene.id];
                       const provider = selectedProviders[`video-${scene.id}`] || 'runway';
-                      regenerateVideo(scene.id, provider, selectedAsset?.url);
+                      // Use selected product asset or fall back to scene's brand asset for I2V
+                      const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl;
+                      regenerateVideo(scene.id, provider, sourceImageUrl);
                     }}
                   >
                     {regenerating === `video-${scene.id}` ? (
