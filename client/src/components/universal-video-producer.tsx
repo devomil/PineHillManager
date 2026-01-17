@@ -1877,7 +1877,7 @@ function ScenePreview({
       [sceneId]: stepNames.map(name => ({ stepName: name, status: 'pending' as const }))
     }));
     
-    const provider = selectedProviders[sceneId];
+    const provider = selectedProviders[`video-${sceneId}`] || selectedProviders[sceneId] || 'runway';
     const qualityTier = localSceneQualityTier[sceneId] || projectQualityTier;
     
     try {
@@ -3721,26 +3721,33 @@ function ScenePreview({
                     </Select>
                   </div>
                   
-                  {/* Regenerate Video Button */}
+                  {/* Regenerate Video Button - Uses pipeline for product-video workflow */}
                   <Button
                     variant="destructive"
                     className="w-full"
-                    disabled={regenerating === `video-${scene.id}`}
+                    disabled={regenerating === `video-${scene.id}` || executingPipeline[scene.id]}
                     onClick={() => {
-                      const selectedAsset = selectedProductAsset[scene.id];
-                      const provider = selectedProviders[`video-${scene.id}`] || 'runway';
-                      regenerateVideo(scene.id, provider, selectedAsset?.url);
+                      const sceneWorkflow = workflowAnalysis[scene.id];
+                      const workflowPath = sceneWorkflow?.decision?.path;
+                      
+                      if (workflowPath === 'product-video' || workflowPath === 'product-image') {
+                        runFullPipeline(scene.id);
+                      } else {
+                        const selectedAsset = selectedProductAsset[scene.id];
+                        const provider = selectedProviders[`video-${scene.id}`] || 'runway';
+                        regenerateVideo(scene.id, provider, selectedAsset?.url);
+                      }
                     }}
                   >
-                    {regenerating === `video-${scene.id}` ? (
+                    {(regenerating === `video-${scene.id}` || executingPipeline[scene.id]) ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Regenerating Video...
+                        {executingPipeline[scene.id] ? 'Running Pipeline...' : 'Regenerating Video...'}
                       </>
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        Regenerate Video
+                        {workflowAnalysis[scene.id]?.decision?.path === 'product-video' ? 'Generate with Pipeline' : 'Regenerate Video'}
                       </>
                     )}
                   </Button>
