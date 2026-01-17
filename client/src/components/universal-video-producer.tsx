@@ -2352,14 +2352,12 @@ function ScenePreview({
         // Set video, clear image fields
         updatedAssets.videoUrl = asset.url;
         updatedAssets.videoSource = 'brand';
-        updatedAssets.imageUrl = null;
-        updatedAssets.imageSource = null;
+        updatedAssets.imageUrl = undefined;
       } else {
         // Set image, clear video fields
         updatedAssets.imageUrl = asset.url;
-        updatedAssets.imageSource = 'brand';
-        updatedAssets.videoUrl = null;
-        updatedAssets.videoSource = null;
+        updatedAssets.videoUrl = undefined;
+        updatedAssets.videoSource = undefined;
       }
       
       // Build updates object
@@ -3233,18 +3231,17 @@ function ScenePreview({
                   )}
                 </div>
                 
-                {/* Phase 14F: Workflow Path Indicator */}
+                {/* Simplified Workflow Display - just shows workflow type badge */}
                 <div className="space-y-3">
-                  <WorkflowPathIndicator 
-                    decision={sceneWorkflow?.decision || null} 
-                    isLoading={analyzingWorkflow[scene.id] || false}
-                    projectQualityTier={projectQualityTier}
-                    sceneQualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier}
-                    stepExecutions={pipelineStepExecutions[scene.id] || []}
-                    onStepExecute={(stepName) => executePipelineStep(scene.id, stepName)}
-                    onRunFullPipeline={() => runFullPipeline(scene.id)}
-                    isExecuting={executingPipeline[scene.id] || false}
-                  />
+                  {sceneWorkflow?.decision && (
+                    <WorkflowPathIndicator 
+                      decision={sceneWorkflow.decision} 
+                      isLoading={analyzingWorkflow[scene.id] || false}
+                      projectQualityTier={projectQualityTier}
+                      sceneQualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier}
+                      compact
+                    />
+                  )}
                   
                   {/* Phase 14B: Brand Asset Preview Panel */}
                   {sceneWorkflow && (
@@ -3721,33 +3718,26 @@ function ScenePreview({
                     </Select>
                   </div>
                   
-                  {/* Regenerate Video Button - Uses pipeline for product-video workflow */}
+                  {/* Generate Video Button - Direct I2V with product image + prompt */}
                   <Button
                     variant="destructive"
                     className="w-full"
-                    disabled={regenerating === `video-${scene.id}` || executingPipeline[scene.id]}
+                    disabled={regenerating === `video-${scene.id}`}
                     onClick={() => {
-                      const sceneWorkflow = workflowAnalysis[scene.id];
-                      const workflowPath = sceneWorkflow?.decision?.path;
-                      
-                      if (workflowPath === 'product-video' || workflowPath === 'product-image') {
-                        runFullPipeline(scene.id);
-                      } else {
-                        const selectedAsset = selectedProductAsset[scene.id];
-                        const provider = selectedProviders[`video-${scene.id}`] || 'runway';
-                        regenerateVideo(scene.id, provider, selectedAsset?.url);
-                      }
+                      const selectedAsset = selectedProductAsset[scene.id];
+                      const provider = selectedProviders[`video-${scene.id}`] || 'runway';
+                      regenerateVideo(scene.id, provider, selectedAsset?.url);
                     }}
                   >
-                    {(regenerating === `video-${scene.id}` || executingPipeline[scene.id]) ? (
+                    {regenerating === `video-${scene.id}` ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {executingPipeline[scene.id] ? 'Running Pipeline...' : 'Regenerating Video...'}
+                        Generating Video...
                       </>
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        {workflowAnalysis[scene.id]?.decision?.path === 'product-video' ? 'Generate with Pipeline' : 'Regenerate Video'}
+                        {selectedProductAsset[scene.id] ? 'Generate Video with Product' : 'Generate Video'}
                       </>
                     )}
                   </Button>
@@ -4021,8 +4011,6 @@ function ScenePreview({
             applyBrandMedia(brandMediaSelectorOpen, asset, animationSettings);
           }
         }}
-        isApplying={!!applyingMedia}
-        mediaType="all"
       />
     )}
     
