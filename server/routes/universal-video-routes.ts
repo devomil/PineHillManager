@@ -28,7 +28,8 @@ import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { videoFrameExtractor } from '../services/video-frame-extractor';
 import { db } from '../db';
-import { universalVideoProjects, sceneRegenerationHistory } from '../../shared/schema';
+import { universalVideoProjects, sceneRegenerationHistory, brandAssets } from '../../shared/schema';
+import { objectStorageClient } from '../objectStorage';
 import type { 
   VideoProject, 
   ProductVideoInput,
@@ -64,6 +65,62 @@ import { selectMediaSource, type MediaType } from '../services/media-source-sele
 const objectStorageService = new ObjectStorageService();
 
 const router = Router();
+
+// Helper: Convert relative brand asset URL to signed public URL for external video providers
+async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | null> {
+  if (!relativeUrl || !relativeUrl.startsWith('/api/brand-assets/file/')) {
+    // Already a public URL or invalid
+    if (relativeUrl?.startsWith('http')) {
+      return relativeUrl;
+    }
+    return null;
+  }
+  
+  try {
+    const assetId = parseInt(relativeUrl.split('/').pop() || '0');
+    if (isNaN(assetId) || assetId <= 0) {
+      console.log('[PublicURL] Invalid asset ID from URL:', relativeUrl);
+      return null;
+    }
+    
+    // Get brand asset from database
+    const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
+    if (!asset) {
+      console.log('[PublicURL] Asset not found for ID:', assetId);
+      return null;
+    }
+    
+    // Get storage path from settings
+    const settings = asset.settings as any;
+    const storagePath = settings?.storagePath;
+    if (!storagePath) {
+      console.log('[PublicURL] No storage path for asset:', assetId);
+      return null;
+    }
+    
+    // Parse storage path: "bucketName|objectPath"
+    const [bucketName, objectPath] = storagePath.split('|');
+    if (!bucketName || !objectPath) {
+      console.log('[PublicURL] Invalid storage path format:', storagePath);
+      return null;
+    }
+    
+    // Generate signed URL (valid for 1 hour)
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectPath);
+    
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 60 * 60 * 1000, // 1 hour
+    });
+    
+    console.log('[PublicURL] Generated signed URL for asset', assetId, ':', signedUrl.substring(0, 80) + '...');
+    return signedUrl;
+  } catch (error) {
+    console.error('[PublicURL] Error generating signed URL:', error);
+    return null;
+  }
+}
 
 const productImageSchema = z.object({
   id: z.string(),
@@ -2962,9 +3019,22 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     const fallbackPrompt = (scene as any).summary || 'professional video';
     
     // Determine source image for I2V - use provided sourceImageUrl or scene's brandAssetUrl
-    const finalSourceImageUrl = sourceImageUrl || scene.brandAssetUrl || undefined;
+    const relativeSourceUrl = sourceImageUrl || scene.brandAssetUrl || undefined;
     console.log(`[Phase9B-Async] Scene brandAssetUrl: ${scene.brandAssetUrl?.substring(0, 80) || 'none'}`);
-    console.log(`[Phase9B-Async] Final source image URL for I2V: ${finalSourceImageUrl?.substring(0, 80) || 'none (T2V mode)'}`);
+    console.log(`[Phase9B-Async] Relative source image URL: ${relativeSourceUrl?.substring(0, 80) || 'none (T2V mode)'}`);
+    
+    // Convert relative URL to signed public URL for external video providers
+    let finalSourceImageUrl: string | undefined = undefined;
+    if (relativeSourceUrl) {
+      const publicUrl = await getPublicUrlForBrandAsset(relativeSourceUrl);
+      if (publicUrl) {
+        finalSourceImageUrl = publicUrl;
+        console.log(`[Phase9B-Async] ✓ Converted to public signed URL for I2V`);
+      } else {
+        console.log(`[Phase9B-Async] ⚠ Could not convert to public URL, falling back to T2V mode`);
+      }
+    }
+    
     if (finalSourceImageUrl) {
       console.log(`[Phase9B-Async] ✓ I2V mode active - will animate source image`);
     } else {
@@ -2982,7 +3052,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       aspectRatio: (projectData as any).settings?.aspectRatio || '16:9',
       style: (projectData as any).settings?.visualStyle || 'professional',
       triggeredBy: userId,
-      sourceImageUrl: finalSourceImageUrl, // For I2V: matched brand asset product photo
+      sourceImageUrl: finalSourceImageUrl, // For I2V: publicly accessible signed URL
       i2vSettings: i2vSettings || undefined, // I2V-specific settings from UI
     });
     
