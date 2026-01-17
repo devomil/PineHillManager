@@ -696,26 +696,15 @@ class PiAPIVideoService {
     // ===========================================
     
     // Veo Family (Google) - sends prompt AS-IS
-    // IMPORTANT: For I2V, Veo uses the "-fast" task type suffix
-    // Veo 3.1: model="veo3.1", task_type="veo3.1-video-fast"
-    // Veo 3: model="veo3", task_type="veo3-video-fast"
-    // Veo 2: model="veo2", task_type="veo2-video-fast"
+    // IMPORTANT: For ALL Veo versions (3.1, 3, 2):
+    // - model: 'veo3' (no dots, no minor version)
+    // - task_type: 'veo3-video' (no -fast suffix)
+    // - The presence of image_url automatically makes it I2V
     if (options.model.includes('veo')) {
-      let veoModel = 'veo3';
-      let taskType = 'veo3-video-fast';  // I2V uses -fast suffix
+      const veoModel = 'veo3';
+      const taskType = 'veo3-video';
       
-      // Veo 3.1 uses decimal notation
-      if (options.model.includes('3.1') || options.model.includes('31')) {
-        veoModel = 'veo3.1';
-        taskType = 'veo3.1-video-fast';
-      }
-      // Veo 2
-      else if (options.model.includes('2')) {
-        veoModel = 'veo2';
-        taskType = 'veo2-video-fast';
-      }
-      
-      console.log(`[PiAPI I2V] ${veoModel}: Sending prompt AS-IS (no animation style modification)`);
+      console.log(`[PiAPI I2V] Veo: Sending prompt AS-IS`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
       console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
       console.log(`[PiAPI I2V] Prompt: ${sanitizedPrompt}`);
@@ -724,7 +713,7 @@ class PiAPIVideoService {
         model: veoModel,
         task_type: taskType,
         input: {
-          prompt: sanitizedPrompt,  // SEND AS-IS!
+          prompt: sanitizedPrompt,
           image_url: options.imageUrl,
           aspect_ratio: options.aspectRatio || '16:9',
           duration: `${Math.min(options.duration, 8)}s`,
