@@ -76,7 +76,7 @@ class ImageCompositionService {
   
   private async downloadImage(url: string): Promise<Buffer> {
     if (!url || url.startsWith('placeholder:')) {
-      throw new Error(`Image generation failed - no valid API keys configured. Please check FAL_API_KEY or LEGNEXT_API_KEY secrets.`);
+      throw new Error(`Image generation failed - no valid API keys configured. Please check FAL_KEY or LEGNEXT_API_KEY secrets.`);
     }
     
     if (!url.startsWith('http://') && !url.startsWith('https://')) {

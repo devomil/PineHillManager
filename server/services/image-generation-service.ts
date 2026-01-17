@@ -397,9 +397,9 @@ class ImageGenerationService {
     const usedProvider = provider || IMAGE_PROVIDERS['falai'];
     
     try {
-      const apiKey = process.env.FAL_API_KEY;
+      const apiKey = process.env.FAL_KEY || process.env.FAL_API_KEY;
       if (!apiKey) {
-        console.log('[ImageGen] FAL_API_KEY not configured, returning placeholder');
+        console.log('[ImageGen] FAL_KEY not configured, returning placeholder');
         return {
           url: 'placeholder:no-api-key',
           provider: 'falai',
