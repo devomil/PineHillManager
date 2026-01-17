@@ -615,17 +615,32 @@ class PiAPIVideoService {
 
     const startTime = Date.now();
     
-    const sanitized = sanitizePromptForAI(options.prompt, 'video');
-    const sanitizedPrompt = enhancePromptForProvider(sanitized.cleanPrompt, options.model);
+    // ============================================================
+    // CRITICAL FIX: DO NOT SANITIZE PROMPT FOR I2V
+    // ============================================================
+    // 
+    // For T2V: Sanitization prevents AI from rendering text (good)
+    // For I2V: The image ALREADY contains text/logos (product labels)
+    //
+    // The sanitizer:
+    // 1. Replaces "pine hill farm" with "wellness center" 
+    // 2. Adds "Do not include any text, logos, watermarks..."
+    //
+    // This causes the model to try to REMOVE existing content!
+    // For I2V, use ORIGINAL prompt - the image defines the content.
+    // ============================================================
     
-    console.log(`[PiAPI:${options.model}] Starting image-to-video generation...`);
+    const promptForI2V = options.prompt.trim();
+    
+    console.log(`[PiAPI:${options.model}] ========== I2V GENERATION ==========`);
+    console.log(`[PiAPI:${options.model}] SKIPPING SANITIZATION (I2V preserves source image)`);
+    console.log(`[PiAPI:${options.model}] Original prompt used: ${promptForI2V}`);
     console.log(`[PiAPI:${options.model}] Image URL: ${options.imageUrl}`);
-    console.log(`[PiAPI:${options.model}] Prompt: ${sanitizedPrompt.substring(0, 120)}...`);
 
     try {
       // Use the public URL directly - PiAPI just needs a publicly accessible HTTP URL
       // Brand assets stored in cloud storage already have public URLs (or signed URLs)
-      const requestBody = this.buildI2VRequestBody(options, sanitizedPrompt);
+      const requestBody = this.buildI2VRequestBody(options, promptForI2V);
       
       // Log full request body for debugging I2V issues
       console.log(`[PiAPI:${options.model}] I2V Request body:`, JSON.stringify(requestBody, null, 2).substring(0, 1500));
@@ -738,21 +753,22 @@ class PiAPIVideoService {
         console.log(`[PiAPI I2V] Using Veo 3: model=${veoModel}, task_type=${taskType}`);
       }
       
-      console.log(`[PiAPI I2V] Veo: Sending prompt AS-IS`);
+      console.log(`[PiAPI I2V] Veo ${veoModel}: Matching PiAPI Workspace parameters`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
+      console.log(`[PiAPI I2V] resolution=720p, generate_audio=true`);
       console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
-      console.log(`[PiAPI I2V] Prompt: ${sanitizedPrompt}`);
+      console.log(`[PiAPI I2V] Prompt (ORIGINAL, unsanitized): ${sanitizedPrompt}`);
       
       return {
         model: veoModel,
         task_type: taskType,
         input: {
-          prompt: sanitizedPrompt,
+          prompt: sanitizedPrompt,  // Now this is ORIGINAL (unsanitized)
           image_url: options.imageUrl,
           aspect_ratio: options.aspectRatio || '16:9',
           duration: `${Math.min(options.duration, 8)}s`,
-          resolution: '1080p',
-          generate_audio: false,
+          resolution: '720p',       // Match PiAPI Workspace (was 1080p)
+          generate_audio: true,     // Match PiAPI Workspace (was false)
         },
       };
     }
