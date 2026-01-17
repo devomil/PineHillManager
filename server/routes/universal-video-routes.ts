@@ -106,25 +106,19 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
       return null;
     }
     
-    // Brand assets are stored in public/ folder, so they're publicly accessible via direct GCS URL
-    // Format: https://storage.googleapis.com/{bucketName}/{objectPath}
-    if (objectPath.startsWith('public/')) {
-      const publicUrl = `https://storage.googleapis.com/${bucketName}/${objectPath}`;
-      console.log('[PublicURL] Generated public GCS URL for asset', assetId, ':', publicUrl);
-      return publicUrl;
-    }
+    // Replit Object Storage requires signed URLs for external access - direct GCS URLs return 403
+    // Generate a signed URL with 1 hour expiration for I2V providers to access the image
+    console.log('[PublicURL] Generating signed URL for asset', assetId, 'path:', objectPath);
     
-    // For non-public files, try signed URL as fallback
-    console.log('[PublicURL] Asset not in public folder, attempting signed URL for:', objectPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectPath);
     
     const [signedUrl] = await file.getSignedUrl({
       action: 'read',
-      expires: Date.now() + 60 * 60 * 1000, // 1 hour
+      expires: Date.now() + 60 * 60 * 1000, // 1 hour - enough time for I2V processing
     });
     
-    console.log('[PublicURL] Generated signed URL for asset', assetId, ':', signedUrl.substring(0, 80) + '...');
+    console.log('[PublicURL] Generated signed URL for asset', assetId, ':', signedUrl.substring(0, 100) + '...');
     return signedUrl;
   } catch (error) {
     console.error('[PublicURL] Error generating public URL:', error);
