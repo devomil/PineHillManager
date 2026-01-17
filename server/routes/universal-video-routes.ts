@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
+import FormData from 'form-data';
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
@@ -92,17 +93,20 @@ async function uploadImageToPiAPIStorage(
     
     console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes) to PiAPI storage...`);
     
-    // Use Node.js native FormData with Blob for proper multipart encoding
+    // Use form-data package for proper Node.js multipart encoding
     const formData = new FormData();
-    const blob = new Blob([imageBuffer], { type: mimeType });
-    formData.append('file', blob, filename);
+    formData.append('file', imageBuffer, {
+      filename: filename,
+      contentType: mimeType,
+    });
     
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
+        ...formData.getHeaders(),
       },
-      body: formData,
+      body: formData.getBuffer(),
     });
     
     if (!response.ok) {
