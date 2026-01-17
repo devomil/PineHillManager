@@ -86,18 +86,29 @@ async function uploadImageToPiAPIStorage(
   try {
     const uploadUrl = 'https://upload.theapi.app/api/ephemeral_resource';
     
-    const formData = new FormData();
-    const blob = new Blob([imageBuffer], { type: 'image/png' });
-    formData.append('file', blob, filename);
+    // Build multipart form data manually for Node.js compatibility
+    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+    const mimeType = filename.endsWith('.jpg') || filename.endsWith('.jpeg') 
+      ? 'image/jpeg' 
+      : 'image/png';
     
-    console.log(`[PiAPI Upload] Uploading ${filename} to PiAPI storage...`);
+    // Construct multipart body
+    const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`;
+    const footer = `\r\n--${boundary}--\r\n`;
+    
+    const headerBuffer = Buffer.from(header, 'utf-8');
+    const footerBuffer = Buffer.from(footer, 'utf-8');
+    const body = Buffer.concat([headerBuffer, imageBuffer, footerBuffer]);
+    
+    console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes) to PiAPI storage...`);
     
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
-      body: formData,
+      body: body,
     });
     
     if (!response.ok) {
@@ -107,9 +118,12 @@ async function uploadImageToPiAPIStorage(
     }
     
     const data = await response.json();
-    const imageUrl = data.url || data.data?.url || data.image_url || data.data?.image_url;
+    console.log(`[PiAPI Upload] Response:`, JSON.stringify(data));
     
-    if (imageUrl && (imageUrl.includes('theapi.app') || imageUrl.includes('storage'))) {
+    // Extract URL from various possible response formats
+    const imageUrl = data.url || data.data?.url || data.image_url || data.data?.image_url || data.file_url;
+    
+    if (imageUrl) {
       console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
       return imageUrl;
     }
@@ -126,11 +140,16 @@ async function uploadImageToPiAPIStorage(
 /**
  * Convert relative brand asset URL to public URL for external video providers.
  * Uses PiAPI's ephemeral storage to get storage.theapi.app URLs.
- * Falls back to direct GCS URL if PiAPI upload fails.
+ * PiAPI storage is REQUIRED - no GCS fallback (GCS URLs are not publicly accessible).
  */
 async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | null> {
   if (!relativeUrl || !relativeUrl.startsWith('/api/brand-assets/file/')) {
     if (relativeUrl?.startsWith('http')) {
+      // If already a PiAPI URL, use it directly
+      if (relativeUrl.includes('theapi.app') || relativeUrl.includes('storage.theapi')) {
+        return relativeUrl;
+      }
+      console.log('[PublicURL] External URL not from PiAPI - may not be accessible:', relativeUrl);
       return relativeUrl;
     }
     return null;
@@ -169,22 +188,23 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
     const file = bucket.file(objectPath);
     const [fileBuffer] = await file.download();
     
-    // Upload to PiAPI storage
+    console.log('[PublicURL] Downloaded asset, size:', fileBuffer.length, 'bytes');
+    
+    // Upload to PiAPI storage (REQUIRED for I2V - no fallback)
     const ext = objectPath.split('.').pop() || 'png';
     const filename = `brand_asset_${assetId}_${Date.now()}.${ext}`;
     
     const piapiUrl = await uploadImageToPiAPIStorage(fileBuffer, filename);
     
     if (piapiUrl) {
-      console.log('[PublicURL] Using PiAPI storage URL:', piapiUrl);
+      console.log('[PublicURL] ✓ PiAPI storage URL:', piapiUrl);
       return piapiUrl;
     }
     
-    // Fallback to direct GCS URL
-    console.log('[PublicURL] PiAPI upload failed, using GCS fallback...');
-    const gcsUrl = `https://storage.googleapis.com/${bucketName}/${objectPath}`;
-    console.log('[PublicURL] Fallback GCS URL:', gcsUrl);
-    return gcsUrl;
+    // NO GCS FALLBACK - PiAPI storage is required for I2V
+    console.error('[PublicURL] ✗ PiAPI upload failed - I2V requires PiAPI storage URL');
+    console.error('[PublicURL] GCS URLs are not publicly accessible and will cause 403 errors');
+    return null;
     
   } catch (error) {
     console.error('[PublicURL] Error generating public URL:', error);
