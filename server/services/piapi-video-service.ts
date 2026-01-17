@@ -390,12 +390,28 @@ class PiAPIVideoService {
           task_type: 'txt2video',
         };
         
-      // Veo Family (Google) - PiAPI model names don't include hyphens or minor versions
+      // Veo 3.1 (Google) - needs veo3.1 model with dot
+      case 'veo-3.1':
+      case 'veo3.1':
+        console.log(`[PiAPI T2V] Using Veo 3.1`);
+        return {
+          ...baseRequest,
+          model: 'veo3.1',
+          task_type: 'veo3.1-video',
+          input: {
+            prompt: baseRequest.input.prompt,
+            negative_prompt: baseRequest.input.negative_prompt,
+            aspect_ratio: baseRequest.input.aspect_ratio,
+            duration: `${Math.min(baseRequest.input.duration, 8)}s`,
+            resolution: '1080p',
+            generate_audio: false,
+          },
+        };
+        
+      // Veo 3.0 (Google) - uses veo3 model
       case 'veo':
       case 'veo-3':
-      case 'veo-3.1':
       case 'veo3':
-      case 'veo3.1':
         console.log(`[PiAPI T2V] Using Veo 3`);
         return {
           ...baseRequest,
@@ -696,18 +712,30 @@ class PiAPIVideoService {
     // ===========================================
     
     // Veo Family (Google) - sends prompt AS-IS
-    // IMPORTANT: For ALL Veo versions (3.1, 3, 2):
-    // - model: 'veo3' (no dots, no minor version) - 3.1 and 3 both use 'veo3'
-    // - task_type: 'veo3-video' (no -fast suffix)
+    // IMPORTANT: PiAPI uses specific model/task_type combinations:
+    // - Veo 3.1: model='veo3.1', task_type='veo3.1-video' (WITH dot)
+    // - Veo 3: model='veo3', task_type='veo3-video'
+    // - Veo 2: model='veo2', task_type='veo2-video'
     // - The presence of image_url automatically makes it I2V
     if (options.model.includes('veo')) {
       let veoModel = 'veo3';
-      let taskType = 'veo3-video';  // NO -fast suffix!
+      let taskType = 'veo3-video';
       
+      // Veo 3.1 - needs special format WITH dot
+      if (options.model.includes('veo-3.1') || options.model.includes('veo3.1') || options.model === 'veo-3-1') {
+        veoModel = 'veo3.1';
+        taskType = 'veo3.1-video';  // WITH dot for 3.1
+        console.log(`[PiAPI I2V] Using Veo 3.1: model=${veoModel}, task_type=${taskType}`);
+      }
       // Veo 2
-      if (options.model.includes('veo-2') || options.model.includes('veo2')) {
+      else if (options.model.includes('veo-2') || options.model.includes('veo2')) {
         veoModel = 'veo2';
-        taskType = 'veo2-video';  // NO -fast suffix!
+        taskType = 'veo2-video';
+        console.log(`[PiAPI I2V] Using Veo 2: model=${veoModel}, task_type=${taskType}`);
+      }
+      // Veo 3 (default)
+      else {
+        console.log(`[PiAPI I2V] Using Veo 3: model=${veoModel}, task_type=${taskType}`);
       }
       
       console.log(`[PiAPI I2V] Veo: Sending prompt AS-IS`);
