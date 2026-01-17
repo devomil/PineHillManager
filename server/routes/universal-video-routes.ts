@@ -8492,4 +8492,136 @@ router.post('/projects/:projectId/workflow-preview', isAuthenticated, async (req
   }
 });
 
+router.post('/projects/:projectId/scenes/:sceneId/pipeline-step', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { stepName, intermediates = {}, provider, qualityTier } = req.body;
+
+    if (!stepName) {
+      return res.status(400).json({ success: false, error: 'stepName is required' });
+    }
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const scene = projectData.scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    console.log(`[Pipeline] Executing step "${stepName}" for scene ${sceneId}`);
+
+    const result = await brandWorkflowOrchestrator.executeStep(
+      stepName,
+      sceneId,
+      scene.visualDirection || '',
+      scene.narration || '',
+      scene.duration || 6,
+      intermediates,
+      provider,
+      qualityTier
+    );
+
+    if (result.success && result.resultUrl) {
+      const sceneIndex = projectData.scenes.findIndex((s: any) => s.id === sceneId);
+      if (sceneIndex >= 0) {
+        if (!projectData.scenes[sceneIndex].pipelineIntermediates) {
+          projectData.scenes[sceneIndex].pipelineIntermediates = {};
+        }
+        projectData.scenes[sceneIndex].pipelineIntermediates = result.intermediates;
+        
+        if (stepName === 'Animate Image' && result.resultUrl) {
+          projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
+          projectData.scenes[sceneIndex].assets.videoUrl = result.resultUrl;
+        } else if ((stepName === 'Generate Environment' || stepName === 'Compose Products') && result.resultUrl) {
+          projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
+          projectData.scenes[sceneIndex].assets.imageUrl = result.resultUrl;
+        }
+        
+        await saveProjectToDb(projectData, userId);
+      }
+    }
+
+    res.json({
+      success: result.success,
+      stepName: result.stepName,
+      resultUrl: result.resultUrl,
+      intermediates: result.intermediates,
+      error: result.error,
+    });
+  } catch (error: any) {
+    console.error('[Pipeline] Step execution failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/scenes/:sceneId/run-full-pipeline', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { provider, qualityTier } = req.body;
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const scene = projectData.scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+
+    console.log(`[Pipeline] Running full pipeline for scene ${sceneId}`);
+
+    const result = await brandWorkflowOrchestrator.executeFullPipeline(
+      sceneId,
+      scene.visualDirection || '',
+      scene.narration || '',
+      scene.duration || 6,
+      provider,
+      qualityTier
+    );
+
+    if (result.success) {
+      const sceneIndex = projectData.scenes.findIndex((s: any) => s.id === sceneId);
+      if (sceneIndex >= 0) {
+        projectData.scenes[sceneIndex].pipelineIntermediates = result.intermediates;
+        projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
+        if (result.videoUrl) {
+          projectData.scenes[sceneIndex].assets.videoUrl = result.videoUrl;
+        }
+        if (result.intermediates.composedImage) {
+          projectData.scenes[sceneIndex].assets.imageUrl = result.intermediates.composedImage;
+        }
+        
+        await saveProjectToDb(projectData, userId);
+      }
+    }
+
+    res.json({
+      success: result.success,
+      path: result.path,
+      videoUrl: result.videoUrl,
+      intermediates: result.intermediates,
+      quality: result.quality,
+      executionTimeMs: result.executionTimeMs,
+      error: result.error,
+    });
+  } catch (error: any) {
+    console.error('[Pipeline] Full pipeline failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

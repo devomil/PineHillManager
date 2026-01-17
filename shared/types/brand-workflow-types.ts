@@ -15,12 +15,23 @@ export interface WorkflowDecision {
   costMultiplier: number;
 }
 
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
 export interface WorkflowStep {
   name: string;
   service: string;
   input: string;
   output: string;
   optional: boolean;
+}
+
+export interface WorkflowStepExecution {
+  stepName: string;
+  status: StepStatus;
+  resultUrl?: string;
+  error?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 export interface WorkflowResult {

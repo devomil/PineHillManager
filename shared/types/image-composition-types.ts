@@ -24,6 +24,9 @@ export interface CompositionRequest {
     format: 'png' | 'jpg' | 'webp';
     quality: number;
   };
+  
+  skipProductComposition?: boolean;
+  backgroundImage?: string;
 }
 
 export interface ProductPlacement {

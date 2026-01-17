@@ -202,6 +202,12 @@ export interface Scene {
   useBrandAssets?: boolean;
   // Phase 15H: Generation method tracking - what method was used to generate the media
   generationMethod?: 'T2I' | 'I2I' | 'T2V' | 'I2V' | 'V2V' | 'stock';
+  // Phase 16: Pipeline intermediate results for step-by-step execution
+  pipelineIntermediates?: {
+    environmentImage?: string;
+    composedImage?: string;
+    preLogoVideo?: string;
+  };
 }
 
 // Phase 8A: Scene analysis types

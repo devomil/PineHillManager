@@ -37,7 +37,7 @@ import { ReferenceImageSection, RegenerationOptions, RegenerationHistoryPanel } 
 import { WorkflowPathIndicator, WorkflowPathBadge } from "./workflow-path-indicator";
 import { BrandAssetPreviewPanel, BrandAssetSummary } from "./brand-asset-preview-panel";
 import { I2VSettingsPanel, I2VSettings, defaultI2VSettings } from "./i2v-settings-panel";
-import type { WorkflowDecision } from "@shared/types/brand-workflow-types";
+import type { WorkflowDecision, WorkflowStepExecution } from "@shared/types/brand-workflow-types";
 import type { AnimationSettings, ReferenceConfig, RegenerateOptions, PromptComplexityAnalysis } from "@shared/video-types";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
@@ -1400,6 +1400,8 @@ function ScenePreview({
     matchedAssets: { products: any[]; logos: any[]; locations: any[] };
   }>>({});
   const [analyzingWorkflow, setAnalyzingWorkflow] = useState<Record<string, boolean>>({});
+  const [pipelineStepExecutions, setPipelineStepExecutions] = useState<Record<string, WorkflowStepExecution[]>>({});
+  const [executingPipeline, setExecutingPipeline] = useState<Record<string, boolean>>({});
   const pollingTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1804,6 +1806,115 @@ function ScenePreview({
       console.error('Failed to analyze workflow:', err);
     } finally {
       setAnalyzingWorkflow(prev => ({ ...prev, [sceneId]: false }));
+    }
+  };
+
+  const executePipelineStep = async (sceneId: string, stepName: string) => {
+    if (!projectId) return;
+    
+    setPipelineStepExecutions(prev => ({
+      ...prev,
+      [sceneId]: [
+        ...(prev[sceneId] || []).filter(e => e.stepName !== stepName),
+        { stepName, status: 'running', startedAt: new Date().toISOString() }
+      ]
+    }));
+    
+    const scene = scenes.find(s => s.id === sceneId);
+    const intermediates = scene?.pipelineIntermediates || {};
+    const provider = selectedProviders[sceneId];
+    const qualityTier = localSceneQualityTier[sceneId] || projectQualityTier;
+    
+    try {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneId}/pipeline-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ stepName, intermediates, provider, qualityTier })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setPipelineStepExecutions(prev => ({
+          ...prev,
+          [sceneId]: [
+            ...(prev[sceneId] || []).filter(e => e.stepName !== stepName),
+            { stepName, status: 'completed', resultUrl: data.resultUrl, completedAt: new Date().toISOString() }
+          ]
+        }));
+        onSceneUpdate?.();
+        toast({ title: `${stepName} completed`, description: 'Step finished successfully' });
+      } else {
+        setPipelineStepExecutions(prev => ({
+          ...prev,
+          [sceneId]: [
+            ...(prev[sceneId] || []).filter(e => e.stepName !== stepName),
+            { stepName, status: 'failed', error: data.error, completedAt: new Date().toISOString() }
+          ]
+        }));
+        toast({ title: `${stepName} failed`, description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      setPipelineStepExecutions(prev => ({
+        ...prev,
+        [sceneId]: [
+          ...(prev[sceneId] || []).filter(e => e.stepName !== stepName),
+          { stepName, status: 'failed', error: err.message, completedAt: new Date().toISOString() }
+        ]
+      }));
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const runFullPipeline = async (sceneId: string) => {
+    if (!projectId) return;
+    
+    setExecutingPipeline(prev => ({ ...prev, [sceneId]: true }));
+    
+    const stepNames = ['Generate Environment', 'Compose Products', 'Animate Image', 'Add Logo Overlay'];
+    setPipelineStepExecutions(prev => ({
+      ...prev,
+      [sceneId]: stepNames.map(name => ({ stepName: name, status: 'pending' as const }))
+    }));
+    
+    const provider = selectedProviders[sceneId];
+    const qualityTier = localSceneQualityTier[sceneId] || projectQualityTier;
+    
+    try {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneId}/run-full-pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ provider, qualityTier })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setPipelineStepExecutions(prev => ({
+          ...prev,
+          [sceneId]: stepNames.map(name => {
+            const keyMap: Record<string, string> = {
+              'Generate Environment': 'environmentImage',
+              'Compose Products': 'composedImage',
+              'Animate Image': 'preLogoVideo'
+            };
+            const key = keyMap[name];
+            return { 
+              stepName: name, 
+              status: 'completed' as const, 
+              resultUrl: key && data.intermediates ? data.intermediates[key] : undefined
+            };
+          })
+        }));
+        onSceneUpdate?.();
+        toast({ title: 'Pipeline complete', description: `Video generated in ${(data.executionTimeMs / 1000).toFixed(1)}s` });
+      } else {
+        toast({ title: 'Pipeline failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setExecutingPipeline(prev => ({ ...prev, [sceneId]: false }));
     }
   };
 
@@ -3129,6 +3240,10 @@ function ScenePreview({
                     isLoading={analyzingWorkflow[scene.id] || false}
                     projectQualityTier={projectQualityTier}
                     sceneQualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier}
+                    stepExecutions={pipelineStepExecutions[scene.id] || []}
+                    onStepExecute={(stepName) => executePipelineStep(scene.id, stepName)}
+                    onRunFullPipeline={() => runFullPipeline(scene.id)}
+                    isExecuting={executingPipeline[scene.id] || false}
                   />
                   
                   {/* Phase 14B: Brand Asset Preview Panel */}

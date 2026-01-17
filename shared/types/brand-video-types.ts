@@ -15,6 +15,7 @@ export interface ImageToVideoRequest {
   sceneId: string;
   visualDirection: string;
   qualityTier?: 'ultra' | 'premium' | 'standard';
+  provider?: string;
   
   motion: {
     style: MotionStyle;

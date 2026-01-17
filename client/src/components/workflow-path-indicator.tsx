@@ -1,12 +1,13 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { 
   Sparkles, Image, Video, Layers, Star, 
-  ArrowRight, DollarSign, Zap, CheckCircle2
+  ArrowRight, DollarSign, Zap, CheckCircle2, Loader2, AlertCircle, Play, SkipForward
 } from "lucide-react";
-import type { WorkflowPath, WorkflowDecision, WorkflowStep } from "@shared/types/brand-workflow-types";
+import type { WorkflowPath, WorkflowDecision, WorkflowStep, StepStatus, WorkflowStepExecution } from "@shared/types/brand-workflow-types";
 
 type QualityTier = 'ultra' | 'premium' | 'standard';
 
@@ -16,6 +17,10 @@ interface WorkflowPathIndicatorProps {
   compact?: boolean;
   projectQualityTier?: QualityTier;
   sceneQualityTier?: QualityTier | null;
+  stepExecutions?: WorkflowStepExecution[];
+  onStepExecute?: (stepName: string) => void;
+  onRunFullPipeline?: () => void;
+  isExecuting?: boolean;
 }
 
 const WORKFLOW_INFO: Record<WorkflowPath, {
@@ -96,7 +101,32 @@ function getCostLabel(multiplier: number): { label: string; color: string } {
   return { label: `${multiplier}x Cost`, color: 'text-orange-600' };
 }
 
-export function WorkflowPathIndicator({ decision, isLoading, compact = false, projectQualityTier, sceneQualityTier }: WorkflowPathIndicatorProps) {
+function getStepStatusInfo(status: StepStatus): { icon: typeof CheckCircle2; color: string; bgColor: string } {
+  switch (status) {
+    case 'completed':
+      return { icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-100' };
+    case 'running':
+      return { icon: Loader2, color: 'text-blue-600', bgColor: 'bg-blue-100' };
+    case 'failed':
+      return { icon: AlertCircle, color: 'text-red-600', bgColor: 'bg-red-100' };
+    case 'skipped':
+      return { icon: SkipForward, color: 'text-gray-400', bgColor: 'bg-gray-100' };
+    default:
+      return { icon: Play, color: 'text-gray-500', bgColor: 'bg-gray-50' };
+  }
+}
+
+export function WorkflowPathIndicator({ 
+  decision, 
+  isLoading, 
+  compact = false, 
+  projectQualityTier, 
+  sceneQualityTier,
+  stepExecutions = [],
+  onStepExecute,
+  onRunFullPipeline,
+  isExecuting = false
+}: WorkflowPathIndicatorProps) {
   if (isLoading) {
     return (
       <Card className="border-dashed animate-pulse">
@@ -178,31 +208,82 @@ export function WorkflowPathIndicator({ decision, isLoading, compact = false, pr
 
         {decision.steps.length > 0 && (
           <div className="mt-4">
-            <div className="text-xs font-medium text-muted-foreground mb-2">Pipeline Steps</div>
-            <div className="flex items-center gap-1 flex-wrap">
-              {decision.steps.map((step, index) => (
-                <div key={index} className="flex items-center">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge 
-                          variant={step.optional ? "outline" : "secondary"} 
-                          className="text-xs cursor-help"
-                        >
-                          {step.name}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">{step.input} → {step.output}</p>
-                        {step.optional && <p className="text-xs text-muted-foreground">(Optional)</p>}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  {index < decision.steps.length - 1 && (
-                    <ArrowRight className="w-3 h-3 mx-1 text-muted-foreground" />
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-medium text-muted-foreground">Pipeline Steps</div>
+              {onRunFullPipeline && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={onRunFullPipeline}
+                  disabled={isExecuting}
+                  className="h-6 text-xs px-2"
+                >
+                  {isExecuting ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3 h-3 mr-1" />
+                      Run Full Pipeline
+                    </>
                   )}
-                </div>
-              ))}
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              {decision.steps.map((step, index) => {
+                const execution = stepExecutions.find(e => e.stepName === step.name);
+                const status = execution?.status || 'pending';
+                const statusInfo = getStepStatusInfo(status);
+                const StatusIcon = statusInfo.icon;
+                const isClickable = onStepExecute && !isExecuting && status !== 'running';
+                
+                return (
+                  <div key={index} className="flex items-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => isClickable && onStepExecute(step.name)}
+                            disabled={!isClickable}
+                            className={`
+                              inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium
+                              transition-all duration-200
+                              ${status === 'completed' ? 'bg-green-100 text-green-700 border border-green-300' :
+                                status === 'running' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
+                                status === 'failed' ? 'bg-red-100 text-red-700 border border-red-300' :
+                                step.optional ? 'bg-white text-gray-600 border border-gray-300' :
+                                'bg-purple-50 text-purple-700 border border-purple-300'}
+                              ${isClickable ? 'hover:shadow-md hover:scale-105 cursor-pointer' : 'cursor-default'}
+                            `}
+                          >
+                            <StatusIcon className={`w-3 h-3 ${status === 'running' ? 'animate-spin' : ''}`} />
+                            {step.name}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p className="text-xs font-medium">{step.input} → {step.output}</p>
+                          {step.optional && <p className="text-xs text-muted-foreground">(Optional)</p>}
+                          {execution?.resultUrl && (
+                            <p className="text-xs text-green-600 mt-1">Result available</p>
+                          )}
+                          {execution?.error && (
+                            <p className="text-xs text-red-600 mt-1">{execution.error}</p>
+                          )}
+                          {isClickable && status === 'pending' && (
+                            <p className="text-xs text-blue-600 mt-1">Click to run this step</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    {index < decision.steps.length - 1 && (
+                      <ArrowRight className="w-3 h-3 mx-1 text-muted-foreground" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
