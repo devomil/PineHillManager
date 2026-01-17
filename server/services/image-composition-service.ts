@@ -75,6 +75,14 @@ class ImageCompositionService {
   }
   
   private async downloadImage(url: string): Promise<Buffer> {
+    if (!url || url.startsWith('placeholder:')) {
+      throw new Error(`Image generation failed - no valid API keys configured. Please check FAL_API_KEY or LEGNEXT_API_KEY secrets.`);
+    }
+    
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      throw new Error(`Invalid image URL: ${url.substring(0, 50)}`);
+    }
+    
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to download image: ${response.status}`);
