@@ -67,11 +67,69 @@ const objectStorageService = new ObjectStorageService();
 
 const router = Router();
 
-// Helper: Convert relative brand asset URL to public URL for external video providers
-// Uses S3 upload to create a publicly accessible URL since Replit Object Storage doesn't support signed URLs
+/**
+ * Upload image to PiAPI's ephemeral storage.
+ * Returns a storage.theapi.app URL (same as PiAPI Workspace uses).
+ * Files are automatically deleted after 24 hours.
+ */
+async function uploadImageToPiAPIStorage(
+  imageBuffer: Buffer,
+  filename: string
+): Promise<string | null> {
+  const apiKey = process.env.PIAPI_API_KEY;
+  
+  if (!apiKey) {
+    console.log('[PiAPI Upload] No PIAPI_API_KEY configured');
+    return null;
+  }
+  
+  try {
+    const uploadUrl = 'https://upload.theapi.app/api/ephemeral_resource';
+    
+    const formData = new FormData();
+    const blob = new Blob([imageBuffer], { type: 'image/png' });
+    formData.append('file', blob, filename);
+    
+    console.log(`[PiAPI Upload] Uploading ${filename} to PiAPI storage...`);
+    
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[PiAPI Upload] Failed: ${response.status} - ${errorText}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    const imageUrl = data.url || data.data?.url || data.image_url || data.data?.image_url;
+    
+    if (imageUrl && (imageUrl.includes('theapi.app') || imageUrl.includes('storage'))) {
+      console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
+      return imageUrl;
+    }
+    
+    console.log('[PiAPI Upload] Unexpected response format:', JSON.stringify(data));
+    return null;
+    
+  } catch (error: any) {
+    console.error('[PiAPI Upload] Error:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Convert relative brand asset URL to public URL for external video providers.
+ * Uses PiAPI's ephemeral storage to get storage.theapi.app URLs.
+ * Falls back to direct GCS URL if PiAPI upload fails.
+ */
 async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | null> {
   if (!relativeUrl || !relativeUrl.startsWith('/api/brand-assets/file/')) {
-    // Already a public URL or invalid
     if (relativeUrl?.startsWith('http')) {
       return relativeUrl;
     }
@@ -85,14 +143,12 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
       return null;
     }
     
-    // Get brand asset from database
     const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
     if (!asset) {
       console.log('[PublicURL] Asset not found for ID:', assetId);
       return null;
     }
     
-    // Get storage path from settings
     const settings = asset.settings as any;
     const storagePath = settings?.storagePath;
     if (!storagePath) {
@@ -100,63 +156,36 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
       return null;
     }
     
-    // Parse storage path: "bucketName|objectPath"
     const [bucketName, objectPath] = storagePath.split('|');
     if (!bucketName || !objectPath) {
       console.log('[PublicURL] Invalid storage path format:', storagePath);
       return null;
     }
     
-    console.log('[PublicURL] Reading asset', assetId, 'from storage path:', objectPath);
+    console.log('[PublicURL] Reading asset', assetId, 'from storage:', objectPath);
     
-    // Read the file from Replit Object Storage
+    // Read file from Replit Object Storage
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectPath);
-    
     const [fileBuffer] = await file.download();
     
-    // Upload to S3 for public access (S3 supports public URLs)
-    const s3Bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
-    const s3Region = 'us-east-1';
-    const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.REMOTION_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
+    // Upload to PiAPI storage
+    const ext = objectPath.split('.').pop() || 'png';
+    const filename = `brand_asset_${assetId}_${Date.now()}.${ext}`;
     
-    if (!accessKeyId || !secretAccessKey) {
-      console.log('[PublicURL] AWS credentials not configured, cannot upload to S3');
-      return null;
+    const piapiUrl = await uploadImageToPiAPIStorage(fileBuffer, filename);
+    
+    if (piapiUrl) {
+      console.log('[PublicURL] Using PiAPI storage URL:', piapiUrl);
+      return piapiUrl;
     }
     
-    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-    const s3Client = new S3Client({
-      region: s3Region,
-      credentials: { accessKeyId, secretAccessKey },
-    });
+    // Fallback to direct GCS URL
+    console.log('[PublicURL] PiAPI upload failed, using GCS fallback...');
+    const gcsUrl = `https://storage.googleapis.com/${bucketName}/${objectPath}`;
+    console.log('[PublicURL] Fallback GCS URL:', gcsUrl);
+    return gcsUrl;
     
-    // Generate unique key for the uploaded image
-    const ext = objectPath.split('.').pop() || 'png';
-    const key = `brand-assets/${assetId}_${Date.now()}.${ext}`;
-    
-    // Determine content type
-    const contentTypeMap: Record<string, string> = {
-      'png': 'image/png',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'gif': 'image/gif',
-      'webp': 'image/webp',
-    };
-    const contentType = contentTypeMap[ext.toLowerCase()] || 'image/png';
-    
-    await s3Client.send(new PutObjectCommand({
-      Bucket: s3Bucket,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: contentType,
-      ACL: 'public-read',
-    }));
-    
-    const publicUrl = `https://${s3Bucket}.s3.${s3Region}.amazonaws.com/${key}`;
-    console.log('[PublicURL] Uploaded to S3:', publicUrl);
-    return publicUrl;
   } catch (error) {
     console.error('[PublicURL] Error generating public URL:', error);
     return null;
