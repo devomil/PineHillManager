@@ -390,37 +390,41 @@ class PiAPIVideoService {
           task_type: 'txt2video',
         };
         
-      // Veo Family (Google)
+      // Veo Family (Google) - PiAPI model names don't include hyphens or minor versions
       case 'veo':
+      case 'veo-3':
+      case 'veo-3.1':
+      case 'veo3':
+      case 'veo3.1':
         console.log(`[PiAPI T2V] Using Veo 3`);
         return {
           ...baseRequest,
-          model: 'veo-3',
-          task_type: 'video_generation',
+          model: 'veo3',
+          task_type: 'veo3-video',
           input: {
-            ...baseRequest.input,
+            prompt: baseRequest.input.prompt,
+            negative_prompt: baseRequest.input.negative_prompt,
+            aspect_ratio: baseRequest.input.aspect_ratio,
+            duration: `${Math.min(baseRequest.input.duration, 8)}s`,
+            resolution: '1080p',
+            generate_audio: false,
           },
         };
         
       case 'veo-2':
+      case 'veo2':
         console.log(`[PiAPI T2V] Using Veo 2`);
         return {
           ...baseRequest,
-          model: 'veo-2',
-          task_type: 'video_generation',
+          model: 'veo2',
+          task_type: 'veo2-video',
           input: {
-            ...baseRequest.input,
-          },
-        };
-        
-      case 'veo-3.1':
-        console.log(`[PiAPI T2V] Using Veo 3.1`);
-        return {
-          ...baseRequest,
-          model: 'veo-3.1',
-          task_type: 'video_generation',
-          input: {
-            ...baseRequest.input,
+            prompt: baseRequest.input.prompt,
+            negative_prompt: baseRequest.input.negative_prompt,
+            aspect_ratio: baseRequest.input.aspect_ratio,
+            duration: `${Math.min(baseRequest.input.duration, 8)}s`,
+            resolution: '1080p',
+            generate_audio: false,
           },
         };
         

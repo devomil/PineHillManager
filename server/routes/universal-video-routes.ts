@@ -68,6 +68,7 @@ const objectStorageService = new ObjectStorageService();
 const router = Router();
 
 // Helper: Convert relative brand asset URL to public URL for external video providers
+// Uses S3 upload to create a publicly accessible URL since Replit Object Storage doesn't support signed URLs
 async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | null> {
   if (!relativeUrl || !relativeUrl.startsWith('/api/brand-assets/file/')) {
     // Already a public URL or invalid
@@ -106,20 +107,56 @@ async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | 
       return null;
     }
     
-    // Replit Object Storage requires signed URLs for external access - direct GCS URLs return 403
-    // Generate a signed URL with 1 hour expiration for I2V providers to access the image
-    console.log('[PublicURL] Generating signed URL for asset', assetId, 'path:', objectPath);
+    console.log('[PublicURL] Reading asset', assetId, 'from storage path:', objectPath);
     
+    // Read the file from Replit Object Storage
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectPath);
     
-    const [signedUrl] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + 60 * 60 * 1000, // 1 hour - enough time for I2V processing
+    const [fileBuffer] = await file.download();
+    
+    // Upload to S3 for public access (S3 supports public URLs)
+    const s3Bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
+    const s3Region = 'us-east-1';
+    const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.REMOTION_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
+    
+    if (!accessKeyId || !secretAccessKey) {
+      console.log('[PublicURL] AWS credentials not configured, cannot upload to S3');
+      return null;
+    }
+    
+    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+    const s3Client = new S3Client({
+      region: s3Region,
+      credentials: { accessKeyId, secretAccessKey },
     });
     
-    console.log('[PublicURL] Generated signed URL for asset', assetId, ':', signedUrl.substring(0, 100) + '...');
-    return signedUrl;
+    // Generate unique key for the uploaded image
+    const ext = objectPath.split('.').pop() || 'png';
+    const key = `brand-assets/${assetId}_${Date.now()}.${ext}`;
+    
+    // Determine content type
+    const contentTypeMap: Record<string, string> = {
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+    };
+    const contentType = contentTypeMap[ext.toLowerCase()] || 'image/png';
+    
+    await s3Client.send(new PutObjectCommand({
+      Bucket: s3Bucket,
+      Key: key,
+      Body: fileBuffer,
+      ContentType: contentType,
+      ACL: 'public-read',
+    }));
+    
+    const publicUrl = `https://${s3Bucket}.s3.${s3Region}.amazonaws.com/${key}`;
+    console.log('[PublicURL] Uploaded to S3:', publicUrl);
+    return publicUrl;
   } catch (error) {
     console.error('[PublicURL] Error generating public URL:', error);
     return null;
