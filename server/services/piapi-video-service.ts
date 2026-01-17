@@ -913,20 +913,23 @@ class PiAPIVideoService {
     }
     
     // Veo Family (Google) - I2V format per documentation
-    // Uses same task_type as T2V but adds image_url parameter
+    // PiAPI model names don't include the minor version
+    // veo-3.1, veo3.1, veo-3, veo3, veo all map to model: 'veo3', task_type: 'veo3-video'
     if (options.model.includes('veo')) {
-      let veoModel = 'veo3.1';
-      let taskType = 'veo3.1-video';
+      let veoModel = 'veo3';
+      let taskType = 'veo3-video';
       
-      if (options.model === 'veo-3' || options.model === 'veo3' || options.model === 'veo') {
-        veoModel = 'veo3';
-        taskType = 'veo3-video';
-      } else if (options.model === 'veo-2' || options.model === 'veo2') {
+      if (options.model === 'veo-2' || options.model === 'veo2') {
         veoModel = 'veo2';
         taskType = 'veo2-video';
       }
       
-      console.log(`[PiAPI I2V] Using ${veoModel} with task_type: ${taskType}`);
+      // For fast generation, use the fast task type
+      if (options.model.includes('fast')) {
+        taskType = `${veoModel}-video-fast`;
+      }
+      
+      console.log(`[PiAPI I2V] Using Veo model: ${veoModel}, task_type: ${taskType}`);
       console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
       console.log(`[PiAPI I2V] Prompt: ${baseInput.prompt.substring(0, 100)}...`);
       
@@ -938,7 +941,7 @@ class PiAPIVideoService {
           image_url: options.imageUrl,
           aspect_ratio: options.aspectRatio || '16:9',
           duration: `${Math.min(options.duration, 8)}s`,
-          resolution: '720p',
+          resolution: '1080p',
           generate_audio: false,
         },
       };
