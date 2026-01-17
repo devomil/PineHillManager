@@ -697,12 +697,18 @@ class PiAPIVideoService {
     
     // Veo Family (Google) - sends prompt AS-IS
     // IMPORTANT: For ALL Veo versions (3.1, 3, 2):
-    // - model: 'veo3' (no dots, no minor version)
+    // - model: 'veo3' (no dots, no minor version) - 3.1 and 3 both use 'veo3'
     // - task_type: 'veo3-video' (no -fast suffix)
     // - The presence of image_url automatically makes it I2V
     if (options.model.includes('veo')) {
-      const veoModel = 'veo3';
-      const taskType = 'veo3-video';
+      let veoModel = 'veo3';
+      let taskType = 'veo3-video';  // NO -fast suffix!
+      
+      // Veo 2
+      if (options.model.includes('veo-2') || options.model.includes('veo2')) {
+        veoModel = 'veo2';
+        taskType = 'veo2-video';  // NO -fast suffix!
+      }
       
       console.log(`[PiAPI I2V] Veo: Sending prompt AS-IS`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
@@ -884,8 +890,8 @@ class PiAPIVideoService {
     // These providers benefit from detailed motion directives
     // ===========================================
     
-    // I2V-specific negative prompt for Kling
-    const i2vNegativePrompt = 'blurry, low quality, distorted, morphing face, warping, watermark, dramatic camera movement, aggressive zoom, black screen, fade from black, altered text on products, changed labels, different product, new objects appearing, scene change';
+    // I2V-specific negative prompt for Kling (simplified - no black/fade references)
+    const i2vNegativePrompt = 'blurry, low quality, distorted, warping, watermark';
     
     if (options.model.startsWith('kling')) {
       let version = '2.6';
