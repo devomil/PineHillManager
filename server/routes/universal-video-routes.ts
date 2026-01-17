@@ -86,29 +86,23 @@ async function uploadImageToPiAPIStorage(
   try {
     const uploadUrl = 'https://upload.theapi.app/api/ephemeral_resource';
     
-    // Build multipart form data manually for Node.js compatibility
-    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
     const mimeType = filename.endsWith('.jpg') || filename.endsWith('.jpeg') 
       ? 'image/jpeg' 
       : 'image/png';
     
-    // Construct multipart body
-    const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`;
-    const footer = `\r\n--${boundary}--\r\n`;
-    
-    const headerBuffer = Buffer.from(header, 'utf-8');
-    const footerBuffer = Buffer.from(footer, 'utf-8');
-    const body = Buffer.concat([headerBuffer, imageBuffer, footerBuffer]);
-    
     console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes) to PiAPI storage...`);
+    
+    // Use Node.js native FormData with Blob for proper multipart encoding
+    const formData = new FormData();
+    const blob = new Blob([imageBuffer], { type: mimeType });
+    formData.append('file', blob, filename);
     
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
-      body: body,
+      body: formData,
     });
     
     if (!response.ok) {
