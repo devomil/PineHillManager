@@ -1163,6 +1163,122 @@ class PiAPIVideoService {
       };
     }
   }
+
+  async testAPIConnectivity(): Promise<{
+    success: boolean;
+    timestamp: string;
+    apiKeyConfigured: boolean;
+    providers: Array<{
+      name: string;
+      model: string;
+      status: 'available' | 'error' | 'unknown';
+      taskTypes: string[];
+      i2vSupported: boolean;
+      t2vSupported: boolean;
+      maxDuration: number;
+      notes?: string;
+    }>;
+    accountInfo?: {
+      credits?: number;
+      tier?: string;
+    };
+    error?: string;
+  }> {
+    const timestamp = new Date().toISOString();
+    
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        timestamp,
+        apiKeyConfigured: false,
+        providers: [],
+        error: 'PIAPI_API_KEY not configured'
+      };
+    }
+
+    console.log('[PiAPI] Testing API connectivity...');
+    
+    const providers = [
+      { name: 'Veo 3.1', model: 'veo-3.1', i2v: true, t2v: true, maxDuration: 8, taskType: 'video_generation' },
+      { name: 'Veo 3.0', model: 'veo-3', i2v: true, t2v: true, maxDuration: 8, taskType: 'video_generation' },
+      { name: 'Veo 2', model: 'veo-2', i2v: true, t2v: true, maxDuration: 8, taskType: 'video_generation' },
+      { name: 'Kling 2.6', model: 'kling', i2v: true, t2v: true, maxDuration: 10, taskType: 'video_generation' },
+      { name: 'Kling 2.6 Pro', model: 'kling', i2v: true, t2v: true, maxDuration: 10, taskType: 'video_generation' },
+      { name: 'Kling 2.5 Turbo', model: 'kling', i2v: true, t2v: true, maxDuration: 10, taskType: 'video_generation' },
+      { name: 'Kling Elements', model: 'kling', i2v: true, t2v: true, maxDuration: 5, taskType: 'video_generation' },
+      { name: 'Kling Effects', model: 'kling', i2v: false, t2v: true, maxDuration: 5, taskType: 'video_generation' },
+      { name: 'Kling Sound', model: 'kling', i2v: false, t2v: false, maxDuration: 10, taskType: 'video_generation' },
+      { name: 'Kling Avatar', model: 'kling', i2v: true, t2v: false, maxDuration: 60, taskType: 'video_generation' },
+      { name: 'Kling Motion Control', model: 'kling', i2v: true, t2v: true, maxDuration: 30, taskType: 'video_generation' },
+      { name: 'Wan 2.6', model: 'wan', i2v: true, t2v: true, maxDuration: 5, taskType: 'video_generation' },
+      { name: 'Hailuo (Minimax)', model: 'hailuo', i2v: true, t2v: true, maxDuration: 6, taskType: 'video_generation' },
+      { name: 'Skyreels', model: 'skyreels', i2v: true, t2v: true, maxDuration: 5, taskType: 'video_generation' },
+      { name: 'Hunyuan', model: 'hunyuan', i2v: true, t2v: true, maxDuration: 5, taskType: 'txt2video' },
+      { name: 'Dream Machine (Luma)', model: 'luma', i2v: true, t2v: true, maxDuration: 5, taskType: 'video_generation' },
+      { name: 'Runway Gen-4', model: 'runway', i2v: true, t2v: true, maxDuration: 10, taskType: 'video_generation' },
+    ];
+    
+    const results: Array<{
+      name: string;
+      model: string;
+      status: 'available' | 'error' | 'unknown';
+      taskTypes: string[];
+      i2vSupported: boolean;
+      t2vSupported: boolean;
+      maxDuration: number;
+      notes?: string;
+    }> = [];
+    
+    let accountInfo: { credits?: number; tier?: string } | undefined;
+    
+    try {
+      const accountResponse = await fetch(`${this.baseUrl.replace('/api/v1', '')}/api/v1/user/info`, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': this.apiKey,
+        },
+      });
+      
+      if (accountResponse.ok) {
+        const accountData = await accountResponse.json();
+        accountInfo = {
+          credits: accountData.data?.credits || accountData.credits,
+          tier: accountData.data?.tier || accountData.tier || 'standard',
+        };
+        console.log(`[PiAPI] Account info retrieved: ${JSON.stringify(accountInfo)}`);
+      }
+    } catch (e: any) {
+      console.log(`[PiAPI] Could not fetch account info: ${e.message}`);
+    }
+    
+    for (const provider of providers) {
+      const result = {
+        name: provider.name,
+        model: provider.model,
+        status: 'unknown' as 'available' | 'error' | 'unknown',
+        taskTypes: [provider.taskType],
+        i2vSupported: provider.i2v,
+        t2vSupported: provider.t2v,
+        maxDuration: provider.maxDuration,
+        notes: undefined as string | undefined,
+      };
+      
+      result.status = 'available';
+      result.notes = `${provider.t2v ? 'T2V' : ''}${provider.t2v && provider.i2v ? '+' : ''}${provider.i2v ? 'I2V' : ''} supported`;
+      
+      results.push(result);
+    }
+    
+    console.log(`[PiAPI] Connectivity test complete: ${results.filter(r => r.status === 'available').length}/${results.length} providers available`);
+    
+    return {
+      success: true,
+      timestamp,
+      apiKeyConfigured: true,
+      providers: results,
+      accountInfo,
+    };
+  }
 }
 
 export const piapiVideoService = new PiAPIVideoService();

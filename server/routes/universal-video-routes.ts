@@ -61,6 +61,7 @@ import { brandWorkflowOrchestrator } from '../services/brand-workflow-orchestrat
 import { brandWorkflowRouter } from '../services/brand-workflow-router';
 import type { WorkflowPath, WorkflowResult } from '../../shared/types/brand-workflow-types';
 import { selectMediaSource, type MediaType } from '../services/media-source-selector';
+import { piapiVideoService } from '../services/piapi-video-service';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -318,6 +319,17 @@ async function getProjectFromDb(projectId: string): Promise<(VideoProject & { ow
     ownerId: row.ownerId,
   };
 }
+
+router.get('/api-connectivity-test', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    console.log('[UniversalVideo] Running PiAPI connectivity test...');
+    const result = await piapiVideoService.testAPIConnectivity();
+    res.json(result);
+  } catch (error: any) {
+    console.error('[UniversalVideo] API connectivity test failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 router.get('/projects', isAuthenticated, async (req: Request, res: Response) => {
   try {
