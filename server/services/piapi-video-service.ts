@@ -33,7 +33,6 @@ class PiAPIVideoService {
   private bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
   private apiKey = process.env.PIAPI_API_KEY || '';
   private baseUrl = 'https://api.piapi.ai/api/v1';
-  private uploadUrl = 'https://upload.theapi.app';
 
   constructor() {
     const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID;
@@ -55,83 +54,6 @@ class PiAPIVideoService {
 
   isAvailable(): boolean {
     return this.apiKey.length > 0;
-  }
-
-  /**
-   * Upload an image to PiAPI's storage (storage.theapi.app)
-   * This is required for I2V because PiAPI doesn't accept external URLs reliably
-   * Files are automatically deleted after 24 hours
-   */
-  async uploadImageToPiAPI(imageUrl: string): Promise<string> {
-    console.log(`[PiAPI Upload] Starting upload from: ${imageUrl.substring(0, 80)}...`);
-    
-    try {
-      // Download the image from the source URL (e.g., GCS signed URL)
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
-      }
-      
-      const imageBuffer = await imageResponse.arrayBuffer();
-      const contentType = imageResponse.headers.get('content-type') || 'image/png';
-      
-      // Determine file extension from content type
-      let extension = 'png';
-      if (contentType.includes('jpeg') || contentType.includes('jpg')) {
-        extension = 'jpg';
-      } else if (contentType.includes('webp')) {
-        extension = 'webp';
-      }
-      
-      const filename = `product_${Date.now()}.${extension}`;
-      console.log(`[PiAPI Upload] Downloaded ${imageBuffer.byteLength} bytes, type: ${contentType}`);
-      
-      // Create form data for upload
-      const formData = new FormData();
-      const blob = new Blob([imageBuffer], { type: contentType });
-      formData.append('file', blob, filename);
-      
-      // Upload to PiAPI's storage
-      const uploadResponse = await fetch(this.uploadUrl, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': this.apiKey,
-        },
-        body: formData,
-      });
-      
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
-      }
-      
-      const uploadResult = await uploadResponse.json();
-      console.log(`[PiAPI Upload] Upload response:`, JSON.stringify(uploadResult).substring(0, 200));
-      
-      // Extract the URL from the response
-      // Expected format: { url: "https://storage.theapi.app/images/..." } or { data: { url: "..." } }
-      let uploadedUrl = uploadResult.url || uploadResult.data?.url || uploadResult.file_url;
-      
-      if (!uploadedUrl) {
-        // Try to find any URL in the response
-        const responseStr = JSON.stringify(uploadResult);
-        const urlMatch = responseStr.match(/https:\/\/storage\.theapi\.app[^"]+/);
-        if (urlMatch) {
-          uploadedUrl = urlMatch[0];
-        }
-      }
-      
-      if (!uploadedUrl) {
-        throw new Error(`No URL in upload response: ${JSON.stringify(uploadResult)}`);
-      }
-      
-      console.log(`[PiAPI Upload] Successfully uploaded to: ${uploadedUrl}`);
-      return uploadedUrl;
-      
-    } catch (error: any) {
-      console.error(`[PiAPI Upload] Error:`, error.message);
-      throw error;
-    }
   }
 
   async generateVideo(options: PiAPIGenerationOptions): Promise<PiAPIGenerationResult> {
@@ -677,30 +599,13 @@ class PiAPIVideoService {
     const sanitizedPrompt = enhancePromptForProvider(sanitized.cleanPrompt, options.model);
     
     console.log(`[PiAPI:${options.model}] Starting image-to-video generation...`);
-    console.log(`[PiAPI:${options.model}] Source image: ${options.imageUrl.substring(0, 80)}...`);
-    console.log(`[PiAPI:${options.model}] Prompt: ${sanitizedPrompt.substring(0, 80)}...`);
+    console.log(`[PiAPI:${options.model}] Image URL: ${options.imageUrl}`);
+    console.log(`[PiAPI:${options.model}] Prompt: ${sanitizedPrompt.substring(0, 120)}...`);
 
     try {
-      // CRITICAL: Upload image to PiAPI storage first
-      // PiAPI I2V requires images to be hosted on storage.theapi.app for reliable results
-      let piApiImageUrl = options.imageUrl;
-      
-      if (!options.imageUrl.includes('storage.theapi.app')) {
-        console.log(`[PiAPI:${options.model}] Uploading image to PiAPI storage for reliable I2V...`);
-        try {
-          piApiImageUrl = await this.uploadImageToPiAPI(options.imageUrl);
-          console.log(`[PiAPI:${options.model}] Image uploaded to PiAPI storage: ${piApiImageUrl}`);
-        } catch (uploadError: any) {
-          console.warn(`[PiAPI:${options.model}] Upload to PiAPI failed, trying with original URL: ${uploadError.message}`);
-          // Fall back to original URL if upload fails
-        }
-      } else {
-        console.log(`[PiAPI:${options.model}] Image already on PiAPI storage, using directly`);
-      }
-      
-      // Use the PiAPI storage URL for the I2V request
-      const optionsWithPiApiUrl = { ...options, imageUrl: piApiImageUrl };
-      const requestBody = this.buildI2VRequestBody(optionsWithPiApiUrl, sanitizedPrompt);
+      // Use the public URL directly - PiAPI just needs a publicly accessible HTTP URL
+      // Brand assets stored in cloud storage already have public URLs (or signed URLs)
+      const requestBody = this.buildI2VRequestBody(options, sanitizedPrompt);
       
       // Log full request body for debugging I2V issues
       console.log(`[PiAPI:${options.model}] I2V Request body:`, JSON.stringify(requestBody, null, 2).substring(0, 1500));
@@ -1007,26 +912,34 @@ class PiAPIVideoService {
       };
     }
     
-    // Veo Family (Google) - uses image_to_video task_type for I2V
-    // Reference: PiAPI playground shows task_type: "image_to_video" with model: "veo3.1"
+    // Veo Family (Google) - I2V format per documentation
+    // Uses same task_type as T2V but adds image_url parameter
     if (options.model.includes('veo')) {
       let veoModel = 'veo3.1';
+      let taskType = 'veo3.1-video';
+      
       if (options.model === 'veo-3' || options.model === 'veo3' || options.model === 'veo') {
         veoModel = 'veo3';
+        taskType = 'veo3-video';
       } else if (options.model === 'veo-2' || options.model === 'veo2') {
         veoModel = 'veo2';
+        taskType = 'veo2-video';
       }
       
-      console.log(`[PiAPI I2V] Using ${veoModel} with task_type: image_to_video`);
-      console.log(`[PiAPI I2V] Image URL: ${options.imageUrl.substring(0, 100)}...`);
+      console.log(`[PiAPI I2V] Using ${veoModel} with task_type: ${taskType}`);
+      console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
       console.log(`[PiAPI I2V] Prompt: ${baseInput.prompt.substring(0, 100)}...`);
       
       return {
         model: veoModel,
-        task_type: 'image_to_video',
+        task_type: taskType,
         input: {
-          image_url: options.imageUrl,
           prompt: baseInput.prompt,
+          image_url: options.imageUrl,
+          aspect_ratio: options.aspectRatio || '16:9',
+          duration: `${Math.min(options.duration, 8)}s`,
+          resolution: '720p',
+          generate_audio: false,
         },
       };
     }
