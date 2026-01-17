@@ -688,36 +688,208 @@ class PiAPIVideoService {
       motionStrength?: number;
     };
   }, sanitizedPrompt: string): any {
-    // For I2V: Use a minimal prompt that emphasizes source image preservation
-    // Too much prompt direction causes the AI to generate new content instead of animating the source
     const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
     
-    // Different prompt styles based on animation intention
-    let i2vPrompt: string;
-    if (animationStyle === 'product-static') {
-      // Maximum fidelity - minimal animation directive
-      i2vPrompt = `Gently animate this exact product image. Preserve all details, labels, and text exactly as shown. Subtle ambient motion only.`;
-    } else if (animationStyle === 'product-hero') {
-      // Gentle cinematic treatment while preserving source
-      i2vPrompt = `Cinematic product shot. Animate this exact product image with gentle, smooth camera motion. Preserve all product details, labels, and text exactly as shown. ${sanitizedPrompt.substring(0, 100)}`;
-    } else if (animationStyle === 'subtle-motion') {
-      // Subtle environmental motion
-      i2vPrompt = `Animate this image with subtle environmental motion. Preserve the product exactly as shown. Gentle lighting shifts and ambient movement. ${sanitizedPrompt.substring(0, 80)}`;
-    } else {
-      // Dynamic - more creative freedom but still source-based
-      i2vPrompt = `Dynamic product animation. Animate from this exact image with energetic camera motion. Preserve product appearance and labels. ${sanitizedPrompt.substring(0, 100)}`;
+    // ===========================================
+    // GROUP 1: Send prompt AS-IS (no modification)
+    // These providers work best with natural, unmodified prompts
+    // ===========================================
+    
+    // Veo Family (Google) - sends prompt AS-IS
+    if (options.model.includes('veo')) {
+      let veoModel = 'veo3';
+      let taskType = 'veo3-video';
+      
+      if (options.model === 'veo-2' || options.model === 'veo2') {
+        veoModel = 'veo2';
+        taskType = 'veo2-video';
+      }
+      
+      if (options.model.includes('fast')) {
+        taskType = `${veoModel}-video-fast`;
+      }
+      
+      console.log(`[PiAPI I2V] ${veoModel}: Sending prompt AS-IS (no animation style modification)`);
+      console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
+      console.log(`[PiAPI I2V] Prompt: ${sanitizedPrompt}`);
+      
+      return {
+        model: veoModel,
+        task_type: taskType,
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          image_url: options.imageUrl,
+          aspect_ratio: options.aspectRatio || '16:9',
+          duration: `${Math.min(options.duration, 8)}s`,
+          resolution: '1080p',
+          generate_audio: false,
+        },
+      };
     }
     
-    // I2V-specific negative prompt: DO NOT include "text" as we want to preserve label text
-    const i2vNegativePrompt = 'blurry, low quality, distorted, morphing face, warping, watermark, dramatic camera movement, aggressive zoom, black screen, fade from black, altered text on products, changed labels, different product, new objects appearing, scene change';
+    // Runway Gen-3 - sends prompt AS-IS
+    if (options.model.includes('runway')) {
+      console.log(`[PiAPI I2V] Runway: Sending prompt AS-IS`);
+      return {
+        model: 'runway',
+        task_type: 'video_generation',
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          image_url: options.imageUrl,
+          duration: Math.min(options.duration, 10),
+          aspect_ratio: options.aspectRatio || '16:9',
+        },
+      };
+    }
     
-    const baseInput = {
-      prompt: i2vPrompt,
-      image_url: options.imageUrl,
-      duration: options.duration,
-      aspect_ratio: options.aspectRatio,
-      negative_prompt: i2vNegativePrompt,
+    // Pika Labs - sends prompt AS-IS
+    if (options.model.includes('pika')) {
+      console.log(`[PiAPI I2V] Pika: Sending prompt AS-IS`);
+      return {
+        model: 'pika',
+        task_type: 'video_generation',
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          image_url: options.imageUrl,
+        },
+      };
+    }
+    
+    // Genmo - sends prompt AS-IS
+    if (options.model.includes('genmo')) {
+      console.log(`[PiAPI I2V] Genmo: Sending prompt AS-IS`);
+      return {
+        model: 'genmo',
+        task_type: 'video_generation',
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          image_url: options.imageUrl,
+        },
+      };
+    }
+    
+    // Hunyuan - sends prompt AS-IS
+    if (options.model.includes('hunyuan')) {
+      console.log(`[PiAPI I2V] Hunyuan: Sending prompt AS-IS`);
+      return {
+        model: 'hunyuan',
+        task_type: 'video_generation',
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          image_url: options.imageUrl,
+          duration: Math.min(options.duration, 5),
+          aspect_ratio: options.aspectRatio || '16:9',
+        },
+      };
+    }
+    
+    // Skyreels - sends prompt AS-IS
+    if (options.model.includes('skyreels')) {
+      console.log(`[PiAPI I2V] Skyreels: Sending prompt AS-IS`);
+      return {
+        model: 'skyreels',
+        task_type: 'video_generation',
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          image_url: options.imageUrl,
+          duration: Math.min(options.duration, 5),
+        },
+      };
+    }
+    
+    // Seedance - sends prompt AS-IS
+    if (options.model.includes('seedance')) {
+      console.log(`[PiAPI I2V] Seedance: Sending prompt AS-IS`);
+      return {
+        model: 'hailuo',
+        task_type: 'video_generation',
+        input: {
+          prompt: sanitizedPrompt,  // SEND AS-IS!
+          model: 'seedance-1.0-i2v',
+          image_url: options.imageUrl,
+        },
+      };
+    }
+    
+    // ===========================================
+    // GROUP 2: Light modification (camera hint only)
+    // These providers benefit from a simple camera direction
+    // ===========================================
+    
+    const cameraHintMap: Record<string, string> = {
+      'product-hero': 'gentle push in',
+      'product-static': 'static camera',
+      'subtle-motion': 'subtle pan',
+      'dynamic': 'dynamic camera movement',
     };
+    const cameraHint = cameraHintMap[animationStyle] || 'gentle movement';
+    
+    // Luma Dream Machine - adds light camera hint
+    if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
+      const prompt = `${sanitizedPrompt}. Camera: ${cameraHint}`;
+      console.log(`[PiAPI I2V] Luma: Adding light camera hint`);
+      console.log(`[PiAPI I2V] Prompt: ${prompt}`);
+      
+      return {
+        model: 'luma',
+        task_type: 'video_generation',
+        input: {
+          prompt: prompt,
+          aspect_ratio: options.aspectRatio || '16:9',
+          loop: false,
+          keyframes: { 
+            frame0: { type: 'image', url: options.imageUrl }
+          },
+        },
+      };
+    }
+    
+    // Hailuo/Minimax Family - adds light camera hint
+    if (options.model.includes('hailuo') || options.model.includes('minimax')) {
+      const prompt = `${sanitizedPrompt}. Camera: ${cameraHint}`;
+      console.log(`[PiAPI I2V] Hailuo: Adding light camera hint`);
+      console.log(`[PiAPI I2V] Prompt: ${prompt}`);
+      
+      return {
+        model: 'hailuo',
+        task_type: 'video_generation',
+        input: {
+          prompt: prompt,
+          model: 'i2v-01',
+          image_url: options.imageUrl,
+          expand_prompt: true,
+        },
+      };
+    }
+    
+    // Wan Family - adds light camera hint
+    if (options.model.includes('wan')) {
+      const prompt = `${sanitizedPrompt}. Camera: ${cameraHint}`;
+      console.log(`[PiAPI I2V] Wan: Adding light camera hint`);
+      console.log(`[PiAPI I2V] Prompt: ${prompt}`);
+      
+      return {
+        model: 'Wan',
+        task_type: 'wan26-img2video',
+        input: {
+          prompt: prompt,
+          image: options.imageUrl,
+          prompt_extend: true,
+          shot_type: 'single',
+          resolution: '720p',
+          duration: Math.min(options.duration, 5),
+          watermark: false,
+        },
+      };
+    }
+    
+    // ===========================================
+    // GROUP 3: Full animation style modification (Kling only)
+    // These providers benefit from detailed motion directives
+    // ===========================================
+    
+    // I2V-specific negative prompt for Kling
+    const i2vNegativePrompt = 'blurry, low quality, distorted, morphing face, warping, watermark, dramatic camera movement, aggressive zoom, black screen, fade from black, altered text on products, changed labels, different product, new objects appearing, scene change';
     
     if (options.model.startsWith('kling')) {
       let version = '2.6';
@@ -815,8 +987,22 @@ class PiAPIVideoService {
       
       console.log(`[PiAPI I2V] Kling settings: fidelity=${imageControlStrength} → cfg=${cfgScale.toFixed(2)}, motion=${motionStrength}, style=${animationStyle}`);
       
+      // Build Kling-specific prompt with full animation style modification
+      let klingPromptBase: string;
+      if (animationStyle === 'product-static') {
+        klingPromptBase = `Gently animate this exact product image. Preserve all details, labels, and text exactly as shown. Subtle ambient motion only.`;
+      } else if (animationStyle === 'product-hero') {
+        klingPromptBase = `Cinematic product shot. Animate this exact product image with gentle, smooth camera motion. Preserve all product details, labels, and text exactly as shown. ${sanitizedPrompt.substring(0, 100)}`;
+      } else if (animationStyle === 'subtle-motion') {
+        klingPromptBase = `Animate this image with subtle environmental motion. Preserve the product exactly as shown. Gentle lighting shifts and ambient movement. ${sanitizedPrompt.substring(0, 80)}`;
+      } else {
+        klingPromptBase = `Dynamic product animation. Animate from this exact image with energetic camera motion. Preserve product appearance and labels. ${sanitizedPrompt.substring(0, 100)}`;
+      }
+      
       // Append motion directive to prompt for better control
-      const klingI2vPrompt = `${baseInput.prompt}. Camera: ${motionDirective}.`;
+      const klingI2vPrompt = `${klingPromptBase}. Camera: ${motionDirective}.`;
+      
+      console.log(`[PiAPI I2V] Kling prompt: ${klingI2vPrompt}`);
       
       // For Kling I2V: use both image_url AND first_frame_image for compatibility
       // Also use elements array for Kling 1.6+ which prefers that format
@@ -829,7 +1015,7 @@ class PiAPIVideoService {
           first_frame_image: options.imageUrl, // Some Kling versions use this
           duration: options.duration,
           aspect_ratio: options.aspectRatio,
-          negative_prompt: baseInput.negative_prompt,
+          negative_prompt: i2vNegativePrompt,
           mode,
           version,
           cfg_scale: cfgScale,
@@ -839,142 +1025,21 @@ class PiAPIVideoService {
       };
     }
     
-    // Luma Family - uses video_generation task_type with keyframes for I2V
-    if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
-      console.log(`[PiAPI I2V] Using Luma Dream Machine with high fidelity`);
-      return {
-        model: 'luma',
-        task_type: 'video_generation',
-        input: {
-          prompt: baseInput.prompt,
-          aspect_ratio: baseInput.aspect_ratio,
-          loop: false,
-          keyframes: { 
-            frame0: { type: 'image', url: options.imageUrl }
-          },
-        },
-      };
-    }
-    
-    // Hailuo/Minimax Family - uses video_generation task_type
-    if (options.model.includes('hailuo') || options.model.includes('minimax')) {
-      const imageControlStrength = options.i2vSettings?.imageControlStrength ?? 1.0;
-      const motionStrength = options.i2vSettings?.motionStrength ?? 0.3;
-      const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
-      
-      const cameraMotionMap: Record<string, string> = {
-        'product-hero': 'push',
-        'product-static': 'static',
-        'subtle-motion': 'pan_left',
-        'dynamic': 'zoom_in',
-      };
-      const cameraMotion = cameraMotionMap[animationStyle] || 'static';
-      
-      console.log(`[PiAPI I2V] Using Hailuo (i2v-01) with settings: fidelity=${imageControlStrength}, motion=${motionStrength}, style=${animationStyle} → camera=${cameraMotion}`);
-      return {
-        model: 'hailuo',
-        task_type: 'video_generation',
-        input: {
-          prompt: baseInput.prompt,
-          model: 'i2v-01',
-          image_url: options.imageUrl,
-          expand_prompt: true,
-        },
-      };
-    }
-    
-    // Wan Family (Alibaba) - uses wan26-img2video task_type
-    if (options.model.includes('wan')) {
-      console.log(`[PiAPI I2V] Using Wan 2.6 I2V`);
-      return {
-        model: 'Wan',
-        task_type: 'wan26-img2video',
-        input: {
-          prompt: baseInput.prompt,
-          negative_prompt: baseInput.negative_prompt,
-          image: options.imageUrl,
-          prompt_extend: true,
-          shot_type: 'single',
-          resolution: '720p',
-          duration: Math.min(options.duration, 5),
-          watermark: false,
-        },
-      };
-    }
-    
-    // Seedance
-    if (options.model.includes('seedance')) {
-      console.log(`[PiAPI I2V] Using Seedance 1.0 I2V`);
-      return {
-        model: 'hailuo',
-        task_type: 'video_generation',
-        input: {
-          prompt: baseInput.prompt,
-          model: 'seedance-1.0-i2v',
-          image_url: options.imageUrl,
-        },
-      };
-    }
-    
-    // Veo Family (Google) - I2V format per documentation
-    // PiAPI model names don't include the minor version
-    // veo-3.1, veo3.1, veo-3, veo3, veo all map to model: 'veo3', task_type: 'veo3-video'
-    if (options.model.includes('veo')) {
-      let veoModel = 'veo3';
-      let taskType = 'veo3-video';
-      
-      if (options.model === 'veo-2' || options.model === 'veo2') {
-        veoModel = 'veo2';
-        taskType = 'veo2-video';
-      }
-      
-      // For fast generation, use the fast task type
-      if (options.model.includes('fast')) {
-        taskType = `${veoModel}-video-fast`;
-      }
-      
-      console.log(`[PiAPI I2V] Using Veo model: ${veoModel}, task_type: ${taskType}`);
-      console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
-      console.log(`[PiAPI I2V] Prompt: ${baseInput.prompt.substring(0, 100)}...`);
-      
-      return {
-        model: veoModel,
-        task_type: taskType,
-        input: {
-          prompt: baseInput.prompt,
-          image_url: options.imageUrl,
-          aspect_ratio: options.aspectRatio || '16:9',
-          duration: `${Math.min(options.duration, 8)}s`,
-          resolution: '1080p',
-          generate_audio: false,
-        },
-      };
-    }
-    
-    // Hunyuan - uses video_generation task_type
-    if (options.model === 'hunyuan') {
-      console.log(`[PiAPI I2V] Using Hunyuan`);
-      return {
-        model: 'hunyuan',
-        task_type: 'video_generation',
-        input: {
-          ...baseInput,
-        },
-      };
-    }
-    
-    // Default to Kling with video_generation
+    // ===========================================
+    // DEFAULT: Send as-is for any unknown provider
+    // ===========================================
+    console.log(`[PiAPI I2V] ${options.model}: Using default (sending as-is)`);
     return {
-      model: 'kling',
+      model: options.model,
       task_type: 'video_generation',
       input: {
-        ...baseInput,
-        mode: 'pro',
-        version: '2.6',
+        prompt: sanitizedPrompt,
+        image_url: options.imageUrl,
+        duration: options.duration,
+        aspect_ratio: options.aspectRatio,
       },
     };
   }
-
   /**
    * Video Object Replacement using Kling Multi-Elements
    * Takes an existing video and replaces a specific object with a product image
