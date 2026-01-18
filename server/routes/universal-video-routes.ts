@@ -74,8 +74,7 @@ const router = Router();
  * Returns a storage.theapi.app URL (same as PiAPI Workspace uses).
  * Files are automatically deleted after 24 hours.
  * 
- * Uses native FormData with Blob - DO NOT manually set Content-Type.
- * Let fetch set it automatically with the correct boundary.
+ * PiAPI expects JSON with base64, NOT multipart/form-data!
  */
 async function uploadImageToPiAPIStorage(
   imageBuffer: Buffer,
@@ -91,25 +90,29 @@ async function uploadImageToPiAPIStorage(
   try {
     console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes)...`);
     
-    const mimeType = filename.endsWith('.jpg') || filename.endsWith('.jpeg') 
-      ? 'image/jpeg' 
-      : 'image/png';
+    // Convert buffer to base64
+    const base64Data = imageBuffer.toString('base64');
     
-    const formData = new globalThis.FormData();
-    const blob = new Blob([imageBuffer], { type: mimeType });
-    formData.append('file', blob, filename);
+    // PiAPI expects JSON with these EXACT parameter names
+    const requestBody = {
+      file_name: filename,      // NOT "filename"
+      file_data: base64Data,    // NOT "file", just base64 without data URI prefix
+    };
+    
+    console.log(`[PiAPI Upload] Sending JSON request with file_name: ${filename}`);
     
     const response = await fetch('https://upload.theapi.app/api/ephemeral_resource', {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'x-api-key': apiKey,
       },
-      body: formData,
+      body: JSON.stringify(requestBody),
     });
     
     const responseText = await response.text();
     console.log(`[PiAPI Upload] Response status: ${response.status}`);
-    console.log(`[PiAPI Upload] Response body: ${responseText}`);
+    console.log(`[PiAPI Upload] Response body: ${responseText.substring(0, 500)}`);
     
     if (!response.ok) {
       console.error(`[PiAPI Upload] Failed: ${response.status} - ${responseText}`);
@@ -117,6 +120,8 @@ async function uploadImageToPiAPIStorage(
     }
     
     const data = JSON.parse(responseText);
+    
+    // Extract URL from response
     const imageUrl = data?.url || data?.data?.url || data?.image_url || data?.file_url;
     
     if (imageUrl) {
@@ -124,7 +129,7 @@ async function uploadImageToPiAPIStorage(
       return imageUrl;
     }
     
-    console.log('[PiAPI Upload] No URL in response');
+    console.log('[PiAPI Upload] No URL in response:', responseText);
     return null;
     
   } catch (error: any) {
