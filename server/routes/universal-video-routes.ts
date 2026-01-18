@@ -1,8 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
-import FormData from 'form-data';
-import axios from 'axios';
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';

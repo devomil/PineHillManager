@@ -48,4 +48,31 @@ The system maintains a clear separation of concerns between frontend and backend
 -   **Accounting Integrations**: QuickBooks, Clover POS, Amazon Store API, HSA Providers, Thrive Inventory
 -   **Content Generation**: Hugging Face API
 -   **SMS Service**: Twilio API
--   **AI Video Production**: fal.ai (LongCat-Video, Wan 2.2, FLUX models), ElevenLabs (voiceover), Pexels/Pixabay/Unsplash (stock media), Runway Gen-4, Stability AI, Anthropic (Claude for visual directions), AWS (for Remotion Lambda), LegNext.ai.
+-   **AI Video Production**: fal.ai (LongCat-Video, Wan 2.2, FLUX models), ElevenLabs (voiceover), Pexels/Pixabay/Unsplash (stock media), Runway Gen-4, Stability AI, Anthropic (Claude for visual directions), AWS (for Remotion Lambda), LegNext.ai, PiAPI (Veo 3.1, Kling, Luma I2V).
+
+## Important Implementation Notes
+
+### PiAPI Ephemeral Storage Upload (January 2026)
+**CRITICAL**: The PiAPI upload endpoint at `https://upload.theapi.app/api/ephemeral_resource` expects **JSON with base64**, NOT multipart/form-data.
+
+**Correct implementation:**
+```typescript
+const requestBody = {
+  file_name: filename,    // NOT "filename"
+  file_data: base64Data,  // NOT "file", raw base64 without data URI prefix
+};
+
+fetch('https://upload.theapi.app/api/ephemeral_resource', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+  },
+  body: JSON.stringify(requestBody),
+});
+```
+
+**Common mistakes to avoid:**
+- Using multipart/form-data (causes "No number after minus sign in JSON" error)
+- Wrong parameter names: `file` instead of `file_data`, `filename` instead of `file_name`
+- Including data URI prefix (`data:image/png;base64,`) - just send raw base64
