@@ -74,7 +74,8 @@ const router = Router();
  * Returns a storage.theapi.app URL (same as PiAPI Workspace uses).
  * Files are automatically deleted after 24 hours.
  * 
- * Uses axios which properly handles form-data Content-Type headers.
+ * Uses native FormData with Blob - DO NOT manually set Content-Type.
+ * Let fetch set it automatically with the correct boundary.
  */
 async function uploadImageToPiAPIStorage(
   imageBuffer: Buffer,
@@ -90,33 +91,33 @@ async function uploadImageToPiAPIStorage(
   try {
     console.log(`[PiAPI Upload] Uploading ${filename} (${imageBuffer.length} bytes)...`);
     
-    const formData = new FormData();
-    formData.append('file', imageBuffer, {
-      filename: filename,
-      contentType: filename.endsWith('.jpg') || filename.endsWith('.jpeg') 
-        ? 'image/jpeg' 
-        : 'image/png',
+    const mimeType = filename.endsWith('.jpg') || filename.endsWith('.jpeg') 
+      ? 'image/jpeg' 
+      : 'image/png';
+    
+    const formData = new globalThis.FormData();
+    const blob = new Blob([imageBuffer], { type: mimeType });
+    formData.append('file', blob, filename);
+    
+    const response = await fetch('https://upload.theapi.app/api/ephemeral_resource', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+      },
+      body: formData,
     });
     
-    const response = await axios.post(
-      'https://upload.theapi.app/api/ephemeral_resource',
-      formData,
-      {
-        headers: {
-          'x-api-key': apiKey,
-          ...formData.getHeaders(),
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      }
-    );
+    const responseText = await response.text();
+    console.log(`[PiAPI Upload] Response status: ${response.status}`);
+    console.log(`[PiAPI Upload] Response body: ${responseText}`);
     
-    console.log(`[PiAPI Upload] Response:`, JSON.stringify(response.data));
+    if (!response.ok) {
+      console.error(`[PiAPI Upload] Failed: ${response.status} - ${responseText}`);
+      return null;
+    }
     
-    const imageUrl = response.data?.url || 
-                     response.data?.data?.url || 
-                     response.data?.image_url ||
-                     response.data?.file_url;
+    const data = JSON.parse(responseText);
+    const imageUrl = data?.url || data?.data?.url || data?.image_url || data?.file_url;
     
     if (imageUrl) {
       console.log(`[PiAPI Upload] Success! URL: ${imageUrl}`);
@@ -127,11 +128,7 @@ async function uploadImageToPiAPIStorage(
     return null;
     
   } catch (error: any) {
-    if (error.response) {
-      console.error(`[PiAPI Upload] HTTP ${error.response.status}:`, error.response.data);
-    } else {
-      console.error('[PiAPI Upload] Error:', error.message);
-    }
+    console.error('[PiAPI Upload] Error:', error.message);
     return null;
   }
 }
