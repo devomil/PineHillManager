@@ -159,16 +159,17 @@ class HomerAIService {
 
       // Update location totals for current month
       if (currentMonthCount > 0) {
-        const existingLoc = locationData.get(config.merchantName) || {
-          locationName: config.merchantName,
+        const merchantName = config.merchantName || 'Unknown Location';
+        const existingLoc = locationData.get(merchantName) || {
+          locationName: merchantName,
           totalRevenue: '0',
           transactionCount: 0,
           avgSale: '0',
         };
         const newRevenue = parseFloat(existingLoc.totalRevenue) + currentMonthRevenue;
         const newCount = existingLoc.transactionCount + currentMonthCount;
-        locationData.set(config.merchantName, {
-          locationName: config.merchantName,
+        locationData.set(merchantName, {
+          locationName: merchantName,
           totalRevenue: newRevenue.toFixed(2),
           transactionCount: newCount,
           avgSale: newCount > 0 ? (newRevenue / newCount).toFixed(2) : '0',
@@ -230,10 +231,10 @@ class HomerAIService {
     const inventorySummaryQuery = await db.execute(sql`
       SELECT 
         COUNT(*) as total_items,
-        COUNT(*) FILTER (WHERE stock_quantity < 5 AND stock_quantity >= 0) as low_stock_items,
-        SUM(CAST(price AS DECIMAL) * stock_quantity) as total_value
+        COUNT(*) FILTER (WHERE quantity_on_hand < 5 AND quantity_on_hand >= 0) as low_stock_items,
+        SUM(CAST(unit_cost AS DECIMAL) * CAST(quantity_on_hand AS DECIMAL)) as total_value
       FROM inventory_items
-      WHERE is_available = true
+      WHERE is_active = true
     `);
 
     // Calculate financial summary from monthly data
