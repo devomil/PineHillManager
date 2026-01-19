@@ -62,114 +62,124 @@ class HomerAIService {
   async getBusinessContext(timeframe: 'month' | 'quarter' | 'year' = 'year'): Promise<BusinessDataContext> {
     const now = new Date();
     
-    // Calculate date ranges for last 12 months to ensure comprehensive data
-    const monthsToFetch: Array<{ month: string; startDate: Date; endDate: Date }> = [];
-    for (let i = 0; i < 12; i++) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-      monthEnd.setHours(23, 59, 59, 999);
-      monthsToFetch.push({
-        month: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`,
-        startDate: monthStart,
-        endDate: monthEnd,
-      });
-    }
+    // Calculate 12-month date range (single API call per location, then aggregate locally)
+    const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    endDate.setHours(23, 59, 59, 999);
+    
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     // Get all active Clover configurations
     const allCloverConfigs = await storage.getAllCloverConfigs();
     const activeCloverConfigs = allCloverConfigs.filter(config => config.isActive);
 
-    // Fetch live revenue data from Clover API for each month and location
     const monthlyData: Map<string, MonthlyRevenue> = new Map();
     const locationData: Map<string, LocationRevenue> = new Map();
     
-    console.log('[Homer] Fetching live Clover data for business context...');
+    console.log('[Homer] Fetching live Clover data (optimized single call per location)...');
 
-    for (const config of activeCloverConfigs) {
+    // Fetch all orders for last 12 months in parallel per location
+    const fetchPromises = activeCloverConfigs.map(async (config) => {
       try {
         const cloverIntegration = new CloverIntegration(config);
+        const startMs = startDate.getTime();
+        const endMs = endDate.getTime();
         
-        // Fetch data for last 12 months
-        for (const monthInfo of monthsToFetch) {
-          const startMs = monthInfo.startDate.getTime();
-          const endMs = monthInfo.endDate.getTime();
-          
-          let allOrders: any[] = [];
-          let offset = 0;
-          const limit = 1000;
-          let hasMoreData = true;
+        let allOrders: any[] = [];
+        let offset = 0;
+        const limit = 1000;
+        let hasMoreData = true;
 
-          while (hasMoreData) {
-            try {
-              const liveOrders = await cloverIntegration.fetchOrders({
-                createdTimeMin: startMs,
-                createdTimeMax: endMs,
-                limit: limit,
-                offset: offset
-              });
+        while (hasMoreData) {
+          try {
+            const liveOrders = await cloverIntegration.fetchOrders({
+              createdTimeMin: startMs,
+              createdTimeMax: endMs,
+              limit: limit,
+              offset: offset
+            });
 
-              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-                allOrders.push(...liveOrders.elements);
-                if (liveOrders.elements.length < limit) {
-                  hasMoreData = false;
-                } else {
-                  offset += limit;
-                  await new Promise(resolve => setTimeout(resolve, 100));
-                }
-              } else {
+            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              allOrders.push(...liveOrders.elements);
+              if (liveOrders.elements.length < limit) {
                 hasMoreData = false;
+              } else {
+                offset += limit;
+                await new Promise(resolve => setTimeout(resolve, 50));
               }
-            } catch (error) {
-              console.log(`[Homer] Error fetching orders for ${config.merchantName}:`, error);
+            } else {
               hasMoreData = false;
             }
-          }
-
-          // Calculate revenue for this location/month
-          const locationRevenue = allOrders.reduce((sum: number, order: any) => {
-            return sum + (parseFloat(order.total || '0') / 100);
-          }, 0);
-          const transactionCount = allOrders.length;
-
-          // Update monthly totals
-          const existing = monthlyData.get(monthInfo.month) || {
-            month: monthInfo.month,
-            totalRevenue: '0',
-            totalCogs: '0',
-            grossMargin: '0',
-            transactionCount: 0,
-          };
-          monthlyData.set(monthInfo.month, {
-            ...existing,
-            totalRevenue: (parseFloat(existing.totalRevenue) + locationRevenue).toFixed(2),
-            transactionCount: existing.transactionCount + transactionCount,
-          });
-
-          // Update location totals (only for current month)
-          if (monthInfo.month === monthsToFetch[0].month) {
-            const existingLoc = locationData.get(config.merchantName) || {
-              locationName: config.merchantName,
-              totalRevenue: '0',
-              transactionCount: 0,
-              avgSale: '0',
-            };
-            const newRevenue = parseFloat(existingLoc.totalRevenue) + locationRevenue;
-            const newCount = existingLoc.transactionCount + transactionCount;
-            locationData.set(config.merchantName, {
-              locationName: config.merchantName,
-              totalRevenue: newRevenue.toFixed(2),
-              transactionCount: newCount,
-              avgSale: newCount > 0 ? (newRevenue / newCount).toFixed(2) : '0',
-            });
+          } catch (error) {
+            console.log(`[Homer] Error fetching orders for ${config.merchantName}:`, error);
+            hasMoreData = false;
           }
         }
+        
+        return { config, orders: allOrders };
       } catch (error) {
-        console.log(`[Homer] Error processing Clover config ${config.merchantName}:`, error);
+        console.log(`[Homer] Error processing ${config.merchantName}:`, error);
+        return { config, orders: [] };
+      }
+    });
+
+    // Wait for all locations to complete
+    const locationResults = await Promise.all(fetchPromises);
+
+    // Process all orders and aggregate by month/location locally
+    for (const { config, orders } of locationResults) {
+      let currentMonthRevenue = 0;
+      let currentMonthCount = 0;
+      
+      for (const order of orders) {
+        const orderDate = new Date(order.createdTime);
+        const orderMonth = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+        const orderRevenue = (parseFloat(order.total || '0') / 100);
+        
+        // Update monthly totals
+        const existing = monthlyData.get(orderMonth) || {
+          month: orderMonth,
+          totalRevenue: '0',
+          totalCogs: '0',
+          grossMargin: '0',
+          transactionCount: 0,
+        };
+        monthlyData.set(orderMonth, {
+          ...existing,
+          totalRevenue: (parseFloat(existing.totalRevenue) + orderRevenue).toFixed(2),
+          transactionCount: existing.transactionCount + 1,
+        });
+
+        // Track current month for location totals
+        if (orderMonth === currentMonth) {
+          currentMonthRevenue += orderRevenue;
+          currentMonthCount++;
+        }
+      }
+
+      // Update location totals for current month
+      if (currentMonthCount > 0) {
+        const existingLoc = locationData.get(config.merchantName) || {
+          locationName: config.merchantName,
+          totalRevenue: '0',
+          transactionCount: 0,
+          avgSale: '0',
+        };
+        const newRevenue = parseFloat(existingLoc.totalRevenue) + currentMonthRevenue;
+        const newCount = existingLoc.transactionCount + currentMonthCount;
+        locationData.set(config.merchantName, {
+          locationName: config.merchantName,
+          totalRevenue: newRevenue.toFixed(2),
+          transactionCount: newCount,
+          avgSale: newCount > 0 ? (newRevenue / newCount).toFixed(2) : '0',
+        });
       }
     }
+    
+    console.log(`[Homer] Processed ${locationResults.reduce((sum, r) => sum + r.orders.length, 0)} orders from ${activeCloverConfigs.length} locations`);
 
     // Get COGS data from database for margin calculations
-    const startDateStr = monthsToFetch[monthsToFetch.length - 1].startDate.toISOString().split('T')[0];
+    const startDateStr = startDate.toISOString().split('T')[0];
     const cogsQuery = await db.execute(sql`
       SELECT 
         TO_CHAR(order_date, 'YYYY-MM') as month,
