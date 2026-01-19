@@ -4404,21 +4404,41 @@ function ReportsSection({
   // Get period dates based on selection
   const getPeriodDates = () => {
     const now = new Date();
+    const actualYear = now.getFullYear();
+    const actualMonth = now.getMonth();
     const currentYear = parseInt(selectedYear);
+    
+    // Determine which month to use based on whether we're looking at current year or past year
+    const isCurrentYear = currentYear === actualYear;
     
     switch (selectedPeriod) {
       case 'current_month':
+        // For current year: use actual current month; for past years: use December
+        const currentMonthToUse = isCurrentYear ? actualMonth : 11;
         return {
-          start: new Date(currentYear, now.getMonth(), 1),
-          end: new Date(currentYear, now.getMonth() + 1, 0)
+          start: new Date(currentYear, currentMonthToUse, 1),
+          end: new Date(currentYear, currentMonthToUse + 1, 0)
         };
       case 'last_month':
-        return {
-          start: new Date(currentYear, now.getMonth() - 1, 1),
-          end: new Date(currentYear, now.getMonth(), 0)
-        };
+        // For current year: use last month; for past years: use December
+        if (isCurrentYear) {
+          // Calculate last month properly - if January, go to December of previous year
+          const lastMonth = actualMonth === 0 ? 11 : actualMonth - 1;
+          const lastMonthYear = actualMonth === 0 ? currentYear - 1 : currentYear;
+          return {
+            start: new Date(lastMonthYear, lastMonth, 1),
+            end: new Date(lastMonthYear, lastMonth + 1, 0)
+          };
+        } else {
+          // For past years, "last month" means December of that year
+          return {
+            start: new Date(currentYear, 11, 1),
+            end: new Date(currentYear, 11, 31)
+          };
+        }
       case 'current_quarter':
-        const quarterStart = Math.floor(now.getMonth() / 3) * 3;
+        const monthForQuarter = isCurrentYear ? actualMonth : 11;
+        const quarterStart = Math.floor(monthForQuarter / 3) * 3;
         return {
           start: new Date(currentYear, quarterStart, 1),
           end: new Date(currentYear, quarterStart + 3, 0)
@@ -4435,8 +4455,8 @@ function ReportsSection({
         };
       default:
         return {
-          start: new Date(currentYear, now.getMonth(), 1),
-          end: new Date(currentYear, now.getMonth() + 1, 0)
+          start: new Date(currentYear, actualMonth, 1),
+          end: new Date(currentYear, actualMonth + 1, 0)
         };
     }
   };
