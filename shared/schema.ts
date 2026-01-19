@@ -5870,3 +5870,44 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+
+// Homer AI Business Intelligence Conversations
+export const homerConversations = pgTable("homer_conversations", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sessionId: varchar("session_id").notNull(), // Groups related messages
+  
+  // Message content
+  role: varchar("role").notNull(), // 'user' or 'assistant'
+  content: text("content").notNull(),
+  
+  // Input method
+  inputMethod: varchar("input_method").default("text"), // 'text', 'voice'
+  
+  // AI processing metadata
+  queryType: varchar("query_type"), // 'financial', 'forecast', 'comparison', 'general'
+  dataSourcesUsed: text("data_sources_used").array(), // ['orders', 'inventory', 'accounts']
+  tokensUsed: integer("tokens_used"),
+  responseTimeMs: integer("response_time_ms"),
+  
+  // Voice-specific
+  audioUrl: varchar("audio_url"), // ElevenLabs generated audio URL
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userSessionIdx: index("idx_homer_user_session").on(table.userId, table.sessionId),
+  createdAtIdx: index("idx_homer_created_at").on(table.createdAt),
+  queryTypeIdx: index("idx_homer_query_type").on(table.queryType),
+}));
+
+export const homerConversationsRelations = relations(homerConversations, ({ one }) => ({
+  user: one(users, { fields: [homerConversations.userId], references: [users.id] }),
+}));
+
+export const insertHomerConversationSchema = createInsertSchema(homerConversations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type HomerConversation = typeof homerConversations.$inferSelect;
+export type InsertHomerConversation = z.infer<typeof insertHomerConversationSchema>;
