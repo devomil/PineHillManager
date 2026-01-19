@@ -57,12 +57,31 @@ class PiAPITTSService {
 
   async generateSpeech(text: string): Promise<TTSResult> {
     if (!this.apiKey) {
+      console.error('[PiAPI TTS] API key not configured');
       return { success: false, error: 'PiAPI API key not configured' };
     }
 
-    console.log('[PiAPI TTS] Starting TTS generation, text length:', text.length);
+    console.log('[PiAPI TTS] Starting TTS generation');
+    console.log('[PiAPI TTS] Text length:', text.length);
+    console.log('[PiAPI TTS] Text preview:', text.substring(0, 100) + '...');
+    console.log('[PiAPI TTS] Using ref audio:', HOMER_VOICE_REF_AUDIO);
 
     try {
+      const requestBody = {
+        model: 'Qubico/tts',
+        task_type: 'zero-shot',
+        input: {
+          gen_text: text,
+          ref_audio: HOMER_VOICE_REF_AUDIO,
+          ref_text: HOMER_VOICE_REF_TEXT,
+        },
+        config: {
+          service_mode: 'public',
+        },
+      };
+      
+      console.log('[PiAPI TTS] Request body:', JSON.stringify(requestBody, null, 2));
+      
       // Create the TTS task
       const createResponse = await fetch(PIAPI_BASE_URL, {
         method: 'POST',
@@ -70,18 +89,7 @@ class PiAPITTSService {
           'Content-Type': 'application/json',
           'x-api-key': this.apiKey,
         },
-        body: JSON.stringify({
-          model: 'Qubico/tts',
-          task_type: 'zero-shot',
-          input: {
-            gen_text: text,
-            ref_audio: HOMER_VOICE_REF_AUDIO,
-            ref_text: HOMER_VOICE_REF_TEXT,
-          },
-          config: {
-            service_mode: 'public',
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!createResponse.ok) {

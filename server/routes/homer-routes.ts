@@ -73,9 +73,13 @@ router.post('/query', isAuthenticated, requireRole(['admin', 'manager']), async 
 });
 
 router.get('/status', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  const piapiAvailable = !!process.env.PIAPI_API_KEY;
+  const elevenLabsAvailable = !!process.env.ELEVENLABS_API_KEY;
+  console.log('[Homer Status] PiAPI:', piapiAvailable, 'ElevenLabs:', elevenLabsAvailable);
   res.json({
     available: homerAIService.isAvailable(),
-    voiceEnabled: !!process.env.ELEVENLABS_API_KEY,
+    voiceEnabled: piapiAvailable || elevenLabsAvailable,
+    voiceProvider: piapiAvailable ? 'PiAPI F5-TTS' : (elevenLabsAvailable ? 'ElevenLabs' : 'None'),
     aiModel: 'Claude Sonnet 4',
   });
 });
