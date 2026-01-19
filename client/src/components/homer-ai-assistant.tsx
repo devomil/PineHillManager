@@ -94,11 +94,13 @@ export function HomerAIAssistant() {
 
   const queryMutation = useMutation({
     mutationFn: async (data: { question: string; generateVoice: boolean }) => {
+      const shouldGenerateVoice = data.generateVoice && !isMuted;
+      console.log('[Homer UI] Sending query - data.generateVoice:', data.generateVoice, 'isMuted:', isMuted, 'result:', shouldGenerateVoice);
       const response = await apiRequest('POST', '/api/homer/query', {
         question: data.question,
         sessionId: sessionId || undefined,
         inputMethod: isListening ? 'voice' : 'text',
-        generateVoice: data.generateVoice && !isMuted,
+        generateVoice: shouldGenerateVoice,
       });
       return response.json();
     },
