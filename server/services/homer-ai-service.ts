@@ -4,6 +4,7 @@ import { orders, orderLineItems, posLocations, financialAccounts, inventoryItems
 import { eq, desc, sql, gte, lte, and, between } from 'drizzle-orm';
 import { CloverIntegration } from '../integrations/clover';
 import { storage } from '../storage';
+import { piapiTTSService } from './piapi-tts-service';
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
@@ -430,16 +431,32 @@ Guidelines:
 
   async generateVoiceResponse(text: string): Promise<string | null> {
     console.log('[Homer] Starting voice generation, text length:', text.length);
+    
+    // Try PiAPI F5-TTS first (primary)
+    if (piapiTTSService.isAvailable()) {
+      console.log('[Homer] Using PiAPI F5-TTS for voice generation');
+      const result = await piapiTTSService.generateSpeech(text);
+      
+      if (result.success && result.audioBase64) {
+        console.log('[Homer] PiAPI TTS voice generated successfully');
+        return result.audioBase64;
+      }
+      
+      console.warn('[Homer] PiAPI TTS failed:', result.error);
+    }
+    
+    // Fallback to ElevenLabs if PiAPI fails or unavailable
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     
     if (!elevenLabsKey) {
-      console.warn('[Homer] ElevenLabs API key not configured');
+      console.warn('[Homer] No TTS service available (PiAPI failed, ElevenLabs not configured)');
       return null;
     }
 
+    console.log('[Homer] Falling back to ElevenLabs');
+    
     // "Adam" voice - deep, warm, sophisticated male voice
     const HOMER_VOICE_ID = 'pNInz6obpgDQGcFmaJgB';
-    console.log('[Homer] Using voice ID:', HOMER_VOICE_ID);
 
     try {
       const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${HOMER_VOICE_ID}`, {
