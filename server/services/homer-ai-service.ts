@@ -53,7 +53,8 @@ class HomerAIService {
         break;
       case 'year':
       default:
-        startDate = new Date(now.getFullYear(), 0, 1);
+        // Include last 12 months of data to ensure we have recent historical context
+        startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
     }
 
     const startDateStr = startDate.toISOString().split('T')[0];
@@ -209,17 +210,17 @@ Current date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 
 
 BUSINESS DATA CONTEXT:
 ======================
-FINANCIAL SUMMARY (Year to Date):
+FINANCIAL SUMMARY (Last 12 Months):
 - Total Revenue: $${businessContext.financialSummary.totalRevenue}
 - Total Cost of Goods Sold: $${businessContext.financialSummary.totalCogs}
 - Gross Profit: $${businessContext.financialSummary.grossProfit}
 - Gross Margin: ${businessContext.financialSummary.marginPercent}%
 
-REVENUE BY LOCATION:
+REVENUE BY LOCATION (Last 12 Months):
 ${businessContext.revenueByLocation.map(l => `- ${l.locationName}: $${l.totalRevenue} (${l.orderCount} orders)`).join('\n')}
 
-MONTHLY TRENDS (Recent):
-${businessContext.revenueByMonth.slice(0, 6).map(m => `- ${m.month}: Revenue $${m.totalRevenue}, Margin $${m.grossMargin}`).join('\n')}
+MONTHLY TRENDS (Most Recent First - use this for "last month" questions):
+${businessContext.revenueByMonth.slice(0, 12).map(m => `- ${m.month}: Revenue $${m.totalRevenue}, COGS $${m.totalCogs}, Gross Margin $${m.grossMargin}`).join('\n')}
 
 TOP PRODUCTS BY REVENUE:
 ${businessContext.topProducts.slice(0, 5).map(p => `- ${p.name}: $${p.revenue} (${p.quantity} units)`).join('\n')}
