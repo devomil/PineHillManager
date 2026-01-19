@@ -349,7 +349,7 @@ export function HomerAIAssistant() {
       )}
 
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[420px] max-h-[600px] flex flex-col bg-background border rounded-2xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-50 w-[420px] h-[600px] flex flex-col bg-background border rounded-2xl shadow-2xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-4 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -383,7 +383,8 @@ export function HomerAIAssistant() {
             </div>
           </CardHeader>
 
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 overflow-y-auto">
+            <div className="p-4">
             {!status?.available && (
               <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -474,6 +475,7 @@ export function HomerAIAssistant() {
                 <div ref={messagesEndRef} />
               </div>
             )}
+            </div>
           </ScrollArea>
 
           <div className="p-4 border-t flex-shrink-0">
