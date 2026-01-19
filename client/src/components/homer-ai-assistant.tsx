@@ -73,6 +73,7 @@ export function HomerAIAssistant() {
   const [sessionId, setSessionId] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const isMutedRef = useRef(false);
   const [isWakeWordActive, setIsWakeWordActive] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -93,9 +94,9 @@ export function HomerAIAssistant() {
   });
 
   const queryMutation = useMutation({
-    mutationFn: async (data: { question: string; generateVoice: boolean }) => {
-      const shouldGenerateVoice = data.generateVoice && !isMuted;
-      console.log('[Homer UI] Sending query - data.generateVoice:', data.generateVoice, 'isMuted:', isMuted, 'result:', shouldGenerateVoice);
+    mutationFn: async (data: { question: string }) => {
+      const shouldGenerateVoice = !isMutedRef.current;
+      console.log('[Homer UI] Sending query - isMutedRef.current:', isMutedRef.current, 'generateVoice:', shouldGenerateVoice);
       const response = await apiRequest('POST', '/api/homer/query', {
         question: data.question,
         sessionId: sessionId || undefined,
@@ -237,7 +238,7 @@ export function HomerAIAssistant() {
           .trim();
 
         if (cleanedTranscript) {
-          handleSendMessage(cleanedTranscript, true);
+          handleSendMessage(cleanedTranscript);
         }
       }
     };
@@ -268,7 +269,7 @@ export function HomerAIAssistant() {
     }
   };
 
-  const handleSendMessage = (message: string, generateVoice: boolean = true) => {
+  const handleSendMessage = (message: string) => {
     if (!message.trim()) return;
 
     const userMessage: Message = {
@@ -281,18 +282,18 @@ export function HomerAIAssistant() {
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
 
-    queryMutation.mutate({ question: message, generateVoice });
+    queryMutation.mutate({ question: message });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleSendMessage(inputValue, true);
+    handleSendMessage(inputValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage(inputValue, true);
+      handleSendMessage(inputValue);
     }
   };
 
@@ -367,7 +368,11 @@ export function HomerAIAssistant() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setIsMuted(!isMuted)}
+                  onClick={() => {
+                    const newMuted = !isMuted;
+                    setIsMuted(newMuted);
+                    isMutedRef.current = newMuted;
+                  }}
                   className="text-white hover:bg-white/20"
                   title={isMuted ? "Enable voice" : "Mute voice"}
                 >
@@ -413,7 +418,7 @@ export function HomerAIAssistant() {
                       variant="outline"
                       size="sm"
                       className="text-xs"
-                      onClick={() => handleSendMessage(suggestion, false)}
+                      onClick={() => handleSendMessage(suggestion)}
                       disabled={!status?.available}
                     >
                       {suggestion}
