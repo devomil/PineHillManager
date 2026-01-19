@@ -429,6 +429,7 @@ Guidelines:
   }
 
   async generateVoiceResponse(text: string): Promise<string | null> {
+    console.log('[Homer] Starting voice generation, text length:', text.length);
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     
     if (!elevenLabsKey) {
@@ -438,6 +439,7 @@ Guidelines:
 
     // "Adam" voice - deep, warm, sophisticated male voice
     const HOMER_VOICE_ID = 'pNInz6obpgDQGcFmaJgB';
+    console.log('[Homer] Using voice ID:', HOMER_VOICE_ID);
 
     try {
       const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${HOMER_VOICE_ID}`, {
@@ -459,13 +461,17 @@ Guidelines:
         }),
       });
 
+      console.log('[Homer] ElevenLabs response status:', response.status);
       if (!response.ok) {
-        console.error('[Homer] ElevenLabs error:', response.status, await response.text());
+        const errorText = await response.text();
+        console.error('[Homer] ElevenLabs error:', response.status, errorText);
         return null;
       }
 
       const audioBuffer = await response.arrayBuffer();
+      console.log('[Homer] Audio buffer size:', audioBuffer.byteLength, 'bytes');
       const base64Audio = Buffer.from(audioBuffer).toString('base64');
+      console.log('[Homer] Voice generated successfully, base64 length:', base64Audio.length);
       return `data:audio/mpeg;base64,${base64Audio}`;
 
     } catch (error) {

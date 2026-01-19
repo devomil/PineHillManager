@@ -39,8 +39,11 @@ router.post('/query', isAuthenticated, requireRole(['admin', 'manager']), async 
     );
 
     let audioUrl: string | undefined;
+    console.log('[Homer Routes] generateVoice:', generateVoice, 'response.text length:', response.text?.length);
     if (generateVoice && response.text) {
+      console.log('[Homer Routes] Generating voice response...');
       const audio = await homerAIService.generateVoiceResponse(response.text);
+      console.log('[Homer Routes] Audio generated:', !!audio, audio ? `${audio.substring(0, 50)}...` : 'null');
       if (audio) {
         audioUrl = audio;
       }
