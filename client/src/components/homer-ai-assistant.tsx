@@ -100,7 +100,7 @@ export function HomerAIAssistant() {
         inputMethod: isListening ? 'voice' : 'text',
         generateVoice: data.generateVoice && !isMuted,
       });
-      return response;
+      return response.json();
     },
     onSuccess: (data: any) => {
       if (!sessionId && data.sessionId) {
