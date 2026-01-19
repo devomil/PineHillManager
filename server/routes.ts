@@ -25448,6 +25448,12 @@ Important:
   (global as any).analyticsService = analyticsService;
 
   // ================================
+  // HOMER AI BUSINESS INTELLIGENCE ROUTES
+  // ================================
+  const homerRoutes = await import('./routes/homer-routes');
+  app.use('/api/homer', homerRoutes.default);
+
+  // ================================
   // UNIVERSAL VIDEO PRODUCTION ROUTES
   // ================================
   const universalVideoRoutes = await import('./routes/universal-video-routes');

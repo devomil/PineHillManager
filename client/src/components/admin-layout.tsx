@@ -7,6 +7,7 @@ import { User, LogOut, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 import { SeasonalThemeSwitcher } from "@/components/SeasonalThemeSwitcher";
 import { AdminSidebar } from "@/components/admin-sidebar";
+import { HomerAIAssistant } from "@/components/homer-ai-assistant";
 import { cn } from "@/lib/utils";
 
 interface AdminLayoutProps {
@@ -114,6 +115,11 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
           {children}
         </div>
       </div>
+
+      {/* Homer AI Business Intelligence Assistant */}
+      {(user?.role === 'admin' || user?.role === 'manager') && (
+        <HomerAIAssistant />
+      )}
     </div>
   );
 }
