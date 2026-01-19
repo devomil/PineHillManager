@@ -436,7 +436,8 @@ Guidelines:
       return null;
     }
 
-    const HOMER_VOICE_ID = 'onwK4e9ZLuTAKqWW03F9';
+    // "Adam" voice - deep, warm, sophisticated male voice
+    const HOMER_VOICE_ID = 'pNInz6obpgDQGcFmaJgB';
 
     try {
       const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${HOMER_VOICE_ID}`, {
@@ -448,11 +449,11 @@ Guidelines:
         },
         body: JSON.stringify({
           text,
-          model_id: 'eleven_monolingual_v1',
+          model_id: 'eleven_multilingual_v2',
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.3,
+            stability: 0.6,
+            similarity_boost: 0.8,
+            style: 0.2,
             use_speaker_boost: true,
           },
         }),

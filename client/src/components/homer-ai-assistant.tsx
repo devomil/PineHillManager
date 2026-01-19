@@ -266,7 +266,7 @@ export function HomerAIAssistant() {
     }
   };
 
-  const handleSendMessage = (message: string, generateVoice: boolean = false) => {
+  const handleSendMessage = (message: string, generateVoice: boolean = true) => {
     if (!message.trim()) return;
 
     const userMessage: Message = {
@@ -284,13 +284,13 @@ export function HomerAIAssistant() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleSendMessage(inputValue, false);
+    handleSendMessage(inputValue, true);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage(inputValue, false);
+      handleSendMessage(inputValue, true);
     }
   };
 
