@@ -1,16 +1,35 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db';
-import { orders, orderLineItems, posLocations, financialAccounts, inventoryItems, homerConversations } from '@shared/schema';
-import { eq, desc, sql, gte, lte, and } from 'drizzle-orm';
+import { orders, orderLineItems, posLocations, financialAccounts, inventoryItems, homerConversations, cloverConfig } from '@shared/schema';
+import { eq, desc, sql, gte, lte, and, between } from 'drizzle-orm';
+import { CloverIntegration } from '../integrations/clover';
+import { storage } from '../storage';
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
+interface MonthlyRevenue {
+  month: string;
+  totalRevenue: string;
+  totalCogs: string;
+  grossMargin: string;
+  transactionCount: number;
+}
+
+interface LocationRevenue {
+  locationName: string;
+  totalRevenue: string;
+  transactionCount: number;
+  avgSale: string;
+}
+
 interface BusinessDataContext {
-  revenueByLocation: Array<{ locationName: string; totalRevenue: string; orderCount: number }>;
-  revenueByMonth: Array<{ month: string; totalRevenue: string; totalCogs: string; grossMargin: string }>;
+  revenueByLocation: LocationRevenue[];
+  revenueByMonth: MonthlyRevenue[];
   topProducts: Array<{ name: string; revenue: string; quantity: string }>;
   financialSummary: { totalRevenue: string; totalCogs: string; grossProfit: string; marginPercent: string };
   locationDetails: Array<{ id: number; name: string; city: string; state: string }>;
+  recentTransactions: Array<{ date: string; description: string; amount: string; category: string }>;
+  inventorySummary: { totalItems: number; lowStockItems: number; totalValue: string };
 }
 
 interface HomerResponse {
@@ -42,49 +61,140 @@ class HomerAIService {
 
   async getBusinessContext(timeframe: 'month' | 'quarter' | 'year' = 'year'): Promise<BusinessDataContext> {
     const now = new Date();
-    let startDate: Date;
-
-    switch (timeframe) {
-      case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        break;
-      case 'quarter':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-        break;
-      case 'year':
-      default:
-        // Include last 12 months of data to ensure we have recent historical context
-        startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    
+    // Calculate date ranges for last 12 months to ensure comprehensive data
+    const monthsToFetch: Array<{ month: string; startDate: Date; endDate: Date }> = [];
+    for (let i = 0; i < 12; i++) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      monthEnd.setHours(23, 59, 59, 999);
+      monthsToFetch.push({
+        month: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`,
+        startDate: monthStart,
+        endDate: monthEnd,
+      });
     }
 
-    const startDateStr = startDate.toISOString().split('T')[0];
+    // Get all active Clover configurations
+    const allCloverConfigs = await storage.getAllCloverConfigs();
+    const activeCloverConfigs = allCloverConfigs.filter(config => config.isActive);
 
-    const revenueByLocationQuery = await db.execute(sql`
-      SELECT 
-        COALESCE(pl.name, 'Unknown') as location_name,
-        SUM(CAST(o.total AS DECIMAL)) as total_revenue,
-        COUNT(o.id) as order_count
-      FROM orders o
-      LEFT JOIN pos_locations pl ON o.location_id = pl.id
-      WHERE o.order_date >= ${startDateStr}
-      GROUP BY pl.name
-      ORDER BY total_revenue DESC
-      LIMIT 10
-    `);
+    // Fetch live revenue data from Clover API for each month and location
+    const monthlyData: Map<string, MonthlyRevenue> = new Map();
+    const locationData: Map<string, LocationRevenue> = new Map();
+    
+    console.log('[Homer] Fetching live Clover data for business context...');
 
-    const revenueByMonthQuery = await db.execute(sql`
+    for (const config of activeCloverConfigs) {
+      try {
+        const cloverIntegration = new CloverIntegration(config);
+        
+        // Fetch data for last 12 months
+        for (const monthInfo of monthsToFetch) {
+          const startMs = monthInfo.startDate.getTime();
+          const endMs = monthInfo.endDate.getTime();
+          
+          let allOrders: any[] = [];
+          let offset = 0;
+          const limit = 1000;
+          let hasMoreData = true;
+
+          while (hasMoreData) {
+            try {
+              const liveOrders = await cloverIntegration.fetchOrders({
+                createdTimeMin: startMs,
+                createdTimeMax: endMs,
+                limit: limit,
+                offset: offset
+              });
+
+              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                allOrders.push(...liveOrders.elements);
+                if (liveOrders.elements.length < limit) {
+                  hasMoreData = false;
+                } else {
+                  offset += limit;
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+              } else {
+                hasMoreData = false;
+              }
+            } catch (error) {
+              console.log(`[Homer] Error fetching orders for ${config.merchantName}:`, error);
+              hasMoreData = false;
+            }
+          }
+
+          // Calculate revenue for this location/month
+          const locationRevenue = allOrders.reduce((sum: number, order: any) => {
+            return sum + (parseFloat(order.total || '0') / 100);
+          }, 0);
+          const transactionCount = allOrders.length;
+
+          // Update monthly totals
+          const existing = monthlyData.get(monthInfo.month) || {
+            month: monthInfo.month,
+            totalRevenue: '0',
+            totalCogs: '0',
+            grossMargin: '0',
+            transactionCount: 0,
+          };
+          monthlyData.set(monthInfo.month, {
+            ...existing,
+            totalRevenue: (parseFloat(existing.totalRevenue) + locationRevenue).toFixed(2),
+            transactionCount: existing.transactionCount + transactionCount,
+          });
+
+          // Update location totals (only for current month)
+          if (monthInfo.month === monthsToFetch[0].month) {
+            const existingLoc = locationData.get(config.merchantName) || {
+              locationName: config.merchantName,
+              totalRevenue: '0',
+              transactionCount: 0,
+              avgSale: '0',
+            };
+            const newRevenue = parseFloat(existingLoc.totalRevenue) + locationRevenue;
+            const newCount = existingLoc.transactionCount + transactionCount;
+            locationData.set(config.merchantName, {
+              locationName: config.merchantName,
+              totalRevenue: newRevenue.toFixed(2),
+              transactionCount: newCount,
+              avgSale: newCount > 0 ? (newRevenue / newCount).toFixed(2) : '0',
+            });
+          }
+        }
+      } catch (error) {
+        console.log(`[Homer] Error processing Clover config ${config.merchantName}:`, error);
+      }
+    }
+
+    // Get COGS data from database for margin calculations
+    const startDateStr = monthsToFetch[monthsToFetch.length - 1].startDate.toISOString().split('T')[0];
+    const cogsQuery = await db.execute(sql`
       SELECT 
         TO_CHAR(order_date, 'YYYY-MM') as month,
-        SUM(CAST(total AS DECIMAL)) as total_revenue,
         SUM(CAST(order_cogs AS DECIMAL)) as total_cogs,
         SUM(CAST(order_gross_margin AS DECIMAL)) as gross_margin
       FROM orders
       WHERE order_date >= ${startDateStr}
       GROUP BY TO_CHAR(order_date, 'YYYY-MM')
-      ORDER BY month DESC
-      LIMIT 12
     `);
 
+    // Merge COGS data into monthly data
+    for (const row of cogsQuery.rows as any[]) {
+      const existing = monthlyData.get(row.month);
+      if (existing) {
+        const cogs = parseFloat(row.total_cogs || '0');
+        const revenue = parseFloat(existing.totalRevenue);
+        monthlyData.set(row.month, {
+          ...existing,
+          totalCogs: cogs.toFixed(2),
+          grossMargin: (revenue - cogs).toFixed(2),
+        });
+      }
+    }
+
+    // Get top products from order line items
     const topProductsQuery = await db.execute(sql`
       SELECT 
         oli.item_name as name,
@@ -98,15 +208,7 @@ class HomerAIService {
       LIMIT 10
     `);
 
-    const financialSummaryQuery = await db.execute(sql`
-      SELECT 
-        SUM(CAST(total AS DECIMAL)) as total_revenue,
-        SUM(CAST(order_cogs AS DECIMAL)) as total_cogs,
-        SUM(CAST(order_gross_margin AS DECIMAL)) as gross_profit
-      FROM orders
-      WHERE order_date >= ${startDateStr}
-    `);
-
+    // Get locations
     const locations = await db.select({
       id: posLocations.id,
       name: posLocations.name,
@@ -114,24 +216,34 @@ class HomerAIService {
       state: posLocations.state,
     }).from(posLocations).where(eq(posLocations.isActive, true));
 
-    const summary = financialSummaryQuery.rows[0] as any || {};
-    const totalRevenue = parseFloat(summary.total_revenue || '0');
-    const totalCogs = parseFloat(summary.total_cogs || '0');
-    const grossProfit = parseFloat(summary.gross_profit || '0');
+    // Get inventory summary
+    const inventorySummaryQuery = await db.execute(sql`
+      SELECT 
+        COUNT(*) as total_items,
+        COUNT(*) FILTER (WHERE stock_quantity < 5 AND stock_quantity >= 0) as low_stock_items,
+        SUM(CAST(price AS DECIMAL) * stock_quantity) as total_value
+      FROM inventory_items
+      WHERE is_available = true
+    `);
+
+    // Calculate financial summary from monthly data
+    const monthlyArray = Array.from(monthlyData.values()).sort((a, b) => b.month.localeCompare(a.month));
+    const totalRevenue = monthlyArray.reduce((sum, m) => sum + parseFloat(m.totalRevenue), 0);
+    const totalCogs = monthlyArray.reduce((sum, m) => sum + parseFloat(m.totalCogs || '0'), 0);
+    const grossProfit = totalRevenue - totalCogs;
     const marginPercent = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
 
+    const invSummary = inventorySummaryQuery.rows[0] as any || {};
+
+    console.log('[Homer] Business context loaded:', {
+      locations: locationData.size,
+      months: monthlyData.size,
+      totalRevenue: totalRevenue.toFixed(2),
+    });
+
     return {
-      revenueByLocation: (revenueByLocationQuery.rows as any[]).map(r => ({
-        locationName: r.location_name || 'Unknown',
-        totalRevenue: parseFloat(r.total_revenue || '0').toFixed(2),
-        orderCount: parseInt(r.order_count || '0'),
-      })),
-      revenueByMonth: (revenueByMonthQuery.rows as any[]).map(r => ({
-        month: r.month,
-        totalRevenue: parseFloat(r.total_revenue || '0').toFixed(2),
-        totalCogs: parseFloat(r.total_cogs || '0').toFixed(2),
-        grossMargin: parseFloat(r.gross_margin || '0').toFixed(2),
-      })),
+      revenueByLocation: Array.from(locationData.values()),
+      revenueByMonth: monthlyArray,
       topProducts: (topProductsQuery.rows as any[]).map(r => ({
         name: r.name,
         revenue: parseFloat(r.revenue || '0').toFixed(2),
@@ -149,6 +261,12 @@ class HomerAIService {
         city: l.city || 'Unknown',
         state: l.state || '',
       })),
+      recentTransactions: [],
+      inventorySummary: {
+        totalItems: parseInt(invSummary.total_items || '0'),
+        lowStockItems: parseInt(invSummary.low_stock_items || '0'),
+        totalValue: parseFloat(invSummary.total_value || '0').toFixed(2),
+      },
     };
   }
 
@@ -193,7 +311,7 @@ class HomerAIService {
     }
 
     const queryType = this.detectQueryType(question);
-    const dataSourcesUsed: string[] = ['orders', 'locations'];
+    const dataSourcesUsed: string[] = ['clover_api', 'orders', 'locations', 'inventory'];
 
     const businessContext = await this.getBusinessContext();
 
@@ -216,8 +334,8 @@ FINANCIAL SUMMARY (Last 12 Months):
 - Gross Profit: $${businessContext.financialSummary.grossProfit}
 - Gross Margin: ${businessContext.financialSummary.marginPercent}%
 
-REVENUE BY LOCATION (Last 12 Months):
-${businessContext.revenueByLocation.map(l => `- ${l.locationName}: $${l.totalRevenue} (${l.orderCount} orders)`).join('\n')}
+REVENUE BY LOCATION (Current Month):
+${businessContext.revenueByLocation.map(l => `- ${l.locationName}: $${l.totalRevenue} (${l.transactionCount} transactions, avg $${l.avgSale})`).join('\n')}
 
 MONTHLY TRENDS (Most Recent First - use this for "last month" questions):
 ${businessContext.revenueByMonth.slice(0, 12).map(m => `- ${m.month}: Revenue $${m.totalRevenue}, COGS $${m.totalCogs}, Gross Margin $${m.grossMargin}`).join('\n')}
@@ -227,6 +345,11 @@ ${businessContext.topProducts.slice(0, 5).map(p => `- ${p.name}: $${p.revenue} (
 
 LOCATIONS:
 ${businessContext.locationDetails.map(l => `- ${l.name} (${l.city}, ${l.state})`).join('\n')}
+
+INVENTORY SUMMARY:
+- Total Active Items: ${businessContext.inventorySummary.totalItems}
+- Low Stock Items (< 5 units): ${businessContext.inventorySummary.lowStockItems}
+- Total Inventory Value: $${businessContext.inventorySummary.totalValue}
 
 Guidelines:
 - Keep responses conversational and natural (2-4 sentences for simple queries, more detail for complex analysis)
