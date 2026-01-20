@@ -18,7 +18,11 @@ import {
   MessageSquare,
   Loader2,
   ChevronDown,
-  Brain
+  Brain,
+  Paperclip,
+  Image,
+  FileText,
+  X as XIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +34,12 @@ interface Message {
   queryType?: string;
   responseTimeMs?: number;
   timestamp: Date;
+  file?: {
+    fileId: string;
+    url: string;
+    name: string;
+    type: string;
+  };
 }
 
 interface HomerStatus {
@@ -88,6 +98,11 @@ export function HomerAIAssistant() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const recognitionRef = useRef<SpeechRecognitionType | null>(null);
   const wakeWordRecognitionRef = useRef<SpeechRecognitionType | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: status } = useQuery<HomerStatus>({
     queryKey: ['/api/homer/status'],
@@ -354,20 +369,109 @@ export function HomerAIAssistant() {
     }
   }, [getAudioContext]);
 
-  const handleSendMessage = (message: string) => {
-    if (!message.trim()) return;
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+    
+    setSelectedFile(file);
+    
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => setFilePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadFile = async (): Promise<{ fileId: string; url: string } | null> => {
+    if (!selectedFile) return null;
+    
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('conversationId', sessionId || '');
+      formData.append('isShared', 'false');
+      
+      const response = await fetch('/api/homer/files/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      const data = await response.json();
+      return {
+        fileId: data.file.fileId,
+        url: data.file.url,
+      };
+    } catch (error) {
+      console.error('[Homer] File upload error:', error);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.startsWith('image/')) {
+      return <Image className="w-4 h-4" />;
+    }
+    return <FileText className="w-4 h-4" />;
+  };
+
+  const handleSendMessage = async (message: string) => {
+    if (!message.trim() && !selectedFile) return;
+
+    let fileInfo: { fileId: string; url: string; name: string; type: string } | null = null;
+    
+    if (selectedFile) {
+      const uploaded = await uploadFile();
+      if (uploaded) {
+        fileInfo = {
+          fileId: uploaded.fileId,
+          url: uploaded.url,
+          name: selectedFile.name,
+          type: selectedFile.type,
+        };
+      }
+      clearSelectedFile();
+    }
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: message,
+      content: message || `[Shared file: ${fileInfo?.name}]`,
+      file: fileInfo || undefined,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
 
-    queryMutation.mutate({ question: message });
+    const questionWithFile = fileInfo 
+      ? `${message}\n\n[User attached file: ${fileInfo.name} (${fileInfo.type})]`
+      : message;
+
+    queryMutation.mutate({ question: questionWithFile || 'Please analyze this file.' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -600,6 +704,46 @@ export function HomerAIAssistant() {
               </div>
             )}
 
+            {selectedFile && (
+              <div className="mb-3 px-2 py-2 bg-muted/30 rounded-lg border">
+                <div className="flex items-center gap-2 p-2 bg-background rounded-lg border">
+                  {filePreview ? (
+                    <img 
+                      src={filePreview} 
+                      alt="Preview" 
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 flex items-center justify-center bg-muted rounded">
+                      {getFileIcon(selectedFile.type)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(selectedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={clearSelectedFile}
+                    className="h-8 w-8"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+            />
+
             <form onSubmit={handleSubmit} className="flex gap-2">
               {speechSupported && (
                 <Button
@@ -615,6 +759,18 @@ export function HomerAIAssistant() {
                 </Button>
               )}
 
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="h-9 w-9 flex-shrink-0"
+                title="Attach file"
+              >
+                <Paperclip className="w-5 h-5" />
+              </Button>
+
               <Input
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -626,7 +782,7 @@ export function HomerAIAssistant() {
 
               <Button
                 type="submit"
-                disabled={!inputValue.trim() || queryMutation.isPending || !status?.available}
+                disabled={(!inputValue.trim() && !selectedFile) || queryMutation.isPending || !status?.available}
                 className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-purple-600"
               >
                 <Send className="w-5 h-5" />
