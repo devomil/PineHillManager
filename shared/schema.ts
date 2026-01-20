@@ -5911,3 +5911,157 @@ export const insertHomerConversationSchema = createInsertSchema(homerConversatio
 
 export type HomerConversation = typeof homerConversations.$inferSelect;
 export type InsertHomerConversation = z.infer<typeof insertHomerConversationSchema>;
+
+// ============================================
+// HOMER AI - USER PROFILES
+// ============================================
+export const homerUserProfiles = pgTable('homer_user_profiles', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().unique(),
+  
+  displayName: text('display_name').notNull(),
+  preferredName: text('preferred_name'),
+  role: text('role').notNull(),
+  title: text('title'),
+  
+  communicationStyle: text('communication_style').default('professional'),
+  preferredGreeting: text('preferred_greeting'),
+  wantsDetailedAnalysis: boolean('wants_detailed_analysis').default(true),
+  wantsProactiveInsights: boolean('wants_proactive_insights').default(true),
+  
+  focusAreas: jsonb('focus_areas').$type<string[]>().default([]),
+  
+  responsibilities: text('responsibilities'),
+  workingHours: text('working_hours'),
+  timezone: text('timezone').default('America/Chicago'),
+  
+  lastInteraction: timestamp('last_interaction'),
+  totalInteractions: integer('total_interactions').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const homerUserProfilesRelations = relations(homerUserProfiles, ({ one }) => ({
+  user: one(users, { fields: [homerUserProfiles.userId], references: [users.id] }),
+}));
+
+export const insertHomerUserProfileSchema = createInsertSchema(homerUserProfiles).omit({
+  id: true,
+  lastInteraction: true,
+  totalInteractions: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type HomerUserProfile = typeof homerUserProfiles.$inferSelect;
+export type InsertHomerUserProfile = z.infer<typeof insertHomerUserProfileSchema>;
+
+// ============================================
+// HOMER AI - MEMORIES
+// ============================================
+export const homerMemories = pgTable('homer_memories', {
+  id: serial('id').primaryKey(),
+  
+  userId: text('user_id'),
+  
+  category: text('category').notNull(),
+  subject: text('subject').notNull(),
+  content: text('content').notNull(),
+  
+  importance: integer('importance').default(5),
+  expiresAt: timestamp('expires_at'),
+  
+  sourceConversationId: text('source_conversation_id'),
+  sourceMessageId: text('source_message_id'),
+  
+  tags: jsonb('tags').$type<string[]>().default([]),
+  metadata: jsonb('metadata').$type<Record<string, any>>().default({}),
+  
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdIdx: index('homer_memories_user_id_idx').on(table.userId),
+  categoryIdx: index('homer_memories_category_idx').on(table.category),
+  importanceIdx: index('homer_memories_importance_idx').on(table.importance),
+}));
+
+export const insertHomerMemorySchema = createInsertSchema(homerMemories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type HomerMemory = typeof homerMemories.$inferSelect;
+export type InsertHomerMemory = z.infer<typeof insertHomerMemorySchema>;
+
+// ============================================
+// HOMER AI - FILES
+// ============================================
+export const homerFiles = pgTable('homer_files', {
+  id: serial('id').primaryKey(),
+  
+  fileId: text('file_id').notNull().unique(),
+  
+  uploadedBy: text('uploaded_by').notNull(),
+  
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileSize: integer('file_size').notNull(),
+  
+  storagePath: text('storage_path').notNull(),
+  storageType: text('storage_type').default('local'),
+  
+  description: text('description'),
+  extractedText: text('extracted_text'),
+  tags: jsonb('tags').$type<string[]>().default([]),
+  
+  isShared: boolean('is_shared').default(false),
+  sharedWith: jsonb('shared_with').$type<string[]>().default([]),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  uploadedByIdx: index('homer_files_uploaded_by_idx').on(table.uploadedBy),
+  fileIdIdx: index('homer_files_file_id_idx').on(table.fileId),
+}));
+
+export const homerFilesRelations = relations(homerFiles, ({ one }) => ({
+  uploader: one(users, { fields: [homerFiles.uploadedBy], references: [users.id] }),
+}));
+
+export const insertHomerFileSchema = createInsertSchema(homerFiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type HomerFile = typeof homerFiles.$inferSelect;
+export type InsertHomerFile = z.infer<typeof insertHomerFileSchema>;
+
+// ============================================
+// HOMER AI - FILE-MESSAGE LINKS
+// ============================================
+export const homerFileMessages = pgTable('homer_file_messages', {
+  id: serial('id').primaryKey(),
+  
+  fileId: text('file_id').notNull(),
+  conversationId: text('conversation_id').notNull(),
+  messageId: text('message_id').notNull(),
+  
+  direction: text('direction').notNull(),
+  context: text('context'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  fileIdIdx: index('homer_file_messages_file_id_idx').on(table.fileId),
+  conversationIdIdx: index('homer_file_messages_conversation_id_idx').on(table.conversationId),
+}));
+
+export const insertHomerFileMessageSchema = createInsertSchema(homerFileMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type HomerFileMessage = typeof homerFileMessages.$inferSelect;
+export type InsertHomerFileMessage = z.infer<typeof insertHomerFileMessageSchema>;
