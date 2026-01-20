@@ -2,8 +2,11 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { isAuthenticated, requireRole } from '../auth';
 import { homerAIService } from '../services/homer-ai-service';
-import { homerMemoryService } from '../services/homer-memory-service';
+import { homerMemoryService, MAX_MEMORIES_PER_USER, MAX_GLOBAL_MEMORIES } from '../services/homer-memory-service';
 import { randomUUID } from 'crypto';
+import { db } from '../db';
+import { homerMemories } from '@shared/schema';
+import { eq, and, lte } from 'drizzle-orm';
 
 const router = Router();
 
@@ -271,6 +274,94 @@ router.delete('/memories/:id', isAuthenticated, requireRole(['admin', 'manager']
   } catch (error: any) {
     console.error('[Homer Routes] Delete memory error:', error);
     res.status(500).json({ error: 'Failed to delete memory' });
+  }
+});
+
+router.get('/memories/stats', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const counts = await homerMemoryService.getMemoryCount(userId);
+    
+    res.json({
+      success: true,
+      stats: {
+        personal: counts.personal,
+        global: counts.global,
+        total: counts.total,
+        limits: {
+          maxPersonal: MAX_MEMORIES_PER_USER,
+          maxGlobal: MAX_GLOBAL_MEMORIES,
+        },
+        usage: {
+          personalPercent: Math.round((counts.personal / MAX_MEMORIES_PER_USER) * 100),
+          globalPercent: Math.round((counts.global / MAX_GLOBAL_MEMORIES) * 100),
+        },
+      },
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Memory stats error:', error);
+    res.status(500).json({ error: 'Failed to get memory stats' });
+  }
+});
+
+router.post('/memories/prune', isAuthenticated, requireRole(['admin']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const prunedCount = await homerMemoryService.pruneMemories(userId);
+    
+    res.json({
+      success: true,
+      prunedCount,
+      message: `Pruned ${prunedCount} old or low-importance memories`,
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Prune error:', error);
+    res.status(500).json({ error: 'Failed to prune memories' });
+  }
+});
+
+router.delete('/memories/bulk', isAuthenticated, requireRole(['admin']), async (req: Request, res: Response) => {
+  try {
+    const { category, olderThanDays, importance } = req.body;
+    
+    let conditions = [eq(homerMemories.isActive, true)];
+    
+    if (category) {
+      conditions.push(eq(homerMemories.category, category));
+    }
+    
+    if (olderThanDays) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - olderThanDays);
+      conditions.push(lte(homerMemories.createdAt, cutoff));
+    }
+    
+    if (importance) {
+      conditions.push(lte(homerMemories.importance, importance));
+    }
+    
+    await db.update(homerMemories)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(...conditions));
+    
+    res.json({
+      success: true,
+      message: 'Memories deleted',
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Bulk delete error:', error);
+    res.status(500).json({ error: 'Failed to delete memories' });
   }
 });
 
