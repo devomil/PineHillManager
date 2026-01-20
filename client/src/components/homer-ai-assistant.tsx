@@ -77,6 +77,7 @@ export function HomerAIAssistant() {
   const [isWakeWordActive, setIsWakeWordActive] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [justActivated, setJustActivated] = useState(false);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -146,14 +147,47 @@ export function HomerAIAssistant() {
       wakeWordRecognition.lang = 'en-US';
 
       wakeWordRecognition.onresult = (event) => {
-        const last = event.results.length - 1;
-        const text = event.results[last][0].transcript.toLowerCase();
-        
-        if (text.includes('homer') || text.includes('hey homer') || text.includes('ok homer')) {
-          setIsWakeWordActive(false);
-          setIsOpen(true);
-          startListening();
-          wakeWordRecognition.stop();
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const text = event.results[i][0].transcript.toLowerCase().trim();
+          
+          const wakePatterns = [
+            /\bhomer\b/,
+            /\bhey homer\b/,
+            /\bok homer\b/,
+            /\bhi homer\b/,
+            /\bhello homer\b/,
+            /\bhomer[,]?\s+i\b/,
+            /\bhomer[,]?\s+can\b/,
+            /\bhomer[,]?\s+what\b/,
+          ];
+          
+          const isWakeWord = wakePatterns.some(pattern => pattern.test(text));
+          
+          if (isWakeWord) {
+            console.log('[Homer] Wake word detected:', text);
+            
+            playActivationSound();
+            
+            setJustActivated(true);
+            setTimeout(() => setJustActivated(false), 1000);
+            
+            setIsWakeWordActive(false);
+            wakeWordRecognition.stop();
+            
+            setIsOpen(true);
+            
+            const commandMatch = text.match(/homer[,]?\s+(.+)/i);
+            if (commandMatch && commandMatch[1]) {
+              const command = commandMatch[1].trim();
+              if (command.length > 3 && !command.match(/^(i|can|what|how|why|when|where)$/)) {
+                setInputValue(command);
+              }
+            }
+            
+            setTimeout(() => startListening(), 300);
+            
+            break;
+          }
         }
       };
 
@@ -269,6 +303,36 @@ export function HomerAIAssistant() {
     }
   };
 
+  const playActivationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      const playTone = (frequency: number, startTime: number, duration: number) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.1, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      };
+      
+      const now = audioContext.currentTime;
+      playTone(800, now, 0.1);
+      playTone(1200, now + 0.1, 0.15);
+      
+    } catch (e) {
+      console.log('[Homer] Could not play activation sound');
+    }
+  };
+
   const handleSendMessage = (message: string) => {
     if (!message.trim()) return;
 
@@ -316,38 +380,47 @@ export function HomerAIAssistant() {
       <audio ref={audioRef} className="hidden" />
 
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
           {isWakeWordActive && (
-            <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-3 py-1 rounded-full text-sm flex items-center gap-2 animate-pulse">
-              <Mic className="w-4 h-4" />
-              Listening for "Homer"...
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900/30 rounded-full shadow-lg animate-pulse">
+              <div className="w-2 h-2 bg-green-500 rounded-full" />
+              <span className="text-xs text-green-700 dark:text-green-300 font-medium">
+                Say "Hey Homer"
+              </span>
             </div>
           )}
           
-          <div className="flex gap-2">
-            {speechSupported && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleWakeWord}
-                className={cn(
-                  "rounded-full w-12 h-12 shadow-lg",
-                  isWakeWordActive && "bg-green-100 dark:bg-green-900 border-green-500"
-                )}
-                title={isWakeWordActive ? "Disable wake word" : "Enable wake word (say 'Homer')"}
-              >
-                {isWakeWordActive ? <Mic className="w-5 h-5 text-green-600" /> : <MicOff className="w-5 h-5" />}
-              </Button>
-            )}
-
+          {speechSupported && (
             <Button
-              onClick={() => setIsOpen(true)}
-              className="rounded-full w-14 h-14 shadow-lg bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              title="Open Homer AI Assistant"
+              onClick={toggleWakeWord}
+              variant="outline"
+              size="icon"
+              className={cn(
+                "rounded-full w-10 h-10 shadow-md",
+                isWakeWordActive 
+                  ? "bg-green-100 border-green-300 hover:bg-green-200" 
+                  : "bg-background"
+              )}
+              title={isWakeWordActive ? "Voice activation ON - say 'Hey Homer'" : "Enable voice activation"}
             >
-              <Brain className="w-7 h-7" />
+              {isWakeWordActive ? (
+                <Mic className="w-5 h-5 text-green-600" />
+              ) : (
+                <MicOff className="w-5 h-5 text-muted-foreground" />
+              )}
             </Button>
-          </div>
+          )}
+
+          <Button
+            onClick={() => setIsOpen(true)}
+            className={cn(
+              "rounded-full w-14 h-14 shadow-lg bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all",
+              justActivated && "scale-110 ring-4 ring-blue-400/50"
+            )}
+            title="Open Homer AI Assistant"
+          >
+            <Brain className={cn("w-7 h-7", justActivated && "animate-pulse")} />
+          </Button>
         </div>
       )}
 
@@ -425,6 +498,14 @@ export function HomerAIAssistant() {
                     </Button>
                   ))}
                 </div>
+                {speechSupported && (
+                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
+                      <Mic className="w-3 h-3" />
+                      <span>Tip: Enable the mic button and say <strong>"Hey Homer"</strong> to activate hands-free</span>
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
