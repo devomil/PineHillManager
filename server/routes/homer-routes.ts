@@ -74,14 +74,25 @@ router.post('/query', isAuthenticated, requireRole(['admin', 'manager']), async 
     );
 
     let audioUrl: string | undefined;
-    console.log('[Homer Routes] generateVoice:', generateVoice, 'response.text length:', response.text?.length);
+    console.log('[Homer Routes] Voice generation requested:', generateVoice);
+    console.log('[Homer Routes] Response text available:', !!response.text, 'length:', response.text?.length || 0);
+    
     if (generateVoice && response.text) {
-      console.log('[Homer Routes] Generating voice response...');
-      const audio = await homerAIService.generateVoiceResponse(response.text);
-      console.log('[Homer Routes] Audio generated:', !!audio, audio ? `${audio.substring(0, 50)}...` : 'null');
-      if (audio) {
-        audioUrl = audio;
+      console.log('[Homer Routes] Starting voice generation for response...');
+      try {
+        const audio = await homerAIService.generateVoiceResponse(response.text);
+        console.log('[Homer Routes] Voice generation result:', !!audio, audio ? `base64 length: ${audio.length}` : 'no audio');
+        if (audio) {
+          audioUrl = audio;
+          console.log('[Homer Routes] Audio URL set successfully');
+        } else {
+          console.warn('[Homer Routes] Voice generation returned null');
+        }
+      } catch (voiceError: any) {
+        console.error('[Homer Routes] Voice generation failed:', voiceError.message);
       }
+    } else {
+      console.log('[Homer Routes] Skipping voice generation - generateVoice:', generateVoice, 'hasText:', !!response.text);
     }
 
     res.json({

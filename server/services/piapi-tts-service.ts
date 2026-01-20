@@ -41,25 +41,39 @@ interface TTSResult {
 
 class PiAPITTSService {
   private apiKey: string | null = null;
+  private initialized = false;
 
   constructor() {
-    this.apiKey = process.env.PIAPI_API_KEY || null;
-    if (this.apiKey) {
-      console.log('[PiAPI TTS] Service initialized');
-    } else {
-      console.warn('[PiAPI TTS] PIAPI_API_KEY not configured');
+    this.refreshApiKey();
+  }
+
+  private refreshApiKey(): void {
+    const key = process.env.PIAPI_API_KEY || null;
+    if (key !== this.apiKey) {
+      this.apiKey = key;
+      if (this.apiKey) {
+        console.log('[PiAPI TTS] Service initialized with API key');
+      } else {
+        console.warn('[PiAPI TTS] PIAPI_API_KEY not configured');
+      }
     }
+    this.initialized = true;
   }
 
   isAvailable(): boolean {
+    this.refreshApiKey();
     return this.apiKey !== null;
   }
 
   async generateSpeech(text: string): Promise<TTSResult> {
+    this.refreshApiKey();
+    
     if (!this.apiKey) {
-      console.error('[PiAPI TTS] API key not configured');
+      console.error('[PiAPI TTS] API key not configured after refresh');
       return { success: false, error: 'PiAPI API key not configured' };
     }
+    
+    console.log('[PiAPI TTS] API key available:', this.apiKey.substring(0, 8) + '...');
 
     console.log('[PiAPI TTS] Starting TTS generation');
     console.log('[PiAPI TTS] Text length:', text.length);
