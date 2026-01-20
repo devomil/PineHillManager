@@ -5,6 +5,9 @@ import { eq, desc, sql, gte, lte, and, between } from 'drizzle-orm';
 import { CloverIntegration } from '../integrations/clover';
 import { storage } from '../storage';
 import { piapiTTSService } from './piapi-tts-service';
+import { homerContextBuilder } from './homer-context-builder';
+import { homerMemoryService } from './homer-memory-service';
+import { homerUserProfileService } from './homer-user-profile-service';
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
@@ -313,6 +316,13 @@ class HomerAIService {
   ): Promise<HomerResponse> {
     const startTime = Date.now();
 
+    // Build personalized context
+    console.log('[Homer] Building context for user:', userId);
+    const context = await homerContextBuilder.buildContext(userId, sessionId);
+    
+    // Record this interaction
+    await homerUserProfileService.recordInteraction(userId);
+
     if (!this.anthropic) {
       return {
         text: "I apologize, but I'm not fully configured yet. Please ensure the Anthropic API key is set up.",
@@ -374,12 +384,22 @@ Guidelines:
     try {
       const message = await this.anthropic.messages.create({
         model: DEFAULT_MODEL,
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: systemPrompt,
         messages: [
           {
             role: 'user',
-            content: question,
+            content: `${context.fullContext}
+
+<business_data>
+${JSON.stringify(businessContext, null, 2)}
+</business_data>
+
+<user_question>
+${question}
+</user_question>
+
+Please respond to the user's question. If they ask you to remember something, include a <save_memory> tag with the information to save.`,
           },
         ],
       });
@@ -387,6 +407,20 @@ Guidelines:
       const responseText = message.content[0].type === 'text' 
         ? message.content[0].text 
         : 'I apologize, I had trouble processing that request.';
+
+      // Check for memories to save
+      const memoriesToSave = homerContextBuilder.parseMemoriesToSave(responseText);
+      if (memoriesToSave.length > 0) {
+        console.log('[Homer] Saving', memoriesToSave.length, 'memories');
+        await homerMemoryService.saveFromConversation(
+          userId,
+          sessionId,
+          memoriesToSave as any[]
+        );
+      }
+      
+      // Clean the response (remove memory tags)
+      const cleanedResponse = homerContextBuilder.cleanResponse(responseText);
 
       const responseTimeMs = Date.now() - startTime;
 
@@ -403,7 +437,7 @@ Guidelines:
         userId,
         sessionId,
         role: 'assistant',
-        content: responseText,
+        content: cleanedResponse,
         queryType,
         dataSourcesUsed,
         tokensUsed: message.usage?.output_tokens,
@@ -411,7 +445,7 @@ Guidelines:
       });
 
       return {
-        text: responseText,
+        text: cleanedResponse,
         queryType,
         dataSourcesUsed,
         tokensUsed: message.usage?.output_tokens,
@@ -522,6 +556,13 @@ Guidelines:
     `);
 
     return sessions.rows;
+  }
+
+  /**
+   * Get personalized greeting for a user
+   */
+  async getGreeting(userId: string): Promise<string> {
+    return homerContextBuilder.getGreeting(userId);
   }
 }
 
