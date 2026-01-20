@@ -3,12 +3,43 @@ import { z } from 'zod';
 import { isAuthenticated, requireRole } from '../auth';
 import { homerAIService } from '../services/homer-ai-service';
 import { homerMemoryService, MAX_MEMORIES_PER_USER, MAX_GLOBAL_MEMORIES } from '../services/homer-memory-service';
+import { homerFileService } from '../services/homer-file-service';
 import { randomUUID } from 'crypto';
 import { db } from '../db';
 import { homerMemories } from '@shared/schema';
 import { eq, and, lte } from 'drizzle-orm';
+import multer from 'multer';
 
 const router = Router();
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+      'text/csv',
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} not allowed`));
+    }
+  },
+});
 
 const querySchema = z.object({
   question: z.string().min(1, 'Question is required'),
@@ -362,6 +393,196 @@ router.delete('/memories/bulk', isAuthenticated, requireRole(['admin']), async (
   } catch (error: any) {
     console.error('[Homer Routes] Bulk delete error:', error);
     res.status(500).json({ error: 'Failed to delete memories' });
+  }
+});
+
+// ============================================
+// FILE ENDPOINTS
+// ============================================
+
+router.post('/files/upload', isAuthenticated, requireRole(['admin', 'manager']), upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    const { description, tags, isShared, conversationId, messageId } = req.body;
+
+    const file = await homerFileService.uploadFile({
+      userId,
+      file: {
+        buffer: req.file.buffer,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      },
+      description,
+      tags: tags ? JSON.parse(tags) : [],
+      isShared: isShared === 'true',
+      conversationId,
+      messageId,
+    });
+
+    res.json({
+      success: true,
+      file: {
+        fileId: file.fileId,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        fileSize: file.fileSize,
+        url: homerFileService.getFileUrl(file.fileId),
+      },
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Upload error:', error);
+    res.status(500).json({ error: error.message || 'Failed to upload file' });
+  }
+});
+
+router.get('/files', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const limit = parseInt(req.query.limit as string) || 20;
+    const files = await homerFileService.getFilesForUser(userId, limit);
+
+    res.json({
+      success: true,
+      files: files.map(f => ({
+        ...f,
+        url: homerFileService.getFileUrl(f.fileId),
+      })),
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Get files error:', error);
+    res.status(500).json({ error: 'Failed to get files' });
+  }
+});
+
+router.get('/files/:fileId', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const file = await homerFileService.getFile(fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (file.uploadedBy !== userId && !file.isShared) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const buffer = await homerFileService.getFileBuffer(fileId);
+    if (!buffer) {
+      return res.status(404).json({ error: 'File data not found' });
+    }
+
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+    res.setHeader('Content-Length', buffer.length);
+
+    res.send(buffer);
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Get file error:', error);
+    res.status(500).json({ error: 'Failed to get file' });
+  }
+});
+
+router.get('/files/:fileId/info', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const file = await homerFileService.getFile(fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (file.uploadedBy !== userId && !file.isShared) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json({
+      success: true,
+      file: {
+        ...file,
+        url: homerFileService.getFileUrl(file.fileId),
+      },
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Get file info error:', error);
+    res.status(500).json({ error: 'Failed to get file info' });
+  }
+});
+
+router.post('/files/:fileId/share', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const success = await homerFileService.shareFile(fileId, userId);
+    if (!success) {
+      return res.status(403).json({ error: 'Cannot share this file' });
+    }
+
+    res.json({
+      success: true,
+      message: 'File shared with all Homer users',
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Share file error:', error);
+    res.status(500).json({ error: 'Failed to share file' });
+  }
+});
+
+router.delete('/files/:fileId', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const success = await homerFileService.deleteFile(fileId, userId);
+    if (!success) {
+      return res.status(403).json({ error: 'Cannot delete this file' });
+    }
+
+    res.json({
+      success: true,
+      message: 'File deleted',
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Delete file error:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
   }
 });
 
