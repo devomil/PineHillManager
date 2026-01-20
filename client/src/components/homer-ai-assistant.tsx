@@ -178,6 +178,10 @@ export function HomerAIAssistant() {
       return response.json();
     },
     onSuccess: (data: any) => {
+      console.log('[Homer UI] Full API response:', JSON.stringify(data, null, 2).substring(0, 500));
+      console.log('[Homer UI] audioUrl received:', data.response?.audioUrl ? `${data.response.audioUrl.substring(0, 50)}...` : 'NONE');
+      console.log('[Homer UI] isMuted state:', isMuted);
+      
       if (!sessionId && data.sessionId) {
         setSessionId(data.sessionId);
       }
@@ -195,7 +199,10 @@ export function HomerAIAssistant() {
       setMessages(prev => [...prev, assistantMessage]);
 
       if (data.response.audioUrl && !isMuted) {
+        console.log('[Homer UI] Playing audio...');
         playAudio(data.response.audioUrl);
+      } else {
+        console.log('[Homer UI] NOT playing audio - audioUrl:', !!data.response.audioUrl, 'isMuted:', isMuted);
       }
 
       if (data.response.text?.includes('noted') || 
