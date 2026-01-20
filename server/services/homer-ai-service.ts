@@ -4,7 +4,7 @@ import { orders, orderLineItems, posLocations, financialAccounts, inventoryItems
 import { eq, desc, sql, gte, lte, and, between } from 'drizzle-orm';
 import { CloverIntegration } from '../integrations/clover';
 import { storage } from '../storage';
-import { piapiTTSService } from './piapi-tts-service';
+import { openAITTSService } from './openai-tts-service';
 import { homerContextBuilder } from './homer-context-builder';
 import { homerMemoryService } from './homer-memory-service';
 import { homerUserProfileService } from './homer-user-profile-service';
@@ -466,30 +466,29 @@ Please respond to the user's question. If they ask you to remember something, in
   async generateVoiceResponse(text: string): Promise<string | null> {
     console.log('[Homer] Starting voice generation, text length:', text.length);
     
-    // Try PiAPI F5-TTS first (primary)
-    if (piapiTTSService.isAvailable()) {
-      console.log('[Homer] Using PiAPI F5-TTS for voice generation');
-      const result = await piapiTTSService.generateSpeech(text);
+    // Primary: OpenAI TTS (best quality, fast, reliable)
+    if (openAITTSService.isAvailable()) {
+      console.log('[Homer] Using OpenAI TTS');
+      const result = await openAITTSService.generateSpeech(text);
       
       if (result.success && result.audioBase64) {
-        console.log('[Homer] PiAPI TTS voice generated successfully');
+        console.log('[Homer] OpenAI TTS succeeded');
         return result.audioBase64;
       }
       
-      console.warn('[Homer] PiAPI TTS failed:', result.error);
+      console.warn('[Homer] OpenAI TTS failed:', result.error);
     }
     
-    // Fallback to ElevenLabs if PiAPI fails or unavailable
+    // Fallback: ElevenLabs (if configured)
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     
     if (!elevenLabsKey) {
-      console.warn('[Homer] No TTS service available (PiAPI failed, ElevenLabs not configured)');
+      console.warn('[Homer] No server TTS available - client will use browser fallback');
       return null;
     }
 
     console.log('[Homer] Falling back to ElevenLabs');
     
-    // "Adam" voice - deep, warm, sophisticated male voice
     const HOMER_VOICE_ID = 'pNInz6obpgDQGcFmaJgB';
 
     try {
@@ -512,7 +511,6 @@ Please respond to the user's question. If they ask you to remember something, in
         }),
       });
 
-      console.log('[Homer] ElevenLabs response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[Homer] ElevenLabs error:', response.status, errorText);
@@ -520,13 +518,12 @@ Please respond to the user's question. If they ask you to remember something, in
       }
 
       const audioBuffer = await response.arrayBuffer();
-      console.log('[Homer] Audio buffer size:', audioBuffer.byteLength, 'bytes');
       const base64Audio = Buffer.from(audioBuffer).toString('base64');
-      console.log('[Homer] Voice generated successfully, base64 length:', base64Audio.length);
+      console.log('[Homer] ElevenLabs voice generated successfully');
       return `data:audio/mpeg;base64,${base64Audio}`;
 
     } catch (error) {
-      console.error('[Homer] Voice generation error:', error);
+      console.error('[Homer] ElevenLabs voice generation error:', error);
       return null;
     }
   }

@@ -119,13 +119,23 @@ router.post('/query', isAuthenticated, requireRole(['admin', 'manager']), async 
 });
 
 router.get('/status', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
-  const piapiAvailable = !!process.env.PIAPI_API_KEY;
+  const openAIAvailable = !!process.env.OPENAI_API_KEY;
   const elevenLabsAvailable = !!process.env.ELEVENLABS_API_KEY;
-  console.log('[Homer Status] PiAPI:', piapiAvailable, 'ElevenLabs:', elevenLabsAvailable);
+  
+  // Determine primary voice provider
+  let voiceProvider = 'Browser (Web Speech API)';
+  if (openAIAvailable) {
+    voiceProvider = 'OpenAI TTS HD';
+  } else if (elevenLabsAvailable) {
+    voiceProvider = 'ElevenLabs';
+  }
+  
+  console.log('[Homer Status] Voice provider:', voiceProvider);
+  
   res.json({
     available: homerAIService.isAvailable(),
-    voiceEnabled: piapiAvailable || elevenLabsAvailable,
-    voiceProvider: piapiAvailable ? 'PiAPI F5-TTS' : (elevenLabsAvailable ? 'ElevenLabs' : 'None'),
+    voiceEnabled: true,
+    voiceProvider,
     aiModel: 'Claude Sonnet 4',
   });
 });
