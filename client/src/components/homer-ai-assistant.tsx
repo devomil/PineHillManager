@@ -76,6 +76,51 @@ declare global {
   }
 }
 
+interface FileAttachmentProps {
+  file: {
+    fileId: string;
+    url: string;
+    name: string;
+    type: string;
+  };
+  onImageClick?: (url: string) => void;
+}
+
+const FileAttachment: React.FC<FileAttachmentProps> = ({ file, onImageClick }) => {
+  const isImage = file.type.startsWith('image/');
+  
+  if (isImage) {
+    return (
+      <div className="mt-2 max-w-[200px]">
+        <img 
+          src={file.url} 
+          alt={file.name}
+          className="rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => onImageClick?.(file.url)}
+        />
+        <p className="text-xs text-muted-foreground mt-1 truncate">{file.name}</p>
+      </div>
+    );
+  }
+  
+  return (
+    <a 
+      href={file.url} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="mt-2 flex items-center gap-2 p-2 bg-muted/50 rounded-lg border hover:bg-muted transition-colors max-w-[250px]"
+    >
+      <div className="p-2 bg-background rounded">
+        <FileText className="w-5 h-5 text-blue-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{file.name}</p>
+        <p className="text-xs text-muted-foreground">Click to open</p>
+      </div>
+    </a>
+  );
+};
+
 export function HomerAIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -103,6 +148,7 @@ export function HomerAIAssistant() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const { data: status } = useQuery<HomerStatus>({
     queryKey: ['/api/homer/status'],
@@ -656,6 +702,14 @@ export function HomerAIAssistant() {
                         </div>
                       )}
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      
+                      {message.file && (
+                        <FileAttachment 
+                          file={message.file} 
+                          onImageClick={setPreviewImage}
+                        />
+                      )}
+                      
                       {message.role === 'assistant' && message.audioUrl && (
                         <Button
                           variant="ghost"
@@ -804,6 +858,29 @@ export function HomerAIAssistant() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <img 
+              src={previewImage} 
+              alt="Preview" 
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
+              onClick={() => setPreviewImage(null)}
+            >
+              <XIcon className="w-5 h-5" />
+            </Button>
           </div>
         </div>
       )}
