@@ -49,8 +49,12 @@ const querySchema = z.object({
 });
 
 router.post('/query', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  console.log('=== HOMER QUERY ROUTE HIT ===');
+  console.log('[Homer Query] Body:', JSON.stringify(req.body));
+  
   try {
     const { question, sessionId, inputMethod, generateVoice } = querySchema.parse(req.body);
+    console.log('[Homer Query] Parsed - generateVoice:', generateVoice);
     const userId = req.user?.id;
 
     if (!userId) {
@@ -95,14 +99,18 @@ router.post('/query', isAuthenticated, requireRole(['admin', 'manager']), async 
       console.log('[Homer Routes] Skipping voice generation - generateVoice:', generateVoice, 'hasText:', !!response.text);
     }
 
-    res.json({
+    console.log('[Homer Query] Final audioUrl:', audioUrl ? `present (${audioUrl.length} chars)` : 'undefined');
+    
+    const finalResponse = {
       success: true,
       sessionId: activeSessionId,
       response: {
         ...response,
         audioUrl,
       },
-    });
+    };
+    console.log('[Homer Query] Response keys:', Object.keys(finalResponse.response));
+    res.json(finalResponse);
 
   } catch (error: any) {
     console.error('[Homer Routes] Query error:', error);
@@ -138,6 +146,34 @@ router.get('/status', isAuthenticated, requireRole(['admin', 'manager']), async 
     voiceProvider,
     aiModel: 'Claude Sonnet 4',
   });
+});
+
+// Test endpoint for TTS
+router.get('/test-tts', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  console.log('=== TTS TEST STARTING ===');
+  console.log('[TTS Test] OpenAI key exists:', !!process.env.OPENAI_API_KEY);
+  
+  try {
+    const testText = 'Hello, this is a test of the Homer voice system.';
+    console.log('[TTS Test] Calling generateVoiceResponse...');
+    const audio = await homerAIService.generateVoiceResponse(testText);
+    
+    console.log('[TTS Test] Result:', !!audio, audio ? `length: ${audio.length}` : 'null');
+    
+    res.json({
+      success: true,
+      hasAudio: !!audio,
+      audioLength: audio ? audio.length : 0,
+      openAIKeyExists: !!process.env.OPENAI_API_KEY,
+    });
+  } catch (error: any) {
+    console.error('[TTS Test] Error:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      openAIKeyExists: !!process.env.OPENAI_API_KEY,
+    });
+  }
 });
 
 router.get('/history', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
