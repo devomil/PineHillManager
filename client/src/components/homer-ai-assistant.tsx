@@ -22,7 +22,8 @@ import {
   Paperclip,
   Image,
   FileText,
-  X as XIcon
+  X as XIcon,
+  Database
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -149,10 +150,19 @@ export function HomerAIAssistant() {
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [memorySaved, setMemorySaved] = useState(false);
 
   const { data: status } = useQuery<HomerStatus>({
     queryKey: ['/api/homer/status'],
     enabled: isOpen,
+  });
+
+  const { data: memoryStats } = useQuery({
+    queryKey: ['/api/homer/memories'],
+    enabled: isOpen,
+    select: (data: any) => ({
+      count: data?.memories?.length || 0,
+    }),
   });
 
   const queryMutation = useMutation({
@@ -186,6 +196,13 @@ export function HomerAIAssistant() {
 
       if (data.response.audioUrl && !isMuted) {
         playAudio(data.response.audioUrl);
+      }
+
+      if (data.response.text?.includes('noted') || 
+          data.response.text?.includes("I'll remember") ||
+          data.response.text?.includes("I've saved")) {
+        setMemorySaved(true);
+        setTimeout(() => setMemorySaved(false), 3000);
       }
     },
   });
@@ -609,6 +626,20 @@ export function HomerAIAssistant() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-white/70 mr-2">
+                  {status?.voiceEnabled && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded-full text-xs">
+                      <Volume2 className="w-3 h-3" />
+                      <span>Voice</span>
+                    </div>
+                  )}
+                  {memoryStats && memoryStats.count > 0 && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded-full text-xs">
+                      <Database className="w-3 h-3" />
+                      <span>{memoryStats.count}</span>
+                    </div>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -645,30 +676,61 @@ export function HomerAIAssistant() {
             )}
 
             {messages.length === 0 ? (
-              <div className="text-center py-8">
-                <Bot className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-lg mb-2">Hello! I'm Homer</h3>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Your AI business intelligence assistant. Ask me about revenue, profitability, forecasts, and more.
-                </p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {[
-                    "How did we do last month?",
-                    "What's our profit margin?",
-                    "Lake Geneva performance",
-                  ].map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => handleSendMessage(suggestion)}
-                      disabled={!status?.available}
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
+              <div className="text-center py-8 px-4">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center">
+                  <Sparkles className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                 </div>
+                
+                <h3 className="text-lg font-semibold mb-2">
+                  {status?.available ? "Hi! I'm Homer" : "Homer is Offline"}
+                </h3>
+                
+                <p className="text-sm text-muted-foreground mb-4">
+                  {status?.available 
+                    ? "Your AI Business Intelligence assistant. I can analyze sales, inventory, and financial data across all your locations."
+                    : "The AI service is not currently available."}
+                </p>
+                
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full text-xs text-blue-700 dark:text-blue-300">
+                    <Brain className="w-3 h-3" />
+                    <span>AI Analysis</span>
+                  </div>
+                  {status?.voiceEnabled && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-full text-xs text-green-700 dark:text-green-300">
+                      <Volume2 className="w-3 h-3" />
+                      <span>Voice Enabled</span>
+                    </div>
+                  )}
+                  {memoryStats && memoryStats.count > 0 && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full text-xs text-purple-700 dark:text-purple-300">
+                      <Database className="w-3 h-3" />
+                      <span>Memory Active</span>
+                    </div>
+                  )}
+                </div>
+                
+                {status?.available && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Try asking:</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {[
+                        "How did we do last month?",
+                        "Compare store performance",
+                        "What's our inventory status?",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setInputValue(suggestion)}
+                          className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {speechSupported && (
                   <div className="mt-4 p-3 bg-muted/50 rounded-lg">
                     <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
@@ -790,6 +852,15 @@ export function HomerAIAssistant() {
               </div>
             )}
 
+            {memorySaved && (
+              <div className="mb-3 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300">
+                  <Database className="w-3 h-3" />
+                  <span>Memory saved</span>
+                </div>
+              </div>
+            )}
+
             <input
               type="file"
               ref={fileInputRef}
@@ -850,14 +921,17 @@ export function HomerAIAssistant() {
                   status.available ? "bg-green-500" : "bg-red-500"
                 )} />
                 {status.available ? 'Online' : 'Offline'}
-                {status.voiceEnabled && (
-                  <>
-                    <span>•</span>
-                    <span>Voice enabled</span>
-                  </>
-                )}
               </div>
             )}
+          </div>
+
+          <div className="px-4 py-2 border-t bg-muted/30 text-center">
+            <p className="text-xs text-muted-foreground">
+              {status?.voiceEnabled && '🎤 Voice'} 
+              {status?.voiceEnabled && memoryStats?.count ? ' • ' : ''}
+              {memoryStats?.count ? `🧠 ${memoryStats.count} memories` : ''}
+              {!status?.voiceEnabled && !memoryStats?.count ? 'Homer AI' : ''}
+            </p>
           </div>
         </div>
       )}
