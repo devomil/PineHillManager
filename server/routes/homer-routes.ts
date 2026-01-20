@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { isAuthenticated, requireRole } from '../auth';
 import { homerAIService } from '../services/homer-ai-service';
+import { homerMemoryService } from '../services/homer-memory-service';
 import { randomUUID } from 'crypto';
 
 const router = Router();
@@ -136,6 +137,141 @@ router.post('/voice-to-text', isAuthenticated, requireRole(['admin', 'manager'])
     success: true,
     message: 'Voice recognition is handled client-side using Web Speech API',
   });
+});
+
+// ============================================
+// MEMORY ENDPOINTS
+// ============================================
+
+router.get('/memories', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const category = req.query.category as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    let memories;
+    if (category) {
+      memories = await homerMemoryService.getMemoriesByCategory(userId, category);
+    } else {
+      memories = await homerMemoryService.getMemoriesForUser(userId, { limit });
+    }
+
+    res.json({
+      success: true,
+      memories,
+      count: memories.length,
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Get memories error:', error);
+    res.status(500).json({ error: 'Failed to get memories' });
+  }
+});
+
+router.post('/memories', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { category, subject, content, importance, tags, isGlobal } = req.body;
+
+    if (!category || !subject || !content) {
+      return res.status(400).json({ error: 'Category, subject, and content are required' });
+    }
+
+    const memory = await homerMemoryService.createMemory({
+      userId: isGlobal ? null : userId,
+      category,
+      subject,
+      content,
+      importance: importance || 5,
+      tags: tags || [],
+    });
+
+    res.json({
+      success: true,
+      memory,
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Create memory error:', error);
+    res.status(500).json({ error: 'Failed to create memory' });
+  }
+});
+
+router.get('/memories/search', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const query = req.query.q as string;
+    if (!query) {
+      return res.status(400).json({ error: 'Search query required' });
+    }
+
+    const memories = await homerMemoryService.searchMemories(userId, query);
+
+    res.json({
+      success: true,
+      memories,
+      count: memories.length,
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Search memories error:', error);
+    res.status(500).json({ error: 'Failed to search memories' });
+  }
+});
+
+router.patch('/memories/:id/importance', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const memoryId = parseInt(req.params.id);
+    const { importance } = req.body;
+
+    if (isNaN(memoryId) || importance === undefined) {
+      return res.status(400).json({ error: 'Memory ID and importance required' });
+    }
+
+    await homerMemoryService.updateImportance(memoryId, importance);
+
+    res.json({
+      success: true,
+      message: 'Memory importance updated',
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Update importance error:', error);
+    res.status(500).json({ error: 'Failed to update memory' });
+  }
+});
+
+router.delete('/memories/:id', isAuthenticated, requireRole(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const memoryId = parseInt(req.params.id);
+
+    if (isNaN(memoryId)) {
+      return res.status(400).json({ error: 'Valid memory ID required' });
+    }
+
+    await homerMemoryService.deactivateMemory(memoryId);
+
+    res.json({
+      success: true,
+      message: 'Memory deleted',
+    });
+
+  } catch (error: any) {
+    console.error('[Homer Routes] Delete memory error:', error);
+    res.status(500).json({ error: 'Failed to delete memory' });
+  }
 });
 
 export default router;
