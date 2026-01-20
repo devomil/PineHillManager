@@ -237,8 +237,17 @@ export function HomerAIAssistant() {
       return;
     }
 
+    if (isListening) {
+      console.log('[Homer] Already listening, skipping');
+      return;
+    }
+
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Ignore if already stopped
+      }
     }
 
     const recognition = new SpeechRecognition();
@@ -303,9 +312,21 @@ export function HomerAIAssistant() {
     }
   };
 
-  const playActivationSound = () => {
+  const audioContextRef = useRef<AudioContext | null>(null);
+  
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+    return audioContextRef.current;
+  }, []);
+  
+  const playActivationSound = useCallback(() => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = getAudioContext();
       
       const playTone = (frequency: number, startTime: number, duration: number) => {
         const oscillator = audioContext.createOscillator();
@@ -331,7 +352,7 @@ export function HomerAIAssistant() {
     } catch (e) {
       console.log('[Homer] Could not play activation sound');
     }
-  };
+  }, [getAudioContext]);
 
   const handleSendMessage = (message: string) => {
     if (!message.trim()) return;
