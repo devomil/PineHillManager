@@ -7,13 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Scan, Trash2, Plus, Minus, DollarSign, Package, MapPin, FileText } from "lucide-react";
+import { ShoppingCart, Scan, Trash2, Plus, Minus, DollarSign, Package, MapPin, FileText, CheckCircle2, AlertCircle, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
 import type { EmployeePurchase, InventoryItem } from "@shared/schema";
 import { CloverPaymentDialog } from "@/components/clover-payment-dialog";
 
+interface ExtendedInventoryItem extends InventoryItem {
+  isCompanyProduct?: boolean;
+}
+
 interface CartItem {
-  item: InventoryItem;
+  item: ExtendedInventoryItem;
   quantity: number;
 }
 
@@ -49,13 +55,17 @@ export default function EmployeePurchases() {
 
   // Calculate what gets charged against allowance (for tracking purposes)
   // This is used internally to track allowance usage
-  const calculateAllowanceValue = (item: InventoryItem, balance: PurchaseBalance | undefined, currentTotal: number = 0): number => {
+  // IMPORTANT: Only company products (Pine Hill Farm, PHF, Cultivating Wellness, Wild Essentials) qualify for stipend
+  const calculateAllowanceValue = (item: ExtendedInventoryItem, balance: PurchaseBalance | undefined, currentTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
     const cost = parseFloat(item.unitCost || '0');
     const retailPrice = parseFloat(item.unitPrice || '0');
-    const totalSpending = balance.monthlyTotal + currentTotal;
-    const cap = parseFloat(balance.monthlyCap?.toString() || '0');
+    
+    // Non-company products don't count against allowance (they require full payment)
+    if (!item.isCompanyProduct) {
+      return 0; // Don't track against allowance
+    }
     
     if (balance.userRole === 'manager' || balance.userRole === 'admin') {
       // Managers/admins track COGS value against allowance
@@ -67,13 +77,12 @@ export default function EmployeePurchases() {
   };
 
   // Calculate what the employee pays OUT OF POCKET (for display)
-  // Managers/Admins:
-  //   - Before cap: $0 (100% discount)
-  //   - After cap: COGS + % markup
-  // Regular Employees:
-  //   - Before cap: $0 (charged against allowance)
-  //   - After cap: discounted retail price
-  const calculateOutOfPocketCost = (item: InventoryItem, balance: PurchaseBalance | undefined, currentAllowanceTotal: number = 0): number => {
+  // Company Products (Pine Hill Farm, PHF, Cultivating Wellness, Wild Essentials):
+  //   - Before cap: $0 (covered by stipend)
+  //   - After cap: discounted price
+  // Non-Company Products:
+  //   - Always pay discounted price (stipend does NOT apply)
+  const calculateOutOfPocketCost = (item: ExtendedInventoryItem, balance: PurchaseBalance | undefined, currentAllowanceTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
     const cost = parseFloat(item.unitCost || '0');
@@ -81,6 +90,18 @@ export default function EmployeePurchases() {
     const totalSpending = balance.monthlyTotal + currentAllowanceTotal;
     const cap = parseFloat(balance.monthlyCap?.toString() || '0');
     
+    // Non-company products ALWAYS require payment (stipend doesn't apply)
+    if (!item.isCompanyProduct) {
+      if (balance.userRole === 'manager' || balance.userRole === 'admin') {
+        const markup = parseFloat(balance.costMarkup?.toString() || '0');
+        return cost * (1 + markup / 100);
+      }
+      // Employee pays discounted retail
+      const discount = parseFloat(balance.retailDiscount?.toString() || '0');
+      return retailPrice * (1 - discount / 100);
+    }
+    
+    // Company products - check against allowance
     if (balance.userRole === 'manager' || balance.userRole === 'admin') {
       if (totalSpending < cap) {
         return 0; // Free within allowance
@@ -90,7 +111,7 @@ export default function EmployeePurchases() {
       return cost * (1 + markup / 100);
     }
     
-    // For regular employees
+    // For regular employees with company products
     if (totalSpending < cap) {
       return 0; // Free within allowance (paid by company)
     }
@@ -462,6 +483,19 @@ export default function EmployeePurchases() {
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
+      {/* Stipend Information Alert */}
+      <Alert className="mb-6 bg-blue-50 border-blue-200">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-800">Monthly Stipend Information</AlertTitle>
+        <AlertDescription className="text-blue-700 text-sm">
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li><strong>Stipend applies only to company products:</strong> Pine Hill Farm, PHF, Cultivating Wellness, and Wild Essentials items</li>
+            <li><strong>Stipend does NOT roll over:</strong> Unused balance resets at the start of each month</li>
+            <li><strong>Other products:</strong> Get your employee discount, but stipend does not apply</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
@@ -522,17 +556,33 @@ export default function EmployeePurchases() {
                     {cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => (
                       <div 
                         key={item.id} 
-                        className="flex items-center gap-4 p-4 border rounded-lg bg-white"
+                        className={`flex items-center gap-4 p-4 border rounded-lg ${item.isCompanyProduct ? 'bg-white' : 'bg-amber-50 border-amber-200'}`}
                         data-testid={`cart-item-${item.id}`}
                       >
                         <div className="flex-1">
-                          <h4 className="font-medium">{item.itemName}</h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-medium">{item.itemName}</h4>
+                            {item.isCompanyProduct ? (
+                              <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Stipend Eligible
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Employee Discount
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {item.sku && `SKU: ${item.sku}`}
                             {item.asin && ` | ASIN: ${item.asin}`}
                           </p>
                           <p className="text-sm font-medium mt-1">
                             ${unitPrice.toFixed(2)} each
+                            {!item.isCompanyProduct && (
+                              <span className="text-xs text-amber-600 ml-2">(Stipend does not apply)</span>
+                            )}
                           </p>
                         </div>
                         

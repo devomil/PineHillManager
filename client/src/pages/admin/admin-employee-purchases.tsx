@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, ShoppingCart, TrendingUp, Users, Search, Edit2, History, FileText, Download, ChevronDown, ChevronRight } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, Users, Search, Edit2, History, FileText, Download, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import UserAvatar from "@/components/user-avatar";
 
 export default function AdminEmployeePurchases() {
@@ -112,6 +113,19 @@ export default function AdminEmployeePurchases() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Employee Purchase Management</h1>
           <p className="text-gray-600">Manage employee purchase allowances, discounts, and monitor spending</p>
         </div>
+
+        {/* Stipend Policy Information */}
+        <Alert className="mb-6 bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">Stipend Policy</AlertTitle>
+          <AlertDescription className="text-blue-700 text-sm">
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              <li><strong>Eligible Products Only:</strong> Stipend applies only to company products (Pine Hill Farm, PHF, Cultivating Wellness, Wild Essentials)</li>
+              <li><strong>No Rollover:</strong> Monthly stipend resets at the start of each month - unused balance does not carry forward</li>
+              <li><strong>Other Products:</strong> Employees still get their employee discount on non-company products, but it does not count against their stipend</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
 
         <Tabs defaultValue="management" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">

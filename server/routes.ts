@@ -5125,6 +5125,19 @@ Output the script with section markers in brackets.`;
   // EMPLOYEE PURCHASE PORTAL ROUTES
   // ============================================
   
+  // Helper: Check if an inventory item is a company product eligible for stipend
+  // Company products: Pine Hill Farm, PHF, Cultivating Wellness, Wild Essentials
+  const isCompanyProductEligible = (item: { vendor?: string | null; itemName?: string | null }): boolean => {
+    const vendorLower = (item.vendor || '').toLowerCase();
+    const itemNameLower = (item.itemName || '').toLowerCase();
+    return (
+      vendorLower.includes('pine hill farm') ||
+      itemNameLower.startsWith('phf ') ||
+      vendorLower.includes('cultivating wellness') ||
+      vendorLower.includes('wild essentials')
+    );
+  };
+  
   // Search inventory by barcode/SKU
   app.get('/api/inventory/search/:barcode', isAuthenticated, async (req, res) => {
     try {
@@ -5140,7 +5153,10 @@ Output the script with section markers in brackets.`;
         return res.status(404).json({ message: 'Item not found' });
       }
       
-      res.json(item);
+      // Add isCompanyProduct flag for employee purchase eligibility
+      const isCompanyProduct = isCompanyProductEligible(item);
+      
+      res.json({ ...item, isCompanyProduct });
     } catch (error) {
       console.error('Error searching inventory by barcode:', error);
       res.status(500).json({ message: 'Failed to search inventory' });
@@ -5194,12 +5210,17 @@ Output the script with section markers in brackets.`;
       // Get inventory item to calculate retail value and COGS
       let retailValue = null;
       let cogsValue = null;
+      let isCompanyProduct = false;
+      
       if (purchaseData.inventoryItemId) {
         const item = await storage.getInventoryItemById(purchaseData.inventoryItemId);
         if (item) {
           const quantity = Number(purchaseData.quantity);
           retailValue = (parseFloat(item.unitPrice || '0') * quantity).toFixed(2);
           cogsValue = (parseFloat(item.unitCost || '0') * quantity).toFixed(2);
+          
+          // Check if this is a company product (stipend only applies to company products)
+          isCompanyProduct = isCompanyProductEligible(item);
         }
       }
       
@@ -5214,18 +5235,30 @@ Output the script with section markers in brackets.`;
         ? Number(cogsValue || purchaseData.totalAmount)
         : Number(retailValue || purchaseData.totalAmount);
       
-      const wouldExceedCap = monthlyTotal + purchaseValue > Number(monthlyCap);
-      const exceedsBy = wouldExceedCap ? (monthlyTotal + purchaseValue - Number(monthlyCap)) : 0;
+      // Stipend ONLY applies to company products (Pine Hill Farm, PHF, Cultivating Wellness, Wild Essentials)
+      // Non-company products require full payment at discounted rate
+      let wouldExceedCap = false;
+      let exceedsBy = 0;
       
-      // Determine if payment is required (purchases that exceed the cap)
+      if (isCompanyProduct) {
+        // Company products can use stipend - check if it would exceed monthly cap
+        wouldExceedCap = monthlyTotal + purchaseValue > Number(monthlyCap);
+        exceedsBy = wouldExceedCap ? (monthlyTotal + purchaseValue - Number(monthlyCap)) : 0;
+      } else {
+        // Non-company products don't use stipend - full amount is "exceeding"
+        wouldExceedCap = true;
+        exceedsBy = purchaseValue;
+      }
+      
+      // Determine if payment is required (purchases that exceed the cap OR non-company products)
       let requiresPayment = false;
       let paymentAmount = null;
       
       if (wouldExceedCap) {
         requiresPayment = true;
-        // Payment amount is the portion that exceeds the cap
+        // Payment amount is the portion that exceeds the cap (or full amount for non-company products)
         // For managers/admins: markup applies to the over-cap COGS
-        // For employees: 25% discount on retail for the over-cap portion
+        // For employees: discount on retail for the over-cap portion
         if (isManagerOrAdmin) {
           const markup = parseFloat(user.employeePurchaseCostMarkup || '4');
           paymentAmount = (exceedsBy * (1 + markup / 100)).toFixed(2);
@@ -5238,17 +5271,22 @@ Output the script with section markers in brackets.`;
       }
       
       // Create the purchase
+      // IMPORTANT: For non-company products, set retailValue and cogsValue to '0' 
+      // so they don't count against the monthly stipend balance
       const purchase = await storage.createEmployeePurchase({
         ...purchaseData,
         employeeId: userId,
         periodMonth: currentMonth,
         purchaseDate: new Date(),
         status: 'completed',
-        retailValue,
-        cogsValue,
+        retailValue: isCompanyProduct ? retailValue : '0.00',
+        cogsValue: isCompanyProduct ? cogsValue : '0.00',
         requiresPayment,
         paymentAmount,
       });
+      
+      // Add isCompanyProduct to response so frontend knows about eligibility
+      (purchase as any).isCompanyProduct = isCompanyProduct;
       
       // Deduct from Clover inventory if location and barcode are provided
       if (purchaseData.locationId && purchaseData.barcode) {
