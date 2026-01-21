@@ -26,9 +26,37 @@ interface LocationRevenue {
   avgSale: string;
 }
 
+interface DailyRevenue {
+  date: string;
+  dayOfWeek: string;
+  totalRevenue: string;
+  transactionCount: number;
+  avgSale: string;
+}
+
+interface HourlyRevenue {
+  hour: number;
+  hourLabel: string;
+  totalRevenue: string;
+  transactionCount: number;
+}
+
+interface TodaysSales {
+  date: string;
+  dayOfWeek: string;
+  totalRevenue: string;
+  transactionCount: number;
+  avgSale: string;
+  byLocation: LocationRevenue[];
+  byHour: HourlyRevenue[];
+  lastUpdated: string;
+}
+
 interface BusinessDataContext {
   revenueByLocation: LocationRevenue[];
   revenueByMonth: MonthlyRevenue[];
+  revenueByDay: DailyRevenue[];
+  todaysSales: TodaysSales;
   topProducts: Array<{ name: string; revenue: string; quantity: string }>;
   financialSummary: { totalRevenue: string; totalCogs: string; grossProfit: string; marginPercent: string };
   locationDetails: Array<{ id: number; name: string; city: string; state: string }>;
@@ -79,6 +107,13 @@ class HomerAIService {
 
     const monthlyData: Map<string, MonthlyRevenue> = new Map();
     const locationData: Map<string, LocationRevenue> = new Map();
+    const dailyData: Map<string, DailyRevenue> = new Map();
+    const todayLocationData: Map<string, LocationRevenue> = new Map();
+    const todayHourlyData: Map<number, HourlyRevenue> = new Map();
+    
+    // Get today's date string in Central Time
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     console.log('[Homer] Fetching live Clover data (optimized single call per location)...');
 
@@ -130,7 +165,7 @@ class HomerAIService {
     // Wait for all locations to complete
     const locationResults = await Promise.all(fetchPromises);
 
-    // Process all orders and aggregate by month/location locally
+    // Process all orders and aggregate by month/location/day locally
     for (const { config, orders } of locationResults) {
       let currentMonthRevenue = 0;
       let currentMonthCount = 0;
@@ -138,6 +173,8 @@ class HomerAIService {
       for (const order of orders) {
         const orderDate = new Date(order.createdTime);
         const orderMonth = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+        const orderDateStr = orderDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+        const orderHour = parseInt(orderDate.toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Chicago' }));
         const orderRevenue = (parseFloat(order.total || '0') / 100);
         
         // Update monthly totals
@@ -158,6 +195,57 @@ class HomerAIService {
         if (orderMonth === currentMonth) {
           currentMonthRevenue += orderRevenue;
           currentMonthCount++;
+          
+          // Update daily totals for current month
+          const dayOfWeek = dayNames[orderDate.getDay()];
+          const existingDay = dailyData.get(orderDateStr) || {
+            date: orderDateStr,
+            dayOfWeek,
+            totalRevenue: '0',
+            transactionCount: 0,
+            avgSale: '0',
+          };
+          const newDayRevenue = parseFloat(existingDay.totalRevenue) + orderRevenue;
+          const newDayCount = existingDay.transactionCount + 1;
+          dailyData.set(orderDateStr, {
+            ...existingDay,
+            totalRevenue: newDayRevenue.toFixed(2),
+            transactionCount: newDayCount,
+            avgSale: newDayCount > 0 ? (newDayRevenue / newDayCount).toFixed(2) : '0',
+          });
+          
+          // Track today's specific data
+          if (orderDateStr === todayStr) {
+            // Today by location
+            const merchantName = config.merchantName || 'Unknown Location';
+            const existingTodayLoc = todayLocationData.get(merchantName) || {
+              locationName: merchantName,
+              totalRevenue: '0',
+              transactionCount: 0,
+              avgSale: '0',
+            };
+            const newTodayLocRevenue = parseFloat(existingTodayLoc.totalRevenue) + orderRevenue;
+            const newTodayLocCount = existingTodayLoc.transactionCount + 1;
+            todayLocationData.set(merchantName, {
+              locationName: merchantName,
+              totalRevenue: newTodayLocRevenue.toFixed(2),
+              transactionCount: newTodayLocCount,
+              avgSale: newTodayLocCount > 0 ? (newTodayLocRevenue / newTodayLocCount).toFixed(2) : '0',
+            });
+            
+            // Today by hour
+            const existingHour = todayHourlyData.get(orderHour) || {
+              hour: orderHour,
+              hourLabel: `${orderHour === 0 ? 12 : orderHour > 12 ? orderHour - 12 : orderHour}${orderHour < 12 ? 'AM' : 'PM'}`,
+              totalRevenue: '0',
+              transactionCount: 0,
+            };
+            todayHourlyData.set(orderHour, {
+              ...existingHour,
+              totalRevenue: (parseFloat(existingHour.totalRevenue) + orderRevenue).toFixed(2),
+              transactionCount: existingHour.transactionCount + 1,
+            });
+          }
         }
       }
 
@@ -250,15 +338,40 @@ class HomerAIService {
 
     const invSummary = inventorySummaryQuery.rows[0] as any || {};
 
+    // Build daily array (sorted by date, most recent first)
+    const dailyArray = Array.from(dailyData.values()).sort((a, b) => b.date.localeCompare(a.date));
+    
+    // Build today's sales data
+    const todayLocationArray = Array.from(todayLocationData.values());
+    const todayHourlyArray = Array.from(todayHourlyData.values()).sort((a, b) => a.hour - b.hour);
+    const todayData = dailyData.get(todayStr);
+    const todaysDayOfWeek = dayNames[now.getDay()];
+    
+    const todaysSales: TodaysSales = {
+      date: todayStr,
+      dayOfWeek: todaysDayOfWeek,
+      totalRevenue: todayData?.totalRevenue || '0.00',
+      transactionCount: todayData?.transactionCount || 0,
+      avgSale: todayData?.avgSale || '0.00',
+      byLocation: todayLocationArray,
+      byHour: todayHourlyArray,
+      lastUpdated: new Date().toISOString(),
+    };
+
     console.log('[Homer] Business context loaded:', {
       locations: locationData.size,
       months: monthlyData.size,
+      daysInCurrentMonth: dailyData.size,
+      todaysRevenue: todaysSales.totalRevenue,
+      todaysTransactions: todaysSales.transactionCount,
       totalRevenue: totalRevenue.toFixed(2),
     });
 
     return {
       revenueByLocation: Array.from(locationData.values()),
       revenueByMonth: monthlyArray,
+      revenueByDay: dailyArray.slice(0, 31),
+      todaysSales,
       topProducts: (topProductsQuery.rows as any[]).map(r => ({
         name: r.name,
         revenue: parseFloat(r.revenue || '0').toFixed(2),
