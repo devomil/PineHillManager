@@ -6124,7 +6124,7 @@ export const updatePractitionerContactSchema = z.object({
   clientEmail: z.string().email().optional().nullable(),
   clientPhone: z.string().optional().nullable(),
   clientNotes: z.string().optional().nullable(),
-  serviceType: z.enum(['Consultation', 'Follow-up', 'Treatment', 'Assessment', 'Emergency', 'Other']).optional(),
+  serviceType: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']).optional(),
   assignedPractitionerId: z.string().optional().nullable(),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),

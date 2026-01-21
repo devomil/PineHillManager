@@ -1,7 +1,8 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, FileText, UserCheck, Repeat, Users } from "lucide-react";
+import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, FileText, UserCheck, Repeat, Users, Phone } from "lucide-react";
+import { QuickContactForm } from "@/components/quick-contact-form";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link, useLocation } from "wouter";
@@ -18,6 +19,7 @@ export default function HomeDashboard() {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const userRole = user?.role?.toLowerCase();
@@ -300,6 +302,20 @@ export default function HomeDashboard() {
             </Button>
           </div>
           
+          <div className="px-4 pt-4">
+            <Button
+              onClick={() => setQuickContactOpen(true)}
+              className={cn(
+                "w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200",
+                isCollapsed ? "p-2" : "py-3"
+              )}
+              data-testid="button-quick-contact"
+            >
+              <Phone className={cn("h-5 w-5", !isCollapsed && "mr-2")} />
+              {!isCollapsed && "Quick Contact"}
+            </Button>
+          </div>
+          
           <nav className="flex-1 p-4 space-y-1">
             {navItems.map((item) => {
               const isActive = location === item.href;
@@ -394,6 +410,17 @@ export default function HomeDashboard() {
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(false)} data-testid="button-close-mobile-menu">
                   <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <div className="px-4 pt-4">
+                <Button
+                  onClick={() => { setQuickContactOpen(true); setMobileMenuOpen(false); }}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 shadow-lg"
+                  data-testid="mobile-button-quick-contact"
+                >
+                  <Phone className="h-5 w-5 mr-2" />
+                  Quick Contact
                 </Button>
               </div>
               
@@ -885,6 +912,8 @@ export default function HomeDashboard() {
           </div>
         </aside>
       </div>
+
+      <QuickContactForm open={quickContactOpen} onOpenChange={setQuickContactOpen} />
     </div>
   );
 }
