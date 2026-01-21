@@ -5127,15 +5127,26 @@ Output the script with section markers in brackets.`;
   
   // Helper: Check if an inventory item is a company product eligible for stipend
   // Company products: Pine Hill Farm, PHF, Cultivating Wellness, Wild Essentials
+  // Check both vendor field AND item name for these brand identifiers
   const isCompanyProductEligible = (item: { vendor?: string | null; itemName?: string | null }): boolean => {
     const vendorLower = (item.vendor || '').toLowerCase();
     const itemNameLower = (item.itemName || '').toLowerCase();
-    return (
+    
+    // Check vendor field
+    const vendorMatch = 
       vendorLower.includes('pine hill farm') ||
-      itemNameLower.startsWith('phf ') ||
+      vendorLower.includes('phf') ||
       vendorLower.includes('cultivating wellness') ||
-      vendorLower.includes('wild essentials')
-    );
+      vendorLower.includes('wild essentials');
+    
+    // Check item name for brand identifiers
+    const nameMatch = 
+      itemNameLower.includes('pine hill farm') ||
+      itemNameLower.includes('phf') ||
+      itemNameLower.includes('cultivating wellness') ||
+      itemNameLower.includes('wild essentials');
+    
+    return vendorMatch || nameMatch;
   };
   
   // Search inventory by barcode/SKU
