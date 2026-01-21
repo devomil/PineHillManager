@@ -47,6 +47,7 @@ import Goals from "@/pages/goals";
 import PurchasingPage from "@/pages/purchasing";
 import MarketplacePage from "@/pages/marketplace";
 import OrderFulfillmentPage from "@/pages/order-fulfillment";
+import PractitionerDashboard from "@/pages/practitioner-dashboard";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -188,6 +189,10 @@ function AuthenticatedApp() {
           <OrderFulfillmentPage />
         </ProtectedRoute>
       </Route>
+      
+      {/* Practitioner Dashboard - All Roles */}
+      <Route path="/practitioner" component={PractitionerDashboard} />
+      <Route path="/practitioner-dashboard" component={PractitionerDashboard} />
       
       {/* Employee & Shared Routes */}
       <Route path="/calendar" component={Calendar} />

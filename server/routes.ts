@@ -25946,6 +25946,158 @@ Important:
   app.use('/api/marketplace', marketplaceRoutes.default);
 
   // ================================
+  // PRACTITIONER DASHBOARD ROUTES
+  // ================================
+  const { practitionerContacts, insertPractitionerContactSchema, updatePractitionerContactSchema } = await import('@shared/schema');
+
+  // Get all practitioner contacts (with optional filters)
+  app.get('/api/practitioner-contacts', isAuthenticated, async (req, res) => {
+    try {
+      const { status, serviceType, assignedTo } = req.query;
+      
+      let query = db.select().from(practitionerContacts);
+      const conditions = [];
+      
+      if (status && status !== 'all') {
+        conditions.push(eq(practitionerContacts.status, status as string));
+      }
+      if (serviceType && serviceType !== 'all') {
+        conditions.push(eq(practitionerContacts.serviceType, serviceType as string));
+      }
+      if (assignedTo && assignedTo !== 'all') {
+        conditions.push(eq(practitionerContacts.assignedPractitionerId, assignedTo as string));
+      }
+      
+      const contacts = conditions.length > 0
+        ? await db.select().from(practitionerContacts).where(and(...conditions)).orderBy(desc(practitionerContacts.createdAt))
+        : await db.select().from(practitionerContacts).orderBy(desc(practitionerContacts.createdAt));
+      
+      res.json(contacts);
+    } catch (error) {
+      console.error('Error fetching practitioner contacts:', error);
+      res.status(500).json({ error: 'Failed to fetch contacts' });
+    }
+  });
+
+  // Get practitioner contact stats
+  app.get('/api/practitioner-contacts/stats', isAuthenticated, async (req, res) => {
+    try {
+      const allContacts = await db.select().from(practitionerContacts);
+      
+      const stats = {
+        total: allContacts.length,
+        byStatus: {
+          pending: allContacts.filter(c => c.status === 'pending').length,
+          in_progress: allContacts.filter(c => c.status === 'in_progress').length,
+          completed: allContacts.filter(c => c.status === 'completed').length,
+          cancelled: allContacts.filter(c => c.status === 'cancelled').length,
+        },
+        byServiceType: {} as Record<string, number>,
+      };
+      
+      allContacts.forEach(c => {
+        stats.byServiceType[c.serviceType] = (stats.byServiceType[c.serviceType] || 0) + 1;
+      });
+      
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching practitioner contact stats:', error);
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  // Create new practitioner contact
+  app.post('/api/practitioner-contacts', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const validatedData = insertPractitionerContactSchema.parse({
+        ...req.body,
+        createdBy: user.id,
+      });
+      
+      const [newContact] = await db.insert(practitionerContacts).values(validatedData).returning();
+      res.status(201).json(newContact);
+    } catch (error) {
+      console.error('Error creating practitioner contact:', error);
+      res.status(500).json({ error: 'Failed to create contact' });
+    }
+  });
+
+  // Update practitioner contact (with validation)
+  app.patch('/api/practitioner-contacts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Validate request body against schema
+      const validationResult = updatePractitionerContactSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid update data', 
+          details: validationResult.error.errors 
+        });
+      }
+      
+      const updates: any = { ...validationResult.data };
+      
+      // Add completedAt if status changed to completed
+      if (updates.status === 'completed') {
+        updates.completedAt = new Date();
+      }
+      updates.updatedAt = new Date();
+      
+      const [updated] = await db.update(practitionerContacts)
+        .set(updates)
+        .where(eq(practitionerContacts.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating practitioner contact:', error);
+      res.status(500).json({ error: 'Failed to update contact' });
+    }
+  });
+
+  // Delete practitioner contact
+  app.delete('/api/practitioner-contacts/:id', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.delete(practitionerContacts).where(eq(practitionerContacts.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting practitioner contact:', error);
+      res.status(500).json({ error: 'Failed to delete contact' });
+    }
+  });
+
+  // Get service types (for dropdown)
+  app.get('/api/practitioner-contacts/service-types', isAuthenticated, async (req, res) => {
+    const serviceTypes = [
+      'Consultation',
+      'Follow-up',
+      'Treatment',
+      'Assessment',
+      'Emergency',
+      'Other',
+    ];
+    res.json(serviceTypes);
+  });
+
+  // Get status types (for dropdown)
+  app.get('/api/practitioner-contacts/status-types', isAuthenticated, async (req, res) => {
+    const statusTypes = [
+      { value: 'pending', label: 'Pending', color: 'yellow' },
+      { value: 'in_progress', label: 'In Progress', color: 'blue' },
+      { value: 'completed', label: 'Completed', color: 'green' },
+      { value: 'cancelled', label: 'Cancelled', color: 'gray' },
+    ];
+    res.json(statusTypes);
+  });
+
+  // ================================
   // SCHEDULED PAYMENT PROCESSOR
   // ================================
   // Process scheduled payments that have reached their charge date

@@ -6065,3 +6065,73 @@ export const insertHomerFileMessageSchema = createInsertSchema(homerFileMessages
 
 export type HomerFileMessage = typeof homerFileMessages.$inferSelect;
 export type InsertHomerFileMessage = z.infer<typeof insertHomerFileMessageSchema>;
+
+// ============================================
+// PRACTITIONER DASHBOARD - SERVICE CONTACTS
+// ============================================
+export const practitionerContacts = pgTable('practitioner_contacts', {
+  id: serial('id').primaryKey(),
+  
+  clientFirstName: text('client_first_name').notNull(),
+  clientLastName: text('client_last_name').notNull(),
+  clientEmail: text('client_email'),
+  clientPhone: text('client_phone'),
+  clientNotes: text('client_notes'),
+  
+  serviceType: text('service_type').notNull(),
+  status: text('status').notNull().default('pending'),
+  
+  assignedPractitionerId: text('assigned_practitioner_id').references(() => users.id),
+  
+  priority: text('priority').default('normal'),
+  preferredContactMethod: text('preferred_contact_method').default('phone'),
+  preferredDateTime: timestamp('preferred_date_time'),
+  
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+}, (table) => ({
+  statusIdx: index('practitioner_contacts_status_idx').on(table.status),
+  serviceTypeIdx: index('practitioner_contacts_service_type_idx').on(table.serviceType),
+  assignedIdx: index('practitioner_contacts_assigned_idx').on(table.assignedPractitionerId),
+  createdByIdx: index('practitioner_contacts_created_by_idx').on(table.createdBy),
+}));
+
+export const practitionerContactsRelations = relations(practitionerContacts, ({ one }) => ({
+  assignedPractitioner: one(users, { 
+    fields: [practitionerContacts.assignedPractitionerId], 
+    references: [users.id],
+    relationName: 'assignedPractitioner'
+  }),
+  createdByUser: one(users, { 
+    fields: [practitionerContacts.createdBy], 
+    references: [users.id],
+    relationName: 'createdByUser'
+  }),
+}));
+
+export const insertPractitionerContactSchema = createInsertSchema(practitionerContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+});
+
+export const updatePractitionerContactSchema = z.object({
+  clientFirstName: z.string().optional(),
+  clientLastName: z.string().optional(),
+  clientEmail: z.string().email().optional().nullable(),
+  clientPhone: z.string().optional().nullable(),
+  clientNotes: z.string().optional().nullable(),
+  serviceType: z.enum(['Consultation', 'Follow-up', 'Treatment', 'Assessment', 'Emergency', 'Other']).optional(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']).optional(),
+  assignedPractitionerId: z.string().optional().nullable(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  preferredContactMethod: z.enum(['phone', 'email', 'text']).optional(),
+  preferredDateTime: z.string().optional().nullable(),
+});
+
+export type PractitionerContact = typeof practitionerContacts.$inferSelect;
+export type InsertPractitionerContact = z.infer<typeof insertPractitionerContactSchema>;
+export type UpdatePractitionerContact = z.infer<typeof updatePractitionerContactSchema>;
