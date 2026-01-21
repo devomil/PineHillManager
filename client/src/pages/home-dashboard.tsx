@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, FileText, UserCheck, Repeat } from "lucide-react";
+import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, FileText, UserCheck, Repeat, Users } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link, useLocation } from "wouter";
@@ -146,6 +146,12 @@ export default function HomeDashboard() {
       title: "Support Center",
       icon: HelpCircle,
       href: "/support",
+      badge: undefined as number | undefined,
+    },
+    {
+      title: "Practitioner Dashboard",
+      icon: Users,
+      href: "/practitioner",
       badge: undefined as number | undefined,
     }
   ];

@@ -44,6 +44,7 @@ const navigationItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, value: "dashboard", href: "/admin", section: "main" },
   
   // Operations Section
+  { label: "Practitioner Dashboard", icon: Users, value: "practitioner", href: "/practitioner", section: "operations" },
   { label: "Employee Management", icon: Users, value: "employees", href: "/employees", section: "operations" },
   { label: "Task Management", icon: ListTodo, value: "tasks", href: "/tasks", section: "operations" },
   { label: "Training Management", icon: GraduationCap, value: "training", href: "/admin/training", section: "operations" },
