@@ -5,13 +5,13 @@ import AdminLayout from "@/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw } from "lucide-react";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote } from "lucide-react";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
 
@@ -28,6 +28,8 @@ export default function PractitionerDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [practitionerFilter, setPractitionerFilter] = useState<string>("all");
+  const [selectedContact, setSelectedContact] = useState<PractitionerContact | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
 
   const { data: contacts = [], isLoading: contactsLoading, refetch } = useQuery<PractitionerContact[]>({
     queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, assignedTo: practitionerFilter }],
@@ -229,6 +231,7 @@ export default function PractitionerDashboard() {
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
                         <TableHead>Service Type</TableHead>
+                        <TableHead>Notes</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Created</TableHead>
@@ -256,6 +259,18 @@ export default function PractitionerDashboard() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{contact.serviceType}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-48">
+                            {contact.clientNotes ? (
+                              <div className="flex items-start gap-1">
+                                <StickyNote className="h-3 w-3 mt-1 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                                  {contact.clientNotes}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400 italic">No notes</span>
+                            )}
                           </TableCell>
                           <TableCell>{getStatusBadge(contact.status)}</TableCell>
                           <TableCell>
@@ -285,24 +300,38 @@ export default function PractitionerDashboard() {
                             {contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={contact.status}
-                              onValueChange={(value) => {
-                                updateContactMutation.mutate({
-                                  id: contact.id,
-                                  updates: { status: value },
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statusTypes.map(st => (
-                                  <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="View details"
+                                aria-label="View contact details"
+                                onClick={() => {
+                                  setSelectedContact(contact);
+                                  setViewDialogOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Select
+                                value={contact.status}
+                                onValueChange={(value) => {
+                                  updateContactMutation.mutate({
+                                    id: contact.id,
+                                    updates: { status: value },
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {statusTypes.map(st => (
+                                    <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -451,6 +480,123 @@ export default function PractitionerDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={viewDialogOpen} onOpenChange={(open) => {
+          setViewDialogOpen(open);
+          if (!open) setSelectedContact(null);
+        }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl">
+                Contact Details
+              </DialogTitle>
+              <DialogDescription>
+                Full information for {selectedContact?.clientFirstName} {selectedContact?.clientLastName}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedContact && (
+              <div className="space-y-6 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Client Name</label>
+                    <p className="text-lg font-semibold">
+                      {selectedContact.clientFirstName} {selectedContact.clientLastName}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Service Type</label>
+                    <Badge variant="outline" className="text-sm">
+                      {selectedContact.serviceType}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> Phone
+                    </label>
+                    <p>{selectedContact.clientPhone || 'Not provided'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                      <Mail className="h-3 w-3" /> Email
+                    </label>
+                    <p>{selectedContact.clientEmail || 'Not provided'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Preferred Contact Method</label>
+                    <p className="capitalize">{selectedContact.preferredContactMethod || 'Phone'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Priority</label>
+                    <Badge 
+                      variant={
+                        selectedContact.priority === 'urgent' ? 'destructive' : 
+                        selectedContact.priority === 'high' ? 'default' : 'secondary'
+                      }
+                      className="capitalize"
+                    >
+                      {selectedContact.priority || 'Normal'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Status</label>
+                    {getStatusBadge(selectedContact.status)}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Assigned Practitioner</label>
+                    <p>{getPractitionerName(selectedContact.assignedPractitionerId)}</p>
+                  </div>
+                </div>
+
+                {selectedContact.preferredDateTime && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" /> Preferred Date/Time
+                    </label>
+                    <p>{format(new Date(selectedContact.preferredDateTime), 'PPP p')}</p>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                    <StickyNote className="h-3 w-3" /> Notes
+                  </label>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg min-h-24">
+                    {selectedContact.clientNotes ? (
+                      <p className="whitespace-pre-wrap">{selectedContact.clientNotes}</p>
+                    ) : (
+                      <p className="text-gray-400 italic">No notes provided</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Created</label>
+                    <p className="text-sm">
+                      {selectedContact.createdAt && format(new Date(selectedContact.createdAt), 'PPP p')}
+                    </p>
+                    <p className="text-xs text-gray-400">by {getCreatedByName(selectedContact.createdBy)}</p>
+                  </div>
+                  {selectedContact.completedAt && (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Completed</label>
+                      <p className="text-sm">{format(new Date(selectedContact.completedAt), 'PPP p')}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
