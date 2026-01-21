@@ -306,7 +306,7 @@ export default function HomeDashboard() {
             <Button
               onClick={() => setQuickContactOpen(true)}
               className={cn(
-                "w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200",
+                "w-full bg-gradient-to-r from-sky-100 via-sky-200 to-sky-300 hover:from-sky-200 hover:via-sky-300 hover:to-sky-400 text-sky-700 font-semibold shadow-md hover:shadow-lg transition-all duration-200 rounded-full border border-sky-200",
                 isCollapsed ? "p-2" : "py-3"
               )}
               data-testid="button-quick-contact"
@@ -416,7 +416,7 @@ export default function HomeDashboard() {
               <div className="px-4 pt-4">
                 <Button
                   onClick={() => { setQuickContactOpen(true); setMobileMenuOpen(false); }}
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 shadow-lg"
+                  className="w-full bg-gradient-to-r from-sky-100 via-sky-200 to-sky-300 hover:from-sky-200 hover:via-sky-300 hover:to-sky-400 text-sky-700 font-semibold py-3 shadow-md rounded-full border border-sky-200"
                   data-testid="mobile-button-quick-contact"
                 >
                   <Phone className="h-5 w-5 mr-2" />
