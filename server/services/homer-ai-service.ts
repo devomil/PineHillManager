@@ -113,7 +113,6 @@ class HomerAIService {
     
     // Get today's date string in Central Time
     const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     console.log('[Homer] Fetching live Clover data (optimized single call per location)...');
 
@@ -174,7 +173,21 @@ class HomerAIService {
         const orderDate = new Date(order.createdTime);
         const orderMonth = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
         const orderDateStr = orderDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-        const orderHour = parseInt(orderDate.toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Chicago' }));
+        
+        // Get hour in Central Time using 24-hour format (0-23)
+        const ctHourStr = orderDate.toLocaleString('en-US', { 
+          hour: '2-digit', 
+          hourCycle: 'h23', 
+          timeZone: 'America/Chicago' 
+        });
+        const orderHour = parseInt(ctHourStr, 10);
+        
+        // Get day of week in Central Time
+        const ctDayOfWeek = orderDate.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          timeZone: 'America/Chicago' 
+        });
+        
         const orderRevenue = (parseFloat(order.total || '0') / 100);
         
         // Update monthly totals
@@ -196,11 +209,10 @@ class HomerAIService {
           currentMonthRevenue += orderRevenue;
           currentMonthCount++;
           
-          // Update daily totals for current month
-          const dayOfWeek = dayNames[orderDate.getDay()];
+          // Update daily totals for current month (use CT day of week)
           const existingDay = dailyData.get(orderDateStr) || {
             date: orderDateStr,
-            dayOfWeek,
+            dayOfWeek: ctDayOfWeek,
             totalRevenue: '0',
             transactionCount: 0,
             avgSale: '0',
@@ -345,7 +357,11 @@ class HomerAIService {
     const todayLocationArray = Array.from(todayLocationData.values());
     const todayHourlyArray = Array.from(todayHourlyData.values()).sort((a, b) => a.hour - b.hour);
     const todayData = dailyData.get(todayStr);
-    const todaysDayOfWeek = dayNames[now.getDay()];
+    // Get today's day of week in Central Time for consistency
+    const todaysDayOfWeek = now.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      timeZone: 'America/Chicago' 
+    });
     
     const todaysSales: TodaysSales = {
       date: todayStr,
