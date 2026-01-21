@@ -41,6 +41,14 @@ interface HourlyRevenue {
   transactionCount: number;
 }
 
+interface MonthlyLocationRevenue {
+  month: string;
+  locationName: string;
+  totalRevenue: string;
+  transactionCount: number;
+  avgSale: string;
+}
+
 interface TodaysSales {
   date: string;
   dayOfWeek: string;
@@ -55,6 +63,7 @@ interface TodaysSales {
 interface BusinessDataContext {
   revenueByLocation: LocationRevenue[];
   revenueByMonth: MonthlyRevenue[];
+  revenueByMonthLocation: MonthlyLocationRevenue[];
   revenueByDay: DailyRevenue[];
   todaysSales: TodaysSales;
   topProducts: Array<{ name: string; revenue: string; quantity: string }>;
@@ -107,6 +116,7 @@ class HomerAIService {
 
     const monthlyData: Map<string, MonthlyRevenue> = new Map();
     const locationData: Map<string, LocationRevenue> = new Map();
+    const monthlyLocationData: Map<string, MonthlyLocationRevenue> = new Map(); // key: "YYYY-MM|LocationName"
     const dailyData: Map<string, DailyRevenue> = new Map();
     const todayLocationData: Map<string, LocationRevenue> = new Map();
     const todayHourlyData: Map<number, HourlyRevenue> = new Map();
@@ -204,6 +214,26 @@ class HomerAIService {
           transactionCount: existing.transactionCount + 1,
         });
 
+        // Track monthly location revenue for ALL months (historical data)
+        const merchantName = config.merchantName || 'Unknown Location';
+        const monthLocKey = `${orderMonth}|${merchantName}`;
+        const existingMonthLoc = monthlyLocationData.get(monthLocKey) || {
+          month: orderMonth,
+          locationName: merchantName,
+          totalRevenue: '0',
+          transactionCount: 0,
+          avgSale: '0',
+        };
+        const newMonthLocRevenue = parseFloat(existingMonthLoc.totalRevenue) + orderRevenue;
+        const newMonthLocCount = existingMonthLoc.transactionCount + 1;
+        monthlyLocationData.set(monthLocKey, {
+          month: orderMonth,
+          locationName: merchantName,
+          totalRevenue: newMonthLocRevenue.toFixed(2),
+          transactionCount: newMonthLocCount,
+          avgSale: newMonthLocCount > 0 ? (newMonthLocRevenue / newMonthLocCount).toFixed(2) : '0',
+        });
+
         // Track current month for location totals
         if (orderMonth === currentMonth) {
           currentMonthRevenue += orderRevenue;
@@ -228,8 +258,7 @@ class HomerAIService {
           
           // Track today's specific data
           if (orderDateStr === todayStr) {
-            // Today by location
-            const merchantName = config.merchantName || 'Unknown Location';
+            // Today by location (merchantName already defined above)
             const existingTodayLoc = todayLocationData.get(merchantName) || {
               locationName: merchantName,
               totalRevenue: '0',
@@ -383,9 +412,14 @@ class HomerAIService {
       totalRevenue: totalRevenue.toFixed(2),
     });
 
+    // Build monthly location array sorted by month descending, then by location
+    const monthlyLocationArray = Array.from(monthlyLocationData.values())
+      .sort((a, b) => b.month.localeCompare(a.month) || a.locationName.localeCompare(b.locationName));
+
     return {
       revenueByLocation: Array.from(locationData.values()),
       revenueByMonth: monthlyArray,
+      revenueByMonthLocation: monthlyLocationArray,
       revenueByDay: dailyArray.slice(0, 31),
       todaysSales,
       topProducts: (topProductsQuery.rows as any[]).map(r => ({
@@ -508,6 +542,9 @@ ${businessContext.revenueByLocation.map(l => `- ${l.locationName}: $${l.totalRev
 MONTHLY TRENDS (Most Recent First - use this for "last month" questions):
 ${businessContext.revenueByMonth.slice(0, 12).map(m => `- ${m.month}: Revenue $${m.totalRevenue}, COGS $${m.totalCogs}, Gross Margin $${m.grossMargin}`).join('\n')}
 
+REVENUE BY LOCATION BY MONTH (Historical - use for "was X location profitable last month" type questions):
+${businessContext.revenueByMonthLocation.slice(0, 36).map(ml => `- ${ml.month} | ${ml.locationName}: $${ml.totalRevenue} (${ml.transactionCount} transactions, avg $${ml.avgSale})`).join('\n')}
+
 TOP PRODUCTS BY REVENUE:
 ${businessContext.topProducts.slice(0, 5).map(p => `- ${p.name}: $${p.revenue} (${p.quantity} units)`).join('\n')}
 
@@ -521,6 +558,7 @@ INVENTORY SUMMARY:
 
 Guidelines:
 - For "today's revenue/sales" questions, use the TODAY'S REAL-TIME SALES section - this is LIVE data from Clover
+- For "was X location profitable last month" or historical location questions, use the REVENUE BY LOCATION BY MONTH section
 - Keep responses conversational and natural (2-4 sentences for simple queries, more detail for complex analysis)
 - When mentioning numbers, provide context (e.g., "That's up 15% from last quarter")
 - If asked about forecasts, use trend data to make reasonable projections
