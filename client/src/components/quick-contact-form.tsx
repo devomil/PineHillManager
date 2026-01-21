@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -23,18 +23,30 @@ const SERVICE_OPTIONS = [
   { id: "quick_calls", label: "Quick Calls" },
 ];
 
-const PRACTITIONERS = [
-  { id: "lynley", name: "Lynley" },
-  { id: "leanne", name: "Leanne" },
-  { id: "jackie", name: "Jackie" },
-  { id: "carmen", name: "Carmen" },
-  { id: "becca", name: "Becca" },
-];
+const PRACTITIONER_NAMES = ["Lynley", "Leanne", "Jackie", "Carmen", "Becca", "Caitlin"];
 
 export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: employees = [] } = useQuery<any[]>({
+    queryKey: ['/api/employees'],
+    enabled: open,
+  });
+
+  const practitioners = useMemo(() => {
+    return employees
+      .filter((emp: any) => 
+        PRACTITIONER_NAMES.some(name => 
+          emp.firstName?.toLowerCase() === name.toLowerCase()
+        ) && emp.isActive
+      )
+      .map((emp: any) => ({
+        id: emp.id,
+        name: emp.firstName,
+      }));
+  }, [employees]);
 
   const [formData, setFormData] = useState({
     services: [] as string[],
@@ -305,8 +317,8 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
               <Users className="h-5 w-5" />
               Practitioner Claim
             </h3>
-            <div className="grid grid-cols-5 gap-4">
-              {PRACTITIONERS.map(practitioner => (
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+              {practitioners.length > 0 ? practitioners.map(practitioner => (
                 <div key={practitioner.id} className="flex items-center space-x-2">
                   <Checkbox
                     id={`practitioner-${practitioner.id}`}
@@ -317,7 +329,9 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                     {practitioner.name}
                   </Label>
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-muted-foreground col-span-full">Loading practitioners...</p>
+              )}
             </div>
           </div>
 
