@@ -57,7 +57,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -26280,14 +26280,24 @@ Important:
         return res.status(400).json({ message: 'Sync not configured' });
       }
 
+      // Only return items that have a BigCommerce mapping (exist in both systems)
       const items = await db.select({
         id: inventoryItems.id,
         sku: inventoryItems.sku,
         itemName: inventoryItems.itemName,
         quantityOnHand: inventoryItems.quantityOnHand,
         vendor: inventoryItems.vendor,
+        bigcommerceProductId: bigcommerceProductMappings.bigcommerceProductId,
+        bigcommerceProductName: bigcommerceProductMappings.productName,
       })
         .from(inventoryItems)
+        .innerJoin(
+          bigcommerceProductMappings,
+          and(
+            eq(inventoryItems.sku, bigcommerceProductMappings.sku),
+            eq(bigcommerceProductMappings.isActive, true)
+          )
+        )
         .where(and(
           eq(inventoryItems.cloverMerchantId, config.sourceMerchantId),
           eq(inventoryItems.isActive, true)
