@@ -3,6 +3,7 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { AI_VIDEO_PROVIDERS } from '../config/ai-video-providers';
 import { sanitizePromptForAI, enhancePromptForProvider } from './prompt-sanitizer';
+import { MotionControlConfig, mapToKlingMotion, buildVeoMotionPrompt } from '../../shared/config/motion-control';
 
 interface PiAPIGenerationResult {
   success: boolean;
@@ -21,6 +22,7 @@ interface PiAPIGenerationOptions {
   aspectRatio: '16:9' | '9:16' | '1:1';
   model: string;
   negativePrompt?: string;
+  motionControl?: MotionControlConfig;
 }
 
 interface ModelConfig {
@@ -167,6 +169,16 @@ class PiAPIVideoService {
   }
 
   private buildRequestBody(options: PiAPIGenerationOptions, modelConfig: ModelConfig): any {
+    const motionParams = options.motionControl ? mapToKlingMotion(options.motionControl) : {};
+    const motionPrompt = options.motionControl 
+      ? buildVeoMotionPrompt(options.prompt, options.motionControl)
+      : options.prompt;
+    
+    if (options.motionControl) {
+      console.log(`[PiAPI T2V] Motion control: ${options.motionControl.camera_movement} @ ${options.motionControl.intensity}`);
+      console.log(`[PiAPI T2V] Motion rationale: ${options.motionControl.rationale}`);
+    }
+    
     const baseRequest = {
       model: modelConfig.modelId,
       task_type: 'text_to_video',
@@ -191,6 +203,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'std',
             version: '1.6',
+            ...motionParams,
           },
         };
       
@@ -205,6 +218,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'std',
             version: '2.0',
+            ...motionParams,
           },
         };
         
@@ -219,6 +233,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'std',
             version: '2.1',
+            ...motionParams,
           },
         };
         
@@ -232,6 +247,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'pro',
             version: '2.1',
+            ...motionParams,
           },
         };
         
@@ -246,6 +262,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'std',
             version: '2.5',
+            ...motionParams,
           },
         };
         
@@ -259,6 +276,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'turbo',
             version: '2.5',
+            ...motionParams,
           },
         };
         
@@ -273,6 +291,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'std',
             version: '2.6',
+            ...motionParams,
           },
         };
         
@@ -286,6 +305,7 @@ class PiAPIVideoService {
             ...baseRequest.input,
             mode: 'pro',
             version: '2.6',
+            ...motionParams,
           },
         };
         
@@ -393,13 +413,13 @@ class PiAPIVideoService {
       // Veo 3.1 (Google) - needs veo3.1 model with dot
       case 'veo-3.1':
       case 'veo3.1':
-        console.log(`[PiAPI T2V] Using Veo 3.1`);
+        console.log(`[PiAPI T2V] Using Veo 3.1 with motion-enhanced prompt`);
         return {
           ...baseRequest,
           model: 'veo3.1',
           task_type: 'veo3.1-video',
           input: {
-            prompt: baseRequest.input.prompt,
+            prompt: motionPrompt,
             negative_prompt: baseRequest.input.negative_prompt,
             aspect_ratio: baseRequest.input.aspect_ratio,
             duration: `${Math.min(baseRequest.input.duration, 8)}s`,
@@ -412,13 +432,13 @@ class PiAPIVideoService {
       case 'veo':
       case 'veo-3':
       case 'veo3':
-        console.log(`[PiAPI T2V] Using Veo 3`);
+        console.log(`[PiAPI T2V] Using Veo 3 with motion-enhanced prompt`);
         return {
           ...baseRequest,
           model: 'veo3',
           task_type: 'veo3-video',
           input: {
-            prompt: baseRequest.input.prompt,
+            prompt: motionPrompt,
             negative_prompt: baseRequest.input.negative_prompt,
             aspect_ratio: baseRequest.input.aspect_ratio,
             duration: `${Math.min(baseRequest.input.duration, 8)}s`,
@@ -429,13 +449,13 @@ class PiAPIVideoService {
         
       case 'veo-2':
       case 'veo2':
-        console.log(`[PiAPI T2V] Using Veo 2`);
+        console.log(`[PiAPI T2V] Using Veo 2 with motion-enhanced prompt`);
         return {
           ...baseRequest,
           model: 'veo2',
           task_type: 'veo2-video',
           input: {
-            prompt: baseRequest.input.prompt,
+            prompt: motionPrompt,
             negative_prompt: baseRequest.input.negative_prompt,
             aspect_ratio: baseRequest.input.aspect_ratio,
             duration: `${Math.min(baseRequest.input.duration, 8)}s`,
