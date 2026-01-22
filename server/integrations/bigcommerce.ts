@@ -579,6 +579,34 @@ export class BigCommerceIntegration {
   // ===========================================
 
   /**
+   * Get all variants for a product (needed for inventory tracking)
+   */
+  async getProductVariants(productId: number): Promise<Array<{ id: number; sku: string; inventory_level: number }>> {
+    if (!this.storeHash || !this.accessToken) {
+      throw new Error('BigCommerce API credentials not configured');
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/catalog/products/${productId}/variants`, {
+        headers: {
+          'X-Auth-Token': this.accessToken,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`BigCommerce API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.error(`Error fetching variants for product ${productId}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Update product inventory level
    */
   async updateProductInventory(productId: number, inventoryLevel: number): Promise<void> {

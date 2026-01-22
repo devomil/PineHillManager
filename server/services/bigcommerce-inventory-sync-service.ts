@@ -122,12 +122,23 @@ export class BigCommerceInventorySyncService {
         continue;
       }
 
+      // Get the first variant for this product (BigCommerce tracks inventory on variants)
+      const variants = await this.bigcommerce.getProductVariants(product.id);
+      const defaultVariant = variants.length > 0 ? variants[0] : null;
+
       await this.addProductMapping({
         sku: product.sku,
         bigcommerceProductId: product.id,
+        bigcommerceVariantId: defaultVariant?.id,
         productName: product.name,
       });
       imported++;
+      
+      if (defaultVariant) {
+        console.log(`📦 [BC Sync] Mapped: ${product.sku} → Product ${product.id}, Variant ${defaultVariant.id}`);
+      } else {
+        console.log(`📦 [BC Sync] Mapped: ${product.sku} → Product ${product.id} (no variant found)`);
+      }
     }
 
     console.log(`✅ [BC Sync] Imported ${imported} mappings, skipped ${skipped} (no SKU)`);
