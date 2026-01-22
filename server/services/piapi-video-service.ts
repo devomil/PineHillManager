@@ -628,6 +628,7 @@ class PiAPIVideoService {
       animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
       motionStrength?: number;
     };
+    motionControl?: MotionControlConfig;
   }): Promise<PiAPIGenerationResult> {
     if (!this.isAvailable()) {
       return { success: false, error: 'PiAPI key not configured' };
@@ -738,6 +739,7 @@ class PiAPIVideoService {
       animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
       motionStrength?: number;
     };
+    motionControl?: MotionControlConfig;
   }, sanitizedPrompt: string): any {
     const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
     
@@ -746,7 +748,7 @@ class PiAPIVideoService {
     // These providers work best with natural, unmodified prompts
     // ===========================================
     
-    // Veo Family (Google) - sends prompt AS-IS
+    // Veo Family (Google) - uses motion-enhanced prompts
     // IMPORTANT: PiAPI uses specific model/task_type combinations:
     // - Veo 3.1: model='veo3.1', task_type='veo3.1-video' (WITH dot)
     // - Veo 3: model='veo3', task_type='veo3-video'
@@ -773,17 +775,26 @@ class PiAPIVideoService {
         console.log(`[PiAPI I2V] Using Veo 3: model=${veoModel}, task_type=${taskType}`);
       }
       
+      // Build motion-enhanced prompt for Veo (Phase 16 integration)
+      const motionPrompt = options.motionControl 
+        ? buildVeoMotionPrompt(sanitizedPrompt, options.motionControl)
+        : sanitizedPrompt;
+      
+      if (options.motionControl) {
+        console.log(`[PiAPI I2V] Motion control: ${options.motionControl.camera_movement} @ ${options.motionControl.intensity}`);
+      }
+      
       console.log(`[PiAPI I2V] Veo ${veoModel}: Matching PiAPI Workspace parameters`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
       console.log(`[PiAPI I2V] resolution=720p, generate_audio=true`);
       console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
-      console.log(`[PiAPI I2V] Prompt (ORIGINAL, unsanitized): ${sanitizedPrompt}`);
+      console.log(`[PiAPI I2V] Prompt (motion-enhanced): ${motionPrompt}`);
       
       return {
         model: veoModel,
         task_type: taskType,
         input: {
-          prompt: sanitizedPrompt,  // Now this is ORIGINAL (unsanitized)
+          prompt: motionPrompt,  // Motion-enhanced prompt for Veo
           image_url: options.imageUrl,
           aspect_ratio: options.aspectRatio || '16:9',
           duration: `${Math.min(options.duration, 8)}s`,
@@ -1072,6 +1083,12 @@ class PiAPIVideoService {
       
       // For Kling I2V: use both image_url AND first_frame_image for compatibility
       // Also use elements array for Kling 1.6+ which prefers that format
+      // Include camera_control from intelligent motion control system (Phase 16)
+      const motionParams = options.motionControl ? mapToKlingMotion(options.motionControl) : {};
+      if (options.motionControl) {
+        console.log(`[PiAPI I2V] Motion control: ${options.motionControl.camera_movement} @ ${options.motionControl.intensity}`);
+      }
+      
       return {
         model: 'kling',
         task_type: 'video_generation',
@@ -1087,6 +1104,7 @@ class PiAPIVideoService {
           cfg_scale: cfgScale,
           // Elements array is preferred for Kling 1.6+
           elements: [{ image_url: options.imageUrl }],
+          ...motionParams, // Apply camera_control from Phase 16 motion system
         },
       };
     }

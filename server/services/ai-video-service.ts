@@ -10,6 +10,7 @@ import {
   getConfiguredProviders 
 } from '../config/ai-video-providers';
 import { getVisualStyleConfig, VisualStyleConfig } from '@shared/visual-style-config';
+import { getMotionControl, MotionControlConfig } from '@shared/config/motion-control';
 
 interface AIVideoResult {
   success: boolean;
@@ -42,6 +43,7 @@ interface AIVideoOptions {
   imageUrl?: string;
   qualityTier?: 'ultra' | 'premium' | 'standard';
   i2vSettings?: I2VSettingsInput; // I2V-specific settings from UI
+  motionOverride?: MotionControlConfig; // Manual motion control override from UI
 }
 
 // Maps base provider + quality tier to the appropriate versioned provider
@@ -265,6 +267,16 @@ class AIVideoService {
       return { success: false, error: 'PiAPI not configured' };
     }
     
+    // Calculate intelligent motion control for this scene (Phase 16)
+    // getMotionControl(sceneType, visualDirection, overrideConfig)
+    const motionControl = options.motionOverride || getMotionControl(
+      options.sceneType,
+      options.prompt, // Use prompt as visual direction for content analysis
+    );
+    
+    console.log(`[AIVideo] Motion control: ${motionControl.camera_movement} @ ${motionControl.intensity}`);
+    console.log(`[AIVideo] Motion rationale: ${motionControl.rationale}`);
+    
     // If imageUrl provided, use I2V (image-to-video) instead of T2V (text-to-video)
     if (options.imageUrl) {
       console.log(`[AIVideo] Using I2V for ${providerKey} with source image: ${options.imageUrl.substring(0, 50)}...`);
@@ -279,6 +291,7 @@ class AIVideoService {
         model: providerKey,
         negativePrompt: options.negativePrompt,
         i2vSettings: options.i2vSettings, // Pass I2V settings to provider
+        motionControl, // Pass motion control for I2V
       });
       
       return {
@@ -292,13 +305,14 @@ class AIVideoService {
       };
     }
     
-    // Standard T2V generation
+    // Standard T2V generation with intelligent motion control
     const result = await piapiVideoService.generateVideo({
       prompt: options.prompt,
       duration: options.duration,
       aspectRatio: options.aspectRatio,
       model: providerKey,
       negativePrompt: options.negativePrompt,
+      motionControl, // Pass motion control for T2V
     });
     
     return {
