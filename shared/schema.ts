@@ -6135,3 +6135,74 @@ export const updatePractitionerContactSchema = z.object({
 export type PractitionerContact = typeof practitionerContacts.$inferSelect;
 export type InsertPractitionerContact = z.infer<typeof insertPractitionerContactSchema>;
 export type UpdatePractitionerContact = z.infer<typeof updatePractitionerContactSchema>;
+
+// BigCommerce Product Mapping - Maps Clover inventory items to BigCommerce products
+export const bigcommerceProductMappings = pgTable("bigcommerce_product_mappings", {
+  id: serial("id").primaryKey(),
+  inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
+  sku: varchar("sku").notNull(),
+  bigcommerceProductId: integer("bigcommerce_product_id").notNull(),
+  bigcommerceVariantId: integer("bigcommerce_variant_id"),
+  productName: varchar("product_name"),
+  isActive: boolean("is_active").default(true),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  skuIdx: index("idx_bc_mapping_sku").on(table.sku),
+  bcProductIdx: index("idx_bc_mapping_bc_product").on(table.bigcommerceProductId),
+  inventoryItemIdx: index("idx_bc_mapping_inventory_item").on(table.inventoryItemId),
+  skuUnique: unique("idx_bc_mapping_sku_unique").on(table.sku),
+}));
+
+export const insertBigcommerceProductMappingSchema = createInsertSchema(bigcommerceProductMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BigcommerceProductMapping = typeof bigcommerceProductMappings.$inferSelect;
+export type InsertBigcommerceProductMapping = z.infer<typeof insertBigcommerceProductMappingSchema>;
+
+// BigCommerce Inventory Sync Config - Configuration for scheduled inventory syncs
+export const bigcommerceInventorySyncConfig = pgTable("bigcommerce_inventory_sync_config", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull().default("Watertown → BigCommerce Sync"),
+  sourceMerchantId: varchar("source_merchant_id").notNull(), // Clover merchant ID
+  sourceLocationName: varchar("source_location_name").notNull().default("Watertown Retail"),
+  channelId: integer("channel_id").references(() => marketplaceChannels.id),
+  
+  // Sync rules
+  percentageAllocation: integer("percentage_allocation").notNull().default(80), // 80% of stock sent to BigCommerce
+  minimumStock: integer("minimum_stock").default(0), // Don't list if stock below this
+  
+  // Scheduling
+  syncEnabled: boolean("sync_enabled").default(false),
+  syncSchedule: varchar("sync_schedule").default("0 20 * * *"), // Cron: 8 PM daily
+  syncTimeLocal: varchar("sync_time_local").default("20:00"), // Human readable time
+  timezone: varchar("timezone").default("America/Chicago"),
+  
+  // Alert settings
+  alertOnFailure: boolean("alert_on_failure").default(true),
+  alertEmail: varchar("alert_email"),
+  alertInApp: boolean("alert_in_app").default(true),
+  
+  // Status
+  lastSyncAt: timestamp("last_sync_at"),
+  lastSyncStatus: varchar("last_sync_status"), // success, failed, partial
+  lastSyncJobId: integer("last_sync_job_id").references(() => marketplaceSyncJobs.id),
+  nextScheduledSync: timestamp("next_scheduled_sync"),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertBigcommerceInventorySyncConfigSchema = createInsertSchema(bigcommerceInventorySyncConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BigcommerceInventorySyncConfig = typeof bigcommerceInventorySyncConfig.$inferSelect;
+export type InsertBigcommerceInventorySyncConfig = z.infer<typeof insertBigcommerceInventorySyncConfigSchema>;

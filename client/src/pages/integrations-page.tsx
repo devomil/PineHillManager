@@ -24,8 +24,17 @@ import {
   ArrowLeft,
   Database,
   BarChart3,
-  MapPin
+  MapPin,
+  Store,
+  History,
+  Play,
+  AlertTriangle,
+  TestTube
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface IntegrationStatus {
   name: string;
@@ -42,6 +51,419 @@ interface CloverConfig {
   apiToken: string;
   isActive: boolean;
 }
+
+interface BigCommerceSyncConfig {
+  id: number;
+  syncEnabled: boolean;
+  syncTimeLocal: string;
+  percentageAllocation: number;
+  alertEmail: string | null;
+  alertOnFailure: boolean;
+  alertInApp: boolean;
+  sourceMerchantId: string;
+  sourceLocationName: string;
+  lastSyncAt: string | null;
+  timezone: string;
+}
+
+interface SyncHistoryEntry {
+  id: number;
+  status: string;
+  processedItems: number;
+  successCount: number;
+  errorCount: number;
+  errorLog: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  triggeredBy: string;
+}
+
+interface InventoryItem {
+  id: number;
+  sku: string | null;
+  itemName: string;
+  quantityOnHand: number | null;
+  vendor: string | null;
+}
+
+const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) => {
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  
+  const { data: syncConfig, isLoading: configLoading, refetch: refetchConfig } = useQuery<BigCommerceSyncConfig>({
+    queryKey: ['/api/admin/bigcommerce-sync/config'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/bigcommerce-sync/config', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch config');
+      return response.json();
+    }
+  });
+
+  const { data: syncHistory = [], isLoading: historyLoading } = useQuery<SyncHistoryEntry[]>({
+    queryKey: ['/api/admin/bigcommerce-sync/history'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/bigcommerce-sync/history?limit=10', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch history');
+      return response.json();
+    }
+  });
+
+  const { data: inventoryItems = [], isLoading: itemsLoading } = useQuery<InventoryItem[]>({
+    queryKey: ['/api/admin/bigcommerce-sync/inventory-items'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/bigcommerce-sync/inventory-items', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch inventory');
+      return response.json();
+    },
+    enabled: !!syncConfig
+  });
+
+  const updateConfigMutation = useMutation({
+    mutationFn: async (updates: Partial<BigCommerceSyncConfig>) => {
+      const response = await apiRequest('PUT', '/api/admin/bigcommerce-sync/config', updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Configuration updated' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/bigcommerce-sync/config'] });
+    },
+    onError: (error) => {
+      toast({ title: 'Failed to update configuration', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  const runSyncMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/admin/bigcommerce-sync/run');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.status === 'completed' ? 'Sync completed' : 'Sync completed with issues',
+        description: `Processed: ${data.processedItems}, Updated: ${data.successCount}, Failed: ${data.errorCount}`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/bigcommerce-sync/history'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/bigcommerce-sync/config'] });
+    },
+    onError: (error) => {
+      toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  const testSyncMutation = useMutation({
+    mutationFn: async (itemIds: number[]) => {
+      const response = await apiRequest('POST', '/api/admin/bigcommerce-sync/test', { itemIds });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Test sync completed',
+        description: `Processed: ${data.processedItems}, Updated: ${data.successCount}, Failed: ${data.errorCount}`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/bigcommerce-sync/history'] });
+      setSelectedItems([]);
+    },
+    onError: (error) => {
+      toast({ title: 'Test sync failed', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  const importMappingsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/admin/bigcommerce-sync/import-mappings');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: 'Mappings imported', description: `Imported ${data.imported} product mappings from BigCommerce` });
+    },
+    onError: (error) => {
+      toast({ title: 'Import failed', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  const toggleItemSelection = (itemId: number) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : prev.length < 10 
+          ? [...prev, itemId]
+          : prev
+    );
+  };
+
+  if (configLoading) {
+    return (
+      <TabsContent value="bigcommerce" className="space-y-6">
+        <div className="flex items-center justify-center p-8">
+          <RefreshCw className="h-6 w-6 animate-spin" />
+          <span className="ml-2">Loading configuration...</span>
+        </div>
+      </TabsContent>
+    );
+  }
+
+  return (
+    <TabsContent value="bigcommerce" className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Store className="h-5 w-5" />
+            BigCommerce Inventory Sync
+          </CardTitle>
+          <CardDescription>
+            Automatically sync inventory from Clover (Watertown) to BigCommerce at 80% allocation
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+            <div>
+              <p className="font-medium">Sync Status</p>
+              <p className="text-sm text-gray-600">
+                Source: {syncConfig?.sourceLocationName || 'Watertown Retail'}
+              </p>
+              {syncConfig?.lastSyncAt && (
+                <p className="text-xs text-gray-500">
+                  Last sync: {new Date(syncConfig.lastSyncAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={syncConfig?.syncEnabled || false}
+                  onCheckedChange={(checked) => updateConfigMutation.mutate({ syncEnabled: checked })}
+                />
+                <span className="text-sm">{syncConfig?.syncEnabled ? 'Enabled' : 'Disabled'}</span>
+              </div>
+              <Badge variant={syncConfig?.syncEnabled ? 'default' : 'secondary'}>
+                {syncConfig?.syncEnabled ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-dashed">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Sync Schedule</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={syncConfig?.syncTimeLocal?.split(':')[0] || '20'}
+                  onValueChange={(value) => updateConfigMutation.mutate({ syncTimeLocal: `${value}:00` })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-2">Daily sync time</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-dashed">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Allocation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{syncConfig?.percentageAllocation || 80}%</div>
+                <p className="text-xs text-gray-500">
+                  Qty 10 → {Math.floor(10 * (syncConfig?.percentageAllocation || 80) / 100)} to BigCommerce
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-dashed">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Alert Email</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={syncConfig?.alertEmail || ''}
+                  onChange={(e) => updateConfigMutation.mutate({ alertEmail: e.target.value })}
+                  className="text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-2">Failure notifications</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={() => runSyncMutation.mutate()}
+              disabled={runSyncMutation.isPending || !syncConfig?.syncEnabled}
+            >
+              {runSyncMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+              <Play className="h-4 w-4 mr-2" />
+              Run Full Sync Now
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => importMappingsMutation.mutate()}
+              disabled={importMappingsMutation.isPending}
+            >
+              {importMappingsMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+              Import Product Mappings
+            </Button>
+          </div>
+
+          {!syncConfig?.syncEnabled && (
+            <Alert>
+              <TestTube className="h-4 w-4" />
+              <AlertTitle>Test Mode</AlertTitle>
+              <AlertDescription>
+                Sync is disabled. Select up to 10 items below to test the sync before enabling full automation.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TestTube className="h-5 w-5" />
+            Test Sync
+          </CardTitle>
+          <CardDescription>
+            Select 1-10 inventory items to test the sync functionality before enabling automation
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {itemsLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="ml-2">Loading items...</span>
+            </div>
+          ) : (
+            <>
+              <div className="max-h-64 overflow-y-auto border rounded">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Item Name</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Qty</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Allocated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inventoryItems.slice(0, 50).map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedItems.includes(item.id)}
+                            onCheckedChange={() => toggleItemSelection(item.id)}
+                            disabled={!selectedItems.includes(item.id) && selectedItems.length >= 10}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">{item.itemName}</TableCell>
+                        <TableCell className="text-xs text-gray-500">{item.sku || '-'}</TableCell>
+                        <TableCell>{item.quantityOnHand || 0}</TableCell>
+                        <TableCell className="text-xs">{item.vendor || '-'}</TableCell>
+                        <TableCell className="text-green-600 font-medium">
+                          {Math.floor((item.quantityOnHand || 0) * (syncConfig?.percentageAllocation || 80) / 100)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-sm text-gray-600">
+                  {selectedItems.length} of 10 items selected
+                </span>
+                <Button
+                  onClick={() => testSyncMutation.mutate(selectedItems)}
+                  disabled={testSyncMutation.isPending || selectedItems.length === 0}
+                  variant="secondary"
+                >
+                  {testSyncMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                  <TestTube className="h-4 w-4 mr-2" />
+                  Run Test Sync ({selectedItems.length} items)
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Sync History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {historyLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            </div>
+          ) : syncHistory.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">No sync history yet</p>
+          ) : (
+            <div className="space-y-2">
+              {syncHistory.map((entry) => (
+                <div key={entry.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    {entry.status === 'completed' ? (
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                    ) : entry.status === 'failed' ? (
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    ) : entry.status === 'partial' ? (
+                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-blue-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">
+                        {new Date(entry.startedAt).toLocaleDateString()} {new Date(entry.startedAt).toLocaleTimeString()}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {entry.triggeredBy === 'scheduled' ? 'Scheduled' : 
+                         entry.triggeredBy === 'test' ? 'Test' : 'Manual'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-gray-600">Processed: {entry.processedItems}</span>
+                    <span className="text-green-600">Updated: {entry.successCount}</span>
+                    {entry.errorCount > 0 && (
+                      <span className="text-red-600">Failed: {entry.errorCount}</span>
+                    )}
+                    <Badge variant={entry.status === 'completed' ? 'default' : entry.status === 'failed' ? 'destructive' : 'secondary'}>
+                      {entry.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Alert>
+        <AlertDescription>
+          <strong>How it works:</strong> This sync pulls inventory from Clover (Watertown Retail location) and updates 
+          BigCommerce with {syncConfig?.percentageAllocation || 80}% of the quantity (e.g., qty 10 → {Math.floor(10 * (syncConfig?.percentageAllocation || 80) / 100)} allocated to BigCommerce). 
+          Syncs run daily at {(() => {
+            const hour = parseInt(syncConfig?.syncTimeLocal?.split(':')[0] || '20');
+            return hour === 0 ? '12:00 AM' : hour < 12 ? `${hour}:00 AM` : hour === 12 ? '12:00 PM' : `${hour - 12}:00 PM`;
+          })()} and match products by SKU.
+        </AlertDescription>
+      </Alert>
+    </TabsContent>
+  );
+};
 
 const IntegrationsPage = () => {
   const { toast } = useToast();
@@ -538,10 +960,11 @@ const IntegrationsPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="quickbooks">QuickBooks</TabsTrigger>
           <TabsTrigger value="clover">Clover POS</TabsTrigger>
+          <TabsTrigger value="bigcommerce">BigCommerce</TabsTrigger>
           <TabsTrigger value="hsa">HSA Provider</TabsTrigger>
           <TabsTrigger value="thrive">Thrive</TabsTrigger>
         </TabsList>
@@ -938,6 +1361,8 @@ const IntegrationsPage = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <BigCommerceSyncTab toast={toast} />
 
         <TabsContent value="hsa" className="space-y-6">
           <Card>

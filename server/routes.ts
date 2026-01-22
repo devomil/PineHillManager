@@ -26147,6 +26147,164 @@ Important:
   });
 
   // ================================
+  // ================================
+  // BIGCOMMERCE INVENTORY SYNC API
+  // ================================
+  
+  const { bigcommerceInventorySyncService } = await import('./services/bigcommerce-inventory-sync-service');
+
+  app.get('/api/admin/bigcommerce-sync/config', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      let config = await bigcommerceInventorySyncService.getSyncConfig();
+      if (!config) {
+        config = await bigcommerceInventorySyncService.createDefaultConfig(user.id);
+      }
+
+      res.json(config);
+    } catch (error) {
+      console.error('Error fetching BigCommerce sync config:', error);
+      res.status(500).json({ message: 'Failed to fetch sync configuration' });
+    }
+  });
+
+  app.put('/api/admin/bigcommerce-sync/config', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const config = await bigcommerceInventorySyncService.updateConfig(req.body);
+      res.json(config);
+    } catch (error) {
+      console.error('Error updating BigCommerce sync config:', error);
+      res.status(500).json({ message: 'Failed to update sync configuration' });
+    }
+  });
+
+  app.get('/api/admin/bigcommerce-sync/history', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 20;
+      const history = await bigcommerceInventorySyncService.getSyncHistory(limit);
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching sync history:', error);
+      res.status(500).json({ message: 'Failed to fetch sync history' });
+    }
+  });
+
+  app.get('/api/admin/bigcommerce-sync/mappings', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      const mappings = await bigcommerceInventorySyncService.getProductMappings();
+      res.json(mappings);
+    } catch (error) {
+      console.error('Error fetching product mappings:', error);
+      res.status(500).json({ message: 'Failed to fetch product mappings' });
+    }
+  });
+
+  app.post('/api/admin/bigcommerce-sync/import-mappings', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const result = await bigcommerceInventorySyncService.importMappingsFromBigCommerce();
+      res.json(result);
+    } catch (error) {
+      console.error('Error importing mappings:', error);
+      res.status(500).json({ message: 'Failed to import product mappings from BigCommerce' });
+    }
+  });
+
+  app.post('/api/admin/bigcommerce-sync/test', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const { itemIds } = req.body;
+      if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0 || itemIds.length > 10) {
+        return res.status(400).json({ message: 'Please provide 1-10 item IDs to test' });
+      }
+
+      const result = await bigcommerceInventorySyncService.performSync(user.id, itemIds);
+      res.json(result);
+    } catch (error) {
+      console.error('Error performing test sync:', error);
+      res.status(500).json({ message: 'Test sync failed', error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post('/api/admin/bigcommerce-sync/run', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const result = await bigcommerceInventorySyncService.performSync(user.id);
+      res.json(result);
+    } catch (error) {
+      console.error('Error performing sync:', error);
+      res.status(500).json({ message: 'Sync failed', error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get('/api/admin/bigcommerce-sync/inventory-items', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      const config = await bigcommerceInventorySyncService.getSyncConfig();
+      if (!config) {
+        return res.status(400).json({ message: 'Sync not configured' });
+      }
+
+      const items = await db.select({
+        id: inventoryItems.id,
+        sku: inventoryItems.sku,
+        itemName: inventoryItems.itemName,
+        quantityOnHand: inventoryItems.quantityOnHand,
+        vendor: inventoryItems.vendor,
+      })
+        .from(inventoryItems)
+        .where(and(
+          eq(inventoryItems.cloverMerchantId, config.sourceMerchantId),
+          eq(inventoryItems.isActive, true)
+        ))
+        .limit(100);
+
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory items' });
+    }
+  });
+
+  // Start BigCommerce sync scheduler
+  bigcommerceInventorySyncService.startScheduledSync();
+  console.log('📦 BigCommerce inventory sync scheduler initialized');
+
   // SCHEDULED PAYMENT PROCESSOR
   // ================================
   // Process scheduled payments that have reached their charge date
