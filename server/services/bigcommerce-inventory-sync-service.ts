@@ -117,27 +117,54 @@ export class BigCommerceInventorySyncService {
     let skipped = 0;
 
     for (const product of products) {
-      if (!product.sku) {
-        skipped++;
-        continue;
-      }
-
-      // Get the first variant for this product (BigCommerce tracks inventory on variants)
+      // Get all variants for this product (BigCommerce tracks inventory on variants)
       const variants = await this.bigcommerce.getProductVariants(product.id);
-      const defaultVariant = variants.length > 0 ? variants[0] : null;
-
-      await this.addProductMapping({
-        sku: product.sku,
-        bigcommerceProductId: product.id,
-        bigcommerceVariantId: defaultVariant?.id,
-        productName: product.name,
-      });
-      imported++;
       
-      if (defaultVariant) {
-        console.log(`📦 [BC Sync] Mapped: ${product.sku} → Product ${product.id}, Variant ${defaultVariant.id}`);
+      if (variants.length === 0) {
+        // No variants - use product-level SKU if available
+        if (product.sku) {
+          await this.addProductMapping({
+            sku: product.sku,
+            bigcommerceProductId: product.id,
+            productName: product.name,
+          });
+          imported++;
+          console.log(`📦 [BC Sync] Mapped: ${product.sku} → Product ${product.id} (no variants)`);
+        } else {
+          skipped++;
+        }
+      } else if (variants.length === 1) {
+        // Single variant - use variant SKU if available, fallback to product SKU
+        const variant = variants[0];
+        const sku = variant.sku || product.sku;
+        if (sku) {
+          await this.addProductMapping({
+            sku: sku,
+            bigcommerceProductId: product.id,
+            bigcommerceVariantId: variant.id,
+            productName: product.name,
+          });
+          imported++;
+          console.log(`📦 [BC Sync] Mapped: ${sku} → Product ${product.id}, Variant ${variant.id}`);
+        } else {
+          skipped++;
+        }
       } else {
-        console.log(`📦 [BC Sync] Mapped: ${product.sku} → Product ${product.id} (no variant found)`);
+        // Multiple variants - import EACH variant with its own SKU
+        for (const variant of variants) {
+          if (variant.sku) {
+            await this.addProductMapping({
+              sku: variant.sku,
+              bigcommerceProductId: product.id,
+              bigcommerceVariantId: variant.id,
+              productName: `${product.name} (${variant.sku})`,
+            });
+            imported++;
+            console.log(`📦 [BC Sync] Mapped variant: ${variant.sku} → Product ${product.id}, Variant ${variant.id}`);
+          } else {
+            skipped++;
+          }
+        }
       }
     }
 
