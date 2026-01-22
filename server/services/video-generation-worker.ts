@@ -17,6 +17,11 @@ interface I2VSettings {
   motionStrength?: number; // 0-1: how much motion/animation
 }
 
+interface MotionControlOverride {
+  camera_movement: string;
+  intensity: number;
+}
+
 interface VideoGenerationRequest {
   projectId: string;
   sceneId: string;
@@ -30,6 +35,8 @@ interface VideoGenerationRequest {
   triggeredBy?: string;
   sourceImageUrl?: string; // For I2V: matched brand asset product photo URL
   i2vSettings?: I2VSettings; // I2V-specific settings from UI
+  motionControl?: MotionControlOverride; // Phase 16: motion control override from UI
+  sceneType?: string; // For intelligent motion control when no override
 }
 
 type JobUpdateCallback = (job: VideoGenerationJob) => void;
@@ -87,6 +94,8 @@ class VideoGenerationWorker {
       maxRetries: 3,
       sourceImageUrl: request.sourceImageUrl || null,
       i2vSettings: request.i2vSettings || null,
+      motionControl: request.motionControl || null,
+      sceneType: request.sceneType || null,
     });
 
     log.debug(` Job ${jobId} created successfully`);
@@ -218,6 +227,8 @@ class VideoGenerationWorker {
 
         const hasSourceImage = !!job.sourceImageUrl;
         const jobI2vSettings = job.i2vSettings as I2VSettings | null;
+        const jobMotionControl = job.motionControl as MotionControlOverride | null;
+        
         if (hasSourceImage) {
           log.debug(
             ` Job ${job.jobId} using I2V with source image: ${job.sourceImageUrl?.substring(0, 50)}...`,
@@ -228,17 +239,31 @@ class VideoGenerationWorker {
             );
           }
         }
+        
+        if (jobMotionControl) {
+          log.debug(
+            ` Motion control override: ${jobMotionControl.camera_movement} @ ${jobMotionControl.intensity}`,
+          );
+        } else if (job.sceneType) {
+          log.debug(` Using intelligent motion control for scene type: ${job.sceneType}`);
+        }
 
         const result = await aiVideoService.generateVideo({
           prompt: job.prompt || "",
           duration: job.duration || 6,
           aspectRatio,
-          sceneType: "hook",
+          sceneType: job.sceneType || "hook",
           preferredProvider: provider,
           negativePrompt: job.negativePrompt || undefined,
           visualStyle: job.style || "professional",
           imageUrl: job.sourceImageUrl || undefined, // For I2V: pass the matched brand asset image
           i2vSettings: jobI2vSettings || undefined, // I2V-specific settings from UI
+          motionOverride: jobMotionControl ? {
+            camera_movement: jobMotionControl.camera_movement as any,
+            intensity: jobMotionControl.intensity,
+            description: `User override: ${jobMotionControl.camera_movement}`,
+            rationale: 'User selected via Motion Control UI',
+          } : undefined, // Phase 16: motion control override from UI
         });
 
         // Log which provider actually fulfilled the request

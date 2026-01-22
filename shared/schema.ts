@@ -5573,6 +5573,8 @@ export const videoGenerationJobs = pgTable("video_generation_jobs", {
   style: varchar("style", { length: 50 }),
   sourceImageUrl: text("source_image_url"), // For I2V: matched brand asset product photo URL
   i2vSettings: jsonb("i2v_settings"), // I2V-specific settings: { imageControlStrength, animationStyle, motionStrength }
+  motionControl: jsonb("motion_control"), // Phase 16: motion control override { camera_movement, intensity }
+  sceneType: varchar("scene_type", { length: 50 }), // For intelligent motion control when no override
   
   // Output
   videoUrl: text("video_url"),

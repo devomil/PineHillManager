@@ -37,6 +37,7 @@ import { ReferenceImageSection, RegenerationOptions, RegenerationHistoryPanel } 
 import { WorkflowPathIndicator, WorkflowPathBadge } from "./workflow-path-indicator";
 import { BrandAssetPreviewPanel, BrandAssetSummary } from "./brand-asset-preview-panel";
 import { I2VSettingsPanel, I2VSettings, defaultI2VSettings } from "./i2v-settings-panel";
+import { MotionControlSelector, MotionControlSettings, defaultMotionSettings } from "./motion-control-selector";
 import type { WorkflowDecision, WorkflowStepExecution } from "@shared/types/brand-workflow-types";
 import type { AnimationSettings, ReferenceConfig, RegenerateOptions, PromptComplexityAnalysis } from "@shared/video-types";
 import { 
@@ -1394,6 +1395,7 @@ function ScenePreview({
   const [overlaysExpanded, setOverlaysExpanded] = useState<Record<string, boolean>>({});
   const [selectedProductAsset, setSelectedProductAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
   const [i2vSettings, setI2vSettings] = useState<Record<string, I2VSettings>>({});
+  const [motionSettings, setMotionSettings] = useState<Record<string, MotionControlSettings>>({});
   const [localSceneQualityTier, setLocalSceneQualityTier] = useState<Record<string, 'ultra' | 'premium' | 'standard' | null>>({});
   const [workflowAnalysis, setWorkflowAnalysis] = useState<Record<string, {
     decision: WorkflowDecision;
@@ -1961,6 +1963,7 @@ function ScenePreview({
     
     // Get I2V settings for this scene (if sourceImageUrl provided, it's an I2V request)
     const sceneI2vSettings = sourceImageUrl ? (i2vSettings[sceneId] || defaultI2VSettings) : undefined;
+    const sceneMotionSettings = motionSettings[sceneId] || defaultMotionSettings;
     
     const body = { 
       query: customPrompt[sceneId] || undefined,
@@ -1971,6 +1974,10 @@ function ScenePreview({
         animationStyle: sceneI2vSettings.animationStyle,
         motionStrength: sceneI2vSettings.motionStrength / 100, // Convert to 0-1
       } : undefined,
+      motionControl: sceneMotionSettings.cameraMovement !== 'auto' ? {
+        camera_movement: sceneMotionSettings.cameraMovement,
+        intensity: sceneMotionSettings.intensity / 100, // Convert to 0-1
+      } : undefined, // undefined means use intelligent auto-detection
     };
     console.log('[regenerateVideo] About to fetch:', url, 'with body:', JSON.stringify(body));
     try {
@@ -2997,6 +3004,17 @@ function ScenePreview({
                         compact
                       />
                     )}
+                    
+                    {/* Motion Control Selector - Phase 16 intelligent camera movement */}
+                    <MotionControlSelector
+                      settings={motionSettings[scene.id] || defaultMotionSettings}
+                      onChange={(newSettings) => {
+                        setMotionSettings(prev => ({ ...prev, [scene.id]: newSettings }));
+                      }}
+                      sceneType={scene.type}
+                      disabled={!!regenerating}
+                      compact
+                    />
                     
                     {/* DEPRECATED: Phase 13D Reference Image Section - replaced by Matched Brand Assets for I2V */}
                     {/* Use the "Matched Brand Assets" panel below instead for I2V generation with product photos */}

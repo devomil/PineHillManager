@@ -3079,11 +3079,12 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { query, provider, sourceImageUrl, i2vSettings } = req.body;
+    const { query, provider, sourceImageUrl, i2vSettings, motionControl } = req.body;
     
     console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}${i2vSettings ? ', with I2V settings' : ''}`);
     console.log(`[Phase9B-Async] Source image URL from request: ${sourceImageUrl?.substring(0, 80) || 'none'}`);
     console.log(`[Phase9B-Async] I2V settings: ${JSON.stringify(i2vSettings || 'none')}`);
+    console.log(`[Phase9B-Async] Motion control: ${JSON.stringify(motionControl || 'auto (intelligent)')}`);
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -3154,6 +3155,8 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       triggeredBy: userId,
       sourceImageUrl: finalSourceImageUrl, // For I2V: publicly accessible signed URL
       i2vSettings: i2vSettings || undefined, // I2V-specific settings from UI
+      motionControl: motionControl || undefined, // Phase 16: motion control override from UI
+      sceneType: scene.type, // For intelligent motion control when no override
     });
     
     console.log(`[Phase9B-Async] Created job ${job.jobId} for scene ${sceneId}`);
