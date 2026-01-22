@@ -86,8 +86,31 @@ interface InventoryItem {
   vendor: string | null;
 }
 
+interface SkuMapping {
+  id: number;
+  sku: string;
+  cloverSku: string | null;
+  bigcommerceProductId: number;
+  bigcommerceVariantId: number | null;
+  productName: string;
+  isActive: boolean;
+  cloverItemName: string | null;
+  cloverQuantity: number | null;
+  isLinked: boolean;
+}
+
+interface CloverSearchItem {
+  sku: string;
+  itemName: string;
+  quantityOnHand: number | null;
+}
+
 const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) => {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [skuManagerSearch, setSkuManagerSearch] = useState('');
+  const [editingMappingId, setEditingMappingId] = useState<number | null>(null);
+  const [cloverSearchQuery, setCloverSearchQuery] = useState('');
+  const [showUnmappedOnly, setShowUnmappedOnly] = useState(false);
   
   const { data: syncConfig, isLoading: configLoading, refetch: refetchConfig } = useQuery<BigCommerceSyncConfig>({
     queryKey: ['/api/admin/bigcommerce-sync/config'],
@@ -174,10 +197,58 @@ const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toa
     },
     onSuccess: (data) => {
       toast({ title: 'Mappings imported', description: `Imported ${data.imported} product mappings from BigCommerce` });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/bigcommerce-sync/sku-mappings'] });
     },
     onError: (error) => {
       toast({ title: 'Import failed', description: error.message, variant: 'destructive' });
     }
+  });
+
+  // SKU Manager queries
+  const { data: skuMappings = [], isLoading: skuMappingsLoading, refetch: refetchSkuMappings } = useQuery<SkuMapping[]>({
+    queryKey: ['/api/admin/bigcommerce-sync/sku-mappings'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/bigcommerce-sync/sku-mappings', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch SKU mappings');
+      return response.json();
+    },
+    enabled: !!syncConfig
+  });
+
+  const { data: cloverSearchResults = [] } = useQuery<CloverSearchItem[]>({
+    queryKey: ['/api/admin/bigcommerce-sync/search-clover-items', cloverSearchQuery],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/bigcommerce-sync/search-clover-items?q=${encodeURIComponent(cloverSearchQuery)}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to search');
+      return response.json();
+    },
+    enabled: cloverSearchQuery.length >= 2
+  });
+
+  const updateSkuMappingMutation = useMutation({
+    mutationFn: async ({ mappingId, cloverSku }: { mappingId: number; cloverSku: string | null }) => {
+      const response = await apiRequest('PATCH', `/api/admin/bigcommerce-sync/sku-mappings/${mappingId}`, { cloverSku });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'SKU mapping updated' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/bigcommerce-sync/sku-mappings'] });
+      setEditingMappingId(null);
+      setCloverSearchQuery('');
+    },
+    onError: (error) => {
+      toast({ title: 'Failed to update mapping', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  // Filter SKU mappings
+  const filteredSkuMappings = skuMappings.filter(m => {
+    const matchesSearch = !skuManagerSearch || 
+      m.productName?.toLowerCase().includes(skuManagerSearch.toLowerCase()) ||
+      m.sku.toLowerCase().includes(skuManagerSearch.toLowerCase()) ||
+      m.cloverSku?.toLowerCase().includes(skuManagerSearch.toLowerCase());
+    const matchesUnmapped = !showUnmappedOnly || !m.isLinked;
+    return matchesSearch && matchesUnmapped;
   });
 
   const toggleItemSelection = (itemId: number) => {
@@ -448,6 +519,192 @@ const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toa
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* SKU Manager Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            SKU Manager
+          </CardTitle>
+          <CardDescription>
+            Link BigCommerce variants to Clover items when SKUs don't match. Items marked "Not Linked" won't sync until mapped.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-4 items-center">
+            <Input
+              placeholder="Search products..."
+              value={skuManagerSearch}
+              onChange={(e) => setSkuManagerSearch(e.target.value)}
+              className="max-w-xs"
+            />
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="showUnmapped"
+                checked={showUnmappedOnly}
+                onCheckedChange={(checked) => setShowUnmappedOnly(checked === true)}
+              />
+              <Label htmlFor="showUnmapped" className="text-sm">Show unmapped only</Label>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => refetchSkuMappings()}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
+          </div>
+
+          {skuMappingsLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="ml-2">Loading mappings...</span>
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto border rounded">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>BigCommerce Product</TableHead>
+                    <TableHead>BC SKU</TableHead>
+                    <TableHead>Clover SKU</TableHead>
+                    <TableHead>Clover Item</TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSkuMappings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-gray-500 py-4">
+                        {showUnmappedOnly ? 'All items are linked' : 'No mappings found'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredSkuMappings.map((mapping) => (
+                      <TableRow key={mapping.id}>
+                        <TableCell className="font-medium text-sm max-w-[200px] truncate" title={mapping.productName}>
+                          {mapping.productName}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{mapping.sku}</TableCell>
+                        <TableCell>
+                          {editingMappingId === mapping.id ? (
+                            <div className="space-y-2">
+                              <Input
+                                placeholder="Search Clover items..."
+                                value={cloverSearchQuery}
+                                onChange={(e) => setCloverSearchQuery(e.target.value)}
+                                className="h-8 text-sm"
+                                autoFocus
+                              />
+                              {cloverSearchResults.length > 0 && (
+                                <div className="absolute z-10 bg-white border rounded shadow-lg max-h-48 overflow-y-auto w-64">
+                                  {cloverSearchResults.map((item) => (
+                                    <button
+                                      key={item.sku}
+                                      className="w-full px-3 py-2 text-left hover:bg-gray-100 border-b last:border-0"
+                                      onClick={() => {
+                                        updateSkuMappingMutation.mutate({ 
+                                          mappingId: mapping.id, 
+                                          cloverSku: item.sku 
+                                        });
+                                      }}
+                                    >
+                                      <p className="text-sm font-medium truncate">{item.itemName}</p>
+                                      <p className="text-xs text-gray-500">SKU: {item.sku} | Qty: {item.quantityOnHand}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="font-mono text-xs">
+                              {mapping.cloverSku || <span className="text-gray-400 italic">—</span>}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm max-w-[150px] truncate" title={mapping.cloverItemName || ''}>
+                          {mapping.cloverItemName || <span className="text-gray-400 italic">—</span>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {mapping.cloverQuantity !== null ? (
+                            <span className="font-medium">{mapping.cloverQuantity}</span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {mapping.isLinked ? (
+                            <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Linked
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Not Linked
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingMappingId === mapping.id ? (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingMappingId(null);
+                                  setCloverSearchQuery('');
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              {mapping.cloverSku && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-600"
+                                  onClick={() => {
+                                    updateSkuMappingMutation.mutate({ 
+                                      mappingId: mapping.id, 
+                                      cloverSku: null 
+                                    });
+                                  }}
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingMappingId(mapping.id);
+                                setCloverSearchQuery('');
+                              }}
+                            >
+                              {mapping.cloverSku ? 'Edit' : 'Link'}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          
+          <p className="text-xs text-gray-500">
+            Showing {filteredSkuMappings.length} of {skuMappings.length} mappings
+            {showUnmappedOnly && ` (${skuMappings.filter(m => !m.isLinked).length} unmapped)`}
+          </p>
         </CardContent>
       </Card>
 

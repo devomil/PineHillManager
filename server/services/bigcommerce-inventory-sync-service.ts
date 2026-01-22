@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { eq, and, sql, desc, isNotNull } from 'drizzle-orm';
+import { eq, and, or, sql, desc, isNotNull } from 'drizzle-orm';
 import { 
   inventoryItems, 
   marketplaceSyncJobs,
@@ -109,6 +109,81 @@ export class BigCommerceInventorySyncService {
     return result;
   }
 
+  async updateMappingCloverSku(mappingId: number, cloverSku: string | null) {
+    const [result] = await db.update(bigcommerceProductMappings)
+      .set({ 
+        cloverSku: cloverSku || null,
+        updatedAt: new Date() 
+      })
+      .where(eq(bigcommerceProductMappings.id, mappingId))
+      .returning();
+    return result;
+  }
+
+  async getAllMappingsWithCloverInfo(merchantId: string) {
+    // Get all BigCommerce mappings with their linked Clover item info
+    const mappings = await db.select({
+      id: bigcommerceProductMappings.id,
+      sku: bigcommerceProductMappings.sku,
+      cloverSku: bigcommerceProductMappings.cloverSku,
+      bigcommerceProductId: bigcommerceProductMappings.bigcommerceProductId,
+      bigcommerceVariantId: bigcommerceProductMappings.bigcommerceVariantId,
+      productName: bigcommerceProductMappings.productName,
+      isActive: bigcommerceProductMappings.isActive,
+    })
+    .from(bigcommerceProductMappings)
+    .where(eq(bigcommerceProductMappings.isActive, true))
+    .orderBy(bigcommerceProductMappings.productName);
+    
+    // Get Clover items for lookup
+    const cloverItems = await db.select({
+      sku: inventoryItems.sku,
+      itemName: inventoryItems.itemName,
+      quantityOnHand: inventoryItems.quantityOnHand,
+    })
+    .from(inventoryItems)
+    .where(and(
+      eq(inventoryItems.cloverMerchantId, merchantId),
+      eq(inventoryItems.isActive, true),
+      isNotNull(inventoryItems.sku)
+    ));
+    
+    const cloverBySku = new Map(cloverItems.map(i => [i.sku, i]));
+    
+    // Enrich mappings with Clover item info
+    return mappings.map(m => {
+      const linkedSku = m.cloverSku || m.sku;
+      const cloverItem = cloverBySku.get(linkedSku);
+      return {
+        ...m,
+        cloverItemName: cloverItem?.itemName || null,
+        cloverQuantity: cloverItem ? Math.floor(parseFloat(cloverItem.quantityOnHand?.toString() || '0')) : null,
+        isLinked: !!cloverItem,
+      };
+    });
+  }
+
+  async searchCloverItems(merchantId: string, query: string) {
+    const items = await db.select({
+      sku: inventoryItems.sku,
+      itemName: inventoryItems.itemName,
+      quantityOnHand: inventoryItems.quantityOnHand,
+    })
+    .from(inventoryItems)
+    .where(and(
+      eq(inventoryItems.cloverMerchantId, merchantId),
+      eq(inventoryItems.isActive, true),
+      isNotNull(inventoryItems.sku),
+      or(
+        sql`${inventoryItems.itemName} ILIKE ${'%' + query + '%'}`,
+        sql`${inventoryItems.sku} ILIKE ${'%' + query + '%'}`
+      )
+    ))
+    .limit(20);
+    
+    return items;
+  }
+
   async importMappingsFromBigCommerce() {
     console.log('📦 [BC Sync] Importing product mappings from BigCommerce...');
     
@@ -190,16 +265,39 @@ export class BigCommerceInventorySyncService {
     percentageAllocation: number,
     minimumStock: number
   ): Promise<{ updates: InventoryUpdate[]; unmapped: string[] }> {
-    const mappingBySku = new Map(mappings.map(m => [m.sku, m]));
+    // Build lookup maps: by BigCommerce SKU and by Clover SKU (for manual overrides)
+    const mappingByBcSku = new Map(mappings.map(m => [m.sku, m]));
+    const mappingByCloverSku = new Map<string, typeof mappings[0]>();
+    
+    // Build Clover SKU lookup for mappings with manual overrides
+    for (const m of mappings) {
+      if (m.cloverSku) {
+        mappingByCloverSku.set(m.cloverSku, m);
+      }
+    }
+    
     const updates: InventoryUpdate[] = [];
     const unmapped: string[] = [];
+    const processedMappings = new Set<number>(); // Track which mappings we've used
 
     for (const item of inventory) {
       if (!item.sku) continue;
 
-      const mapping = mappingBySku.get(item.sku);
+      // First check if this Clover SKU is manually mapped to a BigCommerce variant
+      let mapping = mappingByCloverSku.get(item.sku);
+      
+      // Fallback to BigCommerce SKU match
+      if (!mapping) {
+        mapping = mappingByBcSku.get(item.sku);
+      }
+      
       if (!mapping) {
         unmapped.push(item.sku);
+        continue;
+      }
+      
+      // Skip if we've already processed this mapping (prevents duplicates for shared inventory)
+      if (processedMappings.has(mapping.id)) {
         continue;
       }
 
@@ -219,6 +317,8 @@ export class BigCommerceInventorySyncService {
         adjustedQuantity: adjustedQty,
         productName: item.itemName,
       });
+      
+      processedMappings.add(mapping.id);
     }
 
     return { updates, unmapped };

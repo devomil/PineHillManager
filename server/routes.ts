@@ -26311,6 +26311,76 @@ Important:
     }
   });
 
+  // Get all BigCommerce mappings with Clover item info for SKU manager
+  app.get('/api/admin/bigcommerce-sync/sku-mappings', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      const config = await bigcommerceInventorySyncService.getSyncConfig();
+      if (!config) {
+        return res.status(400).json({ message: 'Sync not configured' });
+      }
+
+      const mappings = await bigcommerceInventorySyncService.getAllMappingsWithCloverInfo(config.sourceMerchantId);
+      res.json(mappings);
+    } catch (error) {
+      console.error('Error fetching SKU mappings:', error);
+      res.status(500).json({ message: 'Failed to fetch SKU mappings' });
+    }
+  });
+
+  // Update Clover SKU for a BigCommerce mapping
+  app.patch('/api/admin/bigcommerce-sync/sku-mappings/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      const mappingId = parseInt(req.params.id);
+      const { cloverSku } = req.body;
+
+      const updated = await bigcommerceInventorySyncService.updateMappingCloverSku(mappingId, cloverSku);
+      if (!updated) {
+        return res.status(404).json({ message: 'Mapping not found' });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating SKU mapping:', error);
+      res.status(500).json({ message: 'Failed to update SKU mapping' });
+    }
+  });
+
+  // Search Clover items by name or SKU
+  app.get('/api/admin/bigcommerce-sync/search-clover-items', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or manager access required' });
+      }
+
+      const config = await bigcommerceInventorySyncService.getSyncConfig();
+      if (!config) {
+        return res.status(400).json({ message: 'Sync not configured' });
+      }
+
+      const query = req.query.q as string || '';
+      if (query.length < 2) {
+        return res.json([]);
+      }
+
+      const items = await bigcommerceInventorySyncService.searchCloverItems(config.sourceMerchantId, query);
+      res.json(items);
+    } catch (error) {
+      console.error('Error searching Clover items:', error);
+      res.status(500).json({ message: 'Failed to search Clover items' });
+    }
+  });
+
   // Start BigCommerce sync scheduler
   bigcommerceInventorySyncService.startScheduledSync();
   console.log('📦 BigCommerce inventory sync scheduler initialized');

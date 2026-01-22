@@ -6140,7 +6140,8 @@ export type UpdatePractitionerContact = z.infer<typeof updatePractitionerContact
 export const bigcommerceProductMappings = pgTable("bigcommerce_product_mappings", {
   id: serial("id").primaryKey(),
   inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
-  sku: varchar("sku").notNull(),
+  sku: varchar("sku").notNull(), // BigCommerce variant SKU
+  cloverSku: varchar("clover_sku"), // Manual override: Clover SKU to match for inventory lookup
   bigcommerceProductId: integer("bigcommerce_product_id").notNull(),
   bigcommerceVariantId: integer("bigcommerce_variant_id"),
   productName: varchar("product_name"),
@@ -6150,6 +6151,7 @@ export const bigcommerceProductMappings = pgTable("bigcommerce_product_mappings"
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   skuIdx: index("idx_bc_mapping_sku").on(table.sku),
+  cloverSkuIdx: index("idx_bc_mapping_clover_sku").on(table.cloverSku),
   bcProductIdx: index("idx_bc_mapping_bc_product").on(table.bigcommerceProductId),
   inventoryItemIdx: index("idx_bc_mapping_inventory_item").on(table.inventoryItemId),
   skuUnique: unique("idx_bc_mapping_sku_unique").on(table.sku),
