@@ -3142,6 +3142,19 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       console.log(`[Phase9B-Async] ✓ T2V mode - will generate from text prompt only`);
     }
     
+    // Phase 16: Normalize motion control - 'auto' means no override (use intelligent defaults)
+    // Intensity normalized from UI's 0-100 to backend's 0-1 scale
+    let normalizedMotionControl: { camera_movement: string; intensity: number } | undefined = undefined;
+    if (motionControl && motionControl.cameraMovement && motionControl.cameraMovement !== 'auto') {
+      normalizedMotionControl = {
+        camera_movement: motionControl.cameraMovement,
+        intensity: (motionControl.intensity ?? 50) / 100, // Normalize 0-100 to 0-1
+      };
+      console.log(`[Phase16] Motion control override: ${normalizedMotionControl.camera_movement} @ ${normalizedMotionControl.intensity}`);
+    } else {
+      console.log(`[Phase16] Using intelligent motion control for scene type: ${scene.type || 'content'}`);
+    }
+    
     // Create async job - returns immediately
     const job = await videoGenerationWorker.createJob({
       projectId,
@@ -3155,8 +3168,8 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       triggeredBy: userId,
       sourceImageUrl: finalSourceImageUrl, // For I2V: publicly accessible signed URL
       i2vSettings: i2vSettings || undefined, // I2V-specific settings from UI
-      motionControl: motionControl || undefined, // Phase 16: motion control override from UI
-      sceneType: scene.type, // For intelligent motion control when no override
+      motionControl: normalizedMotionControl, // Phase 16: motion control override (undefined if 'auto')
+      sceneType: scene.type || 'content', // For intelligent motion control when no override
     });
     
     console.log(`[Phase9B-Async] Created job ${job.jobId} for scene ${sceneId}`);
