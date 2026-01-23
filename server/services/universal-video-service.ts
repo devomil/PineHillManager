@@ -4853,6 +4853,8 @@ Total: 90 seconds` : ''}
       aspectRatio,
       totalDuration: project.totalDuration,
       previewMode: true,
+      // Phase 16: Include brand overlay instructions for final render
+      brandInstructions: (project as any).brandInstructions || null,
     };
 
     console.log(`[UniversalVideoService] Preview props for ${project.id}: ${previewConfig.fps}fps, scale ${previewConfig.scale}`);
