@@ -1443,6 +1443,11 @@ const SceneRenderer: React.FC<{
 
       {/* Text Overlays - Use intelligent positioning if available */}
       {(() => {
+        // Phase 16 Fix: Skip text overlays for CTA/outro scenes - they have dedicated overlay components
+        if (scene.type === 'cta' || scene.type === 'outro') {
+          return null;
+        }
+        
         const instructions = (scene as any).compositionInstructions as SceneCompositionInstructions | undefined;
         
         // If we have AI-generated composition instructions, use intelligent overlays
@@ -1506,8 +1511,13 @@ const SceneRenderer: React.FC<{
         );
       })()}
 
-      {/* Phase 11B: Extracted Overlay Rendering */}
+      {/* Phase 11B: Extracted Overlay Rendering - ONLY if no regular text overlays exist */}
       {(() => {
+        // Phase 16 Fix: Prevent duplicate text overlays - skip extracted text if scene already has textOverlays
+        const hasRegularTextOverlays = (scene.textOverlays?.length ?? 0) > 0;
+        const hasIntelligentOverlays = ((scene as any).compositionInstructions?.textOverlays?.length ?? 0) > 0;
+        const skipExtractedText = hasRegularTextOverlays || hasIntelligentOverlays;
+        
         if (!scene.extractedOverlayText?.length && !scene.extractedLogos?.length) {
           return null;
         }
@@ -1521,7 +1531,8 @@ const SceneRenderer: React.FC<{
         
         return (
           <>
-            {mappedOverlays.textOverlays.map((textProps, idx) => (
+            {/* Only render extracted text if no regular overlays exist - prevents duplicates */}
+            {!skipExtractedText && mappedOverlays.textOverlays.map((textProps, idx) => (
               <EnhancedTextOverlay key={`ext-text-${scene.id}-${idx}`} {...textProps} />
             ))}
             
@@ -1529,7 +1540,8 @@ const SceneRenderer: React.FC<{
               <BulletList key={`ext-bullets-${scene.id}-${idx}`} {...listProps} />
             ))}
             
-            {mappedOverlays.lowerThirds.map((ltProps, idx) => (
+            {/* Only render extracted lower thirds if no regular overlays exist */}
+            {!skipExtractedText && mappedOverlays.lowerThirds.map((ltProps, idx) => (
               <Phase11BLowerThird key={`ext-lt-${scene.id}-${idx}`} {...ltProps} />
             ))}
             
@@ -2132,12 +2144,16 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   
   const showDebugInfo = false;
   
+  // Phase 16: Always use Pine Hill Farm defaults if no config provided
+  // endCardConfig being undefined or explicitly set means we use defaults
   const effectiveEndCardConfig = endCardConfig ?? PINE_HILL_FARM_END_CARD;
   const effectiveSoundConfig = soundDesignConfig ?? PINE_HILL_FARM_SOUND_CONFIG;
   
-  const hasEndCard = !!endCardConfig;
-  const endCardDuration = hasEndCard ? Math.round((effectiveEndCardConfig.duration || 5) * fps) : 0;
-  const endCardStartFrame = hasEndCard ? durationInFrames - endCardDuration : durationInFrames;
+  // Phase 16 Fix: End card should ALWAYS render (using defaults if no config provided)
+  // Only skip if endCardConfig is explicitly set with enabled: false (not implemented in current API)
+  const hasEndCard = true; // Always render end card with Pine Hill Farm branding
+  const endCardDuration = Math.round((effectiveEndCardConfig.duration || 5) * fps);
+  const endCardStartFrame = durationInFrames - endCardDuration;
 
   // Build scene sequences with brand overlays
   let currentFrame = 0;

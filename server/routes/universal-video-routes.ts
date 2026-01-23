@@ -277,6 +277,32 @@ const styleSettingsSchema = z.object({
   applyComposition: z.boolean().default(false),
 });
 
+// Phase 16: End card settings schema
+const endCardSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  useDefaults: z.boolean().default(true),
+  duration: z.number().min(3).max(10).default(5),
+  logoAnimation: z.enum(['scale-bounce', 'fade', 'slide-up', 'none']).default('scale-bounce'),
+  taglineText: z.string().default('Rooted in Nature, Grown with Care'),
+  taglineAnimation: z.enum(['typewriter', 'fade', 'slide-up']).default('typewriter'),
+  contactWebsite: z.string().default('PineHillFarm.com'),
+  contactPhone: z.string().default(''),
+  contactEmail: z.string().default(''),
+  ambientEffect: z.enum(['particles', 'bokeh', 'none']).default('bokeh'),
+  ambientIntensity: z.number().min(0).max(100).default(40),
+}).optional();
+
+// Phase 16: Sound design settings schema
+const soundDesignSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  useDefaults: z.boolean().default(true),
+  transitionSounds: z.boolean().default(true),
+  impactSounds: z.boolean().default(true),
+  ambientLayer: z.boolean().default(true),
+  ambientType: z.enum(['warm', 'nature', 'none']).default('nature'),
+  masterVolume: z.number().min(0).max(1).default(1.0),
+}).optional();
+
 const referenceConfigSchema = z.object({
   mode: z.enum(['none', 'image-to-image', 'image-to-video', 'style-reference']),
   sourceUrl: z.string().optional(),
@@ -304,6 +330,9 @@ const scriptVideoInputSchema = z.object({
   qualityTier: z.enum(['standard', 'premium', 'ultra']).optional().default('premium'),
   // Phase 13: Audio and motion control generation settings
   generationSettings: generationSettingsSchema.optional(),
+  // Phase 16: End card and sound design settings
+  endCardSettings: endCardSettingsSchema,
+  soundDesignSettings: soundDesignSettingsSchema,
 });
 
 function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null; qualityReport?: VideoQualityReport } {
@@ -729,6 +758,31 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
     // Set quality tier (defaults to premium)
     (project as any).qualityTier = validatedInput.qualityTier || 'premium';
     console.log(`[UniversalVideo] Script project quality tier: ${(project as any).qualityTier}`);
+    
+    // Phase 16: Store end card and sound design settings
+    (project as any).endCardSettings = validatedInput.endCardSettings || {
+      enabled: true,
+      useDefaults: true,
+      duration: 5,
+      logoAnimation: 'scale-bounce',
+      taglineText: 'Rooted in Nature, Grown with Care',
+      taglineAnimation: 'typewriter',
+      contactWebsite: 'PineHillFarm.com',
+      contactPhone: '',
+      contactEmail: '',
+      ambientEffect: 'bokeh',
+      ambientIntensity: 40,
+    };
+    (project as any).soundDesignSettings = validatedInput.soundDesignSettings || {
+      enabled: true,
+      useDefaults: true,
+      transitionSounds: true,
+      impactSounds: true,
+      ambientLayer: true,
+      ambientType: 'nature',
+      masterVolume: 1.0,
+    };
+    console.log(`[UniversalVideo] Phase 16 settings - End card enabled: ${(project as any).endCardSettings?.enabled}, Sound design enabled: ${(project as any).soundDesignSettings?.enabled}`);
     
     await saveProjectToDb(project, userId);
     console.log('[UniversalVideo] Script project saved to database:', project.id);
@@ -1764,6 +1818,72 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       sceneOverlaysCount: Object.keys(mergedBrandInstructions.sceneOverlays || {}).length,
     });
     
+    // Phase 16: Build end card config from settings
+    const endCardSettings = (preparedProject as any).endCardSettings;
+    let endCardConfig: any = undefined;
+    if (endCardSettings?.enabled !== false) {
+      // Default to enabled if not explicitly disabled
+      endCardConfig = {
+        duration: endCardSettings?.duration || 5,
+        background: {
+          type: 'animated-gradient' as const,
+          gradient: {
+            colors: ['#1a3a2a', '#0d2818', '#0a1f12'],
+            angle: 145,
+          },
+        },
+        logo: {
+          url: preparedProject.brand?.logoUrl || '',
+          size: 28,
+          position: { x: 50, y: 32 },
+          animation: (endCardSettings?.logoAnimation || 'scale-bounce') as 'scale-bounce' | 'fade' | 'slide-up' | 'none',
+        },
+        tagline: {
+          text: endCardSettings?.taglineText || 'Rooted in Nature, Grown with Care',
+          delay: 0.8,
+          animation: (endCardSettings?.taglineAnimation || 'typewriter') as 'typewriter' | 'fade' | 'slide-up',
+          style: {
+            fontSize: 28,
+            fontFamily: "'Great Vibes', cursive",
+            color: '#E8D5B7',
+          },
+        },
+        contact: {
+          website: endCardSettings?.contactWebsite || 'www.pinehillfarm.co',
+          phone: endCardSettings?.contactPhone || '',
+          email: endCardSettings?.contactEmail || '',
+          delay: 1.8,
+          animation: 'stagger' as const,
+          style: {
+            fontSize: 22,
+            color: '#FFFFFF',
+          },
+        },
+        ambientEffect: {
+          type: (endCardSettings?.ambientEffect || 'bokeh') as 'particles' | 'bokeh' | 'none',
+          color: 'rgba(232, 213, 183, 0.3)',
+          intensity: endCardSettings?.ambientIntensity || 40,
+        },
+      };
+      console.log('[UniversalVideo] Phase 16: End card config built with logo:', endCardConfig.logo.url?.substring(0, 50));
+    }
+    
+    // Phase 16: Build sound design config from settings
+    const soundDesignSettings = (preparedProject as any).soundDesignSettings;
+    let soundDesignConfig: any = undefined;
+    if (soundDesignSettings?.enabled !== false) {
+      // Default to enabled if not explicitly disabled
+      soundDesignConfig = {
+        enabled: true,
+        transitionSounds: soundDesignSettings?.transitionSounds !== false,
+        impactSounds: soundDesignSettings?.impactSounds !== false,
+        ambientLayer: soundDesignSettings?.ambientLayer !== false,
+        ambientType: soundDesignSettings?.ambientType || 'nature',
+        masterVolume: soundDesignSettings?.masterVolume ?? 1.0,
+      };
+      console.log('[UniversalVideo] Phase 16: Sound design config built:', soundDesignConfig);
+    }
+    
     const inputProps = {
       scenes: preparedProject.scenes,
       voiceoverUrl: preparedProject.assets.voiceover.fullTrackUrl || null,
@@ -1772,6 +1892,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       brand: preparedProject.brand,
       outputFormat: preparedProject.outputFormat,
       brandInstructions: Object.keys(mergedBrandInstructions).length > 0 ? mergedBrandInstructions : undefined,
+      // Phase 16: End card and sound design configs
+      endCardConfig,
+      soundDesignConfig,
     };
     
     // Log video B-roll details for each scene
