@@ -1,3 +1,4 @@
+import React from 'react';
 import { AbsoluteFill, Sequence, useVideoConfig, Audio } from 'remotion';
 import { SoundDesignLayer } from '../components/audio/SoundDesignLayer';
 import { DuckedMusic, VolumeKeyframe } from '../components/audio/DuckedMusic';

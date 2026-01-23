@@ -1,3 +1,4 @@
+import React from 'react';
 import { Audio, Sequence, useVideoConfig } from 'remotion';
 import { SoundEffect, SOUND_EFFECTS, getSoundForTransition, TransitionConfig } from '../../../shared/config/sound-design';
 

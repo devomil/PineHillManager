@@ -1,3 +1,4 @@
+import React from 'react';
 import { Audio, interpolate, useCurrentFrame } from 'remotion';
 
 export interface VolumeKeyframe {

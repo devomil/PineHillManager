@@ -30,6 +30,11 @@ import { CTAButton } from "./components/CTAButton";
 import { KenBurnsImage } from "./components/KenBurnsImage";
 import { mapSceneToOverlays, shouldShowLogo, shouldShowWatermark } from "./utils/overlay-mapper";
 import { MotionGraphicsScene } from "./compositions/MotionGraphicsScene";
+import { AnimatedEndCard } from "./components/endcard/AnimatedEndCard";
+import { EndCardConfig } from "../shared/config/end-card";
+import { SoundDesignLayer } from "./components/audio/SoundDesignLayer";
+import { DuckedMusic, VolumeKeyframe } from "./components/audio/DuckedMusic";
+import { TransitionConfig, SoundDesignConfig } from "../shared/config/sound-design";
 
 // ============================================================
 // BRAND OVERLAY TYPES (Phase 4E)
@@ -117,6 +122,10 @@ export interface UniversalVideoProps {
   brand: BrandSettings;
   outputFormat: OutputFormat;
   brandInstructions?: ProjectBrandInstructions;
+  endCardConfig?: EndCardConfig;
+  soundDesignConfig?: SoundDesignConfig;
+  audioDuckingKeyframes?: VolumeKeyframe[];
+  transitions?: TransitionConfig[];
 }
 
 // ============================================================
@@ -2114,11 +2123,18 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   brand,
   outputFormat,
   brandInstructions,
+  endCardConfig,
+  soundDesignConfig,
+  audioDuckingKeyframes,
+  transitions,
 }) => {
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
   
-  // Enable debug mode via environment or prop
-  const showDebugInfo = false; // Set to true for debugging, false for production
+  const showDebugInfo = false;
+  
+  const hasEndCard = !!endCardConfig;
+  const endCardDuration = hasEndCard ? Math.round((endCardConfig.duration || 5) * fps) : 0;
+  const endCardStartFrame = hasEndCard ? durationInFrames - endCardDuration : durationInFrames;
 
   // Build scene sequences with brand overlays
   let currentFrame = 0;
@@ -2261,6 +2277,44 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
           );
         });
       })()}
+      
+      {/* Animated End Card (Phase 16) */}
+      {hasEndCard && endCardConfig && (
+        <Sequence from={endCardStartFrame} durationInFrames={endCardDuration}>
+          <AnimatedEndCard config={endCardConfig} />
+        </Sequence>
+      )}
+      
+      {/* Enhanced Sound Design Layer (Phase 16) */}
+      {soundDesignConfig?.enabled && transitions && (
+        <SoundDesignLayer
+          transitions={transitions.map((t, i) => {
+            let frameOffset = 0;
+            for (let j = 0; j < i; j++) {
+              frameOffset += Math.ceil((scenes[j]?.duration || 5) * fps);
+            }
+            return {
+              config: t,
+              startFrame: frameOffset + Math.ceil((scenes[i]?.duration || 5) * fps) - Math.round(t.duration * fps / 2),
+            };
+          })}
+          logoRevealFrame={endCardStartFrame + Math.round(0.3 * fps)}
+          ctaStartFrame={endCardStartFrame}
+          enableAmbient={soundDesignConfig.ambientLayer}
+          ambientType={soundDesignConfig.ambientType === 'nature' ? 'nature' : 'warm'}
+          masterVolume={soundDesignConfig.masterVolume}
+        />
+      )}
+      
+      {/* Enhanced Ducked Music with Keyframes (Phase 16) */}
+      {musicUrl && audioDuckingKeyframes && audioDuckingKeyframes.length > 0 && (
+        <DuckedMusic
+          musicUrl={musicUrl}
+          baseVolume={musicVolume}
+          volumeKeyframes={audioDuckingKeyframes}
+          fps={fps}
+        />
+      )}
     </AbsoluteFill>
   );
 };

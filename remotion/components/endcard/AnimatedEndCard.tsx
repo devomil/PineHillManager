@@ -1,3 +1,4 @@
+import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Img, spring } from 'remotion';
 import { EndCardConfig } from '../../../shared/config/end-card';
 
