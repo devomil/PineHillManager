@@ -111,6 +111,7 @@ const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toa
   const [editingMappingId, setEditingMappingId] = useState<number | null>(null);
   const [cloverSearchQuery, setCloverSearchQuery] = useState('');
   const [showUnmappedOnly, setShowUnmappedOnly] = useState(false);
+  const [alertEmailValue, setAlertEmailValue] = useState('');
   
   const { data: syncConfig, isLoading: configLoading, refetch: refetchConfig } = useQuery<BigCommerceSyncConfig>({
     queryKey: ['/api/admin/bigcommerce-sync/config'],
@@ -261,6 +262,19 @@ const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toa
     );
   };
 
+  // Sync local alert email state with config
+  useEffect(() => {
+    if (syncConfig?.alertEmail !== undefined) {
+      setAlertEmailValue(syncConfig.alertEmail || '');
+    }
+  }, [syncConfig?.alertEmail]);
+
+  const handleAlertEmailBlur = () => {
+    if (alertEmailValue !== (syncConfig?.alertEmail || '')) {
+      updateConfigMutation.mutate({ alertEmail: alertEmailValue || null });
+    }
+  };
+
   if (configLoading) {
     return (
       <TabsContent value="bigcommerce" className="space-y-6">
@@ -356,8 +370,9 @@ const BigCommerceSyncTab = ({ toast }: { toast: ReturnType<typeof useToast>['toa
                 <Input
                   type="email"
                   placeholder="email@example.com"
-                  value={syncConfig?.alertEmail || ''}
-                  onChange={(e) => updateConfigMutation.mutate({ alertEmail: e.target.value })}
+                  value={alertEmailValue}
+                  onChange={(e) => setAlertEmailValue(e.target.value)}
+                  onBlur={handleAlertEmailBlur}
                   className="text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-2">Failure notifications</p>
