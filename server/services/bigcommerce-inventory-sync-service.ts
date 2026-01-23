@@ -266,13 +266,17 @@ export class BigCommerceInventorySyncService {
     minimumStock: number
   ): Promise<{ updates: InventoryUpdate[]; unmapped: string[] }> {
     // Build lookup maps: by BigCommerce SKU and by Clover SKU (for manual overrides)
+    // Note: Multiple BC variants can share the same Clover SKU (e.g., Shipping vs Store Pickup)
     const mappingByBcSku = new Map(mappings.map(m => [m.sku, m]));
-    const mappingByCloverSku = new Map<string, typeof mappings[0]>();
+    const mappingsByCloverSku = new Map<string, (typeof mappings[0])[]>();
     
     // Build Clover SKU lookup for mappings with manual overrides
+    // Store as arrays since multiple BC variants can share one Clover inventory item
     for (const m of mappings) {
       if (m.cloverSku) {
-        mappingByCloverSku.set(m.cloverSku, m);
+        const existing = mappingsByCloverSku.get(m.cloverSku) || [];
+        existing.push(m);
+        mappingsByCloverSku.set(m.cloverSku, existing);
       }
     }
     
@@ -283,24 +287,6 @@ export class BigCommerceInventorySyncService {
     for (const item of inventory) {
       if (!item.sku) continue;
 
-      // First check if this Clover SKU is manually mapped to a BigCommerce variant
-      let mapping = mappingByCloverSku.get(item.sku);
-      
-      // Fallback to BigCommerce SKU match
-      if (!mapping) {
-        mapping = mappingByBcSku.get(item.sku);
-      }
-      
-      if (!mapping) {
-        unmapped.push(item.sku);
-        continue;
-      }
-      
-      // Skip if we've already processed this mapping (prevents duplicates for shared inventory)
-      if (processedMappings.has(mapping.id)) {
-        continue;
-      }
-
       const cloverQty = Math.floor(parseFloat(item.quantityOnHand?.toString() || '0'));
       
       if (cloverQty < minimumStock) {
@@ -309,16 +295,51 @@ export class BigCommerceInventorySyncService {
 
       const adjustedQty = Math.floor(cloverQty * (percentageAllocation / 100));
 
+      // First check if this Clover SKU is manually mapped to BigCommerce variant(s)
+      const cloverMappings = mappingsByCloverSku.get(item.sku);
+      
+      if (cloverMappings && cloverMappings.length > 0) {
+        // Create updates for ALL BigCommerce variants that share this Clover inventory
+        for (const mapping of cloverMappings) {
+          if (processedMappings.has(mapping.id)) continue;
+          
+          updates.push({
+            sku: mapping.sku, // Use BC SKU for the update
+            productId: mapping.bigcommerceProductId,
+            variantId: mapping.bigcommerceVariantId || undefined,
+            cloverQuantity: cloverQty,
+            adjustedQuantity: adjustedQty,
+            productName: `${item.itemName} → ${mapping.productName}`,
+          });
+          
+          processedMappings.add(mapping.id);
+          console.log(`📦 [BC Sync] Mapped Clover ${item.sku} (qty:${cloverQty}) → BC ${mapping.sku} (adjusted:${adjustedQty})`);
+        }
+        continue;
+      }
+      
+      // Fallback to BigCommerce SKU match (SKUs match between systems)
+      const bcMapping = mappingByBcSku.get(item.sku);
+      
+      if (!bcMapping) {
+        unmapped.push(item.sku);
+        continue;
+      }
+      
+      if (processedMappings.has(bcMapping.id)) {
+        continue;
+      }
+
       updates.push({
         sku: item.sku,
-        productId: mapping.bigcommerceProductId,
-        variantId: mapping.bigcommerceVariantId || undefined,
+        productId: bcMapping.bigcommerceProductId,
+        variantId: bcMapping.bigcommerceVariantId || undefined,
         cloverQuantity: cloverQty,
         adjustedQuantity: adjustedQty,
         productName: item.itemName,
       });
       
-      processedMappings.add(mapping.id);
+      processedMappings.add(bcMapping.id);
     }
 
     return { updates, unmapped };
