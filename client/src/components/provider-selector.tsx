@@ -495,6 +495,7 @@ interface ProviderSelectorPanelProps {
   onMediaTypeChange: (type: 'image' | 'video') => void;
   onGenerate: () => void;
   isGenerating?: boolean;
+  qualityTier?: 'ultra' | 'premium' | 'standard' | null;
 }
 
 export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
@@ -511,7 +512,10 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
   onMediaTypeChange,
   onGenerate,
   isGenerating = false,
+  qualityTier,
 }: ProviderSelectorPanelProps) {
+  const forceVideo = qualityTier === 'premium' || qualityTier === 'ultra';
+  const effectiveMediaType = forceVideo ? 'video' : activeMediaType;
   const [imageExpanded, setImageExpanded] = useState(false);
   const [videoExpanded, setVideoExpanded] = useState(false);
   
@@ -546,7 +550,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
   const hasValidImageProviders = filteredImageProviders.length > 0;
   const hasValidVideoProviders = filteredVideoProviders.length > 0;
   
-  const currentProvider = activeMediaType === 'video' 
+  const currentProvider = effectiveMediaType === 'video' 
     ? effectiveVideoProvider
     : effectiveImageProvider;
   
@@ -658,17 +662,19 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
       
       <div className="flex items-center gap-2 mb-4">
         <Button
-          variant={activeMediaType === 'image' ? 'default' : 'outline'}
+          variant={effectiveMediaType === 'image' ? 'default' : 'outline'}
           size="sm"
-          onClick={() => onMediaTypeChange('image')}
-          className="flex items-center gap-2"
+          onClick={() => !forceVideo && onMediaTypeChange('image')}
+          className={`flex items-center gap-2 ${forceVideo ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={forceVideo}
           data-testid="media-type-image"
+          title={forceVideo ? `${qualityTier === 'ultra' ? 'Ultra' : 'Premium'} tier requires video` : undefined}
         >
           <Image className="h-4 w-4" />
           Image
         </Button>
         <Button
-          variant={activeMediaType === 'video' ? 'default' : 'outline'}
+          variant={effectiveMediaType === 'video' ? 'default' : 'outline'}
           size="sm"
           onClick={() => onMediaTypeChange('video')}
           className="flex items-center gap-2"
@@ -677,6 +683,11 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
           <Video className="h-4 w-4" />
           Video
         </Button>
+        {forceVideo && (
+          <span className="text-xs text-amber-600 dark:text-amber-400 ml-2">
+            {qualityTier === 'ultra' ? 'Ultra' : 'Premium'} requires video
+          </span>
+        )}
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -2999,13 +2999,18 @@ function ScenePreview({
                         setSceneMediaType(prev => ({ ...prev, [scene.id]: type }));
                         switchBackground(scene.id, type === 'video');
                       }}
+                      qualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier || projectQualityTier}
                       onGenerate={() => {
-                        const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
+                        const sceneQuality = localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier || projectQualityTier;
+                        const forceVideo = sceneQuality === 'premium' || sceneQuality === 'ultra';
+                        const mediaType = forceVideo ? 'video' : (sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'));
                         const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
                         const selectedAsset = selectedProductAsset[scene.id];
-                        // Use selected product asset, or fall back to scene's brandAssetUrl for I2V
-                        const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl;
-                        console.log('[Generate Click] sceneId:', scene.id, 'mediaType:', mediaType, 'provider:', provider, 'sourceImageUrl:', sourceImageUrl?.substring(0, 50));
+                        const sceneWorkflow = workflowAnalysis[scene.id];
+                        const matchedProductAsset = sceneWorkflow?.matchedAssets?.products?.[0]?.url;
+                        const matchedLocationAsset = sceneWorkflow?.matchedAssets?.locations?.[0]?.url;
+                        const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl || matchedProductAsset || matchedLocationAsset;
+                        console.log('[Generate Click] sceneId:', scene.id, 'qualityTier:', sceneQuality, 'mediaType:', mediaType, 'provider:', provider, 'sourceImageUrl:', sourceImageUrl?.substring(0, 50), 'hasMatchedAsset:', !!(matchedProductAsset || matchedLocationAsset));
                         if (mediaType === 'video') {
                           regenerateVideo(scene.id, provider, sourceImageUrl);
                         } else {
