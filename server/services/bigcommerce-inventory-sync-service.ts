@@ -280,6 +280,21 @@ export class BigCommerceInventorySyncService {
       }
     }
     
+    // Debug: Log mappings with cloverSku
+    const cloverSkuMappingCount = Array.from(mappingsByCloverSku.entries()).length;
+    console.log(`📦 [BC Sync] Found ${cloverSkuMappingCount} unique Clover SKUs with manual mappings`);
+    
+    // Debug: Check for specific Sweet Dreams SKUs
+    const sweetDreamsSkus = ['4603332', '794319K'];
+    for (const sku of sweetDreamsSkus) {
+      const mappingsForSku = mappingsByCloverSku.get(sku);
+      if (mappingsForSku) {
+        console.log(`📦 [BC Sync] DEBUG: Clover SKU ${sku} maps to ${mappingsForSku.length} BC variants: ${mappingsForSku.map(m => m.sku).join(', ')}`);
+      } else {
+        console.log(`📦 [BC Sync] DEBUG: Clover SKU ${sku} has NO mappings in mappingsByCloverSku`);
+      }
+    }
+    
     const updates: InventoryUpdate[] = [];
     const unmapped: string[] = [];
     const processedMappings = new Set<number>(); // Track which mappings we've used
