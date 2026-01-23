@@ -368,7 +368,15 @@ export class BigCommerceInventorySyncService {
       let successCount = 0;
       let errorCount = 0;
 
-      for (const update of updates) {
+      // Rate limiting: BigCommerce allows ~150 requests per 30 seconds
+      // Adding 250ms delay between calls to stay safely under the limit
+      const DELAY_BETWEEN_CALLS_MS = 250;
+      const MAX_RETRIES = 3;
+      const INITIAL_RETRY_DELAY_MS = 2000;
+
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      const updateWithRetry = async (update: InventoryUpdate, retryCount = 0): Promise<boolean> => {
         try {
           if (update.variantId) {
             await this.bigcommerce.updateVariantInventory(
@@ -382,11 +390,37 @@ export class BigCommerceInventorySyncService {
               update.adjustedQuantity
             );
           }
-          successCount++;
+          return true;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          // Check for rate limit error (429)
+          if (errorMessage.includes('429') && retryCount < MAX_RETRIES) {
+            const backoffDelay = INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCount);
+            console.log(`⏳ [BC Sync] Rate limited on ${update.sku}, waiting ${backoffDelay}ms before retry ${retryCount + 1}/${MAX_RETRIES}`);
+            await delay(backoffDelay);
+            return updateWithRetry(update, retryCount + 1);
+          }
+          
+          throw error;
+        }
+      };
 
-          await db.update(bigcommerceProductMappings)
-            .set({ lastSyncedAt: new Date() })
-            .where(eq(bigcommerceProductMappings.sku, update.sku));
+      for (let i = 0; i < updates.length; i++) {
+        const update = updates[i];
+        try {
+          const success = await updateWithRetry(update);
+          if (success) {
+            successCount++;
+            await db.update(bigcommerceProductMappings)
+              .set({ lastSyncedAt: new Date() })
+              .where(eq(bigcommerceProductMappings.sku, update.sku));
+          }
+          
+          // Add delay between calls to prevent rate limiting
+          if (i < updates.length - 1) {
+            await delay(DELAY_BETWEEN_CALLS_MS);
+          }
         } catch (error) {
           errorCount++;
           const errorMsg = `${update.sku}: ${error instanceof Error ? error.message : String(error)}`;
