@@ -7,8 +7,8 @@ interface SoundDesignLayerProps {
     config: TransitionConfig;
     startFrame: number;
   }>;
-  logoRevealFrame: number;
-  ctaStartFrame: number;
+  logoRevealFrame?: number;
+  ctaStartFrame?: number;
   enableAmbient: boolean;
   ambientType?: 'warm' | 'nature';
   masterVolume?: number;
@@ -48,7 +48,7 @@ export const SoundDesignLayer: React.FC<SoundDesignLayerProps> = ({
         );
       })}
       
-      {logoRevealFrame > 0 && logoSound && (
+      {logoRevealFrame !== undefined && logoRevealFrame > 0 && logoSound && (
         <Sequence from={logoRevealFrame}>
           <Audio
             src={logoSound.file}
@@ -57,7 +57,7 @@ export const SoundDesignLayer: React.FC<SoundDesignLayerProps> = ({
         </Sequence>
       )}
       
-      {ctaStartFrame > 0 && riseSound && (
+      {ctaStartFrame !== undefined && ctaStartFrame > 0 && riseSound && (
         <Sequence from={ctaStartFrame - Math.round(3 * fps)}>
           <Audio
             src={riseSound.file}
