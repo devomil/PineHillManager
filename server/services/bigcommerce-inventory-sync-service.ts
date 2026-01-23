@@ -536,18 +536,29 @@ export class BigCommerceInventorySyncService {
         if (!config?.syncEnabled) return;
 
         const now = new Date();
-        const [hours, minutes] = (config.syncTimeLocal || '20:00').split(':').map(Number);
+        const timezone = config.timezone || 'America/Chicago';
+        const [targetHours, targetMinutes] = (config.syncTimeLocal || '20:00').split(':').map(Number);
         
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
+        // Get current time in the configured timezone
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: timezone,
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: false
+        });
+        const parts = formatter.formatToParts(now);
+        const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+        const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+        
+        console.log(`📦 [BC Sync] Checking: Current time ${currentHour}:${String(currentMinute).padStart(2, '0')} ${timezone}, target ${targetHours}:${String(targetMinutes).padStart(2, '0')}`);
 
-        if (currentHour === hours && currentMinute >= minutes && currentMinute < minutes + 5) {
+        if (currentHour === targetHours && currentMinute >= targetMinutes && currentMinute < targetMinutes + 5) {
           console.log('📦 [BC Sync] Scheduled sync time reached, starting sync...');
           await this.performSync();
           
           const nextSync = new Date();
           nextSync.setDate(nextSync.getDate() + 1);
-          nextSync.setHours(hours, minutes, 0, 0);
+          nextSync.setHours(targetHours, targetMinutes, 0, 0);
           
           await this.updateConfig({ nextScheduledSync: nextSync });
         }
