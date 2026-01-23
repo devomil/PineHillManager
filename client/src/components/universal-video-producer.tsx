@@ -97,6 +97,8 @@ interface ScriptFormData {
   platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
   style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
   brandSettings?: UIBrandSettings;
+  endCardSettings?: EndCardSettings;
+  soundDesignSettings?: SoundDesignSettings;
 }
 
 type ScriptMode = "ai-generate" | "custom";
@@ -469,7 +471,9 @@ function VideoCreatorForm({
         voiceId: formData.voiceId,
         voiceName: formData.voiceName,
         qualityTier: formData.qualityTier,
-      });
+        endCardSettings: formData.endCardSettings,
+        soundDesignSettings: formData.soundDesignSettings,
+      } as any);
     } else {
       onSubmitScript({
         title: formData.title,
@@ -477,6 +481,8 @@ function VideoCreatorForm({
         platform: formData.platform,
         style: formData.style as any,
         brandSettings: formData.brandSettings,
+        endCardSettings: formData.endCardSettings,
+        soundDesignSettings: formData.soundDesignSettings,
         musicEnabled: formData.musicEnabled,
         musicMood: formData.musicMood,
         voiceId: formData.voiceId,
