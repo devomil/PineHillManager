@@ -5786,6 +5786,7 @@ router.post('/projects/:projectId/run-qa', isAuthenticated, async (req: Request,
                     narration: scene.narration || '',
                     totalScenes: scenes.length,
                     expectedContentType: (scene as any).contentType || 'lifestyle',
+                    visualDirection: scene.visualDirection || (scene as any).description || undefined,
                   }
                 );
                 

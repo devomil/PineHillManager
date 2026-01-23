@@ -951,6 +951,7 @@ Return ONLY the JSON object, no other text.`;
       narration: string;
       totalScenes: number;
       expectedContentType: string;
+      visualDirection?: string;
     }
   ): Promise<ComprehensiveQualityResult> {
     log.debug(` Starting comprehensive evaluation for scene ${sceneContext.sceneIndex + 1}...`);
@@ -1010,14 +1011,27 @@ Return ONLY the JSON object, no other text.`;
       narration: string;
       totalScenes: number;
       expectedContentType: string;
+      visualDirection?: string;
     },
     brandEvalContext: string,
     visualGuidelines: string,
     roleContext: string
   ): string {
+    const visualDirectionSection = sceneContext.visualDirection 
+      ? `
+VISUAL DIRECTION (PRIMARY REFERENCE - What this scene SHOULD show):
+"${sceneContext.visualDirection}"
+
+IMPORTANT: The visual direction is the PRIMARY reference for what this scene should contain.
+If the visual direction specifies a clinical/medical setting, waiting room, or healthcare environment,
+these are INTENTIONAL creative choices that should NOT be penalized in brand scoring.
+Brand guidelines are secondary to the visual direction for content matching.`
+      : '';
+      
     return `${roleContext}
 
 Evaluate this video frame for comprehensive quality including Pine Hill Farm brand compliance.
+${visualDirectionSection}
 
 ${brandEvalContext}
 
@@ -1028,6 +1042,7 @@ SCENE CONTEXT:
 - Scene Type: ${sceneContext.sceneType}
 - Expected Content: ${sceneContext.expectedContentType}
 - Narration: "${sceneContext.narration.substring(0, 200)}..."
+${sceneContext.visualDirection ? `- Visual Direction: "${sceneContext.visualDirection.substring(0, 300)}..."` : ''}
 
 EVALUATE FOUR CATEGORIES:
 
@@ -1053,28 +1068,34 @@ Score 0-100 (deduct heavily for issues):
 - Unnatural lighting/shadows
 Score 100 if none found, 0 if critical artifacts present.
 
-## 4. BRAND COMPLIANCE (50% of total) - MOST IMPORTANT
+## 4. BRAND COMPLIANCE (50% of total) - CONTEXT-AWARE SCORING
 Score each 0-25:
 
+IMPORTANT: If the Visual Direction INTENTIONALLY specifies a clinical, medical, waiting room, 
+or healthcare setting, these are VALID creative choices for storytelling purposes (e.g., showing
+problems before wellness solutions). In such cases:
+- Clinical/cold lighting is APPROPRIATE and should score 20-25 points
+- Clinical settings are INTENTIONAL and should score 20-25 points  
+- The image should be evaluated on whether it MATCHES the visual direction, not generic brand guidelines
+
 ### Lighting (12.5%):
-- Warm/golden = 25 points
-- Neutral = 15 points  
-- Cold/clinical = 0-10 points
+For wellness/farm scenes: Warm/golden = 25, Neutral = 15, Cold = 5
+For clinical/problem scenes (per visual direction): Cold/clinical = 25, Neutral = 20
 
 ### Colors (12.5%):
-- Earth tones (green, brown, gold) = 25 points
-- Neutral palette = 15 points
-- Cold blues/grays/sterile = 0-10 points
+For wellness scenes: Earth tones = 25, Neutral = 15, Cold = 5
+For clinical/problem scenes: Clinical palette is INTENTIONAL = 20-25
 
 ### Setting (12.5%):
-- Natural/farm/home/wellness = 25 points
-- Neutral = 15 points
-- Clinical/corporate = 0-10 points
+MATCH THE VISUAL DIRECTION:
+- If visual direction says clinical/waiting room → clinical setting = 25 points
+- If visual direction says farm/wellness → natural setting = 25 points
+- Mismatch with visual direction = 0-10 points
 
 ### Authenticity (12.5%):
-- Real/warm/relatable = 25 points
-- Generic = 15 points
-- Stock-photo/artificial = 0-10 points
+- Real/believable people and environments = 25 points
+- Generic stock-looking = 15 points
+- Artificial/uncanny = 0-10 points
 
 Return JSON:
 {
