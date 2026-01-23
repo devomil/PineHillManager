@@ -24,6 +24,8 @@ import { VoiceSelector } from "./voice-selector";
 import { QualityReport } from "./quality-report";
 import { QADashboard } from "./qa-dashboard";
 import { BrandSettingsPanel, BrandSettings as UIBrandSettings } from "./brand-settings-panel";
+import { EndCardSettingsPanel, EndCardSettings, DEFAULT_END_CARD_SETTINGS } from "./video/EndCardSettingsPanel";
+import { SoundDesignSettingsPanel, SoundDesignSettings, DEFAULT_SOUND_DESIGN_SETTINGS } from "./video/SoundDesignSettingsPanel";
 import { MusicStyleSelector } from "./music-style-selector";
 import { ProviderSelector, ProviderSelectorPanel, getRecommendedProvider, getProviderName, VIDEO_PROVIDERS, IMAGE_PROVIDERS } from "./provider-selector";
 import { getAvailableStyles } from "@shared/visual-style-config";
@@ -117,6 +119,8 @@ interface UnifiedFormData {
   musicMood: string;
   brandSettings: UIBrandSettings;
   qualityTier: "standard" | "premium" | "ultra";
+  endCardSettings: EndCardSettings;
+  soundDesignSettings: SoundDesignSettings;
 }
 
 const STEP_ICONS: Record<string, any> = {
@@ -434,6 +438,8 @@ function VideoCreatorForm({
       watermarkOpacity: 0.7,
     },
     qualityTier: "premium",
+    endCardSettings: DEFAULT_END_CARD_SETTINGS,
+    soundDesignSettings: DEFAULT_SOUND_DESIGN_SETTINGS,
   };
 
   const [formData, setFormData] = useState<UnifiedFormData>(defaultFormData);
@@ -731,6 +737,16 @@ function VideoCreatorForm({
         settings={formData.brandSettings}
         onSettingsChange={(brandSettings) => setFormData(prev => ({ ...prev, brandSettings }))}
         defaultExpanded={false}
+      />
+
+      <EndCardSettingsPanel
+        settings={formData.endCardSettings}
+        onSettingsChange={(endCardSettings) => setFormData(prev => ({ ...prev, endCardSettings }))}
+      />
+
+      <SoundDesignSettingsPanel
+        settings={formData.soundDesignSettings}
+        onSettingsChange={(soundDesignSettings) => setFormData(prev => ({ ...prev, soundDesignSettings }))}
       />
 
       <Button 
