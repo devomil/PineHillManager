@@ -1529,52 +1529,49 @@ const SceneRenderer: React.FC<{
         );
       })()}
 
-      {/* Phase 11B: Extracted Overlay Rendering - COMPLETELY SKIP if any other overlays exist */}
+      {/* Phase 11B: Extracted Overlay Rendering - Skip TEXT if other overlays exist, but ALWAYS render logos */}
       {(() => {
-        // FIXED: Skip ALL extracted/mapped overlays when ANY other text source exists
-        // This is the ONLY way to prevent duplicate text overlays
+        // Check if we should skip TEXT overlays (to prevent duplicates)
         const hasRegularTextOverlays = (scene.textOverlays?.length ?? 0) > 0 && scene.textOverlays![0]?.text;
         const hasIntelligentOverlays = ((scene as any).compositionInstructions?.textOverlays?.length ?? 0) > 0;
+        const skipTextOverlays = hasRegularTextOverlays || hasIntelligentOverlays;
         
-        // If we have ANY overlays from primary sources, skip this entire section
-        // Only render logos/watermarks, not duplicate text
-        if (hasRegularTextOverlays || hasIntelligentOverlays) {
-          return null;  // Logos/watermarks handled elsewhere, skip all text duplicates
-        }
-        
-        if (!scene.extractedOverlayText?.length && !scene.extractedLogos?.length) {
-          return null;
-        }
-        
+        // Always get mapped overlays for logos/watermarks
         const mappedOverlays = mapSceneToOverlays(
           scene,
           fps,
           brand.logoUrl,
-          brand.watermarkUrl
+          (brand as any).watermarkUrl
         );
         
         return (
           <>
-            {mappedOverlays.textOverlays.map((textProps, idx) => (
+            {/* Text overlays - only if no other text sources exist */}
+            {!skipTextOverlays && mappedOverlays.textOverlays.map((textProps, idx) => (
               <EnhancedTextOverlay key={`ext-text-${scene.id}-${idx}`} {...textProps} />
             ))}
             
-            {mappedOverlays.bulletLists.map((listProps, idx) => (
+            {/* Bullet lists - only if no other text sources exist */}
+            {!skipTextOverlays && mappedOverlays.bulletLists.map((listProps, idx) => (
               <BulletList key={`ext-bullets-${scene.id}-${idx}`} {...listProps} />
             ))}
             
-            {mappedOverlays.lowerThirds.map((ltProps, idx) => (
+            {/* Lower thirds - only if no other text sources exist */}
+            {!skipTextOverlays && mappedOverlays.lowerThirds.map((ltProps, idx) => (
               <Phase11BLowerThird key={`ext-lt-${scene.id}-${idx}`} {...ltProps} />
             ))}
             
-            {mappedOverlays.ctaButtons.map((ctaProps, idx) => (
+            {/* CTA buttons - only if no other text sources exist */}
+            {!skipTextOverlays && mappedOverlays.ctaButtons.map((ctaProps, idx) => (
               <CTAButton key={`ext-cta-${scene.id}-${idx}`} {...ctaProps} />
             ))}
             
+            {/* Logo - ALWAYS render regardless of text overlay state */}
             {shouldShowLogo(scene.type) && mappedOverlays.logo && (
               <LogoOverlay {...mappedOverlays.logo} />
             )}
             
+            {/* Watermark - ALWAYS render regardless of text overlay state */}
             {shouldShowWatermark(scene.type) && mappedOverlays.watermark && (
               <WatermarkOverlay {...mappedOverlays.watermark} />
             )}
