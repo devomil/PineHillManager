@@ -1842,9 +1842,22 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     // Phase 16: Build end card config from settings
     const endCardSettings = (preparedProject as any).endCardSettings;
     let endCardConfig: any = undefined;
+    console.log('[UniversalVideo] Phase 16 End Card - endCardSettings:', JSON.stringify(endCardSettings || 'undefined'));
+    console.log('[UniversalVideo] Phase 16 End Card - brand.logoUrl:', preparedProject.brand?.logoUrl || 'EMPTY');
     if (endCardSettings?.enabled !== false) {
       // Cache the logo URL to S3 if it's a local Replit URL
-      let cachedLogoUrl = preparedProject.brand?.logoUrl || '';
+      // Default to Pine Hill Farm logo if none set
+      const defaultLogoUrl = '/assets/pine-hill-farm-logo.png';
+      let cachedLogoUrl = preparedProject.brand?.logoUrl || defaultLogoUrl;
+      
+      // Convert relative URLs to absolute for caching
+      if (cachedLogoUrl.startsWith('/')) {
+        const baseUrl = process.env.REPL_SLUG 
+          ? `https://${process.env.REPL_ID}-00-${process.env.REPL_SLUG}.picard.replit.dev`
+          : `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
+        cachedLogoUrl = `${baseUrl}${cachedLogoUrl}`;
+        console.log('[UniversalVideo] Converted relative logo URL to absolute:', cachedLogoUrl);
+      }
       if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/')) {
         try {
           console.log('[UniversalVideo] Caching end card logo to S3:', cachedLogoUrl.substring(0, 60));
