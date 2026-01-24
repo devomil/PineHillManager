@@ -48,7 +48,7 @@ import {
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
   FolderOpen, Plus, Minus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
   Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy, Check,
-  Replace, ArrowLeftRight
+  Replace, ArrowLeftRight, MapPin
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -1416,6 +1416,7 @@ function ScenePreview({
   const [previewOverlayConfig, setPreviewOverlayConfig] = useState<Record<string, OverlayConfig>>({});
   const [overlaysExpanded, setOverlaysExpanded] = useState<Record<string, boolean>>({});
   const [selectedProductAsset, setSelectedProductAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
+  const [selectedLocationAsset, setSelectedLocationAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
   const [i2vSettings, setI2vSettings] = useState<Record<string, I2VSettings>>({});
   const [motionSettings, setMotionSettings] = useState<Record<string, MotionControlSettings>>({});
   const [localSceneQualityTier, setLocalSceneQualityTier] = useState<Record<string, 'ultra' | 'premium' | 'standard' | null>>({});
@@ -3005,7 +3006,11 @@ function ScenePreview({
                         const forceVideo = sceneQuality === 'premium' || sceneQuality === 'ultra';
                         const mediaType = forceVideo ? 'video' : (sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'));
                         const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
-                        const selectedAsset = selectedProductAsset[scene.id];
+                        // Get user-selected asset (product or location)
+                        const selectedProduct = selectedProductAsset[scene.id];
+                        const selectedLocation = selectedLocationAsset[scene.id];
+                        const userSelectedAssetUrl = selectedProduct?.url || selectedLocation?.url;
+                        
                         const sceneWorkflow = workflowAnalysis[scene.id];
                         const matchedProductAsset = sceneWorkflow?.matchedAssets?.products?.[0]?.url;
                         const matchedLocationAsset = sceneWorkflow?.matchedAssets?.locations?.[0]?.url;
@@ -3022,7 +3027,8 @@ function ScenePreview({
                                                        visualDir.includes('hiking') ||
                                                        visualDir.includes('activity');
                         const shouldUseLocationAsset = matchedLocationAsset && !requiresPeopleContent;
-                        const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl || matchedProductAsset || (shouldUseLocationAsset ? matchedLocationAsset : undefined);
+                        // User-selected asset takes priority, then fall back to matched assets
+                        const sourceImageUrl = userSelectedAssetUrl || scene.brandAssetUrl || scene.assets?.imageUrl || matchedProductAsset || (shouldUseLocationAsset ? matchedLocationAsset : undefined);
                         console.log('[Generate Click] sceneId:', scene.id, 'qualityTier:', sceneQuality, 'mediaType:', mediaType, 'provider:', provider, 'sourceImageUrl:', sourceImageUrl?.substring(0, 50), 'hasMatchedAsset:', !!(matchedProductAsset || matchedLocationAsset));
                         if (mediaType === 'video') {
                           regenerateVideo(scene.id, provider, sourceImageUrl);
@@ -3033,8 +3039,8 @@ function ScenePreview({
                       isGenerating={regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`}
                     />
                     
-                    {/* I2V Settings Panel - shown when a product asset is selected for I2V generation */}
-                    {selectedProductAsset[scene.id] && (
+                    {/* I2V Settings Panel - shown when a product or location asset is selected for I2V generation */}
+                    {(selectedProductAsset[scene.id] || selectedLocationAsset[scene.id]) && (
                       <I2VSettingsPanel
                         settings={i2vSettings[scene.id] || defaultI2VSettings}
                         onChange={(newSettings) => {
@@ -3264,9 +3270,11 @@ function ScenePreview({
                                 const currentMediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                                 const provider = selectedProviders[`${currentMediaType}-${scene.id}`] || getRecommendedProvider(currentMediaType as any, scene.type, scene.analysisResult.improvedPrompt);
                                 if (currentMediaType === 'video') {
-                                  // Include selected product asset or scene's brand asset for I2V workflows
-                                  const selectedAsset = selectedProductAsset[scene.id];
-                                  const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl;
+                                  // Include selected product/location asset or scene's brand asset for I2V workflows
+                                  const selectedProduct = selectedProductAsset[scene.id];
+                                  const selectedLocation = selectedLocationAsset[scene.id];
+                                  const userSelectedAssetUrl = selectedProduct?.url || selectedLocation?.url;
+                                  const sourceImageUrl = userSelectedAssetUrl || scene.brandAssetUrl || scene.assets?.imageUrl;
                                   await regenerateVideo(scene.id, provider, sourceImageUrl);
                                 } else {
                                   await regenerateImage(scene.id, provider);
@@ -3383,9 +3391,27 @@ function ScenePreview({
                           ...prev,
                           [scene.id]: { id: asset.id, url: asset.url, name: asset.name }
                         }));
-                        toast({ title: 'Product selected', description: `${asset.name} selected for regeneration.` });
+                        // Clear location selection when product is selected
+                        setSelectedLocationAsset(prev => ({
+                          ...prev,
+                          [scene.id]: null
+                        }));
+                        toast({ title: 'Product selected', description: `${asset.name} selected as I2V source.` });
                       }}
                       selectedProductAssetId={selectedProductAsset[scene.id]?.id}
+                      onSelectLocationAsset={(asset) => {
+                        setSelectedLocationAsset(prev => ({
+                          ...prev,
+                          [scene.id]: { id: asset.id, url: asset.url, name: asset.name }
+                        }));
+                        // Clear product selection when location is selected
+                        setSelectedProductAsset(prev => ({
+                          ...prev,
+                          [scene.id]: null
+                        }));
+                        toast({ title: 'Location selected', description: `${asset.name} selected as I2V source.` });
+                      }}
+                      selectedLocationAssetId={selectedLocationAsset[scene.id]?.id}
                     />
                   )}
                 </div>
@@ -3755,17 +3781,32 @@ function ScenePreview({
                   </Label>
                   
                   {/* Selected Asset Indicator */}
-                  {selectedProductAsset[scene.id] && (
-                    <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
-                      <Package className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-green-700">
-                        Using: <strong>{selectedProductAsset[scene.id]?.name}</strong>
+                  {(selectedProductAsset[scene.id] || selectedLocationAsset[scene.id]) && (
+                    <div className={`flex items-center gap-2 p-2 rounded-lg border ${
+                      selectedProductAsset[scene.id] 
+                        ? 'bg-green-50 border-green-200' 
+                        : 'bg-amber-50 border-amber-200'
+                    }`}>
+                      {selectedProductAsset[scene.id] ? (
+                        <Package className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <MapPin className="w-4 h-4 text-amber-600" />
+                      )}
+                      <span className={`text-sm ${selectedProductAsset[scene.id] ? 'text-green-700' : 'text-amber-700'}`}>
+                        I2V Source: <strong>{selectedProductAsset[scene.id]?.name || selectedLocationAsset[scene.id]?.name}</strong>
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 ml-auto text-green-600 hover:text-green-700"
-                        onClick={() => setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }))}
+                        className={`h-6 px-2 ml-auto ${
+                          selectedProductAsset[scene.id] 
+                            ? 'text-green-600 hover:text-green-700' 
+                            : 'text-amber-600 hover:text-amber-700'
+                        }`}
+                        onClick={() => {
+                          setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }));
+                          setSelectedLocationAsset(prev => ({ ...prev, [scene.id]: null }));
+                        }}
                       >
                         <X className="w-3 h-3" />
                       </Button>
@@ -3798,10 +3839,12 @@ function ScenePreview({
                     className="w-full"
                     disabled={regenerating === `video-${scene.id}`}
                     onClick={() => {
-                      const selectedAsset = selectedProductAsset[scene.id];
+                      const selectedProduct = selectedProductAsset[scene.id];
+                      const selectedLocation = selectedLocationAsset[scene.id];
+                      const userSelectedAssetUrl = selectedProduct?.url || selectedLocation?.url;
                       const provider = selectedProviders[`video-${scene.id}`] || 'runway';
-                      // Use selected product asset or fall back to scene's brand asset for I2V
-                      const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl;
+                      // Use selected product/location asset or fall back to scene's brand asset for I2V
+                      const sourceImageUrl = userSelectedAssetUrl || scene.brandAssetUrl || scene.assets?.imageUrl;
                       regenerateVideo(scene.id, provider, sourceImageUrl);
                     }}
                   >
@@ -3813,7 +3856,7 @@ function ScenePreview({
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        {selectedProductAsset[scene.id] ? 'Generate Video with Product' : 'Generate Video'}
+                        {selectedProductAsset[scene.id] || selectedLocationAsset[scene.id] ? 'Generate Video with Asset' : 'Generate Video'}
                       </>
                     )}
                   </Button>

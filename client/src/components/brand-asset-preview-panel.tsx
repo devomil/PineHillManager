@@ -32,6 +32,8 @@ interface BrandAssetPreviewPanelProps {
   onApplyToOverlay?: (asset: MatchedAsset, overlayType: 'logo' | 'watermark') => void;
   onSelectProductAsset?: (asset: MatchedAsset) => void;
   selectedProductAssetId?: number;
+  onSelectLocationAsset?: (asset: MatchedAsset) => void;
+  selectedLocationAssetId?: number;
   appliedAssetId?: number;
   compact?: boolean;
 }
@@ -265,6 +267,8 @@ export function BrandAssetPreviewPanel({
   onApplyToOverlay,
   onSelectProductAsset,
   selectedProductAssetId,
+  onSelectLocationAsset,
+  selectedLocationAssetId,
   appliedAssetId,
   compact = false,
 }: BrandAssetPreviewPanelProps) {
@@ -337,11 +341,11 @@ export function BrandAssetPreviewPanel({
           </CardTitle>
           <Badge variant="secondary">{totalAssets} asset{totalAssets > 1 ? 's' : ''}</Badge>
         </div>
-        {products.length > 0 && onSelectProductAsset && (
+        {(products.length > 0 && onSelectProductAsset) || (locations.length > 0 && onSelectLocationAsset) ? (
           <p className="text-xs text-muted-foreground mt-1">
-            Click a product to select it for video regeneration
+            Click a product or location to select it as I2V source
           </p>
-        )}
+        ) : null}
       </CardHeader>
       <Separator />
       <CardContent className="py-3 px-4">
@@ -376,6 +380,8 @@ export function BrandAssetPreviewPanel({
               category="locations"
               onSwap={onSwapAsset ? (oldId, newAsset) => onSwapAsset('locations', oldId, newAsset) : undefined}
               onRemove={onRemoveAsset ? (assetId) => onRemoveAsset('locations', assetId) : undefined}
+              onSelectAsset={onSelectLocationAsset}
+              selectedAssetId={selectedLocationAssetId}
               defaultExpanded={products.length === 0 && logos.length === 0}
             />
           </div>
