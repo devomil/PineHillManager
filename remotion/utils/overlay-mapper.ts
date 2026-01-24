@@ -172,7 +172,7 @@ export function mapSceneToOverlays(
       size: logoSize,
       opacity: 1,
       animation: {
-        type: isIntroScene ? 'zoom' : 'fade',
+        type: isIntroScene ? 'scale-up' : 'fade-in',  // Fixed: 'zoom'/'fade' are not valid LogoAnimation types
         duration: 15,
         delay: 5,
       },

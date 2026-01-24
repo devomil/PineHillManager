@@ -1536,6 +1536,11 @@ const SceneRenderer: React.FC<{
         const hasIntelligentOverlays = ((scene as any).compositionInstructions?.textOverlays?.length ?? 0) > 0;
         const skipTextOverlays = hasRegularTextOverlays || hasIntelligentOverlays;
         
+        // CTA scenes should use CTA buttons from mapped overlays unless brandInstructions provide them
+        const isCTAScene = scene.type === 'cta' || scene.type === 'outro';
+        const hasBrandCTAOverlay = !!((scene as any).brandInstructions?.ctaOverlay);
+        const showCTAButtons = isCTAScene && !hasBrandCTAOverlay;
+        
         // Always get mapped overlays for logos/watermarks
         const mappedOverlays = mapSceneToOverlays(
           scene,
@@ -1546,23 +1551,23 @@ const SceneRenderer: React.FC<{
         
         return (
           <>
-            {/* Text overlays - only if no other text sources exist */}
-            {!skipTextOverlays && mappedOverlays.textOverlays.map((textProps, idx) => (
+            {/* Text overlays - only if no other text sources exist and NOT a CTA scene */}
+            {!skipTextOverlays && !isCTAScene && mappedOverlays.textOverlays.map((textProps, idx) => (
               <EnhancedTextOverlay key={`ext-text-${scene.id}-${idx}`} {...textProps} />
             ))}
             
-            {/* Bullet lists - only if no other text sources exist */}
-            {!skipTextOverlays && mappedOverlays.bulletLists.map((listProps, idx) => (
+            {/* Bullet lists - only if no other text sources exist and NOT a CTA scene */}
+            {!skipTextOverlays && !isCTAScene && mappedOverlays.bulletLists.map((listProps, idx) => (
               <BulletList key={`ext-bullets-${scene.id}-${idx}`} {...listProps} />
             ))}
             
-            {/* Lower thirds - only if no other text sources exist */}
-            {!skipTextOverlays && mappedOverlays.lowerThirds.map((ltProps, idx) => (
+            {/* Lower thirds - only if no other text sources exist and NOT a CTA scene */}
+            {!skipTextOverlays && !isCTAScene && mappedOverlays.lowerThirds.map((ltProps, idx) => (
               <Phase11BLowerThird key={`ext-lt-${scene.id}-${idx}`} {...ltProps} />
             ))}
             
-            {/* CTA buttons - only if no other text sources exist */}
-            {!skipTextOverlays && mappedOverlays.ctaButtons.map((ctaProps, idx) => (
+            {/* CTA buttons - ALWAYS render for CTA scenes if no brand CTA overlay exists */}
+            {showCTAButtons && mappedOverlays.ctaButtons.map((ctaProps, idx) => (
               <CTAButton key={`ext-cta-${scene.id}-${idx}`} {...ctaProps} />
             ))}
             
