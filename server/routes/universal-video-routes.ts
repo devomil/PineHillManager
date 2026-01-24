@@ -28,7 +28,7 @@ import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { videoFrameExtractor } from '../services/video-frame-extractor';
 import { db } from '../db';
-import { universalVideoProjects, sceneRegenerationHistory, brandAssets } from '../../shared/schema';
+import { universalVideoProjects, sceneRegenerationHistory, brandAssets, brandMediaLibrary } from '../../shared/schema';
 import { objectStorageClient } from '../objectStorage';
 import type { 
   VideoProject, 
@@ -1674,7 +1674,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       if (brandAssetMatch) {
         const assetId = parseInt(brandAssetMatch[1], 10);
         try {
-          const result = await db.select({ url: brandMedia.url }).from(brandMedia).where(eq(brandMedia.id, assetId)).limit(1);
+          const result = await db.select({ url: brandMediaLibrary.url }).from(brandMediaLibrary).where(eq(brandMediaLibrary.id, assetId)).limit(1);
           if (result.length > 0 && result[0].url) {
             console.log(`[UniversalVideo] Resolved brand asset ${assetId} to URL: ${result[0].url.substring(0, 60)}...`);
             return result[0].url;
@@ -1835,6 +1835,28 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     const endCardSettings = (preparedProject as any).endCardSettings;
     let endCardConfig: any = undefined;
     if (endCardSettings?.enabled !== false) {
+      // Cache the logo URL to S3 if it's a local Replit URL
+      let cachedLogoUrl = preparedProject.brand?.logoUrl || '';
+      if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/')) {
+        try {
+          console.log('[UniversalVideo] Caching end card logo to S3:', cachedLogoUrl.substring(0, 60));
+          const logoResponse = await fetch(cachedLogoUrl);
+          if (logoResponse.ok) {
+            const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
+            const logoKey = `video-assets/brand/end-card-logo-${Date.now()}.png`;
+            await s3Client.send(new PutObjectCommand({
+              Bucket: REMOTION_BUCKET_NAME,
+              Key: logoKey,
+              Body: logoBuffer,
+              ContentType: 'image/png',
+            }));
+            cachedLogoUrl = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${logoKey}`;
+            console.log('[UniversalVideo] End card logo cached to S3:', cachedLogoUrl);
+          }
+        } catch (err) {
+          console.error('[UniversalVideo] Failed to cache end card logo:', err);
+        }
+      }
       // Default to enabled if not explicitly disabled
       endCardConfig = {
         duration: endCardSettings?.duration || 5,
@@ -1846,7 +1868,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
           },
         },
         logo: {
-          url: preparedProject.brand?.logoUrl || '',
+          url: cachedLogoUrl,
           size: 28,
           position: { x: 50, y: 32 },
           animation: (endCardSettings?.logoAnimation || 'scale-bounce') as 'scale-bounce' | 'fade' | 'slide-up' | 'none',
