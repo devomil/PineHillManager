@@ -11,6 +11,7 @@ import {
 } from '../config/ai-video-providers';
 import { getVisualStyleConfig, VisualStyleConfig } from '@shared/visual-style-config';
 import { getMotionControl, MotionControlConfig } from '@shared/config/motion-control';
+import { optimizePrompt, logPromptOptimization, analyzePrompt } from './video-prompt-optimizer';
 
 interface AIVideoResult {
   success: boolean;
@@ -136,11 +137,39 @@ class AIVideoService {
     
     console.log(`[AIVideo] Enhanced prompt for ${options.sceneType} scene`);
     
-    // Create enhanced options with brand context and negative prompt
+    // PHASE 6R: Optimize prompt - strip jargon, simplify for AI video generation
+    const generationMode = options.imageUrl ? 'i2v' : 't2v';
+    
+    // Normalize provider name (strip version numbers like "kling-2.6" -> "kling")
+    const rawProvider = options.preferredProvider || 'piapi';
+    const normalizedProvider = rawProvider.split('-')[0];
+    
+    // Detect if product should be included based on scene type
+    const includeProduct = ['product', 'solution', 'cta', 'feature'].includes(options.sceneType?.toLowerCase() || '');
+    
+    const optimized = optimizePrompt({
+      visualDescription: enhanced.prompt,
+      sceneType: options.sceneType || 'general',
+      includeProduct,
+      productName: 'Pine Hill supplement',
+      visualStyle: options.visualStyle || 'lifestyle',
+      generationMode,
+      provider: normalizedProvider,
+    });
+    
+    logPromptOptimization(options.prompt, optimized);
+    
+    // Analyze prompt quality
+    const analysis = analyzePrompt(optimized.prompt);
+    if (analysis.score < 70) {
+      console.log(`[AIVideo] Prompt quality warning (score: ${analysis.score}): ${analysis.issues.join(', ')}`);
+    }
+    
+    // Create enhanced options with brand context, optimized prompt, and negative prompt
     const enhancedOptions: AIVideoOptions = {
       ...options,
-      prompt: enhanced.prompt,
-      negativePrompt: enhanced.negativePrompt,
+      prompt: optimized.prompt,
+      negativePrompt: optimized.negativePrompt || enhanced.negativePrompt,
       contentType,
     };
 

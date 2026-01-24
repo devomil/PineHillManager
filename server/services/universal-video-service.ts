@@ -34,6 +34,14 @@ import { sanitizePromptForAI, SanitizedPrompt } from "./prompt-sanitizer";
 import { motionGraphicsRouter } from "./motion-graphics-router";
 import { motionGraphicsGenerator } from "./motion-graphics-generator";
 import { MotionGraphicConfig, RoutingDecision } from "../../shared/types/motion-graphics-types";
+import { 
+  HEALTH_SCRIPT_SYSTEM_PROMPT, 
+  buildHealthScriptContext, 
+  detectProductType,
+  isClaimRisky,
+  getRelevantStatistics
+} from "./health-script-context";
+import { optimizePrompt, logPromptOptimization } from "./video-prompt-optimizer";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -441,11 +449,24 @@ class UniversalVideoService {
       throw new Error("Anthropic API not configured");
     }
 
+    console.log("[UniversalVideoService] Generating health-focused script...");
+
+    const productType = detectProductType(input.productDescription);
+    const healthContext = buildHealthScriptContext(
+      input.productDescription,
+      productType,
+      'youtube'
+    );
+    
+    const statistics = getRelevantStatistics(input.productDescription, 2);
+    console.log(`[UniversalVideoService] Detected product type: ${productType}`);
+    console.log(`[UniversalVideoService] Found ${statistics.length} relevant statistics`);
+
     const benefitsText = input.benefits?.length 
       ? `Key Benefits: ${input.benefits.join(', ')}` 
       : 'Key Benefits: (derive from product description)';
     
-    const prompt = `Create a ${input.duration}-second video script for:
+    const userPrompt = `Create a ${input.duration}-second video script for:
 Product: ${input.productName}
 Description: ${input.productDescription}
 Target Audience: ${input.targetAudience}
@@ -453,14 +474,19 @@ ${benefitsText}
 Style: ${input.style}
 CTA: ${input.callToAction}
 
-Return a JSON array of scenes with this exact structure (no markdown, just pure JSON):
+${healthContext}
+
+Return a JSON object with this exact structure (no markdown, just pure JSON):
 {
+  "title": "Video title",
+  "targetDuration": ${input.duration},
   "scenes": [
     {
-      "type": "hook|benefit|feature|intro|cta",
+      "type": "hook|problem|solution|benefit|social_proof|cta",
       "duration": number,
       "narration": "voiceover text for this scene",
-      "visualDirection": "detailed description for AI image generation - be specific about what to show",
+      "visualDirection": "Simple description: WHO is doing WHAT, WHERE, with WHAT MOOD",
+      "includeProduct": true/false,
       "textOverlays": [
         {
           "text": "on-screen text",
@@ -469,40 +495,53 @@ Return a JSON array of scenes with this exact structure (no markdown, just pure 
         }
       ]
     }
-  ]
+  ],
+  "suggestedStatistic": "Optional relevant statistic used",
+  "keyMessage": "The one thing viewers should remember"
 }
 
 Guidelines for ${input.duration}-second video:
 ${input.duration === 30 ? `
-- Hook scene: 6 seconds, grab attention with a compelling question or statement
-- 2 benefit scenes: 8 seconds each
-- CTA scene: 8 seconds with clear call to action
+- Hook scene: 5 seconds, grab attention with relatable problem or aspiration
+- Problem/Solution: 8 seconds combined
+- Benefit scene: 8 seconds with emotional payoff
+- Social proof: 4 seconds (use a statistic if relevant)
+- CTA scene: 5 seconds with clear call to action
 Total: 30 seconds` : ''}
 ${input.duration === 60 ? `
-- Hook scene: 8 seconds, grab attention
-- Intro scene: 10 seconds, introduce the product
-- 3 benefit scenes: 10 seconds each
-- CTA scene: 12 seconds
+- Hook scene: 6 seconds, relatable problem or aspiration
+- Problem scene: 10 seconds
+- Solution intro: 10 seconds, introduce product naturally
+- 2 Benefit scenes: 10 seconds each
+- Social proof: 6 seconds (use statistics)
+- CTA scene: 8 seconds
 Total: 60 seconds` : ''}
 ${input.duration === 90 ? `
-- Hook scene: 10 seconds
-- Problem scene: 15 seconds
-- Solution intro: 10 seconds
-- 3 benefit scenes: 12 seconds each
+- Hook scene: 8 seconds
+- Problem scene: 12 seconds
+- Solution intro: 12 seconds
+- 3 Benefit scenes: 10 seconds each
+- Social proof: 10 seconds (use statistics)
 - Brand scene: 8 seconds
-- CTA scene: 11 seconds
+- CTA scene: 10 seconds
 Total: 90 seconds` : ''}
 
-- Narration should be conversational and ${input.style.toLowerCase()}
-- Visual directions should be specific and descriptive for AI image generation
-- Include text overlays that reinforce key points
-- Make sure durations add up exactly to ${input.duration} seconds`;
+CRITICAL VISUAL DIRECTION RULES:
+- Keep visual descriptions SIMPLE (15-25 words max)
+- Focus on: WHO is doing WHAT, WHERE, with WHAT MOOD
+- AVOID camera jargon: NO "cinematic", "35mm", "shallow DOF", "golden hour", "color grading"
+- Good example: "A woman in her 40s taking supplements with morning coffee in a sunny kitchen"
+- Bad example: "Cinematic shot with golden hour lighting, shallow depth of field, 35mm lens"
+
+Narration should be conversational, warm, and ${input.style.toLowerCase()}.
+Make sure durations add up exactly to ${input.duration} seconds.`;
 
     try {
       const response = await this.anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 4000,
-        messages: [{ role: "user", content: prompt }],
+        system: HEALTH_SCRIPT_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userPrompt }],
       });
 
       const content = response.content[0];
@@ -517,6 +556,18 @@ Total: 90 seconds` : ''}
 
       const parsed = JSON.parse(jsonMatch[0]);
       const rawScenes = parsed.scenes || [];
+
+      if (parsed.suggestedStatistic) {
+        console.log(`[UniversalVideoService] Script uses statistic: ${parsed.suggestedStatistic}`);
+      }
+      if (parsed.keyMessage) {
+        console.log(`[UniversalVideoService] Key message: ${parsed.keyMessage}`);
+      }
+
+      const allNarration = rawScenes.map((s: any) => s.narration || '').join(' ');
+      if (isClaimRisky(allNarration)) {
+        console.warn("[UniversalVideoService] Warning: Script may contain FDA/FTC risky claims - review recommended");
+      }
 
       return rawScenes.map((s: any, index: number) => this.createSceneFromRaw(s, index));
     } catch (error: any) {
