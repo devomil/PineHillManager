@@ -566,7 +566,7 @@ function VideoCreatorForm({
               placeholder="Describe your product's features and benefits..."
               value={formData.productDescription}
               onChange={(e) => setFormData(prev => ({ ...prev, productDescription: e.target.value }))}
-              rows={3}
+              rows={6}
             />
           </div>
 
