@@ -669,52 +669,77 @@ function VideoCreatorForm({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Visual Style</Label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {visualStyles.map((style) => (
-            <button
-              key={style.id}
-              type="button"
-              onClick={() => setFormData(prev => ({ ...prev, style: style.id }))}
-              className={`
-                p-3 rounded-lg border text-left transition-all
-                ${formData.style === style.id 
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary' 
-                  : 'border-gray-200 hover:border-gray-300'}
-              `}
-              data-testid={`button-style-${style.id}`}
-            >
-              <p className="font-medium text-sm">{style.name}</p>
-              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                {style.description}
-              </p>
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Style affects AI provider selection, prompt enhancement, and transitions
-        </p>
-      </div>
+      <Collapsible defaultOpen={false}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md px-2 -mx-2 group">
+          <Label className="cursor-pointer">Visual Style</Label>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {visualStyles.map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, style: style.id }))}
+                className={`
+                  p-3 rounded-lg border text-left transition-all
+                  ${formData.style === style.id 
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary' 
+                    : 'border-gray-200 hover:border-gray-300'}
+                `}
+                data-testid={`button-style-${style.id}`}
+              >
+                <p className="font-medium text-sm">{style.name}</p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  {style.description}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Style affects AI provider selection, prompt enhancement, and transitions
+          </p>
+        </CollapsibleContent>
+      </Collapsible>
 
-      <MusicStyleSelector
-        enabled={formData.musicEnabled}
-        onEnabledChange={(enabled) => setFormData(prev => ({ ...prev, musicEnabled: enabled }))}
-        visualStyle={formData.style}
-        customMood={formData.musicMood}
-        onMoodChange={(mood) => setFormData(prev => ({ ...prev, musicMood: mood }))}
-        musicProvider={formData.musicProvider}
-        onProviderChange={(provider) => setFormData(prev => ({ ...prev, musicProvider: provider }))}
-      />
+      <Collapsible defaultOpen={false}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md px-2 -mx-2 group">
+          <Label className="cursor-pointer flex items-center gap-2">
+            <Music className="h-4 w-4" />
+            Background Music
+          </Label>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <MusicStyleSelector
+            enabled={formData.musicEnabled}
+            onEnabledChange={(enabled) => setFormData(prev => ({ ...prev, musicEnabled: enabled }))}
+            visualStyle={formData.style}
+            customMood={formData.musicMood}
+            onMoodChange={(mood) => setFormData(prev => ({ ...prev, musicMood: mood }))}
+            musicProvider={formData.musicProvider}
+            onProviderChange={(provider) => setFormData(prev => ({ ...prev, musicProvider: provider }))}
+          />
+        </CollapsibleContent>
+      </Collapsible>
 
-      <Separator />
-
-      <VoiceSelector
-        selectedVoiceId={formData.voiceId}
-        onSelect={(voiceId, voiceName) => 
-          setFormData(prev => ({ ...prev, voiceId, voiceName }))
-        }
-      />
+      <Collapsible defaultOpen={false}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md px-2 -mx-2 group">
+          <Label className="cursor-pointer flex items-center gap-2">
+            <Mic className="h-4 w-4" />
+            Voiceover
+          </Label>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <VoiceSelector
+            selectedVoiceId={formData.voiceId}
+            onSelect={(voiceId, voiceName) => 
+              setFormData(prev => ({ ...prev, voiceId, voiceName }))
+            }
+          />
+        </CollapsibleContent>
+      </Collapsible>
 
       <BrandSettingsPanel
         settings={formData.brandSettings}
