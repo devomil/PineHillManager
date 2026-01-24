@@ -743,6 +743,31 @@ class PiAPIVideoService {
   }, sanitizedPrompt: string): any {
     const animationStyle = options.i2vSettings?.animationStyle ?? 'product-hero';
     
+    // Helper: Detect if prompt requires NEW content generation vs simple animation
+    // When prompt mentions people/activities/montages, use reference_images mode
+    // Otherwise, use image_url mode for simple animation
+    const promptRequiresNewContent = (prompt: string): boolean => {
+      const p = prompt.toLowerCase();
+      return p.includes('montage') || 
+             p.includes('people') || 
+             p.includes('person') ||
+             p.includes('adults') ||
+             p.includes('yoga') ||
+             p.includes('cooking') ||
+             p.includes('hiking') ||
+             p.includes('activity') ||
+             p.includes('engaging') ||
+             p.includes('couple') ||
+             p.includes('woman') ||
+             p.includes('man') ||
+             p.includes('customer') ||
+             p.includes('farmer') ||
+             p.includes('worker') ||
+             p.includes('wellness') ||
+             p.includes('exercise') ||
+             p.includes('shopping');
+    };
+    
     // ===========================================
     // GROUP 1: Send prompt AS-IS (no modification)
     // These providers work best with natural, unmodified prompts
@@ -784,22 +809,8 @@ class PiAPIVideoService {
         console.log(`[PiAPI I2V] Motion control: ${options.motionControl.camera_movement} @ ${options.motionControl.intensity}`);
       }
       
-      // Determine if prompt requires NEW content generation vs simple animation
-      // Use reference_images for creative generation (people, activities, montages)
-      // Use image_url for simple animation of the source image
-      const promptLower = motionPrompt.toLowerCase();
-      const requiresNewContent = promptLower.includes('montage') || 
-                                  promptLower.includes('people') || 
-                                  promptLower.includes('person') ||
-                                  promptLower.includes('adults') ||
-                                  promptLower.includes('yoga') ||
-                                  promptLower.includes('cooking') ||
-                                  promptLower.includes('hiking') ||
-                                  promptLower.includes('activity') ||
-                                  promptLower.includes('engaging') ||
-                                  promptLower.includes('couple') ||
-                                  promptLower.includes('woman') ||
-                                  promptLower.includes('man');
+      // Use helper to detect if prompt requires new content generation
+      const requiresNewContent = promptRequiresNewContent(motionPrompt);
       
       console.log(`[PiAPI I2V] Veo ${veoModel}: ${requiresNewContent ? 'REFERENCE MODE (new content)' : 'ANIMATE MODE (motion only)'}`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
@@ -839,15 +850,30 @@ class PiAPIVideoService {
       }
     }
     
-    // Runway Gen-3 - sends prompt AS-IS
+    // Runway Gen-3 - supports reference_images for new content generation
     if (options.model.includes('runway')) {
-      console.log(`[PiAPI I2V] Runway: Sending prompt AS-IS`);
+      const requiresNewContent = promptRequiresNewContent(sanitizedPrompt);
+      console.log(`[PiAPI I2V] Runway: ${requiresNewContent ? 'REFERENCE MODE (new content)' : 'ANIMATE MODE (motion only)'}`);
+      
+      if (requiresNewContent) {
+        return {
+          model: 'runway',
+          task_type: 'video_generation',
+          input: {
+            prompt: sanitizedPrompt,
+            reference_images: [options.imageUrl],  // Style reference for new content
+            duration: Math.min(options.duration, 10),
+            aspect_ratio: options.aspectRatio || '16:9',
+          },
+        };
+      }
+      
       return {
         model: 'runway',
         task_type: 'video_generation',
         input: {
-          prompt: sanitizedPrompt,  // SEND AS-IS!
-          image_url: options.imageUrl,
+          prompt: sanitizedPrompt,
+          image_url: options.imageUrl,  // First frame animation
           duration: Math.min(options.duration, 10),
           aspect_ratio: options.aspectRatio || '16:9',
         },
@@ -936,11 +962,26 @@ class PiAPIVideoService {
     };
     const cameraHint = cameraHintMap[animationStyle] || 'gentle movement';
     
-    // Luma Dream Machine - adds light camera hint
+    // Luma Dream Machine - supports reference_images for new content generation
     if (options.model.includes('luma') || options.model === 'luma-dream-machine') {
       const prompt = `${sanitizedPrompt}. Camera: ${cameraHint}`;
-      console.log(`[PiAPI I2V] Luma: Adding light camera hint`);
+      const requiresNewContent = promptRequiresNewContent(sanitizedPrompt);
+      
+      console.log(`[PiAPI I2V] Luma: ${requiresNewContent ? 'REFERENCE MODE (new content)' : 'ANIMATE MODE (motion only)'}`);
       console.log(`[PiAPI I2V] Prompt: ${prompt}`);
+      
+      if (requiresNewContent) {
+        return {
+          model: 'luma',
+          task_type: 'video_generation',
+          input: {
+            prompt: prompt,
+            aspect_ratio: options.aspectRatio || '16:9',
+            loop: false,
+            reference_images: [options.imageUrl],  // Style reference for new content
+          },
+        };
+      }
       
       return {
         model: 'luma',
@@ -950,17 +991,32 @@ class PiAPIVideoService {
           aspect_ratio: options.aspectRatio || '16:9',
           loop: false,
           keyframes: { 
-            frame0: { type: 'image', url: options.imageUrl }
+            frame0: { type: 'image', url: options.imageUrl }  // First frame animation
           },
         },
       };
     }
     
-    // Hailuo/Minimax Family - adds light camera hint
+    // Hailuo/Minimax Family - supports reference_images for new content generation
     if (options.model.includes('hailuo') || options.model.includes('minimax')) {
       const prompt = `${sanitizedPrompt}. Camera: ${cameraHint}`;
-      console.log(`[PiAPI I2V] Hailuo: Adding light camera hint`);
+      const requiresNewContent = promptRequiresNewContent(sanitizedPrompt);
+      
+      console.log(`[PiAPI I2V] Hailuo: ${requiresNewContent ? 'REFERENCE MODE (new content)' : 'ANIMATE MODE (motion only)'}`);
       console.log(`[PiAPI I2V] Prompt: ${prompt}`);
+      
+      if (requiresNewContent) {
+        return {
+          model: 'hailuo',
+          task_type: 'video_generation',
+          input: {
+            prompt: prompt,
+            model: 'i2v-01',
+            reference_images: [options.imageUrl],  // Style reference for new content
+            expand_prompt: true,
+          },
+        };
+      }
       
       return {
         model: 'hailuo',
@@ -968,7 +1024,7 @@ class PiAPIVideoService {
         input: {
           prompt: prompt,
           model: 'i2v-01',
-          image_url: options.imageUrl,
+          image_url: options.imageUrl,  // First frame animation
           expand_prompt: true,
         },
       };
@@ -1099,9 +1155,16 @@ class PiAPIVideoService {
       
       console.log(`[PiAPI I2V] Kling settings: fidelity=${imageControlStrength} → cfg=${cfgScale.toFixed(2)}, motion=${motionStrength}, style=${animationStyle}`);
       
-      // Build Kling-specific prompt with full animation style modification
+      // Check if prompt requires NEW content generation (people, activities)
+      const requiresNewContent = promptRequiresNewContent(sanitizedPrompt);
+      console.log(`[PiAPI I2V] Kling: ${requiresNewContent ? 'REFERENCE MODE (new content)' : 'ANIMATE MODE (motion only)'}`);
+      
+      // Build Kling-specific prompt
       let klingPromptBase: string;
-      if (animationStyle === 'product-static') {
+      if (requiresNewContent) {
+        // Reference mode: use the image as context/style guide but generate new content
+        klingPromptBase = sanitizedPrompt;
+      } else if (animationStyle === 'product-static') {
         klingPromptBase = `Gently animate this exact product image. Preserve all details, labels, and text exactly as shown. Subtle ambient motion only.`;
       } else if (animationStyle === 'product-hero') {
         klingPromptBase = `Cinematic product shot. Animate this exact product image with gentle, smooth camera motion. Preserve all product details, labels, and text exactly as shown. ${sanitizedPrompt.substring(0, 100)}`;
@@ -1116,14 +1179,32 @@ class PiAPIVideoService {
       
       console.log(`[PiAPI I2V] Kling prompt: ${klingI2vPrompt}`);
       
-      // For Kling I2V: use both image_url AND first_frame_image for compatibility
-      // Also use elements array for Kling 1.6+ which prefers that format
       // Include camera_control from intelligent motion control system (Phase 16)
       const motionParams = options.motionControl ? mapToKlingMotion(options.motionControl) : {};
       if (options.motionControl) {
         console.log(`[PiAPI I2V] Motion control: ${options.motionControl.camera_movement} @ ${options.motionControl.intensity}`);
       }
       
+      if (requiresNewContent) {
+        // Reference mode: use reference_images for style guidance while generating new content
+        return {
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            prompt: klingI2vPrompt,
+            reference_images: [options.imageUrl],  // Style reference for new content
+            duration: options.duration,
+            aspect_ratio: options.aspectRatio,
+            negative_prompt: i2vNegativePrompt,
+            mode,
+            version,
+            cfg_scale: cfgScale,
+            ...motionParams,
+          },
+        };
+      }
+      
+      // Animation mode: use image_url for first-frame animation
       return {
         model: 'kling',
         task_type: 'video_generation',

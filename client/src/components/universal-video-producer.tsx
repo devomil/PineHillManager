@@ -3829,12 +3829,34 @@ function ScenePreview({
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 p-2 rounded-lg border bg-blue-50 border-blue-200">
-                      <Video className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm text-blue-700">
-                        T2V Mode: Generating from visual direction
-                      </span>
-                    </div>
+                    (() => {
+                      // Check if there are matched brand assets that will be auto-used
+                      const sceneWorkflow = workflowAnalysis[scene.id];
+                      const hasMatchedAssets = sceneWorkflow?.matchedAssets?.products?.length > 0 || 
+                                               sceneWorkflow?.matchedAssets?.locations?.length > 0;
+                      const autoSourceAsset = sceneWorkflow?.matchedAssets?.products?.[0]?.name || 
+                                              sceneWorkflow?.matchedAssets?.locations?.[0]?.name;
+                      
+                      if (hasMatchedAssets) {
+                        return (
+                          <div className="flex items-center gap-2 p-2 rounded-lg border bg-purple-50 border-purple-200">
+                            <ImageIcon className="w-4 h-4 text-purple-600" />
+                            <span className="text-sm text-purple-700">
+                              I2V Reference: <strong>{autoSourceAsset}</strong> (auto-matched)
+                            </span>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="flex items-center gap-2 p-2 rounded-lg border bg-blue-50 border-blue-200">
+                          <Video className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm text-blue-700">
+                            T2V Mode: Generating from visual direction
+                          </span>
+                        </div>
+                      );
+                    })()
                   )}
                   
                   {/* Video Provider Selection (I2V) */}
