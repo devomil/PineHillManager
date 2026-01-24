@@ -1852,9 +1852,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       
       // Convert relative URLs to absolute for caching
       if (cachedLogoUrl.startsWith('/')) {
-        const baseUrl = process.env.REPL_SLUG 
-          ? `https://${process.env.REPL_ID}-00-${process.env.REPL_SLUG}.picard.replit.dev`
-          : `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
+        const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : 'http://localhost:5000';
         cachedLogoUrl = `${baseUrl}${cachedLogoUrl}`;
         console.log('[UniversalVideo] Converted relative logo URL to absolute:', cachedLogoUrl);
       }
