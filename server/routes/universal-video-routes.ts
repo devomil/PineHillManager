@@ -1799,6 +1799,19 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
           }
         }
         
+        // Map logoEnding to scene-level end card config
+        if (overlayConfig.logoEnding?.enabled && overlayConfig.logoEnding?.logoUrl) {
+          const resolvedLogoEndingUrl = await getPublicAssetUrl(overlayConfig.logoEnding.logoUrl);
+          sceneOverlays.logoEnding = {
+            enabled: true,
+            logoUrl: resolvedLogoEndingUrl,
+            backgroundColor: overlayConfig.logoEnding.backgroundColor || '#4A7C59',
+            duration: overlayConfig.logoEnding.duration || 3,
+            animation: overlayConfig.logoEnding.animation || 'elegant',
+          };
+          console.log(`[UniversalVideo] Scene ${scene.id} has logo ending: ${sceneOverlays.logoEnding.duration}s`);
+        }
+        
         sceneBrandOverlays[scene.id] = sceneOverlays;
       }
     }

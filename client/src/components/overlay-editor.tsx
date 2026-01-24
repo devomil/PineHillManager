@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, memo, useRef } from 'react';
-import { Plus, Trash2, Eye, Type, Image, Droplet, User, Check, Loader2, Save } from 'lucide-react';
+import { Plus, Trash2, Eye, Type, Image, Droplet, User, Check, Loader2, Save, Film } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -69,12 +69,22 @@ interface LowerThirdItem {
   position: 'left' | 'right';
 }
 
+export interface LogoEndingConfig {
+  enabled: boolean;
+  logoUrl?: string;
+  logoName?: string;
+  backgroundColor: string;
+  duration: number; // Duration in seconds for the logo ending sequence
+  animation: 'fade' | 'zoom' | 'slide' | 'elegant';
+}
+
 export interface OverlayConfig {
   texts: TextOverlayItem[];
   logo: LogoConfig;
   watermark: WatermarkConfig;
   additionalLogos?: AdditionalLogoItem[];
   lowerThirds: LowerThirdItem[];
+  logoEnding?: LogoEndingConfig;
 }
 
 interface OverlayEditorProps {
@@ -362,21 +372,24 @@ export const OverlayEditor = memo(function OverlayEditor({
   return (
     <div className="space-y-4" data-testid="overlay-editor">
       <Tabs defaultValue="text">
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="text" className="flex items-center gap-1 text-xs px-2" data-testid="tab-text">
+        <TabsList className="grid grid-cols-6 w-full">
+          <TabsTrigger value="text" className="flex items-center gap-1 text-xs px-1" data-testid="tab-text">
             <Type className="h-3 w-3" /> Text
           </TabsTrigger>
-          <TabsTrigger value="logo" className="flex items-center gap-1 text-xs px-2" data-testid="tab-logo">
+          <TabsTrigger value="logo" className="flex items-center gap-1 text-xs px-1" data-testid="tab-logo">
             <Image className="h-3 w-3" /> Logo
           </TabsTrigger>
-          <TabsTrigger value="watermark" className="flex items-center gap-1 text-xs px-2" data-testid="tab-watermark">
+          <TabsTrigger value="watermark" className="flex items-center gap-1 text-xs px-1" data-testid="tab-watermark">
             <Droplet className="h-3 w-3" /> Mark
           </TabsTrigger>
-          <TabsTrigger value="badges" className="flex items-center gap-1 text-xs px-2" data-testid="tab-badges">
+          <TabsTrigger value="badges" className="flex items-center gap-1 text-xs px-1" data-testid="tab-badges">
             <Check className="h-3 w-3" /> Badges
           </TabsTrigger>
-          <TabsTrigger value="lowerthird" className="flex items-center gap-1 text-xs px-2" data-testid="tab-lowerthird">
+          <TabsTrigger value="lowerthird" className="flex items-center gap-1 text-xs px-1" data-testid="tab-lowerthird">
             <User className="h-3 w-3" /> Names
+          </TabsTrigger>
+          <TabsTrigger value="ending" className="flex items-center gap-1 text-xs px-1" data-testid="tab-ending">
+            <Film className="h-3 w-3" /> Ending
           </TabsTrigger>
         </TabsList>
         
@@ -946,6 +959,159 @@ export const OverlayEditor = memo(function OverlayEditor({
               </div>
             )}
           </div>
+        </TabsContent>
+        
+        <TabsContent value="ending" className="space-y-4 mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Logo Ending</Label>
+              <p className="text-xs text-muted-foreground">Show logo on natural background at end of scene</p>
+            </div>
+            <Switch
+              checked={draft.logoEnding?.enabled ?? false}
+              onCheckedChange={(checked) => updateDraft({
+                ...draft,
+                logoEnding: { 
+                  ...draft.logoEnding,
+                  enabled: checked,
+                  backgroundColor: draft.logoEnding?.backgroundColor || '#4A7C59',
+                  duration: draft.logoEnding?.duration || 3,
+                  animation: draft.logoEnding?.animation || 'elegant'
+                }
+              })}
+              data-testid="switch-logo-ending-enabled"
+            />
+          </div>
+          
+          {draft.logoEnding?.enabled && (
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div>
+                  <Label className="text-xs mb-2 block">Select Logo for Ending</Label>
+                  {brandMediaLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : logos.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-4 text-center">
+                      No logos found. Upload logos to the Brand Media Library.
+                    </div>
+                  ) : (
+                    <ScrollArea className="w-full whitespace-nowrap">
+                      <div className="flex gap-2 pb-4">
+                        {logos.map((logo) => (
+                          <button
+                            key={logo.id}
+                            type="button"
+                            onClick={() => updateDraft({
+                              ...draft,
+                              logoEnding: { 
+                                ...draft.logoEnding!,
+                                logoUrl: logo.url, 
+                                logoName: logo.name 
+                              }
+                            })}
+                            className={`relative flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
+                              draft.logoEnding?.logoUrl === logo.url 
+                                ? 'border-primary ring-2 ring-primary/30' 
+                                : 'border-muted hover:border-muted-foreground/50'
+                            }`}
+                            data-testid={`button-select-ending-logo-${logo.id}`}
+                          >
+                            <img 
+                              src={logo.thumbnailUrl || logo.url} 
+                              alt={logo.name}
+                              className="w-full h-full object-contain bg-white p-1"
+                            />
+                            {draft.logoEnding?.logoUrl === logo.url && (
+                              <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                                <Check className="h-5 w-5 text-primary" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
+                  )}
+                  {draft.logoEnding?.logoName && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Selected: {draft.logoEnding.logoName}
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <Label className="text-xs">Background Color</Label>
+                  <div className="flex gap-2 mt-2">
+                    {[
+                      { color: '#4A7C59', name: 'Forest Green' },
+                      { color: '#8B9A46', name: 'Sage' },
+                      { color: '#F5F0E8', name: 'Cream' },
+                      { color: '#2D4739', name: 'Deep Green' },
+                      { color: '#000000', name: 'Black' },
+                      { color: '#FFFFFF', name: 'White' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.color}
+                        type="button"
+                        onClick={() => updateDraft({
+                          ...draft,
+                          logoEnding: { ...draft.logoEnding!, backgroundColor: preset.color }
+                        })}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${
+                          draft.logoEnding?.backgroundColor === preset.color
+                            ? 'ring-2 ring-primary ring-offset-2'
+                            : 'hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: preset.color }}
+                        title={preset.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs">Duration</Label>
+                    <span className="text-xs text-muted-foreground">{draft.logoEnding?.duration || 3}s</span>
+                  </div>
+                  <Slider
+                    value={[draft.logoEnding?.duration || 3]}
+                    onValueChange={([v]) => updateDraft({
+                      ...draft,
+                      logoEnding: { ...draft.logoEnding!, duration: v }
+                    })}
+                    min={2}
+                    max={6}
+                    step={1}
+                    data-testid="slider-logo-ending-duration"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-xs">Animation Style</Label>
+                  <Select
+                    value={draft.logoEnding?.animation || 'elegant'}
+                    onValueChange={(v) => updateDraft({
+                      ...draft,
+                      logoEnding: { ...draft.logoEnding!, animation: v as LogoEndingConfig['animation'] }
+                    })}
+                  >
+                    <SelectTrigger data-testid="select-logo-ending-animation">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fade">Fade In</SelectItem>
+                      <SelectItem value="zoom">Zoom In</SelectItem>
+                      <SelectItem value="slide">Slide Up</SelectItem>
+                      <SelectItem value="elegant">Elegant Reveal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
       

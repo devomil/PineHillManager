@@ -78,6 +78,14 @@ export interface CTAOverlay {
   };
 }
 
+export interface LogoEndingConfig {
+  enabled: boolean;
+  logoUrl: string;
+  backgroundColor: string;
+  duration: number;
+  animation: 'fade' | 'zoom' | 'slide' | 'elegant';
+}
+
 export interface SceneBrandOverlays {
   sceneId: string;
   overlays: BrandOverlay[];
@@ -88,6 +96,7 @@ export interface SceneBrandOverlays {
     subtext?: string;
     url: string;
   };
+  logoEnding?: LogoEndingConfig;
 }
 
 export interface ProjectBrandInstructions {
@@ -1973,6 +1982,143 @@ const CTAOutro: React.FC<CTAOutroProps> = ({
 };
 
 // ============================================================
+// SCENE LOGO ENDING (Phase 16G - Logo reveal at end of scene)
+// ============================================================
+
+interface SceneLogoEndingProps {
+  logoUrl: string;
+  backgroundColor: string;
+  duration: number;
+  animation: 'fade' | 'zoom' | 'slide' | 'elegant';
+  sceneDuration: number;
+  fps: number;
+}
+
+const SceneLogoEnding: React.FC<SceneLogoEndingProps> = ({
+  logoUrl,
+  backgroundColor,
+  duration,
+  animation,
+  sceneDuration,
+  fps,
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  
+  // Clamp duration to ensure it doesn't exceed scene duration
+  const clampedDuration = Math.min(duration, sceneDuration - 0.5); // Leave at least 0.5s of content
+  const effectiveDuration = clampedDuration > 0 ? clampedDuration : 1; // Minimum 1s if scene is too short
+  
+  const endingDurationFrames = Math.round(effectiveDuration * fps);
+  const endingStartFrame = Math.round((sceneDuration - effectiveDuration) * fps);
+  
+  // Only render when in the ending sequence
+  if (frame < endingStartFrame) {
+    return null;
+  }
+  
+  const relativeFrame = frame - endingStartFrame;
+  
+  // Background fade in
+  const bgOpacity = interpolate(
+    relativeFrame,
+    [0, fps * 0.5],
+    [0, 1],
+    { extrapolateRight: 'clamp' }
+  );
+  
+  // Logo animation based on type
+  let logoOpacity = 1;
+  let logoScale = 1;
+  let logoTranslateY = 0;
+  
+  switch (animation) {
+    case 'fade':
+      logoOpacity = interpolate(
+        relativeFrame,
+        [fps * 0.3, fps * 0.8],
+        [0, 1],
+        { extrapolateRight: 'clamp' }
+      );
+      break;
+    case 'zoom':
+      logoOpacity = interpolate(
+        relativeFrame,
+        [fps * 0.3, fps * 0.6],
+        [0, 1],
+        { extrapolateRight: 'clamp' }
+      );
+      logoScale = interpolate(
+        relativeFrame,
+        [fps * 0.3, fps * 0.8],
+        [0.5, 1],
+        { extrapolateRight: 'clamp' }
+      );
+      break;
+    case 'slide':
+      logoOpacity = interpolate(
+        relativeFrame,
+        [fps * 0.2, fps * 0.5],
+        [0, 1],
+        { extrapolateRight: 'clamp' }
+      );
+      logoTranslateY = interpolate(
+        relativeFrame,
+        [fps * 0.2, fps * 0.7],
+        [50, 0],
+        { extrapolateRight: 'clamp' }
+      );
+      break;
+    case 'elegant':
+    default:
+      // Spring-based elegant reveal
+      const logoSpring = spring({
+        frame: relativeFrame - Math.round(fps * 0.3),
+        fps,
+        config: { damping: 20, stiffness: 100, mass: 0.5 },
+      });
+      logoOpacity = logoSpring;
+      logoScale = interpolate(logoSpring, [0, 1], [0.85, 1]);
+      break;
+  }
+  
+  return (
+    <AbsoluteFill
+      style={{
+        opacity: bgOpacity,
+        backgroundColor,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 200,
+      }}
+    >
+      <div
+        style={{
+          opacity: logoOpacity,
+          transform: `scale(${logoScale}) translateY(${logoTranslateY}px)`,
+          maxWidth: '40%',
+          maxHeight: '40%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Img
+          src={logoUrl}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.3))',
+          }}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// ============================================================
 // INTRO SLATE (shown when no scenes)
 // ============================================================
 
@@ -2235,6 +2381,18 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
               fps={fps}
             />
           ))}
+          
+          {/* Scene-level Logo Ending (renders at end of scene) */}
+          {sceneBrandOverlays?.logoEnding?.enabled && sceneBrandOverlays?.logoEnding?.logoUrl && (
+            <SceneLogoEnding
+              logoUrl={sceneBrandOverlays.logoEnding.logoUrl}
+              backgroundColor={sceneBrandOverlays.logoEnding.backgroundColor || '#4A7C59'}
+              duration={sceneBrandOverlays.logoEnding.duration || 3}
+              animation={sceneBrandOverlays.logoEnding.animation || 'elegant'}
+              sceneDuration={scene.duration || 5}
+              fps={fps}
+            />
+          )}
         </AbsoluteFill>
       </Sequence>
     );
