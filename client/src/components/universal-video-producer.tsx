@@ -3009,7 +3009,20 @@ function ScenePreview({
                         const sceneWorkflow = workflowAnalysis[scene.id];
                         const matchedProductAsset = sceneWorkflow?.matchedAssets?.products?.[0]?.url;
                         const matchedLocationAsset = sceneWorkflow?.matchedAssets?.locations?.[0]?.url;
-                        const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl || matchedProductAsset || matchedLocationAsset;
+                        
+                        // Only use location assets for I2V if the visual direction is about the location itself
+                        // NOT for scenes requiring AI-generated people/activities (montage, people, yoga, etc.)
+                        const visualDir = scene.visualDirection?.toLowerCase() || '';
+                        const requiresPeopleContent = visualDir.includes('montage') || 
+                                                       visualDir.includes('people') || 
+                                                       visualDir.includes('person') ||
+                                                       visualDir.includes('adults') ||
+                                                       visualDir.includes('yoga') ||
+                                                       visualDir.includes('cooking') ||
+                                                       visualDir.includes('hiking') ||
+                                                       visualDir.includes('activity');
+                        const shouldUseLocationAsset = matchedLocationAsset && !requiresPeopleContent;
+                        const sourceImageUrl = selectedAsset?.url || scene.brandAssetUrl || scene.assets?.imageUrl || matchedProductAsset || (shouldUseLocationAsset ? matchedLocationAsset : undefined);
                         console.log('[Generate Click] sceneId:', scene.id, 'qualityTier:', sceneQuality, 'mediaType:', mediaType, 'provider:', provider, 'sourceImageUrl:', sourceImageUrl?.substring(0, 50), 'hasMatchedAsset:', !!(matchedProductAsset || matchedLocationAsset));
                         if (mediaType === 'video') {
                           regenerateVideo(scene.id, provider, sourceImageUrl);
