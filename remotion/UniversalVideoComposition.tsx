@@ -1278,7 +1278,8 @@ const SceneRenderer: React.FC<{
   isFirst: boolean;
   isLast: boolean;
   showDebugInfo: boolean;
-}> = ({ scene, brand, isFirst, isLast, showDebugInfo }) => {
+  brandInstructions?: ProjectBrandInstructions;
+}> = ({ scene, brand, isFirst, isLast, showDebugInfo, brandInstructions }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const durationInFrames = (scene.duration || 5) * fps;
@@ -1538,16 +1539,36 @@ const SceneRenderer: React.FC<{
         
         // CTA scenes should use CTA buttons from mapped overlays unless brandInstructions provide them
         const isCTAScene = scene.type === 'cta' || scene.type === 'outro';
-        const hasBrandCTAOverlay = !!((scene as any).brandInstructions?.ctaOverlay);
+        // Check top-level brandInstructions (passed as prop) for CTA overlay
+        const hasBrandCTAOverlay = !!(brandInstructions?.ctaOverlay);
         const showCTAButtons = isCTAScene && !hasBrandCTAOverlay;
+        
+        // Get logo URL with fallback from brandInstructions
+        const effectiveLogoUrl = brand.logoUrl || 
+          brandInstructions?.outroSequence?.[0]?.assetUrl ||
+          brandInstructions?.watermark?.assetUrl;
         
         // Always get mapped overlays for logos/watermarks
         const mappedOverlays = mapSceneToOverlays(
           scene,
           fps,
-          brand.logoUrl,
-          (brand as any).watermarkUrl
+          effectiveLogoUrl,
+          (brand as any).watermarkUrl || brandInstructions?.watermark?.assetUrl
         );
+        
+        // Debug: Log overlay rendering info (only in development)
+        if (typeof window !== 'undefined' && (window as any).__REMOTION_DEV__) {
+          console.log(`[OverlayDebug] Scene ${scene.id} (${scene.type}):`, {
+            brandLogoUrl: brand.logoUrl?.substring(0, 50) || 'MISSING',
+            effectiveLogoUrl: effectiveLogoUrl?.substring(0, 50) || 'NONE',
+            shouldShowLogo: shouldShowLogo(scene.type),
+            hasLogoInMapped: !!mappedOverlays.logo,
+            logoUrlInMapped: mappedOverlays.logo?.logoUrl?.substring(0, 50) || 'NONE',
+            ctaButtonsCount: mappedOverlays.ctaButtons?.length || 0,
+            showCTAButtons,
+            hasBrandCTAOverlay,
+          });
+        }
         
         return (
           <>
@@ -2341,6 +2362,7 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
             isFirst={isFirstScene}
             isLast={isLastScene}
             showDebugInfo={showDebugInfo}
+            brandInstructions={brandInstructions}
           />
           
           {/* BRAND OVERLAYS (Phase 4E) */}
