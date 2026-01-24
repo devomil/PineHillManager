@@ -77,3 +77,32 @@ fetch('https://upload.theapi.app/api/ephemeral_resource', {
 - Using multipart/form-data (causes "No number after minus sign in JSON" error)
 - Wrong parameter names: `file` instead of `file_data`, `filename` instead of `file_name`
 - Including data URI prefix (`data:image/png;base64,`) - just send raw base64
+
+### Phase 6R: Health-Focused Script Generation (January 2026)
+The AI script generation now uses health-intelligent prompts with researched data:
+
+**Key Services:**
+- `health-script-context.ts`: Product knowledge base with FDA/FTC compliant claims, health statistics with sources, risk detection for risky claims
+- `video-prompt-optimizer.ts`: Strips camera jargon (cinematic, 35mm, DOF), converts I2V prompts to motion-focused, applies emotional style hints
+
+**Script Generation Improvements:**
+- Automatic product type detection (immune, weight, sleep, joint, digestive support)
+- Relevant health statistics injected into context
+- Compliance warnings for potentially risky FDA/FTC claims
+- Simple visual direction rules enforced (WHO doing WHAT, WHERE, with WHAT MOOD)
+
+**Prompt Optimization:**
+- Jargon patterns removed: cinematic, 35mm, shallow DOF, golden hour, film grain, etc.
+- I2V prompts focus on motion/action, not scene description
+- Provider-specific adjustments (Luma gets motion hints, Hailuo gets shortened prompts)
+- Quality scoring with warnings for prompts under 70 score
+
+**Good Prompt Example:**
+```
+"A woman in her 40s taking supplements with morning coffee in a sunny kitchen"
+```
+
+**Bad Prompt Example (automatically cleaned):**
+```
+"Cinematic shot with golden hour lighting, shallow depth of field, 35mm lens..."
+```
