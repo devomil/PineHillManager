@@ -214,14 +214,6 @@ export const BrandSettingsPanel: React.FC<BrandSettingsPanelProps> = ({
         {isExpanded && (
           <CardContent className="pt-0 pb-4">
             <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
-              {brandPreview.logos.main && (
-                <img
-                  src={brandPreview.logos.main.thumbnailUrl}
-                  alt={brandPreview.brandName}
-                  className="h-10 w-auto object-contain"
-                  data-testid="img-brand-logo"
-                />
-              )}
               <div>
                 <p className="font-medium text-sm" data-testid="text-brand-name">{brandPreview.brandName}</p>
                 {brandPreview.tagline && (

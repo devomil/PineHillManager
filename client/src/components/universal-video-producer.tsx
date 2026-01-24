@@ -495,8 +495,7 @@ function VideoCreatorForm({
   const isValidForSubmit = scriptMode === "ai-generate"
     ? formData.productName.trim() && 
       formData.productDescription.trim() && 
-      formData.targetAudience.trim() && 
-      formData.callToAction.trim()
+      formData.targetAudience.trim()
     : formData.title.trim() && formData.customScript.length >= 50;
 
   return (
@@ -567,16 +566,6 @@ function VideoCreatorForm({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="callToAction">Call to Action</Label>
-            <Input
-              id="callToAction"
-              data-testid="input-cta"
-              placeholder="e.g., Visit pinehillfarm.com today!"
-              value={formData.callToAction}
-              onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
-            />
-          </div>
         </div>
       ) : (
         <div className="space-y-4">
