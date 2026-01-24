@@ -537,7 +537,7 @@ function VideoCreatorForm({
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="productName">Product Name</Label>
+              <Label htmlFor="productName">Title</Label>
               <Input
                 id="productName"
                 data-testid="input-product-name"
@@ -559,7 +559,7 @@ function VideoCreatorForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="productDescription">Product Description</Label>
+            <Label htmlFor="productDescription">Description</Label>
             <Textarea
               id="productDescription"
               data-testid="textarea-product-description"
