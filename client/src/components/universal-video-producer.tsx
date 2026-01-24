@@ -119,7 +119,7 @@ interface UnifiedFormData {
   voiceName: string;
   musicEnabled: boolean;
   musicMood: string;
-  musicProvider: 'udio' | 'diffrhythm' | 'suno' | 'ace-step';
+  musicProvider: 'udio' | 'diffrhythm' | 'suno' | 'ace-step' | 'kling-sound';
   brandSettings: UIBrandSettings;
   qualityTier: "standard" | "premium" | "ultra";
   endCardSettings: EndCardSettings;

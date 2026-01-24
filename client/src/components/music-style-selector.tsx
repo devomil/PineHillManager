@@ -2,7 +2,7 @@ import { Music, Volume2, Zap } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { getVisualStyleConfig } from '@shared/visual-style-config';
 
-export type MusicProvider = 'udio' | 'diffrhythm' | 'suno' | 'ace-step';
+export type MusicProvider = 'udio' | 'diffrhythm' | 'suno' | 'ace-step' | 'kling-sound';
 
 interface MusicStyleSelectorProps {
   enabled: boolean;
@@ -28,6 +28,7 @@ const MUSIC_PROVIDERS = [
   { id: 'diffrhythm' as MusicProvider, name: 'DiffRhythm', description: 'Full songs with vocals, fast', cost: '$0.02' },
   { id: 'suno' as MusicProvider, name: 'Suno V5', description: 'Adaptive, structured songs', cost: 'Variable' },
   { id: 'ace-step' as MusicProvider, name: 'ACE-Step', description: '19 languages, voice cloning', cost: 'Variable' },
+  { id: 'kling-sound' as MusicProvider, name: 'Kling Sound', description: 'Sound effects & ambient audio', cost: '$0.07' },
 ];
 
 export function MusicStyleSelector({
