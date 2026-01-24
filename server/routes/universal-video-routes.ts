@@ -5711,6 +5711,7 @@ router.post('/projects/:projectId/run-qa', isAuthenticated, async (req: Request,
                 narration: s.narration || '',
                 duration: s.duration || 5,
                 textOverlays: s.textOverlays || [],
+                visualDirection: s.visualDirection || (s as any).description || undefined,
               })),
             }
           );

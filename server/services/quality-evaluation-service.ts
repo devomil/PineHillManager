@@ -120,6 +120,7 @@ class QualityEvaluationService {
         textOverlays?: Array<{ text: string }>;
         shotType?: string;  // Phase 10B: Expected shot type for framing validation
         expectedShotType?: string;  // Alias for shotType
+        visualDirection?: string;  // The visual direction prompt for context-aware evaluation
       }>;
     }
   ): Promise<VideoQualityReport> {
@@ -189,6 +190,7 @@ class QualityEvaluationService {
       narration: string;
       textOverlays?: Array<{ text: string }>;
       expectedShotType?: string;  // Phase 10B: Expected shot type for framing validation
+      visualDirection?: string;  // The visual direction prompt for context-aware evaluation
     },
     sceneIndex: number
   ): Promise<SceneQualityScore> {
@@ -239,19 +241,38 @@ class QualityEvaluationService {
     narration: string;
     textOverlays?: Array<{ text: string }>;
     expectedShotType?: string;
+    visualDirection?: string;
   }): string {
     const expectedText = scene.textOverlays?.map(t => t.text).join(', ') || 'None';
     const expectedShot = scene.expectedShotType || 'not specified';
     
-    return `Evaluate this video frame for broadcast quality using STRICT content matching rules.
+    const visualDirectionSection = scene.visualDirection 
+      ? `
+VISUAL DIRECTION (PRIMARY REFERENCE - What this scene was designed to show):
+"${scene.visualDirection}"
 
+CRITICAL CONTEXT-AWARE RULE: The visual direction is the PRIMARY reference for what this scene SHOULD contain.
+If the visual direction specifies a clinical/medical setting, waiting room, healthcare environment, 
+fluorescent lighting, or cold atmosphere - these are INTENTIONAL creative choices for storytelling purposes
+(e.g., showing the "problem" before introducing wellness solutions). 
+
+Evaluation should check: Does the image MATCH what the visual direction requested?
+- If visual direction says "clinical waiting room" and image shows clinical waiting room = HIGH score
+- If visual direction says "looking at watch" and person IS looking at watch = HIGH score
+- Do NOT penalize elements that were EXPLICITLY REQUESTED in the visual direction
+`
+      : '';
+    
+    return `Evaluate this video frame for broadcast quality using CONTEXT-AWARE content matching.
+${visualDirectionSection}
 SCENE CONTEXT:
 - Scene type: ${scene.type}
 - Expected narration topic: "${scene.narration.substring(0, 100)}..."
 - Expected text overlays: ${expectedText}
 - Expected shot type/framing: ${expectedShot}
+${scene.visualDirection ? `- Visual Direction: "${scene.visualDirection.substring(0, 200)}..."` : ''}
 
-=== STRICT CONTENT MATCHING RULES (Phase 10B) ===
+=== CONTEXT-AWARE CONTENT MATCHING RULES ===
 
 1. TEXT OVERLAY VERIFICATION:
    - If expected text overlays are specified, they MUST be visible in the frame
@@ -266,10 +287,11 @@ SCENE CONTEXT:
    - product-shot: Product is the clear focal point, clean background
    - If actual framing doesn't match expected, score contentMatch < 50
 
-3. CONTENT MATCH REQUIREMENTS:
-   - Visual MUST relate to narration topic (e.g., "health benefits" needs health imagery)
-   - Wrong subject = critical failure (e.g., showing office when narration mentions nature)
-   - Generic stock footage that doesn't match specific topic = major issue
+3. CONTENT MATCH REQUIREMENTS (VISUAL DIRECTION FIRST):
+   - PRIMARY: Does the image match the VISUAL DIRECTION? If yes, score HIGH
+   - If visual direction specifies clinical/cold/waiting room settings, these are INTENTIONAL - score HIGH
+   - SECONDARY: Does the visual relate to narration topic?
+   - Only flag "wrong subject" if it contradicts BOTH visual direction AND narration
 
 Rate each aspect 0-100:
 
@@ -278,7 +300,7 @@ Rate each aspect 0-100:
     "composition": <0-100 - Is the visual layout professional? Text placed well?>,
     "visibility": <0-100 - Is all text clearly readable? Good contrast?>,
     "technicalQuality": <0-100 - No blur, artifacts, good resolution?>,
-    "contentMatch": <0-100 - Does visual STRICTLY match the narration topic?>,
+    "contentMatch": <0-100 - Does visual match VISUAL DIRECTION first, then narration? If visual direction specifies clinical/cold settings and image shows them, score HIGH>,
     "professionalLook": <0-100 - Would this look good on TV?>,
     "framingMatch": <0-100 - Does shot type match expected framing?>
   },
@@ -303,9 +325,10 @@ Rate each aspect 0-100:
 }
 
 SCORING RULES:
+- If visual direction is provided and image MATCHES it = contentMatch 80-100 (even if setting is clinical/cold)
 - Missing expected text overlay = critical, contentMatch < 40
 - Wrong framing (e.g., wide when close-up expected) = major, framingMatch < 50
-- Content completely mismatched to narration = critical, contentMatch < 30
+- Content contradicts BOTH visual direction AND narration = critical, contentMatch < 30
 - Text overlapping a face = critical, composition -= 30
 - Text unreadable = critical, visibility < 40
 - Poor image quality = major, technicalQuality -= 20
