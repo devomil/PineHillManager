@@ -815,7 +815,6 @@ const KenBurnsBackground: React.FC<{
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           volume={0}
           startFrom={0}
-          loop
         />
       );
     }
@@ -873,7 +872,6 @@ const KenBurnsBackground: React.FC<{
         style={style}
         volume={0}
         startFrom={0}
-        loop
       />
     );
   }
@@ -1366,7 +1364,6 @@ const SceneRenderer: React.FC<{
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             volume={0}
             startFrom={0}
-            loop
           />
         ) : hasValidBrandAsset && brandAssetType === 'image' ? (
           <KenBurnsImage

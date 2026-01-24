@@ -2656,9 +2656,8 @@ Total: 90 seconds` : ''}
           if (productImages.length > 0 && productSceneTypes.includes(scene.type)) {
             const imageIndex = i % productImages.length;
             const productImage = productImages[imageIndex];
-            const useProductOverlay = scene.assets?.useProductOverlay !== undefined
-              ? scene.assets.useProductOverlay
-              : (SCENE_OVERLAY_DEFAULTS[scene.type] ?? true);
+            // FIXED: Default to false - product overlays should only appear when explicitly approved by user
+            const useProductOverlay = scene.assets?.useProductOverlay === true;
             
             if (useProductOverlay) {
               const resolvedProductUrl = this.resolveProductImageUrl(productImage.url);
@@ -2856,10 +2855,8 @@ Total: 90 seconds` : ''}
         const imageIndex = i % productImages.length;
         const productImage = productImages[imageIndex];
         
-        // Determine if product overlay should be shown based on scene type or explicit user choice
-        const useProductOverlay = scene.assets?.useProductOverlay !== undefined
-          ? scene.assets.useProductOverlay
-          : (SCENE_OVERLAY_DEFAULTS[scene.type] ?? true);
+        // FIXED: Product overlays should only appear when explicitly approved by user
+        const useProductOverlay = scene.assets?.useProductOverlay === true;
         
         // For content scenes (hook, benefit, story, etc.) - generate script-relevant imagery
         // For product overlay scenes (intro, feature, cta) - generate empty backgrounds for product overlay
@@ -3884,6 +3881,21 @@ Total: 90 seconds` : ''}
     return url.startsWith('https://');
   }
 
+  private resolveToAbsoluteUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    if (url.startsWith('https://') || url.startsWith('http://')) return url;
+    
+    // Convert relative URLs (like /api/brand-assets/file/X) to absolute HTTPS URLs
+    if (url.startsWith('/')) {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : 'https://localhost:5000';
+      return `${baseUrl}${url}`;
+    }
+    
+    return url;
+  }
+
   async prepareAssetsForLambda(project: VideoProject): Promise<{
     valid: boolean;
     issues: string[];
@@ -3906,10 +3918,16 @@ Total: 90 seconds` : ''}
     }
     // ========== END S3 CACHING ==========
 
-    // Validate brand logo - must be valid HTTPS URL for Lambda
-    if (preparedProject.brand?.logoUrl && !this.isValidHttpsUrl(preparedProject.brand.logoUrl)) {
-      console.log(`[UniversalVideoService] Invalid logo URL (not HTTPS): ${preparedProject.brand.logoUrl} - disabling watermark`);
-      preparedProject.brand.logoUrl = ''; // Empty string will cause Watermark to skip rendering
+    // Resolve and validate brand logo - convert relative URLs to absolute HTTPS
+    if (preparedProject.brand?.logoUrl) {
+      const resolvedLogoUrl = this.resolveToAbsoluteUrl(preparedProject.brand.logoUrl);
+      if (this.isValidHttpsUrl(resolvedLogoUrl)) {
+        preparedProject.brand.logoUrl = resolvedLogoUrl;
+        console.log(`[UniversalVideoService] Brand logo URL resolved: ${resolvedLogoUrl}`);
+      } else {
+        console.log(`[UniversalVideoService] Invalid logo URL (not HTTPS): ${preparedProject.brand.logoUrl} - disabling watermark`);
+        preparedProject.brand.logoUrl = ''; // Empty string will cause Watermark to skip rendering
+      }
     }
 
     if (preparedProject.assets.voiceover.fullTrackUrl) {
