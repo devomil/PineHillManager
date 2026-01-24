@@ -1121,6 +1121,13 @@ For EACH element:
 - Proper lighting
 
 ### 4. BRAND COMPLIANCE (15 points max)
+**CONTEXT-AWARE RULE**: If the VISUAL DIRECTION explicitly requests clinical/cold/sterile settings 
+(e.g., "sterile doctor's office", "cold waiting room", "clinical environment"), these are INTENTIONAL 
+for storytelling purposes (showing the "problem" before the wellness solution). In such cases:
+- Score HIGH if the image MATCHES the requested clinical/cold aesthetic
+- Do NOT penalize clinical/cold elements when they are EXPLICITLY REQUESTED in the visual direction
+
+For scenes WITHOUT explicit clinical/cold direction:
 - Warm, natural lighting (not clinical/cold)
 - Earth tones, greens, natural colors
 - Welcoming, health-focused aesthetic
@@ -1190,14 +1197,15 @@ Respond ONLY with JSON:
     ]
   },
   "brandCompliance": {
-    "score": <0-100>,
-    "lightingMatch": <true|false>,
+    "score": <0-100 - if visual direction requests clinical/cold settings and image matches, score HIGH>,
+    "lightingMatch": <true if matches visual direction (clinical = cool is CORRECT if requested)>,
     "lightingType": "<warm|cool|neutral|mixed>",
-    "colorPaletteMatch": <true|false>,
+    "colorPaletteMatch": <true if matches visual direction intent>,
     "dominantColors": ["<color1>", "<color2>"],
-    "settingAppropriate": <true|false>,
+    "settingAppropriate": <true if matches visual direction - clinical IS appropriate when requested>,
     "authenticFeel": <true|false>,
-    "issues": ["<issue1>", "<issue2>"]
+    "visualDirectionRequestsClinical": <true|false - detect if visual direction asks for clinical/cold/sterile settings>,
+    "issues": ["<issue1>", "<issue2> - only flag if clinical/cold was NOT requested in visual direction"]
   },
   "composition": {
     "score": <0-100>,
@@ -1225,6 +1233,11 @@ Respond ONLY with JSON:
 - Composition/Framing: 20% of total
 
 REMEMBER: A technically perfect image that doesn't match the visual direction should score LOW. Content match is the MOST important factor.
+
+**CONTEXT-AWARE BRAND COMPLIANCE**: If the visual direction explicitly mentions clinical, sterile, cold, waiting room, 
+fluorescent lighting, or similar elements - these are INTENTIONAL storytelling choices. When the image MATCHES 
+these requested elements, brand compliance should be HIGH, not low. Only penalize clinical/cold aesthetics when 
+they appear in scenes where they were NOT requested.
 
 Respond ONLY with the JSON, no other text.`;
   }
