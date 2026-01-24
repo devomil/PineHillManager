@@ -7238,16 +7238,31 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Add active entries with calculated time
+      // SAFEGUARD: Cap active entries at 16 hours max to prevent stale clock-ins from inflating labor costs
+      // Entries clocked in for more than 24 hours are likely forgotten and should be excluded
+      const MAX_ACTIVE_MINUTES = 16 * 60; // 16 hours max for active calculation
+      const STALE_THRESHOLD_MINUTES = 24 * 60; // 24 hours = considered stale/forgotten
+      
       for (const entry of activeEntries) {
         const clockInTime = entry.clockInTime ? new Date(entry.clockInTime) : new Date();
         const now = new Date();
         const minutesWorked = Math.floor((now.getTime() - clockInTime.getTime()) / (1000 * 60));
+        
+        // Skip entries that are likely forgotten (clocked in for more than 24 hours)
+        if (minutesWorked > STALE_THRESHOLD_MINUTES) {
+          console.log(`⚠️ Skipping stale clock-in entry: ${entry.firstName} ${entry.lastName} clocked in ${(minutesWorked / 60).toFixed(1)} hours ago`);
+          continue;
+        }
+        
+        // Cap active entries at max 16 hours to be conservative
+        const cappedMinutes = Math.min(minutesWorked, MAX_ACTIVE_MINUTES);
+        
         timeEntries.push({
           userId: entry.userId,
           firstName: entry.firstName,
           lastName: entry.lastName,
           hourlyRate: entry.hourlyRate,
-          totalWorkedMinutes: minutesWorked,
+          totalWorkedMinutes: cappedMinutes,
           clockInTime: entry.clockInTime,
           isActive: true
         });
