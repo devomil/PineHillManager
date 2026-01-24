@@ -3242,9 +3242,23 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     const prompt = query || scene.visualDirection || (scene as any).description || 'Professional wellness video';
     const fallbackPrompt = (scene as any).summary || 'professional video';
     
+    // Check if visual direction requires AI-generated people/activities (not compatible with location assets)
+    const visualDir = (scene.visualDirection || '').toLowerCase();
+    const requiresPeopleContent = visualDir.includes('montage') || 
+                                   visualDir.includes('people') || 
+                                   visualDir.includes('person') ||
+                                   visualDir.includes('adults') ||
+                                   visualDir.includes('yoga') ||
+                                   visualDir.includes('cooking') ||
+                                   visualDir.includes('hiking') ||
+                                   visualDir.includes('activity');
+    
     // Determine source image for I2V - use provided sourceImageUrl or scene's brandAssetUrl
-    const relativeSourceUrl = sourceImageUrl || scene.brandAssetUrl || undefined;
+    // BUT skip brandAssetUrl if the visual direction requires AI-generated people content
+    const shouldUseBrandAsset = scene.brandAssetUrl && !requiresPeopleContent;
+    const relativeSourceUrl = sourceImageUrl || (shouldUseBrandAsset ? scene.brandAssetUrl : undefined);
     console.log(`[Phase9B-Async] Scene brandAssetUrl: ${scene.brandAssetUrl?.substring(0, 80) || 'none'}`);
+    console.log(`[Phase9B-Async] Requires people content: ${requiresPeopleContent}, will use brandAsset: ${shouldUseBrandAsset}`);
     console.log(`[Phase9B-Async] Relative source image URL: ${relativeSourceUrl?.substring(0, 80) || 'none (T2V mode)'}`);
     
     // Convert relative URL to signed public URL for external video providers
