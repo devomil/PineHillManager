@@ -119,6 +119,7 @@ interface UnifiedFormData {
   voiceName: string;
   musicEnabled: boolean;
   musicMood: string;
+  musicProvider: 'udio' | 'diffrhythm' | 'suno' | 'ace-step';
   brandSettings: UIBrandSettings;
   qualityTier: "standard" | "premium" | "ultra";
   endCardSettings: EndCardSettings;
@@ -432,6 +433,7 @@ function VideoCreatorForm({
     voiceName: "Rachel",
     musicEnabled: true,
     musicMood: "",
+    musicProvider: "udio",
     brandSettings: {
       includeIntroLogo: true,
       includeWatermark: true,
@@ -696,6 +698,8 @@ function VideoCreatorForm({
         visualStyle={formData.style}
         customMood={formData.musicMood}
         onMoodChange={(mood) => setFormData(prev => ({ ...prev, musicMood: mood }))}
+        musicProvider={formData.musicProvider}
+        onProviderChange={(provider) => setFormData(prev => ({ ...prev, musicProvider: provider }))}
       />
 
       <Separator />
