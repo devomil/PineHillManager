@@ -601,44 +601,23 @@ function VideoCreatorForm({
 
       <Separator />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {scriptMode === "ai-generate" && (
-          <div className="space-y-2">
-            <Label>Video Duration</Label>
-            <Select
-              value={String(formData.duration)}
-              onValueChange={(val) => setFormData(prev => ({ ...prev, duration: Number(val) as 30 | 60 | 90 }))}
-            >
-              <SelectTrigger data-testid="select-duration">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30 seconds</SelectItem>
-                <SelectItem value="60">60 seconds</SelectItem>
-                <SelectItem value="90">90 seconds</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label>Platform</Label>
-          <Select
-            value={formData.platform}
-            onValueChange={(val) => setFormData(prev => ({ ...prev, platform: val as any }))}
-          >
-            <SelectTrigger data-testid="select-platform">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="youtube">YouTube</SelectItem>
-              <SelectItem value="tiktok">TikTok</SelectItem>
-              <SelectItem value="instagram">Instagram</SelectItem>
-              <SelectItem value="facebook">Facebook</SelectItem>
-              <SelectItem value="website">Website</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="space-y-2">
+        <Label>Platform</Label>
+        <Select
+          value={formData.platform}
+          onValueChange={(val) => setFormData(prev => ({ ...prev, platform: val as any }))}
+        >
+          <SelectTrigger data-testid="select-platform">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="youtube">YouTube</SelectItem>
+            <SelectItem value="tiktok">TikTok</SelectItem>
+            <SelectItem value="instagram">Instagram</SelectItem>
+            <SelectItem value="facebook">Facebook</SelectItem>
+            <SelectItem value="website">Website</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">
