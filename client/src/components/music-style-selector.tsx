@@ -1,8 +1,8 @@
 import { Music, Volume2, Zap } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { getVisualStyleConfig } from '@shared/visual-style-config';
+import { getVisualStyleConfig, getMusicStyleForVisual } from '@shared/visual-style-config';
 
-export type MusicProvider = 'udio' | 'diffrhythm' | 'suno' | 'ace-step' | 'kling-sound';
+export type MusicProvider = 'auto' | 'udio' | 'diffrhythm' | 'suno' | 'ace-step' | 'kling-sound';
 
 interface MusicStyleSelectorProps {
   enabled: boolean;
@@ -14,21 +14,20 @@ interface MusicStyleSelectorProps {
   onProviderChange?: (provider: MusicProvider) => void;
 }
 
-const MUSIC_MOODS = [
-  { id: 'uplifting', name: 'Uplifting', description: 'Positive, inspiring' },
-  { id: 'calm', name: 'Calm', description: 'Relaxing, peaceful' },
-  { id: 'energetic', name: 'Energetic', description: 'Dynamic, exciting' },
-  { id: 'emotional', name: 'Emotional', description: 'Heartfelt, moving' },
-  { id: 'corporate', name: 'Corporate', description: 'Professional, confident' },
-  { id: 'epic', name: 'Epic', description: 'Cinematic, powerful' },
+const MOOD_MODIFIERS = [
+  { id: 'default', label: 'Auto', description: 'Match visual style' },
+  { id: 'uplifting', label: 'Uplifting', description: 'More hopeful, positive' },
+  { id: 'calm', label: 'Calm', description: 'More relaxed, peaceful' },
+  { id: 'intense', label: 'Intense', description: 'More dramatic, powerful' },
+  { id: 'playful', label: 'Playful', description: 'More fun, lighthearted' },
 ];
 
 const MUSIC_PROVIDERS = [
+  { id: 'auto' as MusicProvider, name: 'Auto', description: 'Best for style', cost: 'Varies' },
   { id: 'udio' as MusicProvider, name: 'Udio', description: 'Professional-grade, versatile', cost: '$0.05' },
-  { id: 'diffrhythm' as MusicProvider, name: 'DiffRhythm', description: 'Full songs with vocals, fast', cost: '$0.02' },
   { id: 'suno' as MusicProvider, name: 'Suno V5', description: 'Adaptive, structured songs', cost: 'Variable' },
-  { id: 'ace-step' as MusicProvider, name: 'ACE-Step', description: '19 languages, voice cloning', cost: 'Variable' },
-  { id: 'kling-sound' as MusicProvider, name: 'Kling Sound', description: 'Sound effects & ambient audio', cost: '$0.07' },
+  { id: 'diffrhythm' as MusicProvider, name: 'DiffRhythm', description: 'Full songs with vocals, fast', cost: '$0.02' },
+  { id: 'kling-sound' as MusicProvider, name: 'Kling Sound', description: 'Sound effects & ambient', cost: '$0.07' },
 ];
 
 export function MusicStyleSelector({
@@ -37,13 +36,14 @@ export function MusicStyleSelector({
   visualStyle,
   customMood,
   onMoodChange,
-  musicProvider = 'udio',
+  musicProvider = 'auto',
   onProviderChange,
 }: MusicStyleSelectorProps) {
   const styleConfig = getVisualStyleConfig(visualStyle);
-  const defaultMood = styleConfig.musicStyle.mood.split(',')[0].trim();
-  const currentMood = customMood || defaultMood;
+  const musicStyle = getMusicStyleForVisual(visualStyle);
+  const currentMood = customMood || 'default';
   const currentProvider = MUSIC_PROVIDERS.find(p => p.id === musicProvider) || MUSIC_PROVIDERS[0];
+  const displayProvider = musicProvider === 'auto' ? musicStyle.preferredProvider : musicProvider;
 
   return (
     <div className="space-y-3" data-testid="music-style-selector">
@@ -64,18 +64,20 @@ export function MusicStyleSelector({
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Volume2 className="h-3 w-3" />
             <span data-testid="text-music-auto-match">
-              Auto-matched to "{styleConfig.name}" style: {styleConfig.musicStyle.genre}
+              Auto-matched to <strong>"{styleConfig.name}"</strong> style:{' '}
+              <span className="text-primary">{musicStyle.genre}</span>
             </span>
           </div>
 
           <div>
-            <label className="text-xs text-gray-500 mb-2 block">Music Mood</label>
+            <label className="text-xs text-gray-500 mb-2 block">Mood Adjustment</label>
             <div className="flex flex-wrap gap-2">
-              {MUSIC_MOODS.map((mood) => (
+              {MOOD_MODIFIERS.map((mood) => (
                 <button
                   key={mood.id}
                   type="button"
                   onClick={() => onMoodChange?.(mood.id)}
+                  title={mood.description}
                   className={`
                     px-3 py-1.5 rounded-full text-xs transition-all
                     ${currentMood === mood.id
@@ -84,7 +86,7 @@ export function MusicStyleSelector({
                   `}
                   data-testid={`button-mood-${mood.id}`}
                 >
-                  {mood.name}
+                  {mood.label}
                 </button>
               ))}
             </div>
@@ -95,7 +97,7 @@ export function MusicStyleSelector({
               <Zap className="h-3 w-3" />
               Music Generator
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {MUSIC_PROVIDERS.map((provider) => (
                 <button
                   key={provider.id}
@@ -120,10 +122,11 @@ export function MusicStyleSelector({
           <div className="bg-gray-50 rounded-lg p-3 text-xs" data-testid="music-preview-info">
             <p className="font-medium text-gray-700">Music Preview:</p>
             <p className="text-gray-500 mt-1">
-              {styleConfig.musicStyle.genre} • {styleConfig.musicStyle.tempo} tempo • {styleConfig.musicStyle.energy} energy
+              {musicStyle.genre} • {musicStyle.tempo} tempo • {musicStyle.energy} energy
+              {currentMood !== 'default' && ` • ${currentMood} mood`}
             </p>
             <p className="text-gray-400 mt-1">
-              Generated by {currentProvider.name} via PiAPI
+              Generated by {displayProvider} via PiAPI
             </p>
           </div>
         </div>

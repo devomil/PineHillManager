@@ -3344,20 +3344,39 @@ Total: 90 seconds` : ''}
       
       let musicResult: { url: string; duration: number; source: string } | null = null;
       
-      // Try Udio (PiAPI) music generation first
+      // Try visual-style-based music generation first (Phase 5B-R2)
+      const projectVisualStyle = (project as any).visualStyle || 'lifestyle';
+      const projectMoodModifier = (project as any).musicMoodModifier || 'default';
+      const projectMusicProvider = (project as any).musicProvider || 'auto';
+      
       if (aiMusicService.isAvailable()) {
-        console.log('[UniversalVideoService] Trying Udio AI music generation...');
-        const aiMusic = await aiMusicService.generateMusicForVideo(totalDuration, scenesForMusic);
+        console.log(`[UniversalVideoService] Trying visual-style-based music generation (style: ${projectVisualStyle})...`);
+        const aiMusic = await aiMusicService.generateMusicForVisualStyle({
+          visualStyle: projectVisualStyle,
+          moodModifier: projectMoodModifier,
+          durationSeconds: totalDuration + 3,
+          provider: projectMusicProvider,
+        });
         
         if (aiMusic) {
           musicResult = {
             url: aiMusic.s3Url,
             duration: aiMusic.duration,
-            source: `udio-${aiMusic.mood}-${aiMusic.style}`,
+            source: `${projectVisualStyle}-${projectMoodModifier}`,
           };
-          console.log(`[UniversalVideoService] Udio music generated: ${aiMusic.mood} ${aiMusic.style}, ${aiMusic.duration}s`);
+          console.log(`[UniversalVideoService] Visual-style music generated: ${projectVisualStyle} style, ${aiMusic.duration}s`);
         } else {
-          console.log('[UniversalVideoService] Udio music generation failed');
+          console.log('[UniversalVideoService] Visual-style music generation failed, trying legacy approach...');
+          // Fallback to legacy generateMusicForVideo
+          const legacyMusic = await aiMusicService.generateMusicForVideo(totalDuration, scenesForMusic);
+          if (legacyMusic) {
+            musicResult = {
+              url: legacyMusic.s3Url,
+              duration: legacyMusic.duration,
+              source: `udio-${legacyMusic.mood}-${legacyMusic.style}`,
+            };
+            console.log(`[UniversalVideoService] Legacy music generated: ${legacyMusic.mood} ${legacyMusic.style}, ${legacyMusic.duration}s`);
+          }
         }
       }
       
@@ -3371,7 +3390,7 @@ Total: 90 seconds` : ''}
       // Fallback to Jamendo if ElevenLabs fails
       if (!musicResult) {
         console.log('[UniversalVideoService] Trying Jamendo music fallback...');
-        const style = (project as any).style || 'professional';
+        const style = (project as any).style || 'lifestyle';
         musicResult = await this.getBackgroundMusic(project.totalDuration, style);
       }
       
@@ -4552,6 +4571,8 @@ Total: 90 seconds` : ''}
       mood?: 'uplifting' | 'calm' | 'dramatic' | 'inspirational' | 'energetic' | 'emotional';
       musicStyle?: 'wellness' | 'corporate' | 'cinematic' | 'ambient' | 'acoustic';
       customPrompt?: string;
+      moodModifier?: string;
+      musicProvider?: string;
     }
   ): Promise<{ success: boolean; musicUrl?: string; duration?: number; source?: string; error?: string }> {
     const duration = project.totalDuration || 60;
@@ -4565,28 +4586,46 @@ Total: 90 seconds` : ''}
       let musicDuration: number = duration;
       let source: string = 'unknown';
 
-      // Try Udio (PiAPI) first
+      // Try visual-style-based music generation (Phase 5B-R2)
+      const projectVisualStyle = (project as any).visualStyle || style || 'lifestyle';
+      const projectMoodModifier = options?.moodModifier || 'default';
+      const projectMusicProvider = options?.musicProvider || 'auto';
+      
       if (aiMusicService.isAvailable()) {
-        console.log('[UniversalVideoService] Trying Udio for music regeneration...');
-        const aiMusic = await aiMusicService.generateMusic({
-          duration: duration + 3,
-          mood,
-          style: musicStyle,
-          customPrompt: options?.customPrompt,
+        console.log(`[UniversalVideoService] Regenerating music with visual style: ${projectVisualStyle}...`);
+        const aiMusic = await aiMusicService.generateMusicForVisualStyle({
+          visualStyle: projectVisualStyle,
+          moodModifier: projectMoodModifier,
+          durationSeconds: duration + 3,
+          provider: projectMusicProvider,
         });
 
         if (aiMusic) {
           musicUrl = aiMusic.s3Url;
           musicDuration = aiMusic.duration;
-          source = `udio-${aiMusic.mood}-${aiMusic.style}`;
-          console.log(`[UniversalVideoService] Udio music regenerated: ${source}`);
+          source = `${projectVisualStyle}-${projectMoodModifier}`;
+          console.log(`[UniversalVideoService] Music regenerated: ${source}`);
+        } else if (!options?.customPrompt) {
+          // Fallback to legacy generateMusic if visual style fails
+          console.log('[UniversalVideoService] Visual-style failed, trying legacy approach...');
+          const legacyMusic = await aiMusicService.generateMusic({
+            duration: duration + 3,
+            mood,
+            style: musicStyle,
+          });
+          if (legacyMusic) {
+            musicUrl = legacyMusic.s3Url;
+            musicDuration = legacyMusic.duration;
+            source = `udio-${legacyMusic.mood}-${legacyMusic.style}`;
+            console.log(`[UniversalVideoService] Legacy music regenerated: ${source}`);
+          }
         }
       }
 
       // Fallback to ElevenLabs
       if (!musicUrl) {
         console.log('[UniversalVideoService] Falling back to ElevenLabs...');
-        const result = await this.generateBackgroundMusic(duration, style || 'professional', project.title);
+        const result = await this.generateBackgroundMusic(duration, style || 'lifestyle', project.title);
         if (result && result.url) {
           musicUrl = result.url;
           musicDuration = result.duration;

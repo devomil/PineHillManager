@@ -386,3 +386,104 @@ export function getStyleNegativePrompt(styleId: string): string {
   
   return [...baseNegatives, ...style.negativePromptAdditions].join(', ');
 }
+
+// ============================================
+// MUSIC STYLE HELPERS (Phase 5B-R2)
+// ============================================
+
+export interface MusicStyleConfig {
+  genre: string;
+  mood: string;
+  tempo: 'slow' | 'medium' | 'fast';
+  energy: 'low' | 'medium' | 'high';
+  preferredProvider: string;
+  promptKeywords: string[];
+}
+
+/**
+ * Extended music configuration with prompt keywords for each style
+ */
+export const MUSIC_STYLE_KEYWORDS: Record<string, string[]> = {
+  hero: ['cinematic', 'orchestral', 'epic', 'dramatic', 'inspiring', 'film score', 'emotional crescendo'],
+  lifestyle: ['acoustic guitar', 'warm', 'organic', 'folk', 'indie', 'hopeful', 'authentic'],
+  product: ['minimal', 'electronic', 'ambient', 'clean', 'modern', 'subtle', 'sophisticated'],
+  educational: ['friendly', 'light', 'positive', 'background', 'non-distracting', 'supportive'],
+  social: ['upbeat', 'energetic', 'pop', 'electronic', 'trending', 'TikTok', 'catchy', 'dynamic'],
+  premium: ['elegant', 'sophisticated', 'luxury', 'refined', 'orchestral', 'premium', 'tasteful'],
+};
+
+/**
+ * Preferred music provider for each visual style
+ */
+export const MUSIC_PREFERRED_PROVIDERS: Record<string, string> = {
+  hero: 'udio',
+  lifestyle: 'udio',
+  product: 'udio',
+  educational: 'udio',
+  social: 'suno',
+  premium: 'udio',
+};
+
+/**
+ * Get music style config for a visual style
+ */
+export function getMusicStyleForVisual(visualStyleId: string): MusicStyleConfig {
+  const style = getVisualStyleConfig(visualStyleId);
+  const keywords = MUSIC_STYLE_KEYWORDS[style.id] || MUSIC_STYLE_KEYWORDS.lifestyle;
+  const preferredProvider = MUSIC_PREFERRED_PROVIDERS[style.id] || 'udio';
+  
+  return {
+    genre: style.musicStyle.genre,
+    mood: style.musicStyle.mood,
+    tempo: style.musicStyle.tempo,
+    energy: style.musicStyle.energy,
+    preferredProvider,
+    promptKeywords: keywords,
+  };
+}
+
+/**
+ * Mood modifiers that adjust the base music style
+ */
+export const MOOD_MODIFIERS: Record<string, string[]> = {
+  uplifting: ['hopeful', 'positive', 'bright', 'optimistic'],
+  calm: ['peaceful', 'relaxed', 'gentle', 'soothing'],
+  intense: ['dramatic', 'powerful', 'bold', 'impactful'],
+  playful: ['fun', 'lighthearted', 'bouncy', 'cheerful'],
+};
+
+/**
+ * Apply mood modifier to base prompt
+ */
+export function applyMoodModifier(basePrompt: string, modifier: string): string {
+  const keywords = MOOD_MODIFIERS[modifier];
+  if (keywords && keywords.length > 0) {
+    return `${basePrompt}, ${keywords.join(', ')}`;
+  }
+  return basePrompt;
+}
+
+/**
+ * Build music generation prompt from style config
+ */
+export function buildMusicPrompt(styleId: string, durationSeconds: number, moodModifier?: string): string {
+  const config = getMusicStyleForVisual(styleId);
+  
+  let prompt = [
+    config.genre,
+    config.mood,
+    `${config.tempo} tempo`,
+    `${config.energy} energy`,
+    `${durationSeconds} seconds`,
+    'instrumental only',
+    'no vocals',
+    'broadcast quality',
+    ...config.promptKeywords.slice(0, 3),
+  ].join(', ');
+  
+  if (moodModifier && moodModifier !== 'default') {
+    prompt = applyMoodModifier(prompt, moodModifier);
+  }
+  
+  return prompt;
+}

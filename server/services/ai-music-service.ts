@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getMusicStyleForVisual, buildMusicPrompt as buildVisualStyleMusicPrompt } from '@shared/visual-style-config';
 
 export interface MusicGenerationOptions {
   duration: number;
@@ -7,6 +8,13 @@ export interface MusicGenerationOptions {
   tempo?: 'slow' | 'medium' | 'fast';
   instruments?: string[];
   customPrompt?: string;
+}
+
+export interface VisualStyleMusicOptions {
+  visualStyle: string;
+  moodModifier?: string;
+  durationSeconds: number;
+  provider?: string;
 }
 
 export interface GeneratedMusic {
@@ -136,6 +144,73 @@ class AIMusicService {
     }
   }
 
+  /**
+   * Generate music based on visual style (Phase 5B-R2)
+   * Uses the visual style configuration to determine music genre, mood, tempo, and keywords
+   */
+  async generateMusicForVisualStyle(options: VisualStyleMusicOptions): Promise<GeneratedMusic | null> {
+    if (!this.isAvailable()) {
+      console.warn('[AIMusic] PiAPI not configured');
+      return null;
+    }
+
+    const { visualStyle, moodModifier = 'default', durationSeconds, provider } = options;
+    const startTime = Date.now();
+    
+    // Get music style from visual style config
+    const musicStyle = getMusicStyleForVisual(visualStyle);
+    
+    // Build prompt using the new visual-style-aware function
+    const prompt = buildVisualStyleMusicPrompt(visualStyle, durationSeconds, moodModifier);
+    
+    // Select provider based on style or explicit selection
+    const selectedProvider = provider === 'auto' || !provider 
+      ? musicStyle.preferredProvider 
+      : provider;
+
+    console.log(`[AIMusic] Generating for visual style "${visualStyle}" (${musicStyle.genre})`);
+    console.log(`[AIMusic] Mood modifier: ${moodModifier}, Provider: ${selectedProvider}`);
+    console.log(`[AIMusic] Prompt: "${prompt.substring(0, 150)}..."`);
+
+    try {
+      const taskResponse = await this.createMusicTask(prompt, durationSeconds);
+      
+      if (!taskResponse.success || !taskResponse.taskId) {
+        console.error('[AIMusic] Failed to create task:', taskResponse.error);
+        return null;
+      }
+
+      console.log(`[AIMusic] Task created: ${taskResponse.taskId}`);
+
+      const result = await this.pollForCompletion(taskResponse.taskId);
+      
+      if (!result.success || !result.audioUrl) {
+        console.error('[AIMusic] Generation failed:', result.error);
+        return null;
+      }
+
+      const s3Url = await this.uploadToS3(result.audioUrl);
+      
+      const generationTime = Date.now() - startTime;
+      const cost = this.estimateCost(durationSeconds);
+
+      console.log(`[AIMusic] Complete! Time: ${(generationTime / 1000).toFixed(1)}s, Cost: $${cost.toFixed(3)}`);
+
+      return {
+        url: result.audioUrl,
+        s3Url,
+        duration: durationSeconds,
+        mood: moodModifier,
+        style: visualStyle,
+        cost,
+      };
+
+    } catch (error: any) {
+      console.error('[AIMusic] Generation failed:', error.message);
+      return null;
+    }
+  }
+
   async generateMusicForVideo(
     videoDuration: number,
     scenes: Array<{ type: string; mood?: string; duration: number }>
@@ -173,7 +248,7 @@ class AIMusicService {
 
     return `${options.mood} ${options.style} background music, ` +
            `${options.tempo || 'medium'} tempo, ` +
-           `professional quality, ${options.duration} seconds, ` +
+           `broadcast quality, ${options.duration} seconds, ` +
            `suitable for wellness and health content, no vocals`;
   }
 
