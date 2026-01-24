@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
@@ -64,6 +65,18 @@ import { selectMediaSource, type MediaType } from '../services/media-source-sele
 import { piapiVideoService } from '../services/piapi-video-service';
 
 const objectStorageService = new ObjectStorageService();
+
+// S3 client for caching assets to Remotion Lambda bucket
+const REMOTION_BUCKET_NAME = 'remotionlambda-useast1-refjo5giq5';
+const s3Client = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+  ? new S3Client({
+      region: 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+    })
+  : null;
 
 const router = Router();
 
@@ -1858,7 +1871,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         cachedLogoUrl = `${baseUrl}${cachedLogoUrl}`;
         console.log('[UniversalVideo] Converted relative logo URL to absolute:', cachedLogoUrl);
       }
-      if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/')) {
+      if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/') && s3Client) {
         try {
           console.log('[UniversalVideo] Caching end card logo to S3:', cachedLogoUrl.substring(0, 60));
           const logoResponse = await fetch(cachedLogoUrl);
@@ -1877,6 +1890,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         } catch (err) {
           console.error('[UniversalVideo] Failed to cache end card logo:', err);
         }
+      } else if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/') && !s3Client) {
+        console.warn('[UniversalVideo] S3 client not configured, cannot cache end card logo');
       }
       // Default to enabled if not explicitly disabled
       endCardConfig = {
