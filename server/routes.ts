@@ -8571,7 +8571,7 @@ Output the script with section markers in brackets.`;
       const { startDate, endDate } = req.query;
       const { db } = await import('./db');
       const { posSales, cloverConfig } = await import('@shared/schema');
-      const { sql, between, eq } = await import('drizzle-orm');
+      const { sql, between, eq, and, gte, lte } = await import('drizzle-orm');
       
       const startDateStr = startDate as string;
       const endDateStr = endDate as string;
@@ -8859,13 +8859,98 @@ Output the script with section markers in brackets.`;
       const allLocationBreakdown = [...cloverLocationBreakdown, ...amazonLocationBreakdown];
 
       // Calculate total sales from live data (not database)
-      const totalRevenue = allLocationBreakdown.reduce((sum, location) => {
+      let totalRevenue = allLocationBreakdown.reduce((sum, location) => {
         return sum + parseFloat(location.totalSales);
       }, 0);
       
-      const totalTransactions = allLocationBreakdown.reduce((sum, location) => {
+      let totalTransactions = allLocationBreakdown.reduce((sum, location) => {
         return sum + location.transactionCount;
       }, 0);
+
+      // DATABASE FALLBACK: If live API returns $0 revenue, fall back to database data
+      if (totalRevenue === 0) {
+        console.log('📊 Live API returned $0 revenue, falling back to database data...');
+        
+        // Query database for sales data
+        const dbSalesData = await db
+          .select({
+            locationId: posSales.locationId,
+            totalAmount: sql<string>`SUM(${posSales.totalAmount})`,
+            transactionCount: sql<number>`COUNT(*)`,
+          })
+          .from(posSales)
+          .where(and(
+            gte(posSales.saleDate, startDateStr),
+            lte(posSales.saleDate, endDateStr)
+          ))
+          .groupBy(posSales.locationId);
+        
+        // Build location breakdown from database
+        const dbLocationBreakdown: Array<{
+          locationId: number | string;
+          locationName: string;
+          platform: string;
+          totalSales: string;
+          totalRevenue: string;
+          transactionCount: number;
+          avgSale: string;
+        }> = [];
+        
+        // Get location names from clover configs (use locationId which maps to locations table)
+        const locationIdToName = new Map<number | null, string>();
+        for (const config of activeCloverConfigs) {
+          if (config.locationId) {
+            locationIdToName.set(config.locationId, config.merchantName);
+          }
+        }
+        
+        // Also get location names from locations table as fallback
+        const { storeLocations } = await import('@shared/schema');
+        const allLocations = await db.select().from(storeLocations);
+        for (const loc of allLocations) {
+          if (!locationIdToName.has(loc.id)) {
+            locationIdToName.set(loc.id, loc.name);
+          }
+        }
+        
+        for (const row of dbSalesData) {
+          const locRevenue = parseFloat(row.totalAmount || '0');
+          const locTransactions = Number(row.transactionCount) || 0;
+          const avgSale = locTransactions > 0 ? locRevenue / locTransactions : 0;
+          const locationName = locationIdToName.get(row.locationId) || `Location ${row.locationId}`;
+          
+          dbLocationBreakdown.push({
+            locationId: row.locationId || 0,
+            locationName: locationName,
+            platform: 'Clover POS (Database)',
+            totalSales: locRevenue.toFixed(2),
+            totalRevenue: locRevenue.toFixed(2),
+            transactionCount: locTransactions,
+            avgSale: avgSale.toFixed(2)
+          });
+        }
+        
+        // Calculate totals from database data
+        totalRevenue = dbLocationBreakdown.reduce((sum, loc) => sum + parseFloat(loc.totalSales), 0);
+        totalTransactions = dbLocationBreakdown.reduce((sum, loc) => sum + loc.transactionCount, 0);
+        
+        console.log(`📊 Database fallback: $${totalRevenue.toFixed(2)} revenue from ${totalTransactions} transactions`);
+        
+        res.json({
+          locationBreakdown: dbLocationBreakdown,
+          totalSummary: {
+            totalRevenue: totalRevenue.toFixed(2),
+            totalTransactions: totalTransactions,
+            integrations: {
+              cloverLocations: dbLocationBreakdown.length,
+              amazonStores: 0,
+              totalIntegrations: dbLocationBreakdown.length
+            },
+            dataSource: 'database_fallback'
+          }
+        });
+        return;
+      }
 
       res.json({
         locationBreakdown: allLocationBreakdown,
