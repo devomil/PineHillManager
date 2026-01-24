@@ -1006,9 +1006,13 @@ export const OverlayEditor = memo(function OverlayEditor({
                             onClick={() => updateDraft({
                               ...draft,
                               logoEnding: { 
-                                ...draft.logoEnding!,
+                                ...draft.logoEnding,
+                                enabled: true,
                                 logoUrl: logo.url, 
-                                logoName: logo.name 
+                                logoName: logo.name,
+                                backgroundColor: draft.logoEnding?.backgroundColor || '#4A7C59',
+                                duration: draft.logoEnding?.duration || 3,
+                                animation: draft.logoEnding?.animation || 'elegant'
                               }
                             })}
                             className={`relative flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${

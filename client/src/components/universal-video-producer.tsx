@@ -3409,7 +3409,27 @@ function ScenePreview({
                           ...prev,
                           [scene.id]: null
                         }));
-                        toast({ title: 'Location selected', description: `${asset.name} selected as I2V source.` });
+                        
+                        // Check if visual direction requires people/activity content
+                        const visualDir = scene.visualDirection?.toLowerCase() || '';
+                        const requiresPeopleContent = visualDir.includes('montage') || 
+                                                       visualDir.includes('people') || 
+                                                       visualDir.includes('person') ||
+                                                       visualDir.includes('adults') ||
+                                                       visualDir.includes('yoga') ||
+                                                       visualDir.includes('cooking') ||
+                                                       visualDir.includes('hiking') ||
+                                                       visualDir.includes('activity');
+                        
+                        if (requiresPeopleContent) {
+                          toast({ 
+                            title: 'Note: Visual direction mismatch', 
+                            description: `Your visual direction calls for people/activities. Using this location photo for I2V will animate the static image, not generate new people. Consider using T2V (text-to-video) instead.`,
+                            duration: 8000,
+                          });
+                        } else {
+                          toast({ title: 'Location selected', description: `${asset.name} selected as I2V source.` });
+                        }
                       }}
                       selectedLocationAssetId={selectedLocationAsset[scene.id]?.id}
                     />
