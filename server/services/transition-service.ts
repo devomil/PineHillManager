@@ -287,6 +287,37 @@ const DEFAULT_TRANSITION: TransitionConfig = {
 };
 
 const STYLE_PREFERENCES: Record<string, Partial<TransitionConfig>> = {
+  hero: {
+    type: 'fade',
+    duration: 1.0,
+    easing: 'ease-out',
+  },
+  lifestyle: {
+    type: 'dissolve',
+    duration: 0.6,
+    easing: 'ease-in-out',
+  },
+  product: {
+    type: 'fade',
+    duration: 0.8,
+    easing: 'ease-in-out',
+  },
+  educational: {
+    type: 'dissolve',
+    duration: 0.5,
+    easing: 'ease-in-out',
+  },
+  social: {
+    type: 'cut',
+    duration: 0.2,
+    easing: 'linear',
+  },
+  premium: {
+    type: 'fade',
+    duration: 1.2,
+    easing: 'ease-out',
+  },
+  // Legacy mappings for backward compatibility
   professional: {
     type: 'dissolve',
     duration: 0.6,
@@ -297,25 +328,10 @@ const STYLE_PREFERENCES: Record<string, Partial<TransitionConfig>> = {
     duration: 1.0,
     easing: 'ease-out',
   },
-  dynamic: {
-    type: 'zoom-in',
-    duration: 0.4,
-    easing: 'ease-in',
-  },
-  minimal: {
-    type: 'cut',
-    duration: 0.1,
-    easing: 'linear',
-  },
-  elegant: {
-    type: 'dissolve',
-    duration: 0.8,
-    easing: 'ease-in-out',
-  },
   energetic: {
-    type: 'wipe-right',
-    duration: 0.3,
-    easing: 'ease-in',
+    type: 'cut',
+    duration: 0.2,
+    easing: 'linear',
   },
 };
 
@@ -378,7 +394,7 @@ class TransitionService {
       reason = `Mood-matched transition from ${fromMood} to ${toMood}`;
       confidence = 0.9;
     } else {
-      const stylePrefs = STYLE_PREFERENCES[visualStyle] || STYLE_PREFERENCES['professional'];
+      const stylePrefs = STYLE_PREFERENCES[visualStyle] || STYLE_PREFERENCES['lifestyle'];
       config = { ...DEFAULT_TRANSITION, ...stylePrefs };
       reason = `Style-based transition (${visualStyle}) - no specific mood mapping`;
       confidence = 0.6;

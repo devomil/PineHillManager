@@ -26,7 +26,7 @@ class VideoProviderSelectorService {
     visualStyle: string,
     qualityTier: 'ultra' | 'premium' | 'standard' = 'premium'
   ): ProviderSelection {
-    const styleConfig = VISUAL_STYLES[visualStyle] || VISUAL_STYLES.professional;
+    const styleConfig = VISUAL_STYLES[visualStyle] || VISUAL_STYLES.lifestyle;
     const scores: Record<string, number> = {};
     const reasons: Record<string, string[]> = {};
     

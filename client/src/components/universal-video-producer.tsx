@@ -77,6 +77,8 @@ interface VideoProject extends SharedVideoProject {
   };
 }
 
+type VisualStyleId = "hero" | "lifestyle" | "product" | "educational" | "social" | "premium";
+
 interface ProductFormData {
   productName: string;
   productDescription: string;
@@ -84,7 +86,7 @@ interface ProductFormData {
   benefits: string[];
   duration: 30 | 60 | 90;
   platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
-  style: "professional" | "friendly" | "energetic" | "calm";
+  style: VisualStyleId;
   callToAction: string;
   voiceId?: string;
   voiceName?: string;
@@ -95,7 +97,7 @@ interface ScriptFormData {
   title: string;
   script: string;
   platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
-  style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
+  style: VisualStyleId;
   brandSettings?: UIBrandSettings;
   endCardSettings?: EndCardSettings;
   soundDesignSettings?: SoundDesignSettings;
