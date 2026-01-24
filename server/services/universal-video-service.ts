@@ -3883,13 +3883,20 @@ Total: 90 seconds` : ''}
 
   private resolveToAbsoluteUrl(url: string | null | undefined): string {
     if (!url) return '';
-    if (url.startsWith('https://') || url.startsWith('http://')) return url;
+    if (url.startsWith('https://')) return url;
+    
+    // Convert HTTP to HTTPS (Lambda requires HTTPS)
+    if (url.startsWith('http://')) {
+      return url.replace('http://', 'https://');
+    }
     
     // Convert relative URLs (like /api/brand-assets/file/X) to absolute HTTPS URLs
     if (url.startsWith('/')) {
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-        : 'https://localhost:5000';
+      // Use environment-aware base URL resolution
+      const baseUrl = process.env.REPLIT_DEPLOYMENT_URL 
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+        || process.env.BASE_URL
+        || 'https://localhost:5000';
       return `${baseUrl}${url}`;
     }
     
