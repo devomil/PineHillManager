@@ -1310,7 +1310,9 @@ const SceneRenderer: React.FC<{
                             scene.assets?.productOverlayUrl ||
                             scene.assets?.productImage;
   const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
-  const useProductOverlay = scene.assets?.useProductOverlay !== false;
+  // FIXED: Only show product overlay if EXPLICITLY enabled (user selected a product)
+  // Previously defaulted to true which caused unwanted product overlays
+  const useProductOverlay = scene.assets?.useProductOverlay === true;
 
   const imageStatus = getAssetStatus(imageUrl);
   const videoStatus = getAssetStatus(videoUrl);
@@ -1450,7 +1452,7 @@ const SceneRenderer: React.FC<{
         )
       )}
 
-      {/* Text Overlays - Use intelligent positioning if available */}
+      {/* Text Overlays - Use ONLY ONE source to prevent duplicates */}
       {(() => {
         // Phase 16 Fix: Skip text overlays for CTA/outro scenes - they have dedicated overlay components
         if (scene.type === 'cta' || scene.type === 'outro') {
@@ -1458,12 +1460,15 @@ const SceneRenderer: React.FC<{
         }
         
         const instructions = (scene as any).compositionInstructions as SceneCompositionInstructions | undefined;
+        const hasIntelligentOverlays = instructions?.textOverlays && instructions.textOverlays.length > 0;
+        const hasTraditionalOverlays = scene.textOverlays && scene.textOverlays.length > 0;
         
-        // If we have AI-generated composition instructions, use intelligent overlays
-        if (instructions?.textOverlays && instructions.textOverlays.length > 0) {
+        // PRIORITY 1: If we have AI-generated composition instructions, use ONLY intelligent overlays
+        // Do NOT fall through to traditional overlays - this prevents duplication
+        if (hasIntelligentOverlays) {
           return (
             <>
-              {instructions.textOverlays.map((textInstruction, idx) => (
+              {instructions!.textOverlays.map((textInstruction, idx) => (
                 <IntelligentTextOverlay
                   key={`intelligent-text-${scene.id}-${idx}`}
                   instruction={textInstruction}
@@ -1473,10 +1478,10 @@ const SceneRenderer: React.FC<{
                 />
               ))}
               {/* Intelligent product overlay if enabled */}
-              {instructions.productOverlay?.enabled && productOverlayUrl && isValidHttpUrl(productOverlayUrl) && (
+              {instructions!.productOverlay?.enabled && productOverlayUrl && isValidHttpUrl(productOverlayUrl) && (
                 <IntelligentProductOverlay
                   productImage={productOverlayUrl}
-                  instruction={instructions.productOverlay}
+                  instruction={instructions!.productOverlay}
                   sceneDuration={scene.duration}
                   fps={fps}
                 />
@@ -1485,7 +1490,11 @@ const SceneRenderer: React.FC<{
           );
         }
         
-        // Fallback: use traditional overlays
+        // PRIORITY 2: Use traditional overlays ONLY if no intelligent overlays exist
+        if (!hasTraditionalOverlays) {
+          return null;  // Let extracted overlays handle it (if any)
+        }
+        
         const useLowerThirdStyle = ['hook', 'benefit', 'feature', 'intro'].includes(scene.type);
         const primaryText = scene.textOverlays?.[0];
         
@@ -1520,10 +1529,11 @@ const SceneRenderer: React.FC<{
         );
       })()}
 
-      {/* Phase 11B: Extracted Overlay Rendering - ONLY if no regular text overlays exist */}
+      {/* Phase 11B: Extracted Overlay Rendering - ONLY if no other text overlays exist */}
       {(() => {
-        // Phase 16 Fix: Prevent duplicate text overlays - skip extracted text if scene already has textOverlays
-        const hasRegularTextOverlays = (scene.textOverlays?.length ?? 0) > 0;
+        // FIXED: Completely skip extracted overlays if we have ANY other text source
+        // This prevents duplicate text overlays from showing
+        const hasRegularTextOverlays = (scene.textOverlays?.length ?? 0) > 0 && scene.textOverlays![0]?.text;
         const hasIntelligentOverlays = ((scene as any).compositionInstructions?.textOverlays?.length ?? 0) > 0;
         const skipExtractedText = hasRegularTextOverlays || hasIntelligentOverlays;
         
