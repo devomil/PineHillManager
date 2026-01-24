@@ -7087,22 +7087,25 @@ export class DatabaseStorage implements IStorage {
   }> {
     try {
       // Get total revenue from sales
-      let salesQuery = db
+      // IMPORTANT: Use single where clause to avoid Drizzle ORM bug where .where() replaces previous conditions
+      const revenueWhereConditions = locationId
+        ? and(
+            gte(posSales.saleDate, startDate),
+            lte(posSales.saleDate, endDate),
+            eq(posSales.locationId, locationId)
+          )
+        : and(
+            gte(posSales.saleDate, startDate),
+            lte(posSales.saleDate, endDate)
+          );
+
+      const salesResult = await db
         .select({
           totalRevenue: sql<string>`COALESCE(SUM(${posSales.totalAmount}), 0)::text`,
           salesCount: sql<number>`COUNT(*)::integer`
         })
         .from(posSales)
-        .where(and(
-          gte(posSales.saleDate, startDate),
-          lte(posSales.saleDate, endDate)
-        ));
-
-      if (locationId) {
-        salesQuery = (salesQuery as any).where(eq(posSales.locationId, locationId));
-      }
-
-      const salesResult = await salesQuery;
+        .where(revenueWhereConditions);
       const totalRevenue = parseFloat(salesResult[0]?.totalRevenue || '0');
       const salesCount = salesResult[0]?.salesCount || 0;
 
@@ -7150,8 +7153,24 @@ export class DatabaseStorage implements IStorage {
     }>;
   }> {
     try {
+      // IMPORTANT: Use single where clause to avoid Drizzle ORM bug where .where() replaces previous conditions
       // Get completed time clock entries with employee info
-      let completedQuery = db
+      const completedWhereConditions = locationId
+        ? and(
+            gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+            lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
+            eq(timeClockEntries.status, 'clocked_out'),
+            isNotNull(timeClockEntries.totalWorkedMinutes),
+            eq(timeClockEntries.locationId, locationId)
+          )
+        : and(
+            gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+            lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
+            eq(timeClockEntries.status, 'clocked_out'),
+            isNotNull(timeClockEntries.totalWorkedMinutes)
+          );
+
+      const completedEntries = await db
         .select({
           userId: timeClockEntries.userId,
           firstName: users.firstName,
@@ -7164,21 +7183,23 @@ export class DatabaseStorage implements IStorage {
         })
         .from(timeClockEntries)
         .innerJoin(users, eq(timeClockEntries.userId, users.id))
-        .where(and(
-          gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
-          lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
-          eq(timeClockEntries.status, 'clocked_out'),
-          isNotNull(timeClockEntries.totalWorkedMinutes)
-        ));
-
-      if (locationId) {
-        completedQuery = (completedQuery as any).where(eq(timeClockEntries.locationId, locationId));
-      }
-
-      const completedEntries = await completedQuery;
+        .where(completedWhereConditions);
 
       // Also get currently clocked-in entries to include real-time labor costs
-      let activeQuery = db
+      const activeWhereConditions = locationId
+        ? and(
+            gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+            lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
+            eq(timeClockEntries.status, 'clocked_in'),
+            eq(timeClockEntries.locationId, locationId)
+          )
+        : and(
+            gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+            lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
+            eq(timeClockEntries.status, 'clocked_in')
+          );
+
+      const activeEntries = await db
         .select({
           userId: timeClockEntries.userId,
           firstName: users.firstName,
@@ -7190,17 +7211,7 @@ export class DatabaseStorage implements IStorage {
         })
         .from(timeClockEntries)
         .innerJoin(users, eq(timeClockEntries.userId, users.id))
-        .where(and(
-          gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
-          lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
-          eq(timeClockEntries.status, 'clocked_in')
-        ));
-
-      if (locationId) {
-        activeQuery = (activeQuery as any).where(eq(timeClockEntries.locationId, locationId));
-      }
-
-      const activeEntries = await activeQuery;
+        .where(activeWhereConditions);
 
       // Combine completed and active entries
       const timeEntries: Array<{
@@ -7310,7 +7321,20 @@ export class DatabaseStorage implements IStorage {
   }> {
     try {
       // Get sales items with inventory costs (using LEFT JOIN to get all sales even without inventory link)
-      let query = db
+      // IMPORTANT: Use single where clause with combined conditions to avoid Drizzle ORM bug
+      // where calling .where() twice replaces the first condition instead of ANDing them
+      const whereConditions = locationId 
+        ? and(
+            gte(posSales.saleDate, startDate),
+            lte(posSales.saleDate, endDate),
+            eq(posSales.locationId, locationId)
+          )
+        : and(
+            gte(posSales.saleDate, startDate),
+            lte(posSales.saleDate, endDate)
+          );
+
+      const saleItems = await db
         .select({
           inventoryItemId: posSaleItems.inventoryItemId,
           itemName: posSaleItems.itemName,
@@ -7323,16 +7347,7 @@ export class DatabaseStorage implements IStorage {
         .from(posSaleItems)
         .innerJoin(posSales, eq(posSaleItems.saleId, posSales.id))
         .leftJoin(inventoryItems, eq(posSaleItems.inventoryItemId, inventoryItems.id))
-        .where(and(
-          gte(posSales.saleDate, startDate),
-          lte(posSales.saleDate, endDate)
-        ));
-
-      if (locationId) {
-        query = (query as any).where(eq(posSales.locationId, locationId));
-      }
-
-      const saleItems = await query;
+        .where(whereConditions);
       
       // Build a cache of inventory items by name for fallback matching
       // This handles cases where sale items don't have inventoryItemId linked
@@ -7375,6 +7390,10 @@ export class DatabaseStorage implements IStorage {
 
       let totalMaterialCost = 0;
       let totalItemsSold = 0;
+      let debugCostFromCostBasis = 0;
+      let debugCostFromStandardCost = 0;
+      let debugCostFromUnitCost = 0;
+      let debugCostFromNameLookup = 0;
 
       for (const item of saleItems) {
         const itemName = item.itemName || 'Unknown Item';
@@ -7398,8 +7417,24 @@ export class DatabaseStorage implements IStorage {
         }
         
         // Enhanced cost fallback logic
-        const finalUnitCost = costBasis > 0 ? costBasis : (standardCost > 0 ? standardCost : unitCost);
+        let costSource = 'none';
+        let finalUnitCost = 0;
+        if (costBasis > 0) {
+          finalUnitCost = costBasis;
+          costSource = 'costBasis';
+        } else if (standardCost > 0) {
+          finalUnitCost = standardCost;
+          costSource = 'standardCost';
+        } else if (unitCost > 0) {
+          finalUnitCost = unitCost;
+          costSource = 'unitCost';
+        }
         const itemCost = quantitySold * finalUnitCost;
+        
+        // Track cost source for debugging
+        if (costSource === 'costBasis') debugCostFromCostBasis += itemCost;
+        else if (costSource === 'standardCost') debugCostFromStandardCost += itemCost;
+        else if (costSource === 'unitCost') debugCostFromUnitCost += itemCost;
 
         // Use item name as key to aggregate (since itemId may be 0)
         const mapKey = normalizedName || `item-${itemId}`;
@@ -7425,6 +7460,14 @@ export class DatabaseStorage implements IStorage {
       }
 
       const itemBreakdown = Array.from(itemMap.values());
+
+      console.log(`📊 Material Costs Debug:
+        - Total Items: ${saleItems.length}
+        - Cost from costBasis: $${debugCostFromCostBasis.toFixed(2)}
+        - Cost from standardCost: $${debugCostFromStandardCost.toFixed(2)}
+        - Cost from unitCost: $${debugCostFromUnitCost.toFixed(2)}
+        - Cost from nameLookup: $${debugCostFromNameLookup.toFixed(2)}
+        - Total Material Cost: $${totalMaterialCost.toFixed(2)}`);
 
       return {
         totalMaterialCost,
