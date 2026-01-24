@@ -1477,8 +1477,8 @@ const SceneRenderer: React.FC<{
                   brand={brand}
                 />
               ))}
-              {/* Intelligent product overlay if enabled */}
-              {instructions!.productOverlay?.enabled && productOverlayUrl && isValidHttpUrl(productOverlayUrl) && (
+              {/* Intelligent product overlay - ONLY if user explicitly enabled it */}
+              {instructions!.productOverlay?.enabled && useProductOverlay && productOverlayUrl && isValidHttpUrl(productOverlayUrl) && (
                 <IntelligentProductOverlay
                   productImage={productOverlayUrl}
                   instruction={instructions!.productOverlay}
@@ -1529,13 +1529,18 @@ const SceneRenderer: React.FC<{
         );
       })()}
 
-      {/* Phase 11B: Extracted Overlay Rendering - ONLY if no other text overlays exist */}
+      {/* Phase 11B: Extracted Overlay Rendering - COMPLETELY SKIP if any other overlays exist */}
       {(() => {
-        // FIXED: Completely skip extracted overlays if we have ANY other text source
-        // This prevents duplicate text overlays from showing
+        // FIXED: Skip ALL extracted/mapped overlays when ANY other text source exists
+        // This is the ONLY way to prevent duplicate text overlays
         const hasRegularTextOverlays = (scene.textOverlays?.length ?? 0) > 0 && scene.textOverlays![0]?.text;
         const hasIntelligentOverlays = ((scene as any).compositionInstructions?.textOverlays?.length ?? 0) > 0;
-        const skipExtractedText = hasRegularTextOverlays || hasIntelligentOverlays;
+        
+        // If we have ANY overlays from primary sources, skip this entire section
+        // Only render logos/watermarks, not duplicate text
+        if (hasRegularTextOverlays || hasIntelligentOverlays) {
+          return null;  // Logos/watermarks handled elsewhere, skip all text duplicates
+        }
         
         if (!scene.extractedOverlayText?.length && !scene.extractedLogos?.length) {
           return null;
@@ -1550,8 +1555,7 @@ const SceneRenderer: React.FC<{
         
         return (
           <>
-            {/* Only render extracted text if no regular overlays exist - prevents duplicates */}
-            {!skipExtractedText && mappedOverlays.textOverlays.map((textProps, idx) => (
+            {mappedOverlays.textOverlays.map((textProps, idx) => (
               <EnhancedTextOverlay key={`ext-text-${scene.id}-${idx}`} {...textProps} />
             ))}
             
@@ -1559,8 +1563,7 @@ const SceneRenderer: React.FC<{
               <BulletList key={`ext-bullets-${scene.id}-${idx}`} {...listProps} />
             ))}
             
-            {/* Only render extracted lower thirds if no regular overlays exist */}
-            {!skipExtractedText && mappedOverlays.lowerThirds.map((ltProps, idx) => (
+            {mappedOverlays.lowerThirds.map((ltProps, idx) => (
               <Phase11BLowerThird key={`ext-lt-${scene.id}-${idx}`} {...ltProps} />
             ))}
             
