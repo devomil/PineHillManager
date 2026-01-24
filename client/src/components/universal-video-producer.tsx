@@ -3801,7 +3801,7 @@ function ScenePreview({
                   </Label>
                   
                   {/* Selected Asset Indicator */}
-                  {(selectedProductAsset[scene.id] || selectedLocationAsset[scene.id]) && (
+                  {(selectedProductAsset[scene.id] || selectedLocationAsset[scene.id]) ? (
                     <div className={`flex items-center gap-2 p-2 rounded-lg border ${
                       selectedProductAsset[scene.id] 
                         ? 'bg-green-50 border-green-200' 
@@ -3813,23 +3813,27 @@ function ScenePreview({
                         <MapPin className="w-4 h-4 text-amber-600" />
                       )}
                       <span className={`text-sm ${selectedProductAsset[scene.id] ? 'text-green-700' : 'text-amber-700'}`}>
-                        I2V Source: <strong>{selectedProductAsset[scene.id]?.name || selectedLocationAsset[scene.id]?.name}</strong>
+                        I2V: <strong>{selectedProductAsset[scene.id]?.name || selectedLocationAsset[scene.id]?.name}</strong>
                       </span>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className={`h-6 px-2 ml-auto ${
-                          selectedProductAsset[scene.id] 
-                            ? 'text-green-600 hover:text-green-700' 
-                            : 'text-amber-600 hover:text-amber-700'
-                        }`}
+                        className="h-6 px-2 ml-auto text-xs"
                         onClick={() => {
                           setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }));
                           setSelectedLocationAsset(prev => ({ ...prev, [scene.id]: null }));
+                          toast({ title: 'Switched to T2V', description: 'Video will be generated from your visual direction text.' });
                         }}
                       >
-                        <X className="w-3 h-3" />
+                        Use T2V Instead
                       </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 rounded-lg border bg-blue-50 border-blue-200">
+                      <Video className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm text-blue-700">
+                        T2V Mode: Generating from visual direction
+                      </span>
                     </div>
                   )}
                   
