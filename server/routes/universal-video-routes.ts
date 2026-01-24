@@ -1655,7 +1655,15 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     preparedProject.status = 'rendering';
     preparedProject.progress.currentStep = 'rendering';
     preparedProject.progress.steps.rendering.status = 'in-progress';
+    preparedProject.progress.steps.rendering.progress = 0;
+    preparedProject.progress.steps.rendering.message = 'Starting render...';
+    // Reset stall detection state for retry renders
+    (preparedProject.progress as any).lastProgressValue = 0;
+    (preparedProject.progress as any).lastProgressUpdateAt = Date.now();
+    preparedProject.progress.errors = []; // Clear any previous errors
     preparedProject.updatedAt = new Date().toISOString();
+    
+    console.log('[UniversalVideo] Render state reset - cleared stall detection and errors');
     
     const compositionId = getCompositionId(preparedProject.outputFormat.aspectRatio);
     
