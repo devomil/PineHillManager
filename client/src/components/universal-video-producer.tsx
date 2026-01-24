@@ -427,7 +427,7 @@ function VideoCreatorForm({
     customScript: "",
     duration: 60,
     platform: "youtube",
-    style: "professional",
+    style: "lifestyle",
     callToAction: "Visit pinehillfarm.com",
     voiceId: "21m00Tcm4TlvDq8ikWAM",
     voiceName: "Rachel",
@@ -669,7 +669,7 @@ function VideoCreatorForm({
 
       <div className="space-y-2">
         <Label>Visual Style</Label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {visualStyles.map((style) => (
             <button
               key={style.id}
@@ -690,6 +690,9 @@ function VideoCreatorForm({
             </button>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground">
+          Style affects AI provider selection, prompt enhancement, and transitions
+        </p>
       </div>
 
       <MusicStyleSelector

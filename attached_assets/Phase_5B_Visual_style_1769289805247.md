@@ -1,4 +1,41 @@
-// shared/visual-style-config.ts - Phase 5B-R: Visual Style System Revision
+# Phase 5B-R: Visual Style System Revision
+
+## Objective
+
+Replace the current 12-style visual system with a streamlined 6-style purpose-driven system. Each style maps directly to campaign goals and provider routing logic.
+
+## Why This Change
+
+The current system mixes production quality, emotional tone, and use-case into 12 overlapping options:
+- Professional, Cinematic, Energetic, Calm & Peaceful
+- Casual, Documentary, Luxury & Premium, Minimal & Modern
+- Instructional, Educational, Training
+
+**Problems:**
+1. Redundant styles route to same providers with similar prompts
+2. Style names don't communicate marketing purpose
+3. Decision paralysis for users
+4. Training/Instructional/Educational are distribution contexts, not visual styles
+
+## New 6-Style System
+
+| Style ID | Display Name | Primary Use Case | Provider Priority |
+|----------|--------------|------------------|-------------------|
+| `hero` | Hero (Cinematic) | Brand anthems, emotional storytelling | Runway → Kling |
+| `lifestyle` | Lifestyle | Customer scenarios, testimonials | Kling → Runway |
+| `product` | Product Showcase | Product reveals, features, I2V | Luma → Runway |
+| `educational` | Educational | How-to, explainers, health benefits | Kling → Hailuo |
+| `social` | Social (Energetic) | TikTok/Reels, fast-paced promos | Hailuo → Kling |
+| `premium` | Premium | Luxury positioning, high-end retail | Runway → Luma |
+
+---
+
+## Step 1: Update Visual Style Configuration
+
+Replace the contents of `shared/visual-style-config.ts`:
+
+```typescript
+// shared/visual-style-config.ts
 
 export interface VisualStyleConfig {
   id: string;
@@ -318,6 +355,7 @@ const LEGACY_STYLE_MAP: Record<string, string> = {
   'luxury': 'premium',
   'minimal': 'product',
   'instructional': 'educational',
+  'educational': 'educational',
   'training': 'educational',
   'warm': 'lifestyle',
 };
@@ -386,3 +424,130 @@ export function getStyleNegativePrompt(styleId: string): string {
   
   return [...baseNegatives, ...style.negativePromptAdditions].join(', ');
 }
+```
+
+---
+
+## Step 2: Update UI Style Selector
+
+Update the style selector in `client/src/components/universal-video-producer.tsx`:
+
+Find the Visual Style selector section and replace with:
+
+```tsx
+{/* Visual Style */}
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Visual Style
+  </label>
+  <select
+    value={visualStyle}
+    onChange={(e) => setVisualStyle(e.target.value)}
+    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+  >
+    <option value="hero">Hero (Cinematic) - Brand anthems, emotional storytelling</option>
+    <option value="lifestyle">Lifestyle - Customer scenarios, testimonials</option>
+    <option value="product">Product Showcase - Product reveals, features</option>
+    <option value="educational">Educational - How-to, explainers, health benefits</option>
+    <option value="social">Social (Energetic) - TikTok/Reels, fast-paced promos</option>
+    <option value="premium">Premium - Luxury positioning, high-end retail</option>
+  </select>
+  <p className="mt-1 text-xs text-gray-500">
+    Style affects AI provider selection, prompt enhancement, and transitions
+  </p>
+</div>
+```
+
+---
+
+## Step 3: Update Default Style
+
+Find where the default visual style is set (likely in state initialization) and change from `'professional'` to `'lifestyle'`:
+
+```tsx
+const [visualStyle, setVisualStyle] = useState('lifestyle');
+```
+
+---
+
+## Step 4: Remove Legacy Style Grid (If Present)
+
+If there's a visual grid of 12 style cards (as shown in the screenshot), replace it with either:
+
+**Option A: Simple dropdown (recommended for clean UI)**
+Use the select element from Step 2.
+
+**Option B: 6-card grid (if visual selection preferred)**
+
+```tsx
+const STYLE_OPTIONS = [
+  { id: 'hero', name: 'Hero (Cinematic)', description: 'Brand anthems, emotional storytelling', icon: '🎬' },
+  { id: 'lifestyle', name: 'Lifestyle', description: 'Customer scenarios, testimonials', icon: '🏡' },
+  { id: 'product', name: 'Product Showcase', description: 'Product reveals, features', icon: '📦' },
+  { id: 'educational', name: 'Educational', description: 'How-to, explainers', icon: '📚' },
+  { id: 'social', name: 'Social (Energetic)', description: 'TikTok/Reels, promos', icon: '⚡' },
+  { id: 'premium', name: 'Premium', description: 'Luxury positioning', icon: '✨' },
+];
+
+{/* Visual Style Grid */}
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Visual Style
+  </label>
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+    {STYLE_OPTIONS.map((style) => (
+      <button
+        key={style.id}
+        type="button"
+        onClick={() => setVisualStyle(style.id)}
+        className={`p-4 rounded-lg border-2 text-left transition-all ${
+          visualStyle === style.id
+            ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
+            : 'border-gray-200 hover:border-gray-300 bg-white'
+        }`}
+      >
+        <div className="text-2xl mb-1">{style.icon}</div>
+        <div className="font-medium text-gray-900">{style.name}</div>
+        <div className="text-xs text-gray-500 mt-1">{style.description}</div>
+      </button>
+    ))}
+  </div>
+</div>
+```
+
+---
+
+## Verification Checklist
+
+- [ ] `shared/visual-style-config.ts` updated with 6 new styles
+- [ ] `getVisualStyleConfig()` correctly returns style config
+- [ ] Legacy style IDs map to new styles (backward compatibility)
+- [ ] UI shows 6 style options instead of 12
+- [ ] Default style is `lifestyle` (not `professional`)
+- [ ] Style selection updates project correctly
+- [ ] Provider priority logged in console during generation
+- [ ] Music style matches selected visual style
+
+---
+
+## Testing
+
+1. Create a new video project
+2. Verify only 6 styles appear in selector
+3. Select "Hero (Cinematic)" → check console logs show `runway` as first provider
+4. Select "Social (Energetic)" → check console logs show `hailuo` as first provider
+5. Select "Product Showcase" → check console logs show `luma` as first provider
+6. Test with existing project that has `professional` style → should map to `lifestyle`
+
+---
+
+## Style Quick Reference
+
+| Style | Best For | Primary Provider | Music |
+|-------|----------|------------------|-------|
+| Hero | Brand films, emotional | Runway | Orchestral |
+| Lifestyle | Testimonials, relatable | Kling | Acoustic |
+| Product | Features, reveals | Luma | Minimal electronic |
+| Educational | How-to, benefits | Kling | Light corporate |
+| Social | TikTok, promos | Hailuo | Upbeat electronic |
+| Premium | Luxury, high-end | Runway | Elegant orchestral |
