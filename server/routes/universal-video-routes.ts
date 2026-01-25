@@ -1955,12 +1955,24 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       console.log('[UniversalVideo] Phase 16: Sound design config built:', soundDesignConfig);
     }
     
+    // Create a brand copy with S3-cached logo URL for Lambda accessibility
+    const brandWithCachedLogo = preparedProject.brand ? {
+      ...preparedProject.brand,
+      // Use end card's cachedLogoUrl (S3) instead of original Replit URL
+      logoUrl: endCardConfig?.logo?.url || preparedProject.brand.logoUrl,
+    } : undefined;
+    
+    console.log('[UniversalVideo] Brand logo URL for Lambda:', {
+      original: preparedProject.brand?.logoUrl?.substring(0, 60),
+      cached: brandWithCachedLogo?.logoUrl?.substring(0, 60),
+    });
+    
     const inputProps = {
       scenes: preparedProject.scenes,
       voiceoverUrl: preparedProject.assets.voiceover.fullTrackUrl || null,
       musicUrl: preparedProject.assets.music?.url || null,
       musicVolume: preparedProject.assets.music?.volume || 0.18,
-      brand: preparedProject.brand,
+      brand: brandWithCachedLogo,
       outputFormat: preparedProject.outputFormat,
       brandInstructions: Object.keys(mergedBrandInstructions).length > 0 ? mergedBrandInstructions : undefined,
       // Phase 16: End card and sound design configs
