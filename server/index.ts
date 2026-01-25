@@ -147,6 +147,11 @@ app.use((req, res, next) => {
   startMarketplaceSyncScheduler();
   log('🛒 Marketplace sync scheduler initialized (every 15 minutes)', 'marketplace-sync');
 
+  // Import and initialize the BigCommerce inventory sync scheduler (runs at configured time daily)
+  const { bigcommerceInventorySyncService } = await import('./services/bigcommerce-inventory-sync-service');
+  bigcommerceInventorySyncService.startScheduledSync();
+  log('📦 BigCommerce inventory sync scheduler initialized', 'bigcommerce-sync');
+
   // Import and initialize the video generation worker
   const { videoGenerationWorker } = await import('./services/video-generation-worker');
   videoGenerationWorker.startWorker(3000); // Check for jobs every 3 seconds
