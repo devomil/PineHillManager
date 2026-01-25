@@ -1859,8 +1859,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     console.log('[UniversalVideo] Phase 16 End Card - brand.logoUrl:', preparedProject.brand?.logoUrl || 'EMPTY');
     if (endCardSettings?.enabled !== false) {
       // Cache the logo URL to S3 if it's a local Replit URL
-      // Default to Pine Hill Farm logo if none set
-      const defaultLogoUrl = '/assets/pine-hill-farm-logo.png';
+      // Default to Pine Hill Farm logo (existing file in uploads)
+      const defaultLogoUrl = '/uploads/pinehillfarm-logo.png';
       let cachedLogoUrl = preparedProject.brand?.logoUrl || defaultLogoUrl;
       
       // Convert relative URLs to absolute for caching
@@ -1875,6 +1875,11 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         try {
           console.log('[UniversalVideo] Caching end card logo to S3:', cachedLogoUrl.substring(0, 60));
           const logoResponse = await fetch(cachedLogoUrl);
+          if (!logoResponse.ok) {
+            console.error('[UniversalVideo] Failed to fetch logo, status:', logoResponse.status);
+            // Clear the logo URL since we can't cache it
+            cachedLogoUrl = '';
+          }
           if (logoResponse.ok) {
             const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
             const logoKey = `video-assets/brand/end-card-logo-${Date.now()}.png`;

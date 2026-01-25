@@ -503,7 +503,7 @@ export interface ScriptVideoInput {
 // Backgrounds: Cream #f5f0e8, Off-white #f8f8f3
 export const PINE_HILL_FARM_BRAND: BrandSettings = {
   name: 'Pine Hill Farm',
-  logoUrl: '/assets/pine-hill-farm-logo.png',
+  logoUrl: '/uploads/pinehillfarm-logo.png',
   watermarkPosition: 'bottom-right',
   watermarkOpacity: 0.3,
   colors: {
