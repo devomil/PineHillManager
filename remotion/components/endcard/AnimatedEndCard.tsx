@@ -2,6 +2,22 @@ import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Img, spring } from 'remotion';
 import { EndCardConfig } from '../../../shared/config/end-card';
 
+function isValidImageUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.warn('[EndCard] Invalid image URL (not absolute):', url);
+    return false;
+  }
+  
+  if (url.includes('.picard.replit.dev') || url.includes('.replit.dev/')) {
+    console.error('[EndCard] Invalid image URL (Replit dev URL not accessible from Lambda):', url);
+    return false;
+  }
+  
+  return true;
+}
+
 interface AnimatedEndCardProps {
   config: EndCardConfig;
 }
@@ -27,7 +43,7 @@ export const AnimatedEndCard: React.FC<AnimatedEndCardProps> = ({ config }) => {
         />
       )}
       
-      {config.logo.url && (
+      {isValidImageUrl(config.logo.url) && (
         <LogoReveal
           logoUrl={config.logo.url}
           size={config.logo.size}
