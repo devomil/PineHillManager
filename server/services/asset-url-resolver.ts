@@ -1,8 +1,20 @@
 import { db } from '../db';
 import { brandAssets } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const urlCache = new Map<string, string>();
+
+const REMOTION_BUCKET_NAME = 'remotionlambda-useast1-refjo5giq5';
+const s3Client = process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_AWS_SECRET_ACCESS_KEY
+  ? new S3Client({
+      region: 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY,
+      },
+    })
+  : null;
 
 export interface AssetUrlResolverOptions {
   skipCache?: boolean;
@@ -17,7 +29,6 @@ class AssetUrlResolver {
     }
     
     if (this.isPublicUrl(url)) {
-      console.log('[AssetURL] Already public:', url.substring(0, 60) + '...');
       return url;
     }
     
@@ -110,12 +121,9 @@ class AssetUrlResolver {
         return null;
       }
       
-      // Replit object storage buckets are NOT publicly accessible
-      // Return null to trigger fallback S3 caching in the caller
       if (bucketName.startsWith('replit-objstore-')) {
-        console.log('[AssetURL] Replit object storage bucket is private, needs S3 caching');
-        console.log('[AssetURL] Asset info for S3 caching - bucket:', bucketName, 'path:', objectPath);
-        return null;
+        console.log('[AssetURL] Replit object storage detected for asset:', assetId);
+        return await this.cacheReplitAssetToS3(objectPath, assetId);
       }
       
       return `https://storage.googleapis.com/${bucketName}/${objectPath}`;
@@ -149,10 +157,107 @@ class AssetUrlResolver {
   }
   
   private async resolveStaticPath(path: string): Promise<string | null> {
-    // Static paths like /uploads/ need to be fetched and cached to S3
-    // Replit object storage is private, so return null to trigger S3 caching fallback
-    console.log('[AssetURL] Static path needs S3 caching:', path);
-    return null;
+    return await this.cacheLocalFileToS3(path);
+  }
+  
+  private async cacheReplitAssetToS3(objectPath: string, assetId: number): Promise<string | null> {
+    if (!s3Client) {
+      console.error('[AssetURL] S3 client not configured - cannot cache asset');
+      return null;
+    }
+    
+    try {
+      console.log('[AssetURL] Fetching asset from Replit object storage:', objectPath);
+      
+      const { Client } = await import('@replit/object-storage');
+      const objectStorageClient = new Client();
+      
+      const { data, error } = await objectStorageClient.downloadAsBytes(objectPath);
+      if (error || !data) {
+        console.error('[AssetURL] Failed to download from object storage:', error);
+        return null;
+      }
+      
+      const extension = objectPath.split('.').pop() || 'png';
+      const contentType = this.getContentType(extension);
+      const s3Key = `video-assets/brand/asset-${assetId}-${Date.now()}.${extension}`;
+      
+      await s3Client.send(new PutObjectCommand({
+        Bucket: REMOTION_BUCKET_NAME,
+        Key: s3Key,
+        Body: Buffer.from(data),
+        ContentType: contentType,
+      }));
+      
+      const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${s3Key}`;
+      console.log('[AssetURL] Cached asset to S3:', s3Url);
+      
+      return s3Url;
+      
+    } catch (error) {
+      console.error('[AssetURL] Error caching asset to S3:', error);
+      return null;
+    }
+  }
+  
+  private async cacheLocalFileToS3(path: string): Promise<string | null> {
+    if (!s3Client) {
+      console.error('[AssetURL] S3 client not configured - cannot cache local file');
+      return null;
+    }
+    
+    try {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
+      const fetchUrl = `${baseUrl}${path}`;
+      
+      console.log('[AssetURL] Fetching local file:', fetchUrl.substring(0, 60));
+      
+      const response = await fetch(fetchUrl);
+      if (!response.ok) {
+        console.error('[AssetURL] Failed to fetch local file, status:', response.status);
+        return null;
+      }
+      
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const extension = path.split('.').pop() || 'png';
+      const contentType = this.getContentType(extension);
+      const filename = path.split('/').pop() || 'file';
+      const s3Key = `video-assets/brand/${filename.replace(/\.[^.]+$/, '')}-${Date.now()}.${extension}`;
+      
+      await s3Client.send(new PutObjectCommand({
+        Bucket: REMOTION_BUCKET_NAME,
+        Key: s3Key,
+        Body: buffer,
+        ContentType: contentType,
+      }));
+      
+      const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${s3Key}`;
+      console.log('[AssetURL] Cached local file to S3:', s3Url);
+      
+      return s3Url;
+      
+    } catch (error) {
+      console.error('[AssetURL] Error caching local file to S3:', error);
+      return null;
+    }
+  }
+  
+  private getContentType(extension: string): string {
+    const types: Record<string, string> = {
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'svg': 'image/svg+xml',
+      'mp4': 'video/mp4',
+      'webm': 'video/webm',
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+    };
+    return types[extension.toLowerCase()] || 'application/octet-stream';
   }
   
   clearCache(): void {
