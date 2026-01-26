@@ -25,6 +25,7 @@ import { transitionService, TransitionPlan, SceneTransition } from '../services/
 import { textPlacementService, TextOverlay as TextOverlayType, TextPlacement } from '../services/text-placement-service';
 import { brandInjectionService, BrandInjectionPlan } from '../services/brand-injection-service';
 import { qualityGateService, ProjectQualityReport, SceneQualityStatus } from '../services/quality-gate-service';
+import { assetUrlResolver } from '../services/asset-url-resolver';
 import { VIDEO_PROVIDERS } from '../../shared/provider-config';
 import { ObjectStorageService } from '../objectStorage';
 import { videoFrameExtractor } from '../services/video-frame-extractor';
@@ -1684,27 +1685,26 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     const sceneBrandOverlays: Record<string, any> = {};
     
     // Helper to convert relative API URLs to full public URLs for Remotion Lambda
+    // Phase 17A: Use assetUrlResolver to get publicly accessible URLs
     const getPublicAssetUrl = async (relativeUrl: string): Promise<string> => {
       if (!relativeUrl) return '';
-      // If already a full URL, return as-is
+      
+      // Use the new asset URL resolver for reliable public URL resolution
+      const resolved = await assetUrlResolver.resolve(relativeUrl);
+      if (resolved) {
+        console.log(`[UniversalVideo] Resolved asset URL: ${relativeUrl} → ${resolved.substring(0, 60)}...`);
+        return resolved;
+      }
+      
+      // Fallback: If resolution failed and it's already a full URL, return as-is
       if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+        console.warn(`[UniversalVideo] Asset URL resolver failed, using original URL: ${relativeUrl.substring(0, 60)}...`);
         return relativeUrl;
       }
-      // For /api/brand-assets/file/:id URLs, fetch the actual URL from brand_media table
-      const brandAssetMatch = relativeUrl.match(/\/api\/brand-assets\/file\/(\d+)/);
-      if (brandAssetMatch) {
-        const assetId = parseInt(brandAssetMatch[1], 10);
-        try {
-          const result = await db.select({ url: brandMediaLibrary.url }).from(brandMediaLibrary).where(eq(brandMediaLibrary.id, assetId)).limit(1);
-          if (result.length > 0 && result[0].url) {
-            console.log(`[UniversalVideo] Resolved brand asset ${assetId} to URL: ${result[0].url.substring(0, 60)}...`);
-            return result[0].url;
-          }
-        } catch (err) {
-          console.error(`[UniversalVideo] Failed to resolve brand asset ${assetId}:`, err);
-        }
-      }
-      // Fallback: prepend server URL (won't work for Lambda, but better than nothing)
+      
+      // Last resort fallback - this won't work for Lambda but logs a warning
+      console.error(`[UniversalVideo] Failed to resolve asset URL to public GCS URL: ${relativeUrl}`);
+      console.error(`[UniversalVideo] This URL will NOT be accessible from Remotion Lambda!`);
       const baseUrl = process.env.REPLIT_DEV_DOMAIN 
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
         : 'http://localhost:5000';
@@ -1858,28 +1858,28 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     console.log('[UniversalVideo] Phase 16 End Card - endCardSettings:', JSON.stringify(endCardSettings || 'undefined'));
     console.log('[UniversalVideo] Phase 16 End Card - brand.logoUrl:', preparedProject.brand?.logoUrl || 'EMPTY');
     if (endCardSettings?.enabled !== false) {
-      // Cache the logo URL to S3 if it's a local Replit URL
-      // Default to Pine Hill Farm logo (existing file in uploads)
+      // Phase 17A: Use assetUrlResolver for end card logo
       const defaultLogoUrl = '/uploads/pinehillfarm-logo.png';
-      let cachedLogoUrl = preparedProject.brand?.logoUrl || defaultLogoUrl;
+      const sourceLogoUrl = preparedProject.brand?.logoUrl || defaultLogoUrl;
       
-      // Convert relative URLs to absolute for caching
-      if (cachedLogoUrl.startsWith('/')) {
-        const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-          : 'http://localhost:5000';
-        cachedLogoUrl = `${baseUrl}${cachedLogoUrl}`;
-        console.log('[UniversalVideo] Converted relative logo URL to absolute:', cachedLogoUrl);
-      }
-      if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/') && s3Client) {
+      // Try to resolve to public GCS URL first
+      let cachedLogoUrl = await assetUrlResolver.resolve(sourceLogoUrl);
+      console.log('[UniversalVideo] End card logo URL resolution:', sourceLogoUrl, '→', cachedLogoUrl || 'FAILED');
+      
+      // If resolution failed and it's a relative URL, we need to fetch and cache to S3
+      if (!cachedLogoUrl && s3Client) {
         try {
-          console.log('[UniversalVideo] Caching end card logo to S3:', cachedLogoUrl.substring(0, 60));
-          const logoResponse = await fetch(cachedLogoUrl);
-          if (!logoResponse.ok) {
-            console.error('[UniversalVideo] Failed to fetch logo, status:', logoResponse.status);
-            // Clear the logo URL since we can't cache it
-            cachedLogoUrl = '';
+          // Convert relative to absolute for fetching
+          let fetchUrl = sourceLogoUrl;
+          if (fetchUrl.startsWith('/')) {
+            const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+              ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+              : 'http://localhost:5000';
+            fetchUrl = `${baseUrl}${fetchUrl}`;
           }
+          
+          console.log('[UniversalVideo] Fetching and caching logo to S3:', fetchUrl.substring(0, 60));
+          const logoResponse = await fetch(fetchUrl);
           if (logoResponse.ok) {
             const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
             const logoKey = `video-assets/brand/end-card-logo-${Date.now()}.png`;
@@ -1891,12 +1891,18 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
             }));
             cachedLogoUrl = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${logoKey}`;
             console.log('[UniversalVideo] End card logo cached to S3:', cachedLogoUrl);
+          } else {
+            console.error('[UniversalVideo] Failed to fetch logo, status:', logoResponse.status);
           }
         } catch (err) {
           console.error('[UniversalVideo] Failed to cache end card logo:', err);
         }
-      } else if (cachedLogoUrl && cachedLogoUrl.includes('.replit.dev/') && !s3Client) {
-        console.warn('[UniversalVideo] S3 client not configured, cannot cache end card logo');
+      }
+      
+      // Use resolved/cached URL or empty string if all else fails
+      if (!cachedLogoUrl) {
+        console.error('[UniversalVideo] End card logo URL could not be resolved - logo will not appear');
+        cachedLogoUrl = '';
       }
       // Default to enabled if not explicitly disabled
       endCardConfig = {

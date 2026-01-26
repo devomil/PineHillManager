@@ -4,6 +4,7 @@ import { db } from '../db';
 import { brandMediaLibrary } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { brandBibleService, BrandBible, BrandAsset } from './brand-bible-service';
+import { assetUrlResolver } from './asset-url-resolver';
 
 // ============================================
 // PHASE 8E TYPES
@@ -178,29 +179,54 @@ class BrandInjectionService {
       callToAction: bible.callToAction,
     };
     
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 17A: Resolve all asset URLs to public URLs before use
+    // ═══════════════════════════════════════════════════════════════
+    console.log('[BrandInject] Resolving asset URLs to public URLs...');
+    
+    const urlsToResolve = [
+      bible.logos.intro?.url,
+      bible.logos.main?.url,
+      bible.logos.watermark?.url,
+      bible.logos.outro?.url,
+    ].filter(Boolean) as string[];
+    
+    const resolvedUrls = await assetUrlResolver.resolveAll(urlsToResolve);
+    
+    const resolveLogoUrl = (logo: BrandAsset | undefined): BrandAsset | undefined => {
+      if (!logo) return undefined;
+      const resolved = resolvedUrls.get(logo.url);
+      if (resolved) {
+        return { ...logo, url: resolved };
+      }
+      console.warn(`[BrandInject] Failed to resolve logo URL: ${logo.url}`);
+      return undefined;
+    };
+    
+    const resolvedIntroLogo = resolveLogoUrl(bible.logos.intro) || resolveLogoUrl(bible.logos.main);
+    const resolvedWatermarkLogo = resolveLogoUrl(bible.logos.watermark) || resolveLogoUrl(bible.logos.main);
+    const resolvedOutroLogo = resolveLogoUrl(bible.logos.outro) || resolveLogoUrl(bible.logos.main);
+    
     // 1. Generate intro animation for first scene
-    const introLogo = bible.logos.intro || bible.logos.main;
-    if (introLogo) {
+    if (resolvedIntroLogo) {
       instructions.introAnimation = this.createIntroAnimation(
-        introLogo,
+        resolvedIntroLogo,
         scenes[0]?.duration || 5
       );
-      console.log(`[BrandInject] Intro animation configured (logo: ${introLogo.name})`);
+      console.log(`[BrandInject] Intro animation configured (logo: ${resolvedIntroLogo.name}, URL: ${resolvedIntroLogo.url.substring(0, 50)}...)`);
     }
     
     // 2. Generate watermark for middle scenes
-    const watermarkLogo = bible.logos.watermark || bible.logos.main;
-    if (watermarkLogo) {
-      instructions.watermark = this.createWatermarkOverlay(watermarkLogo);
+    if (resolvedWatermarkLogo) {
+      instructions.watermark = this.createWatermarkOverlay(resolvedWatermarkLogo);
       console.log(`[BrandInject] Watermark overlay configured (position: ${instructions.watermark.position.anchor}, opacity: ${instructions.watermark.opacity})`);
     }
     
     // 3. Generate outro sequence for last scene
-    const outroLogo = bible.logos.outro || bible.logos.main;
-    if (outroLogo) {
+    if (resolvedOutroLogo) {
       const lastScene = scenes[scenes.length - 1];
       instructions.outroSequence = this.createOutroSequence(
-        outroLogo,
+        resolvedOutroLogo,
         bible.callToAction,
         lastScene?.duration || 5
       );

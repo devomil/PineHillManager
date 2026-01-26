@@ -86,6 +86,27 @@ export interface LogoEndingConfig {
   animation: 'fade' | 'zoom' | 'slide' | 'elegant';
 }
 
+// ============================================================
+// PHASE 17A: URL Validation Helper
+// ============================================================
+
+function isValidImageUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.warn('[Remotion] Invalid image URL (not absolute):', url);
+    return false;
+  }
+  
+  if (url.includes('.picard.replit.dev') || url.includes('.replit.dev/')) {
+    console.error('[Remotion] Invalid image URL (Replit dev URL):', url);
+    console.error('[Remotion] This URL is not accessible from Lambda!');
+    return false;
+  }
+  
+  return true;
+}
+
 export interface SceneBrandOverlays {
   sceneId: string;
   overlays: BrandOverlay[];
