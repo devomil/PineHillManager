@@ -1,0 +1,208 @@
+// server/services/asset-url-resolver.ts
+
+import { db } from '../db';
+import { brandAssets } from '../db/schema';
+import { eq } from 'drizzle-orm';
+
+// Cache resolved URLs to avoid repeated database lookups
+const urlCache = new Map<string, string>();
+
+export interface AssetUrlResolverOptions {
+  skipCache?: boolean;
+  preferPiAPI?: boolean;  // If true, upload to PiAPI ephemeral storage
+}
+
+class AssetUrlResolver {
+  
+  /**
+   * Resolve any asset URL to a publicly accessible URL.
+   * 
+   * Handles:
+   * - Relative URLs: /api/brand-assets/file/123
+   * - Replit dev URLs: https://*.picard.replit.dev/...
+   * - Already public URLs: https://storage.googleapis.com/...
+   */
+  async resolve(url: string, options: AssetUrlResolverOptions = {}): Promise<string | null> {
+    if (!url) {
+      console.log('[AssetURL] Empty URL provided');
+      return null;
+    }
+    
+    // Already a public cloud URL - return as-is
+    if (this.isPublicUrl(url)) {
+      console.log('[AssetURL] Already public:', url.substring(0, 60) + '...');
+      return url;
+    }
+    
+    // Check cache first
+    if (!options.skipCache && urlCache.has(url)) {
+      console.log('[AssetURL] Cache hit for:', url);
+      return urlCache.get(url)!;
+    }
+    
+    // Resolve based on URL type
+    let publicUrl: string | null = null;
+    
+    if (url.startsWith('/api/brand-assets/file/')) {
+      publicUrl = await this.resolveRelativeAssetUrl(url);
+    } else if (url.includes('.picard.replit.dev') || url.includes('.replit.dev')) {
+      publicUrl = await this.resolveReplitDevUrl(url);
+    } else if (url.startsWith('/assets/') || url.startsWith('/uploads/')) {
+      publicUrl = await this.resolveStaticPath(url);
+    }
+    
+    // Cache successful resolution
+    if (publicUrl) {
+      urlCache.set(url, publicUrl);
+      console.log('[AssetURL] Resolved:', url, '→', publicUrl.substring(0, 60) + '...');
+    } else {
+      console.warn('[AssetURL] Failed to resolve:', url);
+    }
+    
+    return publicUrl;
+  }
+  
+  /**
+   * Batch resolve multiple URLs (more efficient)
+   */
+  async resolveAll(urls: string[]): Promise<Map<string, string | null>> {
+    const results = new Map<string, string | null>();
+    
+    // Process in parallel with concurrency limit
+    const batchSize = 5;
+    for (let i = 0; i < urls.length; i += batchSize) {
+      const batch = urls.slice(i, i + batchSize);
+      const resolved = await Promise.all(
+        batch.map(url => this.resolve(url))
+      );
+      batch.forEach((url, idx) => results.set(url, resolved[idx]));
+    }
+    
+    return results;
+  }
+  
+  /**
+   * Check if URL is already publicly accessible
+   */
+  private isPublicUrl(url: string): boolean {
+    return (
+      url.startsWith('https://storage.googleapis.com/') ||
+      url.startsWith('https://storage.theapi.app/') ||
+      url.startsWith('https://s3.') ||
+      url.startsWith('https://cdn.') ||
+      url.includes('.s3.amazonaws.com') ||
+      url.includes('.r2.cloudflarestorage.com')
+    );
+  }
+  
+  /**
+   * Resolve relative brand asset URL: /api/brand-assets/file/123
+   */
+  private async resolveRelativeAssetUrl(url: string): Promise<string | null> {
+    try {
+      // Extract asset ID
+      const match = url.match(/\/api\/brand-assets\/file\/(\d+)/);
+      if (!match) {
+        console.log('[AssetURL] Invalid relative URL format:', url);
+        return null;
+      }
+      
+      const assetId = parseInt(match[1]);
+      if (isNaN(assetId) || assetId <= 0) {
+        console.log('[AssetURL] Invalid asset ID:', match[1]);
+        return null;
+      }
+      
+      // Load asset from database
+      const [asset] = await db
+        .select()
+        .from(brandAssets)
+        .where(eq(brandAssets.id, assetId));
+      
+      if (!asset) {
+        console.log('[AssetURL] Asset not found:', assetId);
+        return null;
+      }
+      
+      // Get storage path from settings
+      const settings = asset.settings as any;
+      const storagePath = settings?.storagePath;
+      
+      if (!storagePath) {
+        console.log('[AssetURL] No storagePath for asset:', assetId);
+        // Try fileUrl if available
+        if (asset.fileUrl && this.isPublicUrl(asset.fileUrl)) {
+          return asset.fileUrl;
+        }
+        return null;
+      }
+      
+      // Parse storage path: "bucketName|objectPath"
+      const [bucketName, objectPath] = storagePath.split('|');
+      if (!bucketName || !objectPath) {
+        console.log('[AssetURL] Invalid storagePath format:', storagePath);
+        return null;
+      }
+      
+      // Construct public GCS URL
+      return `https://storage.googleapis.com/${bucketName}/${objectPath}`;
+      
+    } catch (error) {
+      console.error('[AssetURL] Error resolving relative URL:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Resolve Replit dev URL to GCS URL
+   */
+  private async resolveReplitDevUrl(url: string): Promise<string | null> {
+    try {
+      // Extract path from Replit URL
+      const urlObj = new URL(url);
+      const path = urlObj.pathname;
+      
+      // If it's a brand asset endpoint, resolve it
+      if (path.startsWith('/api/brand-assets/file/')) {
+        return this.resolveRelativeAssetUrl(path);
+      }
+      
+      // If it's a static asset path, resolve it
+      if (path.startsWith('/assets/') || path.startsWith('/uploads/')) {
+        return this.resolveStaticPath(path);
+      }
+      
+      console.log('[AssetURL] Unknown Replit URL pattern:', path);
+      return null;
+      
+    } catch (error) {
+      console.error('[AssetURL] Error parsing Replit URL:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Resolve static path like /assets/logo.png
+   */
+  private async resolveStaticPath(path: string): Promise<string | null> {
+    // For static assets, we need to either:
+    // 1. Look them up in the database by filename
+    // 2. Have them pre-uploaded to cloud storage
+    
+    console.log('[AssetURL] Static path resolution not yet implemented:', path);
+    console.log('[AssetURL] Consider uploading static assets to cloud storage');
+    
+    // TODO: Implement lookup by filename or return pre-configured URLs
+    return null;
+  }
+  
+  /**
+   * Clear the URL cache (useful for testing or when assets change)
+   */
+  clearCache(): void {
+    urlCache.clear();
+    console.log('[AssetURL] Cache cleared');
+  }
+}
+
+export const assetUrlResolver = new AssetUrlResolver();
