@@ -110,6 +110,14 @@ class AssetUrlResolver {
         return null;
       }
       
+      // Replit object storage buckets are NOT publicly accessible
+      // Return null to trigger fallback S3 caching in the caller
+      if (bucketName.startsWith('replit-objstore-')) {
+        console.log('[AssetURL] Replit object storage bucket is private, needs S3 caching');
+        console.log('[AssetURL] Asset info for S3 caching - bucket:', bucketName, 'path:', objectPath);
+        return null;
+      }
+      
       return `https://storage.googleapis.com/${bucketName}/${objectPath}`;
       
     } catch (error) {
@@ -141,19 +149,10 @@ class AssetUrlResolver {
   }
   
   private async resolveStaticPath(path: string): Promise<string | null> {
-    const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
-    if (!bucketId) {
-      console.log('[AssetURL] No REPLIT_DEFAULT_BUCKET_ID env var');
-      return null;
-    }
-    
-    const objectPath = path.startsWith('/') ? path.substring(1) : path;
-    
-    if (objectPath.startsWith('uploads/')) {
-      return `https://storage.googleapis.com/${bucketId}/public/${objectPath}`;
-    }
-    
-    return `https://storage.googleapis.com/${bucketId}/public/${objectPath}`;
+    // Static paths like /uploads/ need to be fetched and cached to S3
+    // Replit object storage is private, so return null to trigger S3 caching fallback
+    console.log('[AssetURL] Static path needs S3 caching:', path);
+    return null;
   }
   
   clearCache(): void {
