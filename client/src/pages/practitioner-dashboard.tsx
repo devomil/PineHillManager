@@ -12,8 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X } from "lucide-react";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
 
@@ -32,6 +34,14 @@ export default function PractitionerDashboard() {
   const [practitionerFilter, setPractitionerFilter] = useState<string>("all");
   const [selectedContact, setSelectedContact] = useState<PractitionerContact | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    clientFirstName: '',
+    clientLastName: '',
+    clientEmail: '',
+    clientPhone: '',
+    clientNotes: '',
+  });
 
   const { data: contacts = [], isLoading: contactsLoading, refetch } = useQuery<PractitionerContact[]>({
     queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, assignedTo: practitionerFilter }],
@@ -331,14 +341,24 @@ export default function PractitionerDashboard() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="View details"
-                                aria-label="View contact details"
+                                title="View/Edit details"
+                                aria-label="View or edit contact details"
                                 onClick={() => {
                                   setSelectedContact(contact);
+                                  setEditFormData({
+                                    clientFirstName: contact.clientFirstName || '',
+                                    clientLastName: contact.clientLastName || '',
+                                    clientEmail: contact.clientEmail || '',
+                                    clientPhone: contact.clientPhone || '',
+                                    clientNotes: contact.clientNotes || '',
+                                  });
+                                  setIsEditing(false);
                                   setViewDialogOpen(true);
                                 }}
+                                className="text-xs"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4 mr-1" />
+                                View/Edit
                               </Button>
                               <Select
                                 value={contact.status}
@@ -599,14 +619,24 @@ export default function PractitionerDashboard() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="View details"
-                                aria-label="View contact details"
+                                title="View/Edit details"
+                                aria-label="View or edit contact details"
                                 onClick={() => {
                                   setSelectedContact(contact);
+                                  setEditFormData({
+                                    clientFirstName: contact.clientFirstName || '',
+                                    clientLastName: contact.clientLastName || '',
+                                    clientEmail: contact.clientEmail || '',
+                                    clientPhone: contact.clientPhone || '',
+                                    clientNotes: contact.clientNotes || '',
+                                  });
+                                  setIsEditing(false);
                                   setViewDialogOpen(true);
                                 }}
+                                className="text-xs"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4 mr-1" />
+                                View/Edit
                               </Button>
                               <Select
                                 value={contact.status}
@@ -640,116 +670,243 @@ export default function PractitionerDashboard() {
 
         <Dialog open={viewDialogOpen} onOpenChange={(open) => {
           setViewDialogOpen(open);
-          if (!open) setSelectedContact(null);
+          if (!open) {
+            setSelectedContact(null);
+            setIsEditing(false);
+          }
         }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-xl">
-                Contact Details
-              </DialogTitle>
-              <DialogDescription>
-                Full information for {selectedContact?.clientFirstName} {selectedContact?.clientLastName}
-              </DialogDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-xl">
+                    {isEditing ? 'Edit Contact' : 'Contact Details'}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {isEditing 
+                      ? 'Update the contact information below'
+                      : `Full information for ${selectedContact?.clientFirstName} ${selectedContact?.clientLastName}`
+                    }
+                  </DialogDescription>
+                </div>
+                {!isEditing && selectedContact && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
+              </div>
             </DialogHeader>
             {selectedContact && (
               <div className="space-y-6 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Client Name</label>
-                    <p className="text-lg font-semibold">
-                      {selectedContact.clientFirstName} {selectedContact.clientLastName}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Service Type</label>
-                    <Badge variant="outline" className="text-sm">
-                      {selectedContact.serviceType}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <Phone className="h-3 w-3" /> Phone
-                    </label>
-                    <p>{selectedContact.clientPhone || 'Not provided'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <Mail className="h-3 w-3" /> Email
-                    </label>
-                    <p>{selectedContact.clientEmail || 'Not provided'}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Preferred Contact Method</label>
-                    <p className="capitalize">{selectedContact.preferredContactMethod || 'Phone'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Priority</label>
-                    <Badge 
-                      variant={
-                        selectedContact.priority === 'urgent' ? 'destructive' : 
-                        selectedContact.priority === 'high' ? 'default' : 'secondary'
-                      }
-                      className="capitalize"
-                    >
-                      {selectedContact.priority || 'Normal'}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Status</label>
-                    {getStatusBadge(selectedContact.status)}
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Assigned Practitioner</label>
-                    <p>{getPractitionerName(selectedContact.assignedPractitionerId)}</p>
-                  </div>
-                </div>
-
-                {selectedContact.preferredDateTime && (
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" /> Preferred Date/Time
-                    </label>
-                    <p>{format(new Date(selectedContact.preferredDateTime), 'PPP p')}</p>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                    <StickyNote className="h-3 w-3" /> Notes
-                  </label>
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg min-h-24">
-                    {selectedContact.clientNotes ? (
-                      <p className="whitespace-pre-wrap">{selectedContact.clientNotes}</p>
-                    ) : (
-                      <p className="text-gray-400 italic">No notes provided</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Created</label>
-                    <p className="text-sm">
-                      {selectedContact.createdAt && format(new Date(selectedContact.createdAt), 'PPP p')}
-                    </p>
-                    <p className="text-xs text-gray-400">by {getCreatedByName(selectedContact.createdBy)}</p>
-                  </div>
-                  {selectedContact.completedAt && (
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Completed</label>
-                      <p className="text-sm">{format(new Date(selectedContact.completedAt), 'PPP p')}</p>
+                {isEditing ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="editFirstName">First Name *</Label>
+                        <Input
+                          id="editFirstName"
+                          value={editFormData.clientFirstName}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, clientFirstName: e.target.value }))}
+                          placeholder="First name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="editLastName">Last Name</Label>
+                        <Input
+                          id="editLastName"
+                          value={editFormData.clientLastName}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, clientLastName: e.target.value }))}
+                          placeholder="Last name"
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="editPhone" className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> Phone
+                        </Label>
+                        <Input
+                          id="editPhone"
+                          type="tel"
+                          value={editFormData.clientPhone}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, clientPhone: e.target.value }))}
+                          placeholder="Phone number"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="editEmail" className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" /> Email
+                        </Label>
+                        <Input
+                          id="editEmail"
+                          type="email"
+                          value={editFormData.clientEmail}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, clientEmail: e.target.value }))}
+                          placeholder="Email address"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="editNotes" className="flex items-center gap-1">
+                        <StickyNote className="h-3 w-3" /> Notes
+                      </Label>
+                      <Textarea
+                        id="editNotes"
+                        value={editFormData.clientNotes}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, clientNotes: e.target.value }))}
+                        placeholder="Add notes about this contact..."
+                        className="min-h-32"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditFormData({
+                            clientFirstName: selectedContact.clientFirstName || '',
+                            clientLastName: selectedContact.clientLastName || '',
+                            clientEmail: selectedContact.clientEmail || '',
+                            clientPhone: selectedContact.clientPhone || '',
+                            clientNotes: selectedContact.clientNotes || '',
+                          });
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          updateContactMutation.mutate({
+                            id: selectedContact.id,
+                            updates: {
+                              clientFirstName: editFormData.clientFirstName,
+                              clientLastName: editFormData.clientLastName || undefined,
+                              clientEmail: editFormData.clientEmail || undefined,
+                              clientPhone: editFormData.clientPhone || undefined,
+                              clientNotes: editFormData.clientNotes || undefined,
+                            },
+                          });
+                          setIsEditing(false);
+                          setViewDialogOpen(false);
+                        }}
+                        disabled={!editFormData.clientFirstName.trim()}
+                      >
+                        <Save className="h-4 w-4 mr-1" />
+                        Save Changes
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Client Name</label>
+                        <p className="text-lg font-semibold">
+                          {selectedContact.clientFirstName} {selectedContact.clientLastName}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Service Type</label>
+                        <Badge variant="outline" className="text-sm">
+                          {selectedContact.serviceType}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> Phone
+                        </label>
+                        <p>{selectedContact.clientPhone || 'Not provided'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Mail className="h-3 w-3" /> Email
+                        </label>
+                        <p>{selectedContact.clientEmail || 'Not provided'}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Preferred Contact Method</label>
+                        <p className="capitalize">{selectedContact.preferredContactMethod || 'Phone'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Priority</label>
+                        <Badge 
+                          variant={
+                            selectedContact.priority === 'urgent' ? 'destructive' : 
+                            selectedContact.priority === 'high' ? 'default' : 'secondary'
+                          }
+                          className="capitalize"
+                        >
+                          {selectedContact.priority || 'Normal'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Status</label>
+                        {getStatusBadge(selectedContact.status)}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Assigned Practitioner</label>
+                        <p>{getPractitionerName(selectedContact.assignedPractitionerId)}</p>
+                      </div>
+                    </div>
+
+                    {selectedContact.preferredDateTime && (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" /> Preferred Date/Time
+                        </label>
+                        <p>{format(new Date(selectedContact.preferredDateTime), 'PPP p')}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <StickyNote className="h-3 w-3" /> Notes
+                      </label>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg min-h-24">
+                        {selectedContact.clientNotes ? (
+                          <p className="whitespace-pre-wrap">{selectedContact.clientNotes}</p>
+                        ) : (
+                          <p className="text-gray-400 italic">No notes provided</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Created</label>
+                        <p className="text-sm">
+                          {selectedContact.createdAt && format(new Date(selectedContact.createdAt), 'PPP p')}
+                        </p>
+                        <p className="text-xs text-gray-400">by {getCreatedByName(selectedContact.createdBy)}</p>
+                      </div>
+                      {selectedContact.completedAt && (
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-gray-500">Completed</label>
+                          <p className="text-sm">{format(new Date(selectedContact.completedAt), 'PPP p')}</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </DialogContent>
