@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { QuickContactForm } from "@/components/quick-contact-form";
 import { 
   Users, 
   Calendar, 
@@ -27,7 +28,8 @@ import {
   Target,
   ShoppingBag,
   Store,
-  LifeBuoy
+  LifeBuoy,
+  Phone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +78,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [quickContactOpen, setQuickContactOpen] = useState(false);
 
   // Fetch pending support ticket count for badge (only for Ryan/admin users)
   // This endpoint requires Ryan-level access, so we stop polling after first error
@@ -151,6 +154,21 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
             <X className="h-4 w-4" />
           </Button>
         )}
+      </div>
+
+      {/* Quick Contact Button */}
+      <div className="p-4 border-b">
+        <Button
+          onClick={() => { setQuickContactOpen(true); if (isMobile) setIsMobileOpen(false); }}
+          className={cn(
+            "w-full bg-gradient-to-r from-sky-100 via-sky-200 to-sky-300 hover:from-sky-200 hover:via-sky-300 hover:to-sky-400 text-sky-700 font-semibold shadow-md rounded-full border border-sky-200",
+            isCollapsed && !isMobile ? "p-2" : "py-3"
+          )}
+          data-testid="button-quick-contact-admin"
+        >
+          <Phone className={cn("h-5 w-5", !isCollapsed && "mr-2")} />
+          {(!isCollapsed || isMobile) && "Quick Contact"}
+        </Button>
       </div>
 
       {/* Navigation Items */}
@@ -248,6 +266,9 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
       >
         <SidebarContent />
       </aside>
+
+      {/* Quick Contact Form Modal */}
+      <QuickContactForm open={quickContactOpen} onOpenChange={setQuickContactOpen} />
     </>
   );
 }
