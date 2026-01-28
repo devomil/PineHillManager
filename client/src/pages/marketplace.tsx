@@ -903,6 +903,53 @@ export default function MarketplacePage() {
                     </div>
                   </div>
 
+                  {viewOrder.fulfillments && viewOrder.fulfillments.length > 0 && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-green-600" />
+                        Tracking Information
+                      </h4>
+                      <div className="space-y-3">
+                        {viewOrder.fulfillments.map((fulfillment: any, idx: number) => (
+                          <div key={idx} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-gray-500">Carrier</p>
+                                <p className="font-medium">{fulfillment.carrier || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-500">Service</p>
+                                <p className="font-medium">{fulfillment.service_level || 'Standard'}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="text-gray-500">Tracking Number</p>
+                                {fulfillment.tracking_url ? (
+                                  <a 
+                                    href={fulfillment.tracking_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                  >
+                                    {fulfillment.tracking_number}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                ) : (
+                                  <p className="font-medium">{fulfillment.tracking_number || 'N/A'}</p>
+                                )}
+                              </div>
+                              {fulfillment.fulfilled_at && (
+                                <div className="col-span-2">
+                                  <p className="text-gray-500">Shipped On</p>
+                                  <p className="font-medium">{format(new Date(fulfillment.fulfilled_at), 'MMM d, yyyy h:mm a')}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="border-t pt-4">
                     <h4 className="font-semibold mb-3">Customer Information</h4>
                     <div className="grid grid-cols-2 gap-4 text-sm">
