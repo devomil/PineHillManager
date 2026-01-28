@@ -233,6 +233,8 @@ export default function MarketplacePage() {
   });
 
   const getStatusBadge = (status: string) => {
+    // Normalize status to lowercase for consistent matching
+    const normalizedStatus = status?.toLowerCase().replace(/\s+/g, '_') || '';
     const statusMap: Record<string, { color: string; label: string }> = {
       'pending': { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
       'awaiting_payment': { color: 'bg-red-100 text-red-800', label: 'Awaiting Payment' },
@@ -241,13 +243,15 @@ export default function MarketplacePage() {
       'partially_shipped': { color: 'bg-cyan-100 text-cyan-800', label: 'Partially Shipped' },
       'shipped': { color: 'bg-green-100 text-green-800', label: 'Shipped' },
       'completed': { color: 'bg-emerald-100 text-emerald-800', label: 'Completed' },
+      'incomplete': { color: 'bg-slate-100 text-slate-800', label: 'Incomplete' },
       'cancelled': { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
+      'canceled': { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
       'refunded': { color: 'bg-purple-100 text-purple-800', label: 'Refunded' },
       'disputed': { color: 'bg-amber-100 text-amber-800', label: 'Disputed' },
       'manual_verification_required': { color: 'bg-pink-100 text-pink-800', label: 'Verification Required' },
       'partially_refunded': { color: 'bg-violet-100 text-violet-800', label: 'Partially Refunded' },
     };
-    const config = statusMap[status] || { color: 'bg-gray-100 text-gray-800', label: status };
+    const config = statusMap[normalizedStatus] || { color: 'bg-gray-100 text-gray-800', label: status };
     return <Badge className={config.color}>{config.label}</Badge>;
   };
 
@@ -491,8 +495,10 @@ export default function MarketplacePage() {
                       <SelectItem value="partially_shipped">Partially Shipped</SelectItem>
                       <SelectItem value="shipped">Shipped</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="incomplete">Incomplete</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                       <SelectItem value="refunded">Refunded</SelectItem>
+                      <SelectItem value="partially_refunded">Partially Refunded</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

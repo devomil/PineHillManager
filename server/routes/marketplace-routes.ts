@@ -138,11 +138,12 @@ router.get('/orders', isAuthenticated, async (req: Request, res: Response) => {
     }
     
     // Handle status filtering including special pending_fulfillment which matches multiple statuses
+    // Use case-insensitive matching since database has mixed case values
     if (params.status) {
       if (params.status === 'pending_fulfillment') {
-        whereClause = sql`${whereClause} AND o.status IN ('pending', 'awaiting_payment', 'awaiting_fulfillment', 'awaiting_shipment', 'partially_shipped')`;
+        whereClause = sql`${whereClause} AND LOWER(o.status) IN ('pending', 'awaiting_payment', 'awaiting_fulfillment', 'awaiting_shipment', 'partially_shipped')`;
       } else {
-        whereClause = sql`${whereClause} AND o.status = ${params.status}`;
+        whereClause = sql`${whereClause} AND LOWER(o.status) = LOWER(${params.status})`;
       }
     }
     
