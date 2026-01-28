@@ -37,6 +37,10 @@ export default function PractitionerDashboard() {
     queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, assignedTo: practitionerFilter }],
   });
 
+  // Filter contacts into active and archived
+  const activeContacts = contacts.filter(c => c.status !== 'completed' && c.status !== 'cancelled');
+  const archivedContacts = contacts.filter(c => c.status === 'completed' || c.status === 'cancelled');
+
   const { data: stats } = useQuery<{
     total: number;
     byStatus: Record<string, number>;
@@ -211,20 +215,28 @@ export default function PractitionerDashboard() {
             <TabsTrigger value="service">By Service Type</TabsTrigger>
             <TabsTrigger value="status">By Status</TabsTrigger>
             <TabsTrigger value="practitioner">By Practitioner</TabsTrigger>
+            <TabsTrigger value="archive">
+              Archive
+              {archivedContacts.length > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                  {archivedContacts.length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="all" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>All Client Contacts</CardTitle>
-                <CardDescription>Complete list of service requests and client information</CardDescription>
+                <CardTitle>Active Contacts</CardTitle>
+                <CardDescription>Active service requests (pending and in progress)</CardDescription>
               </CardHeader>
               <CardContent>
                 {contactsLoading ? (
                   <div className="text-center py-8 text-gray-500">Loading contacts...</div>
-                ) : contacts.length === 0 ? (
+                ) : activeContacts.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    No contacts found. Use the Quick Contact button to add new contacts.
+                    No active contacts. All contacts are archived or use the Quick Contact button to add new contacts.
                   </div>
                 ) : (
                   <Table>
@@ -242,7 +254,7 @@ export default function PractitionerDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {contacts.map((contact) => (
+                      {activeContacts.map((contact) => (
                         <TableRow key={contact.id}>
                           <TableCell className="font-medium">
                             {contact.clientFirstName} {contact.clientLastName}
@@ -491,6 +503,136 @@ export default function PractitionerDashboard() {
                     );
                   })}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="archive" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Archived Contacts</CardTitle>
+                <CardDescription>Completed and cancelled service requests</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {contactsLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading contacts...</div>
+                ) : archivedContacts.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No archived contacts. Contacts with status "Completed" or "Cancelled" will appear here.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client Name</TableHead>
+                        <TableHead>Contact Info</TableHead>
+                        <TableHead>Service Type</TableHead>
+                        <TableHead>Notes</TableHead>
+                        <TableHead>Comments</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Assigned To</TableHead>
+                        <TableHead>Completed</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {archivedContacts.map((contact) => (
+                        <TableRow key={contact.id} className="opacity-75">
+                          <TableCell className="font-medium">
+                            {contact.clientFirstName} {contact.clientLastName}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col text-sm">
+                              {contact.clientPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {contact.clientPhone}
+                                </span>
+                              )}
+                              {contact.clientEmail && (
+                                <span className="text-gray-500">{contact.clientEmail}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{contact.serviceType}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-48">
+                            {contact.clientNotes ? (
+                              <div className="flex items-start gap-1">
+                                <StickyNote className="h-3 w-3 mt-1 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                                  {contact.clientNotes}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400 italic">No notes</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-48">
+                            <EditableComment 
+                              contactId={contact.id} 
+                              currentComment={contact.practitionerComments || ''} 
+                              onSave={(comment) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { practitionerComments: comment || null },
+                                });
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>{getStatusBadge(contact.status)}</TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-500">
+                              {employees.find(e => e.id === contact.assignedPractitionerId)
+                                ? `${employees.find(e => e.id === contact.assignedPractitionerId)!.firstName} ${employees.find(e => e.id === contact.assignedPractitionerId)!.lastName}`
+                                : 'Unassigned'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-500">
+                            {contact.completedAt 
+                              ? format(new Date(contact.completedAt), 'MMM d, yyyy')
+                              : contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="View details"
+                                aria-label="View contact details"
+                                onClick={() => {
+                                  setSelectedContact(contact);
+                                  setViewDialogOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Select
+                                value={contact.status}
+                                onValueChange={(value) => {
+                                  updateContactMutation.mutate({
+                                    id: contact.id,
+                                    updates: { status: value },
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {statusTypes.map(st => (
+                                    <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
