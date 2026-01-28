@@ -29,7 +29,9 @@ import {
   Settings,
   BarChart3,
   ShoppingBag,
-  ExternalLink
+  ExternalLink,
+  Calendar,
+  ShoppingCart
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { format } from 'date-fns';
@@ -127,8 +129,55 @@ export default function MarketplacePage() {
     trackingUrl: '',
     serviceLevel: '',
   });
+  const [statsDateRange, setStatsDateRange] = useState<string>('all');
 
   const hasAccess = user?.role === 'admin' || user?.role === 'manager';
+
+  const getStatsDateParams = () => {
+    const now = new Date();
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+    
+    switch (statsDateRange) {
+      case 'today':
+        startDate = now.toISOString().split('T')[0];
+        endDate = startDate;
+        break;
+      case 'yesterday':
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        startDate = yesterday.toISOString().split('T')[0];
+        endDate = startDate;
+        break;
+      case 'week':
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        startDate = weekAgo.toISOString().split('T')[0];
+        endDate = now.toISOString().split('T')[0];
+        break;
+      case 'month':
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        startDate = monthAgo.toISOString().split('T')[0];
+        endDate = now.toISOString().split('T')[0];
+        break;
+      case 'quarter':
+        const quarterAgo = new Date(now);
+        quarterAgo.setMonth(quarterAgo.getMonth() - 3);
+        startDate = quarterAgo.toISOString().split('T')[0];
+        endDate = now.toISOString().split('T')[0];
+        break;
+      case 'year':
+        const yearAgo = new Date(now);
+        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+        startDate = yearAgo.toISOString().split('T')[0];
+        endDate = now.toISOString().split('T')[0];
+        break;
+      default:
+        break;
+    }
+    return { startDate, endDate };
+  };
 
   const { data: channels = [], isLoading: channelsLoading } = useQuery<MarketplaceChannel[]>({
     queryKey: ['/api/marketplace/channels'],
@@ -170,11 +219,21 @@ export default function MarketplacePage() {
     enabled: hasAccess && user?.role === 'admin',
   });
 
+  const statsDateParams = getStatsDateParams();
+  const analyticsQueryUrl = (() => {
+    const params = new URLSearchParams();
+    if (statsDateParams.startDate) params.append('startDate', statsDateParams.startDate);
+    if (statsDateParams.endDate) params.append('endDate', statsDateParams.endDate);
+    const queryString = params.toString();
+    return queryString ? `/api/marketplace/analytics?${queryString}` : '/api/marketplace/analytics';
+  })();
+
   const { data: analytics } = useQuery<{
-    byChannel: { channel: string; total_orders: number; pending_orders: number; shipped_orders: number; total_revenue: number }[];
+    byChannel: { channel: string; channel_type: string; total_orders: number; pending_orders: number; shipped_orders: number; completed_orders: number; total_revenue: number }[];
     dailyTrend: { date: string; orders: number; revenue: number }[];
+    totals: { total_orders: number; pending_orders: number; shipped_orders: number; completed_orders: number; total_revenue: number };
   }>({
-    queryKey: ['/api/marketplace/analytics'],
+    queryKey: [analyticsQueryUrl],
     enabled: hasAccess,
   });
 
@@ -333,48 +392,124 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
+        {/* Stats Date Range Filter */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-700">Overview</h2>
+          <Select value={statsDateRange} onValueChange={setStatsDateRange}>
+            <SelectTrigger className="w-[180px]">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="week">Last 7 Days</SelectItem>
+              <SelectItem value="month">Last 30 Days</SelectItem>
+              <SelectItem value="quarter">Last 3 Months</SelectItem>
+              <SelectItem value="year">Last 12 Months</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Per-Marketplace Stats Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* BigCommerce Card */}
+          {(() => {
+            const bcData = analytics?.byChannel.find(c => c.channel_type === 'bigcommerce' || c.channel?.toLowerCase().includes('bigcommerce'));
+            return (
+              <Card className="border-l-4 border-l-blue-500">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Store className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900">BigCommerce</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500">Orders</p>
+                      <p className="text-xl font-bold text-gray-900">{Number(bcData?.total_orders || 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Revenue</p>
+                      <p className="text-xl font-bold text-blue-600">${Number(bcData?.total_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Pending</p>
+                      <p className="text-lg font-semibold text-orange-600">{Number(bcData?.pending_orders || 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Shipped</p>
+                      <p className="text-lg font-semibold text-green-600">{Number(bcData?.shipped_orders || 0)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Amazon Card */}
+          {(() => {
+            const amzData = analytics?.byChannel.find(c => c.channel_type === 'amazon' || c.channel?.toLowerCase().includes('amazon'));
+            return (
+              <Card className="border-l-4 border-l-orange-500">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <ShoppingCart className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900">Amazon</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500">Orders</p>
+                      <p className="text-xl font-bold text-gray-900">{Number(amzData?.total_orders || 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Revenue</p>
+                      <p className="text-xl font-bold text-orange-600">${Number(amzData?.total_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Pending</p>
+                      <p className="text-lg font-semibold text-orange-600">{Number(amzData?.pending_orders || 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Shipped</p>
+                      <p className="text-lg font-semibold text-green-600">{Number(amzData?.shipped_orders || 0)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Combined Totals Card */}
+          <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-white">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Total Orders</p>
-                  <p className="text-2xl font-bold">{analytics?.byChannel.reduce((sum, c) => sum + Number(c.total_orders || 0), 0) || 0}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <BarChart3 className="h-5 w-5 text-purple-600" />
                 </div>
-                <Package className="h-8 w-8 text-blue-500" />
+                <h3 className="font-semibold text-gray-900">All Channels</h3>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm text-gray-500">Pending Fulfillment</p>
-                  <p className="text-2xl font-bold text-orange-600">{analytics?.byChannel.reduce((sum, c) => sum + Number(c.pending_orders || 0), 0) || 0}</p>
+                  <p className="text-xs text-gray-500">Total Orders</p>
+                  <p className="text-xl font-bold text-gray-900">{Number(analytics?.totals?.total_orders || analytics?.byChannel.reduce((sum, c) => sum + Number(c.total_orders || 0), 0) || 0)}</p>
                 </div>
-                <Clock className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Shipped</p>
-                  <p className="text-2xl font-bold text-green-600">{analytics?.byChannel.reduce((sum, c) => sum + Number(c.shipped_orders || 0), 0) || 0}</p>
+                  <p className="text-xs text-gray-500">Total Revenue</p>
+                  <p className="text-xl font-bold text-purple-600">${Number(analytics?.totals?.total_revenue || analytics?.byChannel.reduce((sum, c) => sum + Number(c.total_revenue || 0), 0) || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                 </div>
-                <Truck className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Total Revenue</p>
-                  <p className="text-2xl font-bold">${(analytics?.byChannel.reduce((sum, c) => sum + Number(c.total_revenue || 0), 0) || 0).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">Pending</p>
+                  <p className="text-lg font-semibold text-orange-600">{Number(analytics?.totals?.pending_orders || analytics?.byChannel.reduce((sum, c) => sum + Number(c.pending_orders || 0), 0) || 0)}</p>
                 </div>
-                <BarChart3 className="h-8 w-8 text-purple-500" />
+                <div>
+                  <p className="text-xs text-gray-500">Shipped</p>
+                  <p className="text-lg font-semibold text-green-600">{Number(analytics?.totals?.shipped_orders || analytics?.byChannel.reduce((sum, c) => sum + Number(c.shipped_orders || 0), 0) || 0)}</p>
+                </div>
               </div>
             </CardContent>
           </Card>

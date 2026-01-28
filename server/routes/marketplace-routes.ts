@@ -1178,16 +1178,31 @@ router.get('/sync-jobs', isAuthenticated, async (req: Request, res: Response) =>
 
 router.get('/analytics', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const { startDate, endDate } = req.query;
+    
+    // Build date filter condition
+    let dateFilter = sql`1=1`;
+    if (startDate && endDate) {
+      dateFilter = sql`o.order_placed_at >= ${startDate}::timestamp AND o.order_placed_at <= ${endDate}::timestamp + interval '1 day'`;
+    } else if (startDate) {
+      dateFilter = sql`o.order_placed_at >= ${startDate}::timestamp`;
+    } else if (endDate) {
+      dateFilter = sql`o.order_placed_at <= ${endDate}::timestamp + interval '1 day'`;
+    }
+
     const ordersResult = await db.execute(sql`
       SELECT 
         c.name as channel,
+        c.type as channel_type,
         COUNT(*) as total_orders,
-        SUM(CASE WHEN o.status IN ('pending', 'awaiting_fulfillment', 'awaiting_shipment') THEN 1 ELSE 0 END) as pending_orders,
-        SUM(CASE WHEN o.status = 'shipped' THEN 1 ELSE 0 END) as shipped_orders,
+        SUM(CASE WHEN LOWER(o.status) IN ('pending', 'awaiting_fulfillment', 'awaiting_shipment', 'incomplete') THEN 1 ELSE 0 END) as pending_orders,
+        SUM(CASE WHEN LOWER(o.status) = 'shipped' THEN 1 ELSE 0 END) as shipped_orders,
+        SUM(CASE WHEN LOWER(o.status) = 'completed' THEN 1 ELSE 0 END) as completed_orders,
         SUM(o.grand_total::numeric) as total_revenue
       FROM marketplace_orders o
       LEFT JOIN marketplace_channels c ON o.channel_id = c.id
-      GROUP BY c.name
+      WHERE ${dateFilter}
+      GROUP BY c.name, c.type
     `);
 
     const recentOrdersResult = await db.execute(sql`
@@ -1201,9 +1216,31 @@ router.get('/analytics', isAuthenticated, async (req: Request, res: Response) =>
       ORDER BY date DESC
     `);
 
+    // Also get totals
+    let totalDateFilter = sql`1=1`;
+    if (startDate && endDate) {
+      totalDateFilter = sql`order_placed_at >= ${startDate}::timestamp AND order_placed_at <= ${endDate}::timestamp + interval '1 day'`;
+    } else if (startDate) {
+      totalDateFilter = sql`order_placed_at >= ${startDate}::timestamp`;
+    } else if (endDate) {
+      totalDateFilter = sql`order_placed_at <= ${endDate}::timestamp + interval '1 day'`;
+    }
+
+    const totalsResult = await db.execute(sql`
+      SELECT 
+        COUNT(*) as total_orders,
+        SUM(CASE WHEN LOWER(status) IN ('pending', 'awaiting_fulfillment', 'awaiting_shipment', 'incomplete') THEN 1 ELSE 0 END) as pending_orders,
+        SUM(CASE WHEN LOWER(status) = 'shipped' THEN 1 ELSE 0 END) as shipped_orders,
+        SUM(CASE WHEN LOWER(status) = 'completed' THEN 1 ELSE 0 END) as completed_orders,
+        SUM(grand_total::numeric) as total_revenue
+      FROM marketplace_orders
+      WHERE ${totalDateFilter}
+    `);
+
     res.json({
       byChannel: ordersResult.rows,
       dailyTrend: recentOrdersResult.rows,
+      totals: totalsResult.rows[0] || { total_orders: 0, pending_orders: 0, shipped_orders: 0, completed_orders: 0, total_revenue: 0 },
     });
   } catch (error) {
     console.error('Error fetching marketplace analytics:', error);
