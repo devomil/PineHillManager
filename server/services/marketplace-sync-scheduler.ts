@@ -17,23 +17,24 @@ class MarketplaceSyncScheduler {
 
   start(): void {
     if (this.isRunning) {
-      console.log('🛒 Marketplace sync scheduler already running');
+      console.log('🛒 [MarketplaceScheduler] Already running');
       return;
     }
 
     this.isRunning = true;
     const intervalMs = this.intervalMinutes * 60 * 1000;
-    console.log(`🛒 Starting marketplace sync scheduler (every ${this.intervalMinutes} minutes)`);
+    console.log(`🛒 [MarketplaceScheduler] Starting marketplace order sync scheduler`);
+    console.log(`⏰ [MarketplaceScheduler] Will run every ${this.intervalMinutes} minutes`);
 
-    setTimeout(() => {
-      this.performSync();
-    }, 60000);
+    // Run first sync immediately (async, don't block startup)
+    console.log(`🛒 [MarketplaceScheduler] Executing initial sync now...`);
+    this.performSync().catch(err => console.error('❌ [MarketplaceScheduler] Initial sync failed:', err));
 
+    // Then every 15 minutes
     this.syncInterval = setInterval(() => {
-      this.performSync();
+      console.log(`🛒 [MarketplaceScheduler] Executing scheduled sync...`);
+      this.performSync().catch(err => console.error('❌ [MarketplaceScheduler] Scheduled sync failed:', err));
     }, intervalMs);
-
-    console.log(`⏰ Marketplace sync scheduled every ${this.intervalMinutes} minutes`);
   }
 
   stop(): void {
@@ -53,7 +54,7 @@ class MarketplaceSyncScheduler {
 
   async performSync(): Promise<void> {
     if (this.isSyncing) {
-      console.log('⏭️ Skipping marketplace sync - previous sync still in progress');
+      console.log('⏭️ [MarketplaceScheduler] Skipping sync - previous sync still in progress');
       return;
     }
 
@@ -61,7 +62,7 @@ class MarketplaceSyncScheduler {
     const startTime = Date.now();
 
     try {
-      console.log('🛒 Starting automated marketplace order sync...');
+      console.log('🛒 [MarketplaceScheduler] Starting automated BigCommerce/Amazon order sync...');
       
       const channelsResult = await db.execute(sql`
         SELECT * FROM marketplace_channels WHERE is_active = true
@@ -147,34 +148,35 @@ class MarketplaceSyncScheduler {
       
       for (const status of statusesToFetch) {
         try {
-          console.log(`📦 [Auto Sync] Fetching ${status.name} orders (status ${status.id})...`);
-          // Sort by date_created:desc to get newest orders first, fetch up to 50 per status
+          console.log(`📦 [Marketplace Sync] Fetching ${status.name} orders (status ${status.id})...`);
           const statusOrders = await bigCommerce.getOrders({ 
             statusId: status.id, 
             limit: 50,
             sort: 'date_created:desc'
           });
-          console.log(`📦 [Auto Sync] Got ${statusOrders.length} ${status.name} orders`);
+          console.log(`📦 [Marketplace Sync] Got ${statusOrders.length} ${status.name} orders`);
           allOrders = [...allOrders, ...statusOrders];
         } catch (error) {
-          console.error(`⚠️ [Auto Sync] Failed to fetch ${status.name} orders:`, error);
+          console.error(`⚠️ [Marketplace Sync] Failed to fetch ${status.name} orders:`, error);
         }
       }
       
-      // Deduplicate orders by externalOrderId
-      const seenOrderIds = new Set<string>();
+      // Deduplicate orders by BigCommerce order ID and transform to expected format
+      const seenOrderIds = new Set<number>();
       const uniqueOrders = allOrders.filter(order => {
-        if (seenOrderIds.has(order.externalOrderId)) {
+        if (seenOrderIds.has(order.id)) {
           return false;
         }
-        seenOrderIds.add(order.externalOrderId);
+        seenOrderIds.add(order.id);
         return true;
       });
       
-      console.log(`📦 [Auto Sync] Processing ${uniqueOrders.length} unique BigCommerce orders...`);
+      console.log(`📦 [Marketplace Sync] Processing ${uniqueOrders.length} unique BigCommerce orders...`);
       
-      for (const order of uniqueOrders) {
-        await this.upsertOrder(channel, order, 'bigcommerce');
+      for (const rawOrder of uniqueOrders) {
+        // Transform raw BigCommerce order to expected format
+        const transformedOrder = this.transformBigCommerceOrder(rawOrder);
+        await this.upsertOrder(channel, transformedOrder, 'bigcommerce');
         ordersProcessed++;
       }
     } else if (channel.type === 'amazon') {
@@ -207,7 +209,7 @@ class MarketplaceSyncScheduler {
         UPDATE marketplace_orders SET
           status = ${order.status},
           payment_status = ${order.paymentStatus || 'unknown'},
-          total_amount = ${order.totalAmount},
+          grand_total = ${order.totalAmount},
           currency = ${order.currency || 'USD'},
           updated_at = NOW()
         WHERE channel_id = ${channel.id} AND external_order_id = ${order.externalOrderId}
@@ -217,7 +219,7 @@ class MarketplaceSyncScheduler {
         INSERT INTO marketplace_orders (
           channel_id, external_order_id, external_order_number, status, payment_status,
           customer_name, customer_email, shipping_address, billing_address,
-          total_amount, subtotal, tax_amount, shipping_amount, discount_amount,
+          grand_total, subtotal, tax_total, shipping_total, discount_total,
           currency, shipping_method, order_placed_at, created_at, updated_at
         ) VALUES (
           ${channel.id}, ${order.externalOrderId}, ${order.externalOrderNumber || order.externalOrderId},
@@ -255,6 +257,29 @@ class MarketplaceSyncScheduler {
         }
       }
     }
+  }
+
+  private transformBigCommerceOrder(rawOrder: any): any {
+    const billing = rawOrder.billing_address || {};
+    return {
+      externalOrderId: String(rawOrder.id),
+      externalOrderNumber: String(rawOrder.id),
+      status: rawOrder.status || 'pending',
+      paymentStatus: rawOrder.payment_status || 'pending',
+      customerName: `${billing.first_name || ''} ${billing.last_name || ''}`.trim() || 'Unknown Customer',
+      customerEmail: billing.email || '',
+      shippingAddress: rawOrder.shipping_addresses?.url ? null : rawOrder.shipping_addresses,
+      billingAddress: billing,
+      totalAmount: parseFloat(rawOrder.total_inc_tax) || 0,
+      subtotal: parseFloat(rawOrder.subtotal_inc_tax) || 0,
+      taxAmount: parseFloat(rawOrder.total_tax) || 0,
+      shippingAmount: parseFloat(rawOrder.shipping_cost_inc_tax) || 0,
+      discountAmount: parseFloat(rawOrder.discount_amount) || 0,
+      currency: rawOrder.currency_code || 'USD',
+      shippingMethod: 'Standard',
+      orderPlacedAt: rawOrder.date_created,
+      items: []
+    };
   }
 
   async triggerManualSync(channelId?: number): Promise<{ success: boolean; message: string }> {
