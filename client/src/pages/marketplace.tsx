@@ -219,6 +219,24 @@ export default function MarketplacePage() {
     },
   });
 
+  const shippoBackfillMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/marketplace/shippo/backfill', {});
+    },
+    onSuccess: (data: any) => {
+      toast({ 
+        title: 'Shippo backfill complete', 
+        description: `Matched ${data.summary?.matched || 0} orders, updated ${data.summary?.updated || 0} with tracking info.` 
+      });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('/api/marketplace/orders')
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Shippo backfill failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const orders = ordersData?.orders || [];
   const filteredOrders = orders.filter(order => {
     if (searchQuery) {
@@ -641,8 +659,22 @@ export default function MarketplacePage() {
           <TabsContent value="sync" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Sync History</CardTitle>
-                <CardDescription>Recent order synchronization jobs</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Sync History</CardTitle>
+                    <CardDescription>Recent order synchronization jobs</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => shippoBackfillMutation.mutate()}
+                    disabled={shippoBackfillMutation.isPending}
+                    data-testid="button-shippo-backfill"
+                  >
+                    <Truck className={`h-4 w-4 mr-2 ${shippoBackfillMutation.isPending ? 'animate-spin' : ''}`} />
+                    {shippoBackfillMutation.isPending ? 'Syncing Shippo...' : 'Sync Shippo Tracking'}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {syncJobsLoading ? (

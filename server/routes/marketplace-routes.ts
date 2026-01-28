@@ -4,6 +4,7 @@ import { db } from '../db';
 import { sql } from 'drizzle-orm';
 import { BigCommerceIntegration } from '../integrations/bigcommerce';
 import { AmazonIntegration } from '../integrations/amazon';
+import { shippoIntegration } from '../integrations/shippo';
 import { CloverInventoryService } from '../services/clover-inventory-service';
 import { marketplaceSyncScheduler } from '../services/marketplace-sync-scheduler';
 import { z } from 'zod';
@@ -1424,6 +1425,191 @@ router.get('/shippo/carriers', isAuthenticated, async (req: Request, res: Respon
   } catch (error: any) {
     console.error('Error fetching Shippo carriers:', error);
     res.status(500).json({ error: 'Failed to fetch carriers', details: error?.message });
+  }
+});
+
+// Backfill shipping data from Shippo
+router.post('/shippo/backfill', isAuthenticated, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+
+    console.log('📦 [Shippo Backfill] Starting shipping data backfill...');
+    
+    // Fetch all transactions from Shippo
+    const transactions = await shippoIntegration.getAllTransactions();
+    
+    let matchedCount = 0;
+    let updatedCount = 0;
+    let notFoundCount = 0;
+    const results: { orderNumber: string; trackingNumber: string; status: string; matched: boolean }[] = [];
+
+    for (const transaction of transactions) {
+      const trackingNumber = transaction.tracking_number;
+      const trackingUrl = transaction.tracking_url_provider;
+      const carrier = transaction.rate?.provider || 'Unknown';
+      const serviceLevel = transaction.rate?.servicelevel?.name || '';
+      const metadata = transaction.metadata || '';
+      const orderNumber = shippoIntegration.parseOrderNumberFromMetadata(metadata);
+      
+      // Try to match by order number in metadata first
+      let orderResult = null;
+      
+      if (orderNumber) {
+        orderResult = await db.execute(sql`
+          SELECT id, external_order_number, external_order_id, status, tracking_number
+          FROM marketplace_orders 
+          WHERE external_order_number = ${orderNumber} 
+             OR external_order_id = ${orderNumber}
+          LIMIT 1
+        `);
+      }
+      
+      // If no match by order number, try matching by existing tracking number
+      if ((!orderResult || orderResult.rows.length === 0) && trackingNumber) {
+        orderResult = await db.execute(sql`
+          SELECT id, external_order_number, external_order_id, status, tracking_number
+          FROM marketplace_orders 
+          WHERE tracking_number = ${trackingNumber}
+          LIMIT 1
+        `);
+      }
+
+      if (orderResult && orderResult.rows.length > 0) {
+        const order = orderResult.rows[0] as any;
+        matchedCount++;
+        
+        // Update the order with shipping data
+        await db.execute(sql`
+          UPDATE marketplace_orders 
+          SET tracking_number = ${trackingNumber},
+              tracking_url = ${trackingUrl},
+              shipping_carrier = ${carrier},
+              updated_at = NOW()
+          WHERE id = ${order.id}
+        `);
+        
+        // Check if fulfillment record exists
+        const existingFulfillment = await db.execute(sql`
+          SELECT id FROM marketplace_fulfillments 
+          WHERE order_id = ${order.id} AND tracking_number = ${trackingNumber}
+        `);
+        
+        if (existingFulfillment.rows.length === 0) {
+          // Create fulfillment record
+          await db.execute(sql`
+            INSERT INTO marketplace_fulfillments (
+              order_id, tracking_number, tracking_url, carrier, service_level,
+              status, external_shipment_id, raw_response, created_at, updated_at
+            ) VALUES (
+              ${order.id}, ${trackingNumber}, ${trackingUrl}, ${carrier}, ${serviceLevel},
+              ${transaction.status}, ${transaction.object_id}, ${JSON.stringify(transaction)}::jsonb, NOW(), NOW()
+            )
+          `);
+        } else {
+          // Update existing fulfillment
+          await db.execute(sql`
+            UPDATE marketplace_fulfillments 
+            SET tracking_url = ${trackingUrl},
+                carrier = ${carrier},
+                service_level = ${serviceLevel},
+                status = ${transaction.status},
+                raw_response = ${JSON.stringify(transaction)}::jsonb,
+                updated_at = NOW()
+            WHERE order_id = ${order.id} AND tracking_number = ${trackingNumber}
+          `);
+        }
+        
+        updatedCount++;
+        results.push({
+          orderNumber: order.external_order_number || order.external_order_id,
+          trackingNumber,
+          status: 'updated',
+          matched: true
+        });
+      } else {
+        notFoundCount++;
+        results.push({
+          orderNumber: orderNumber || metadata || 'Unknown',
+          trackingNumber,
+          status: 'not_found',
+          matched: false
+        });
+      }
+    }
+
+    console.log(`📦 [Shippo Backfill] Complete: ${matchedCount} matched, ${updatedCount} updated, ${notFoundCount} not found`);
+    
+    res.json({
+      success: true,
+      summary: {
+        totalTransactions: transactions.length,
+        matched: matchedCount,
+        updated: updatedCount,
+        notFound: notFoundCount
+      },
+      details: results.slice(0, 100) // Return first 100 results for review
+    });
+  } catch (error: any) {
+    console.error('📦 [Shippo Backfill] Error:', error);
+    res.status(500).json({ error: 'Failed to backfill shipping data', details: error?.message });
+  }
+});
+
+// Get Shippo backfill status/preview
+router.get('/shippo/backfill/preview', isAuthenticated, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+
+    // Get first page of transactions for preview
+    const transactionsResponse = await shippoIntegration.getTransactions(1, 25);
+    
+    const preview = await Promise.all(transactionsResponse.results.map(async (transaction) => {
+      const orderNumber = shippoIntegration.parseOrderNumberFromMetadata(transaction.metadata);
+      
+      let matchedOrder = null;
+      if (orderNumber) {
+        const orderResult = await db.execute(sql`
+          SELECT id, external_order_number, external_order_id, customer_name, status, tracking_number
+          FROM marketplace_orders 
+          WHERE external_order_number = ${orderNumber} 
+             OR external_order_id = ${orderNumber}
+          LIMIT 1
+        `);
+        if (orderResult.rows.length > 0) {
+          matchedOrder = orderResult.rows[0];
+        }
+      }
+      
+      return {
+        trackingNumber: transaction.tracking_number,
+        carrier: transaction.rate?.provider || 'Unknown',
+        serviceLevel: transaction.rate?.servicelevel?.name || '',
+        metadata: transaction.metadata,
+        parsedOrderNumber: orderNumber,
+        matchedOrder: matchedOrder ? {
+          id: (matchedOrder as any).id,
+          orderNumber: (matchedOrder as any).external_order_number || (matchedOrder as any).external_order_id,
+          customer: (matchedOrder as any).customer_name,
+          currentStatus: (matchedOrder as any).status,
+          hasTracking: !!(matchedOrder as any).tracking_number
+        } : null,
+        status: transaction.status,
+        createdAt: transaction.object_created
+      };
+    }));
+
+    res.json({
+      totalTransactions: transactionsResponse.count,
+      preview,
+      message: `Found ${transactionsResponse.count} total transactions in Shippo. Preview shows first 25.`
+    });
+  } catch (error: any) {
+    console.error('📦 [Shippo Preview] Error:', error);
+    res.status(500).json({ error: 'Failed to preview Shippo data', details: error?.message });
   }
 });
 
