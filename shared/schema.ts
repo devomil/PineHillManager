@@ -6134,6 +6134,7 @@ export const updatePractitionerContactSchema = z.object({
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
   preferredContactMethod: z.enum(['phone', 'email', 'text']).optional(),
   preferredDateTime: z.string().optional().nullable(),
+  practitionerComments: z.string().optional().nullable(),
 });
 
 export type PractitionerContact = typeof practitionerContacts.$inferSelect;
