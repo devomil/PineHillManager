@@ -138,12 +138,20 @@ router.get('/orders', isAuthenticated, async (req: Request, res: Response) => {
     }
     
     // Handle status filtering including special pending_fulfillment which matches multiple statuses
-    // Use case-insensitive matching since database has mixed case values
+    // Use case-insensitive matching and normalize underscores/spaces since database has mixed formats
     if (params.status) {
       if (params.status === 'pending_fulfillment') {
         whereClause = sql`${whereClause} AND LOWER(o.status) IN ('pending', 'awaiting_payment', 'awaiting_fulfillment', 'awaiting_shipment', 'partially_shipped')`;
+      } else if (params.status === 'cancelled') {
+        // Handle both British (cancelled) and American (canceled) spellings
+        whereClause = sql`${whereClause} AND LOWER(o.status) IN ('cancelled', 'canceled')`;
+      } else if (params.status === 'partially_refunded') {
+        // Handle both underscore and space versions
+        whereClause = sql`${whereClause} AND (LOWER(o.status) = 'partially_refunded' OR LOWER(o.status) = 'partially refunded')`;
       } else {
-        whereClause = sql`${whereClause} AND LOWER(o.status) = LOWER(${params.status})`;
+        // General case: match with underscore replaced by space for flexibility
+        const statusWithSpace = params.status.replace(/_/g, ' ');
+        whereClause = sql`${whereClause} AND (LOWER(o.status) = LOWER(${params.status}) OR LOWER(o.status) = LOWER(${statusWithSpace}))`;
       }
     }
     
