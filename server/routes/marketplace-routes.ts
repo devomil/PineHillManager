@@ -1440,6 +1440,14 @@ router.post('/shippo/backfill', isAuthenticated, requireAdmin, async (req: Reque
     // Fetch all transactions from Shippo
     const transactions = await shippoIntegration.getAllTransactions();
     
+    // Log sample metadata for debugging
+    const sampleMetadata = transactions.slice(0, 5).map(t => ({ 
+      tracking: t.tracking_number, 
+      metadata: t.metadata,
+      parsed: shippoIntegration.parseOrderNumberFromMetadata(t.metadata || '')
+    }));
+    console.log('📦 [Shippo Backfill] Sample metadata:', JSON.stringify(sampleMetadata, null, 2));
+    
     let matchedCount = 0;
     let updatedCount = 0;
     let notFoundCount = 0;
@@ -1564,7 +1572,7 @@ router.get('/shippo/backfill/preview', isAuthenticated, requireAdmin, async (req
       let matchedOrder = null;
       if (orderNumber) {
         const orderResult = await db.execute(sql`
-          SELECT id, external_order_number, external_order_id, customer_name, status, tracking_number
+          SELECT id, external_order_number, external_order_id, customer_name, status
           FROM marketplace_orders 
           WHERE external_order_number = ${orderNumber} 
              OR external_order_id = ${orderNumber}
@@ -1573,6 +1581,15 @@ router.get('/shippo/backfill/preview', isAuthenticated, requireAdmin, async (req
         if (orderResult.rows.length > 0) {
           matchedOrder = orderResult.rows[0];
         }
+      }
+      
+      // Check fulfillment status for this order
+      let hasFulfillment = false;
+      if (matchedOrder) {
+        const fulfillmentResult = await db.execute(sql`
+          SELECT id FROM marketplace_fulfillments WHERE order_id = ${(matchedOrder as any).id} LIMIT 1
+        `);
+        hasFulfillment = fulfillmentResult.rows.length > 0;
       }
       
       return {
@@ -1586,7 +1603,7 @@ router.get('/shippo/backfill/preview', isAuthenticated, requireAdmin, async (req
           orderNumber: (matchedOrder as any).external_order_number || (matchedOrder as any).external_order_id,
           customer: (matchedOrder as any).customer_name,
           currentStatus: (matchedOrder as any).status,
-          hasTracking: !!(matchedOrder as any).tracking_number
+          hasFulfillment
         } : null,
         status: transaction.status,
         createdAt: transaction.object_created
