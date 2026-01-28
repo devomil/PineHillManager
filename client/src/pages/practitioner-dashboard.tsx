@@ -677,30 +677,15 @@ export default function PractitionerDashboard() {
         }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <DialogTitle className="text-xl">
-                    {isEditing ? 'Edit Contact' : 'Contact Details'}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {isEditing 
-                      ? 'Update the contact information below'
-                      : `Full information for ${selectedContact?.clientFirstName} ${selectedContact?.clientLastName}`
-                    }
-                  </DialogDescription>
-                </div>
-                {!isEditing && selectedContact && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-1"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-              </div>
+              <DialogTitle className="text-xl">
+                {isEditing ? 'Edit Contact' : 'Contact Details'}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditing 
+                  ? 'Update the contact information below'
+                  : `Full information for ${selectedContact?.clientFirstName} ${selectedContact?.clientLastName}`
+                }
+              </DialogDescription>
             </DialogHeader>
             {selectedContact && (
               <div className="space-y-6 mt-4">
@@ -904,6 +889,16 @@ export default function PractitionerDashboard() {
                           <p className="text-sm">{format(new Date(selectedContact.completedAt), 'PPP p')}</p>
                         </div>
                       )}
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t">
+                      <Button 
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit Contact
+                      </Button>
                     </div>
                   </>
                 )}
