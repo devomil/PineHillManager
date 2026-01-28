@@ -6089,6 +6089,8 @@ export const practitionerContacts = pgTable('practitioner_contacts', {
   preferredContactMethod: text('preferred_contact_method').default('phone'),
   preferredDateTime: timestamp('preferred_date_time'),
   
+  practitionerComments: text('practitioner_comments'),
+  
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X } from "lucide-react";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
 
@@ -232,6 +234,7 @@ export default function PractitionerDashboard() {
                         <TableHead>Contact Info</TableHead>
                         <TableHead>Service Type</TableHead>
                         <TableHead>Notes</TableHead>
+                        <TableHead>Comments</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Created</TableHead>
@@ -271,6 +274,18 @@ export default function PractitionerDashboard() {
                             ) : (
                               <span className="text-sm text-gray-400 italic">No notes</span>
                             )}
+                          </TableCell>
+                          <TableCell className="max-w-48">
+                            <EditableComment 
+                              contactId={contact.id} 
+                              currentComment={contact.practitionerComments || ''} 
+                              onSave={(comment) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { practitionerComments: comment || null },
+                                });
+                              }}
+                            />
                           </TableCell>
                           <TableCell>{getStatusBadge(contact.status)}</TableCell>
                           <TableCell>
@@ -599,5 +614,78 @@ export default function PractitionerDashboard() {
         </Dialog>
       </div>
     </AdminLayout>
+  );
+}
+
+interface EditableCommentProps {
+  contactId: number;
+  currentComment: string;
+  onSave: (comment: string) => void;
+}
+
+function EditableComment({ contactId, currentComment, onSave }: EditableCommentProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [comment, setComment] = useState(currentComment);
+
+  const handleSave = () => {
+    onSave(comment);
+    setIsOpen(false);
+  };
+
+  const handleCancel = () => {
+    setComment(currentComment);
+    setIsOpen(false);
+  };
+
+  return (
+    <Popover open={isOpen} onOpenChange={(open) => {
+      setIsOpen(open);
+      if (open) setComment(currentComment);
+    }}>
+      <PopoverTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-auto p-1 w-full justify-start text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          {currentComment ? (
+            <div className="flex items-start gap-1 max-w-44">
+              <MessageSquare className="h-3 w-3 mt-0.5 text-blue-500 flex-shrink-0" />
+              <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                {currentComment}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-gray-400">
+              <Edit2 className="h-3 w-3" />
+              <span className="text-sm italic">Add comment</span>
+            </div>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Practitioner Comments</span>
+          </div>
+          <Textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Add comments like 'awaiting DNA', 'call scheduled', etc."
+            className="min-h-[80px] text-sm"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={handleCancel}>
+              <X className="h-3 w-3 mr-1" />
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSave}>
+              <Save className="h-3 w-3 mr-1" />
+              Save
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
