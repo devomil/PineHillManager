@@ -129,8 +129,6 @@ export default function MarketplacePage() {
     trackingUrl: '',
     serviceLevel: '',
   });
-  const [statsDateRange, setStatsDateRange] = useState<string>('all');
-
   const hasAccess = user?.role === 'admin' || user?.role === 'manager';
 
   const getStatsDateParams = () => {
@@ -138,41 +136,61 @@ export default function MarketplacePage() {
     let startDate: string | undefined;
     let endDate: string | undefined;
     
-    switch (statsDateRange) {
+    switch (selectedTimePeriod) {
       case 'today':
         startDate = now.toISOString().split('T')[0];
         endDate = startDate;
         break;
-      case 'yesterday':
+      case 'yesterday': {
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
         startDate = yesterday.toISOString().split('T')[0];
         endDate = startDate;
         break;
-      case 'week':
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        startDate = weekAgo.toISOString().split('T')[0];
+      }
+      case 'this_week': {
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startDate = startOfWeek.toISOString().split('T')[0];
         endDate = now.toISOString().split('T')[0];
         break;
-      case 'month':
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        startDate = monthAgo.toISOString().split('T')[0];
+      }
+      case 'last_week': {
+        const startOfLastWeek = new Date(now);
+        startOfLastWeek.setDate(now.getDate() - now.getDay() - 7);
+        const endOfLastWeek = new Date(startOfLastWeek);
+        endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+        startDate = startOfLastWeek.toISOString().split('T')[0];
+        endDate = endOfLastWeek.toISOString().split('T')[0];
+        break;
+      }
+      case 'this_month': {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        startDate = startOfMonth.toISOString().split('T')[0];
         endDate = now.toISOString().split('T')[0];
         break;
-      case 'quarter':
-        const quarterAgo = new Date(now);
-        quarterAgo.setMonth(quarterAgo.getMonth() - 3);
-        startDate = quarterAgo.toISOString().split('T')[0];
+      }
+      case 'last_month': {
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        startDate = startOfLastMonth.toISOString().split('T')[0];
+        endDate = endOfLastMonth.toISOString().split('T')[0];
+        break;
+      }
+      case 'last_30_days': {
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        startDate = thirtyDaysAgo.toISOString().split('T')[0];
         endDate = now.toISOString().split('T')[0];
         break;
-      case 'year':
-        const yearAgo = new Date(now);
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        startDate = yearAgo.toISOString().split('T')[0];
+      }
+      case 'last_90_days': {
+        const ninetyDaysAgo = new Date(now);
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        startDate = ninetyDaysAgo.toISOString().split('T')[0];
         endDate = now.toISOString().split('T')[0];
         break;
+      }
       default:
         break;
     }
@@ -392,24 +410,23 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        {/* Stats Date Range Filter */}
+        {/* Overview Header with Time Filter Indicator */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-700">Overview</h2>
-          <Select value={statsDateRange} onValueChange={setStatsDateRange}>
-            <SelectTrigger className="w-[180px]">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Select period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
-              <SelectItem value="week">Last 7 Days</SelectItem>
-              <SelectItem value="month">Last 30 Days</SelectItem>
-              <SelectItem value="quarter">Last 3 Months</SelectItem>
-              <SelectItem value="year">Last 12 Months</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Calendar className="h-4 w-4" />
+            <span>
+              {selectedTimePeriod === 'all' ? 'All Time' :
+               selectedTimePeriod === 'today' ? 'Today' :
+               selectedTimePeriod === 'yesterday' ? 'Yesterday' :
+               selectedTimePeriod === 'this_week' ? 'This Week' :
+               selectedTimePeriod === 'last_week' ? 'Last Week' :
+               selectedTimePeriod === 'this_month' ? 'This Month' :
+               selectedTimePeriod === 'last_month' ? 'Last Month' :
+               selectedTimePeriod === 'last_30_days' ? 'Last 30 Days' :
+               selectedTimePeriod === 'last_90_days' ? 'Last 90 Days' : 'All Time'}
+            </span>
+          </div>
         </div>
 
         {/* Per-Marketplace Stats Cards */}
