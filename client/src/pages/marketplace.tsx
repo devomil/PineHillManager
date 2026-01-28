@@ -568,7 +568,7 @@ export default function MarketplacePage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {order.status !== 'shipped' && order.status !== 'completed' && (
+                              {!['shipped', 'completed'].includes((order.status || '').toLowerCase()) && (
                                 <Button
                                   size="sm"
                                   onClick={() => setLocation(`/marketplace/orders/${order.id}/fulfill`)}
@@ -1045,7 +1045,7 @@ export default function MarketplacePage() {
               <Button variant="outline" onClick={() => setViewOrderDialogOpen(false)} data-testid="button-close-order-view">
                 Close
               </Button>
-              {selectedOrder && selectedOrder.status !== 'shipped' && selectedOrder.status !== 'completed' && (
+              {selectedOrder && !['shipped', 'completed'].includes((selectedOrder.status || '').toLowerCase()) && (
                 <Button
                   onClick={() => {
                     setViewOrderDialogOpen(false);
