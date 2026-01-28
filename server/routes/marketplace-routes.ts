@@ -1458,7 +1458,7 @@ router.post('/shippo/backfill', isAuthenticated, requireAdmin, async (req: Reque
       
       if (orderNumber) {
         orderResult = await db.execute(sql`
-          SELECT id, external_order_number, external_order_id, status, tracking_number
+          SELECT id, external_order_number, external_order_id, status
           FROM marketplace_orders 
           WHERE external_order_number = ${orderNumber} 
              OR external_order_id = ${orderNumber}
@@ -1466,12 +1466,13 @@ router.post('/shippo/backfill', isAuthenticated, requireAdmin, async (req: Reque
         `);
       }
       
-      // If no match by order number, try matching by existing tracking number
+      // If no match by order number, try matching by existing tracking number in fulfillments
       if ((!orderResult || orderResult.rows.length === 0) && trackingNumber) {
         orderResult = await db.execute(sql`
-          SELECT id, external_order_number, external_order_id, status, tracking_number
-          FROM marketplace_orders 
-          WHERE tracking_number = ${trackingNumber}
+          SELECT o.id, o.external_order_number, o.external_order_id, o.status
+          FROM marketplace_orders o
+          JOIN marketplace_fulfillments f ON f.order_id = o.id
+          WHERE f.tracking_number = ${trackingNumber}
           LIMIT 1
         `);
       }
@@ -1479,16 +1480,6 @@ router.post('/shippo/backfill', isAuthenticated, requireAdmin, async (req: Reque
       if (orderResult && orderResult.rows.length > 0) {
         const order = orderResult.rows[0] as any;
         matchedCount++;
-        
-        // Update the order with shipping data
-        await db.execute(sql`
-          UPDATE marketplace_orders 
-          SET tracking_number = ${trackingNumber},
-              tracking_url = ${trackingUrl},
-              shipping_carrier = ${carrier},
-              updated_at = NOW()
-          WHERE id = ${order.id}
-        `);
         
         // Check if fulfillment record exists
         const existingFulfillment = await db.execute(sql`
