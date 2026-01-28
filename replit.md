@@ -24,7 +24,7 @@ The frontend uses React 18 with TypeScript and Vite, styled with Tailwind CSS an
 -   **Communication & Support**: Mobile-first SMS-integrated team messaging with interactive responses and real-time integration via WebSockets. Support ticket system with SMS notifications.
 -   **Document Management**: Role-based access, upload, categorization, permissions, and audit trails.
 -   **Inventory Management**: Integrates Clover POS and Thrive for a unified dashboard, real-time sync, profitability analytics, and enhanced CSV import.
--   **Order Management**: Comprehensive order processing with real-time analytics, payment tracking, and performance insights.
+-   **Order Management**: Comprehensive order processing with real-time analytics, payment tracking, and performance insights. Includes automated marketplace order sync from BigCommerce (every 15 minutes) and Amazon Seller Central (every 15 minutes) using SP-API with automatic token refresh.
 -   **Accounting**: Integrates Clover POS, Amazon Store, HSA, and Thrive inventory for real-time revenue dashboards, multi-location analytics, COGS calculations, discount/refund reporting, automated Chart of Accounts, and QuickBooks Online integration. Features a cached financial reports system and a persistent job-based sync system for Clover historical data.
 -   **Employee Purchase Portal**: Allows employees to scan and purchase inventory items using a monthly allowance, with real-time balance tracking, purchase history, role-based pricing, Clover payment integration, and automatic inventory deduction.
 -   **Task Management System**: Role-based task creation, priority/due dates, assignees, checklists, status tracking, and comments.

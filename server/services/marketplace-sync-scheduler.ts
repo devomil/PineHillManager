@@ -180,12 +180,53 @@ class MarketplaceSyncScheduler {
         ordersProcessed++;
       }
     } else if (channel.type === 'amazon') {
-      const amazon = new AmazonIntegration();
-      const orders = await amazon.getOrders(channel);
+      console.log('📦 [Amazon Sync] Starting Amazon order sync...');
       
-      for (const order of orders) {
-        await this.upsertOrder(channel, order, 'amazon');
-        ordersProcessed++;
+      // Use environment secrets for Amazon credentials
+      const channelConfig = typeof channel.config === 'string' 
+        ? JSON.parse(channel.config || '{}') 
+        : (channel.config || {});
+      
+      const amazonCredentials = {
+        sellerId: process.env.AMAZON_SELLER_ID || channelConfig.sellerId,
+        refreshToken: process.env.AMAZON_REFRESH_TOKEN || channelConfig.refreshToken,
+        clientId: process.env.AMAZON_CLIENT_ID || channelConfig.clientId,
+        clientSecret: process.env.AMAZON_CLIENT_SECRET || channelConfig.clientSecret,
+        marketplaceId: channelConfig.marketplaceId || 'ATVPDKIKX0DER', // US marketplace
+        baseUrl: channelConfig.baseUrl || 'https://sellingpartnerapi-na.amazon.com'
+      };
+      
+      if (!amazonCredentials.sellerId || !amazonCredentials.refreshToken) {
+        throw new Error('Amazon credentials not configured in environment secrets (AMAZON_SELLER_ID, AMAZON_REFRESH_TOKEN required)');
+      }
+      
+      if (!amazonCredentials.clientId || !amazonCredentials.clientSecret) {
+        throw new Error('Amazon credentials not configured in environment secrets (AMAZON_CLIENT_ID, AMAZON_CLIENT_SECRET required)');
+      }
+      
+      console.log(`📦 [Amazon Sync] Using seller ID: ${amazonCredentials.sellerId}`);
+      
+      const amazon = new AmazonIntegration(amazonCredentials);
+      
+      // Fetch orders from the last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const ordersResponse = await amazon.getOrders(thirtyDaysAgo.toISOString());
+      
+      if (ordersResponse?.payload?.Orders) {
+        const orders = ordersResponse.payload.Orders;
+        console.log(`📦 [Amazon Sync] Retrieved ${orders.length} orders from Amazon`);
+        
+        for (const rawOrder of orders) {
+          const transformedOrder = this.transformAmazonOrder(rawOrder);
+          await this.upsertOrder(channel, transformedOrder, 'amazon');
+          ordersProcessed++;
+        }
+        
+        console.log(`✅ [Amazon Sync] Processed ${ordersProcessed} orders`);
+      } else {
+        console.log('📦 [Amazon Sync] No orders returned from Amazon API');
       }
     }
 
@@ -278,6 +319,58 @@ class MarketplaceSyncScheduler {
       currency: rawOrder.currency_code || 'USD',
       shippingMethod: 'Standard',
       orderPlacedAt: rawOrder.date_created,
+      items: []
+    };
+  }
+
+  private transformAmazonOrder(rawOrder: any): any {
+    // Map Amazon order status to standard status
+    const statusMap: Record<string, string> = {
+      'Pending': 'pending',
+      'Unshipped': 'awaiting_shipment',
+      'PartiallyShipped': 'partially_shipped',
+      'Shipped': 'shipped',
+      'Canceled': 'cancelled',
+      'Unfulfillable': 'cancelled',
+      'InvoiceUnconfirmed': 'pending',
+      'PendingAvailability': 'pending'
+    };
+    
+    // Extract shipping address if available
+    const amazonAddr = rawOrder.ShippingAddress || {};
+    const shippingAddress = {
+      first_name: amazonAddr.Name?.split(' ')[0] || '',
+      last_name: amazonAddr.Name?.split(' ').slice(1).join(' ') || '',
+      street_1: amazonAddr.AddressLine1 || '',
+      street_2: amazonAddr.AddressLine2 || '',
+      city: amazonAddr.City || '',
+      state: amazonAddr.StateOrRegion || '',
+      zip: amazonAddr.PostalCode || '',
+      country: amazonAddr.CountryCode || 'US',
+      phone: amazonAddr.Phone || ''
+    };
+    
+    // Parse order total (Amazon provides as { CurrencyCode, Amount })
+    const orderTotal = rawOrder.OrderTotal || {};
+    const totalAmount = parseFloat(orderTotal.Amount || '0');
+    
+    return {
+      externalOrderId: rawOrder.AmazonOrderId,
+      externalOrderNumber: rawOrder.AmazonOrderId,
+      status: statusMap[rawOrder.OrderStatus] || rawOrder.OrderStatus?.toLowerCase() || 'pending',
+      paymentStatus: rawOrder.PaymentMethod ? 'paid' : 'pending',
+      customerName: amazonAddr.Name || rawOrder.BuyerInfo?.BuyerName || 'Amazon Customer',
+      customerEmail: rawOrder.BuyerInfo?.BuyerEmail || '',
+      shippingAddress: shippingAddress,
+      billingAddress: shippingAddress, // Amazon typically uses same address
+      totalAmount: totalAmount,
+      subtotal: totalAmount, // Amazon doesn't break out subtotal in order response
+      taxAmount: 0, // Tax comes from order items
+      shippingAmount: 0, // Shipping comes from order items
+      discountAmount: 0,
+      currency: orderTotal.CurrencyCode || 'USD',
+      shippingMethod: rawOrder.ShipmentServiceLevelCategory || 'Standard',
+      orderPlacedAt: rawOrder.PurchaseDate,
       items: []
     };
   }
