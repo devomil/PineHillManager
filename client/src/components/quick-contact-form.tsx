@@ -115,6 +115,13 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     }));
   };
 
+  // Prevent Enter key from submitting the form on input fields
+  const preventEnterSubmit = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+      e.preventDefault();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -172,7 +179,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
             <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
               <Stethoscope className="h-5 w-5" />
