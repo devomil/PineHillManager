@@ -414,34 +414,18 @@ class SoundDesignService {
     return ambientScenes.includes(sceneType);
   }
 
-  getStockTransitionSound(intensity: 'soft' | 'medium' | 'dramatic'): SoundEffect {
-    const stockSounds: Record<string, string> = {
-      soft: `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds/whoosh-soft.mp3`,
-      medium: `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds/whoosh-medium.mp3`,
-      dramatic: `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds/whoosh-dramatic.mp3`,
-    };
-
-    return {
-      type: 'whoosh',
-      url: stockSounds[intensity],
-      duration: 0.8,
-      volume: 0.6,
-    };
+  getStockTransitionSound(intensity: 'soft' | 'medium' | 'dramatic'): SoundEffect | undefined {
+    // Stock sounds disabled until files are uploaded to S3
+    // TODO: Upload whoosh-soft.mp3, whoosh-medium.mp3, whoosh-dramatic.mp3 to stock-sounds/
+    console.log(`[SoundDesign] Stock transition sounds not available (${intensity})`);
+    return undefined;
   }
 
-  getStockAmbientSound(type: 'nature' | 'wellness' | 'energy'): SoundEffect {
-    const stockSounds: Record<string, string> = {
-      nature: `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds/ambient-nature.mp3`,
-      wellness: `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds/ambient-wellness.mp3`,
-      energy: `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds/ambient-energy.mp3`,
-    };
-
-    return {
-      type: 'ambient',
-      url: stockSounds[type],
-      duration: 30,
-      volume: 0.15,
-    };
+  getStockAmbientSound(type: 'nature' | 'wellness' | 'energy'): SoundEffect | undefined {
+    // Stock sounds disabled until files are uploaded to S3
+    // TODO: Upload ambient-nature.mp3, ambient-wellness.mp3, ambient-energy.mp3 to stock-sounds/
+    console.log(`[SoundDesign] Stock ambient sounds not available (${type})`);
+    return undefined;
   }
 
   private sleep(ms: number): Promise<void> {
