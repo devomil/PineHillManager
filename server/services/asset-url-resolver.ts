@@ -196,10 +196,11 @@ class AssetUrlResolver {
         Key: s3Key,
         Body: buffer,
         ContentType: contentType,
+        ACL: 'public-read',
       }));
       
       const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${s3Key}`;
-      console.log('[AssetURL] Cached asset to S3:', s3Url);
+      console.log('[AssetURL] Cached asset to S3 with public-read ACL:', s3Url);
       
       return s3Url;
       
@@ -240,10 +241,11 @@ class AssetUrlResolver {
         Key: s3Key,
         Body: buffer,
         ContentType: contentType,
+        ACL: 'public-read',
       }));
       
       const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${s3Key}`;
-      console.log('[AssetURL] Cached local file to S3:', s3Url);
+      console.log('[AssetURL] Cached local file to S3 with public-read ACL:', s3Url);
       
       return s3Url;
       
