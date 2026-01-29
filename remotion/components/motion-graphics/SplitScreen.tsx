@@ -243,19 +243,28 @@ const Dividers: React.FC<{
 };
 
 export const SplitScreen: React.FC<SplitScreenProps> = ({
-  panels,
-  layout,
-  dividerStyle,
-  labelStyle,
-  transitionType,
-  transitionDuration,
-  staggerDelay,
-  backgroundColor,
+  panels = [],
+  layout = '2-horizontal',
+  dividerStyle = { width: 4, color: '#FFFFFF', animated: true },
+  labelStyle = {
+    fontSize: 24,
+    fontWeight: 'bold',
+    fontFamily: 'sans-serif',
+    color: '#FFFFFF',
+    backgroundColor: '#000000',
+    backgroundOpacity: 0.5,
+    padding: 12,
+  },
+  transitionType = 'simultaneous',
+  transitionDuration = 30,
+  staggerDelay = 10,
+  backgroundColor = '#000000',
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames, width, height } = useVideoConfig();
   
-  const panelConfigs = calculatePanelPositions(layout, width, height, dividerStyle.width);
+  const safeDividerStyle = dividerStyle || { width: 4, color: '#FFFFFF', animated: true };
+  const panelConfigs = calculatePanelPositions(layout, width, height, safeDividerStyle.width || 4);
   
   const exitStartFrame = durationInFrames - Math.round(fps * 0.5);
   const exitOpacity = frame >= exitStartFrame
@@ -372,10 +381,10 @@ export const SplitScreen: React.FC<SplitScreenProps> = ({
         );
       })}
       
-      {dividerStyle.width > 0 && (
+      {safeDividerStyle.width > 0 && (
         <Dividers
           layout={layout}
-          dividerStyle={dividerStyle}
+          dividerStyle={safeDividerStyle}
           width={width}
           height={height}
           frame={frame}
