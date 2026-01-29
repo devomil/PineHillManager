@@ -1983,8 +1983,10 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     // PHASE 18B: Generate scene overlay configurations
     // ═══════════════════════════════════════════════════════════════
     console.log('[Render] ═══════════════════════════════════════════════════');
-    console.log('[Render] Phase 18B: Generating scene overlay configurations...');
+    console.log('[Render] Preparing project for Remotion render');
     console.log('[Render] ═══════════════════════════════════════════════════');
+    console.log('[Render] Step 1: Resolving asset URLs...');
+    console.log('[Render] Step 2: Generating overlay configurations...');
     
     let sceneOverlayConfigs: Record<string, any> = {};
     try {
