@@ -1425,11 +1425,15 @@ router.post('/projects/:projectId/reset-status', isAuthenticated, async (req: Re
 const renderBuckets: Map<string, string> = new Map();
 
 router.post('/projects/:projectId/render', isAuthenticated, async (req: Request, res: Response) => {
+  console.log('\n\n========================================');
+  console.log('🎬 [RENDER] POST /render endpoint HIT!');
+  console.log('========================================\n');
   try {
     const userId = (req.user as any)?.id;
     const userRole = (req.user as any)?.role;
     const { projectId } = req.params;
     const { forceRender } = req.body;
+    console.log('🎬 [RENDER] Project:', projectId, 'User:', userId, 'Role:', userRole);
     
     // Phase 10D: Security - forceRender only allowed for admin role
     const isAdminForceRender = forceRender && userRole === 'admin';
