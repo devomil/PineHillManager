@@ -172,11 +172,16 @@ class AssetUrlResolver {
       const { Client } = await import('@replit/object-storage');
       const objectStorageClient = new Client();
       
-      const { data, error } = await objectStorageClient.downloadAsBytes(objectPath);
-      if (error || !data) {
-        console.error('[AssetURL] Failed to download from object storage:', error);
+      const result = await objectStorageClient.downloadAsBytes(objectPath);
+      
+      // Handle Result type - check if it's an error result
+      if (!result.ok) {
+        console.error('[AssetURL] Failed to download from object storage:', result.error);
         return null;
       }
+      
+      // Extract the buffer from the successful result (first element of the tuple)
+      const buffer = result.value[0];
       
       const extension = objectPath.split('.').pop() || 'png';
       const contentType = this.getContentType(extension);
@@ -185,7 +190,7 @@ class AssetUrlResolver {
       await s3Client.send(new PutObjectCommand({
         Bucket: REMOTION_BUCKET_NAME,
         Key: s3Key,
-        Body: Buffer.from(data),
+        Body: buffer,
         ContentType: contentType,
       }));
       
@@ -263,6 +268,73 @@ class AssetUrlResolver {
   clearCache(): void {
     urlCache.clear();
     console.log('[AssetURL] Cache cleared');
+  }
+
+  /**
+   * Validate a URL can be accessed by Remotion Lambda
+   */
+  async validate(url: string): Promise<{ valid: boolean; error?: string }> {
+    if (!url) {
+      return { valid: false, error: 'URL is empty' };
+    }
+
+    // Check for Replit dev URLs (inaccessible from Lambda)
+    const invalidPatterns = [
+      '.picard.replit.dev',
+      '.repl.co',
+      'localhost:',
+      '127.0.0.1',
+    ];
+
+    for (const pattern of invalidPatterns) {
+      if (url.includes(pattern)) {
+        return { 
+          valid: false, 
+          error: `URL contains inaccessible pattern: ${pattern}` 
+        };
+      }
+    }
+
+    // Check for relative URLs
+    if (url.startsWith('/')) {
+      return { 
+        valid: false, 
+        error: 'URL is relative and needs resolution' 
+      };
+    }
+
+    // Check if it's a public URL
+    if (this.isPublicUrl(url)) {
+      return { valid: true };
+    }
+
+    // HTTPS URLs without invalid patterns are generally accessible
+    if (url.startsWith('https://')) {
+      return { valid: true };
+    }
+
+    return { 
+      valid: false, 
+      error: 'URL is not HTTPS or not publicly accessible' 
+    };
+  }
+
+  /**
+   * Check if a URL is accessible from Lambda (alias for validate)
+   */
+  isLambdaAccessible(url: string): boolean {
+    if (!url) return false;
+    
+    const blockedPatterns = [
+      '.picard.replit.dev',
+      '.repl.co',
+      'localhost',
+      '127.0.0.1',
+      '/api/',
+      '/uploads/',
+    ];
+
+    return !blockedPatterns.some(pattern => url.includes(pattern));
   }
 }
 
