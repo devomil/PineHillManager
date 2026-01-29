@@ -64,6 +64,7 @@ import { brandWorkflowRouter } from '../services/brand-workflow-router';
 import type { WorkflowPath, WorkflowResult } from '../../shared/types/brand-workflow-types';
 import { selectMediaSource, type MediaType } from '../services/media-source-selector';
 import { piapiVideoService } from '../services/piapi-video-service';
+import { overlayConfigurationService } from '../services/overlay-configuration-service';
 
 const objectStorageService = new ObjectStorageService();
 
@@ -1978,6 +1979,87 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       cached: brandWithCachedLogo?.logoUrl?.substring(0, 60),
     });
     
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 18B: Generate scene overlay configurations
+    // ═══════════════════════════════════════════════════════════════
+    console.log('[Render] ═══════════════════════════════════════════════════');
+    console.log('[Render] Phase 18B: Generating scene overlay configurations...');
+    console.log('[Render] ═══════════════════════════════════════════════════');
+    
+    let sceneOverlayConfigs: Record<string, any> = {};
+    try {
+      const sceneInputs = preparedProject.scenes.map((scene: any) => ({
+        id: scene.id,
+        sceneType: scene.type || scene.sceneType || 'standard',
+        duration: scene.duration || 5,
+        script: scene.voiceover?.text || scene.script,
+      }));
+      
+      const overlayConfigsMap = await overlayConfigurationService.generateOverlaysForProject(
+        projectId,
+        sceneInputs
+      );
+      
+      // Convert Map to Record for JSON serialization
+      sceneOverlayConfigs = Object.fromEntries(overlayConfigsMap);
+      
+      // Resolve overlay asset URLs to ensure Lambda accessibility
+      for (const [sceneId, config] of Object.entries(sceneOverlayConfigs)) {
+        const overlayConfig = config as any;
+        
+        // Resolve logo URL if present
+        if (overlayConfig.logo?.url) {
+          const resolvedLogoUrl = await assetUrlResolver.resolve(overlayConfig.logo.url);
+          if (resolvedLogoUrl && assetUrlResolver.isLambdaAccessible(resolvedLogoUrl)) {
+            overlayConfig.logo.url = resolvedLogoUrl;
+          } else {
+            console.warn(`[Render] Logo URL not Lambda accessible for scene ${sceneId}:`, overlayConfig.logo.url);
+          }
+        }
+        
+        // Resolve watermark URL if present
+        if (overlayConfig.watermark?.url) {
+          const resolvedWatermarkUrl = await assetUrlResolver.resolve(overlayConfig.watermark.url);
+          if (resolvedWatermarkUrl && assetUrlResolver.isLambdaAccessible(resolvedWatermarkUrl)) {
+            overlayConfig.watermark.url = resolvedWatermarkUrl;
+          } else {
+            console.warn(`[Render] Watermark URL not Lambda accessible for scene ${sceneId}:`, overlayConfig.watermark.url);
+          }
+        }
+        
+        // Resolve badge URLs if present
+        if (overlayConfig.badges?.length) {
+          for (const badge of overlayConfig.badges) {
+            if (badge.url) {
+              const resolvedBadgeUrl = await assetUrlResolver.resolve(badge.url);
+              if (resolvedBadgeUrl && assetUrlResolver.isLambdaAccessible(resolvedBadgeUrl)) {
+                badge.url = resolvedBadgeUrl;
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`[Render] Generated overlay configs for ${Object.keys(sceneOverlayConfigs).length} scenes`);
+      
+      // Log summary of each scene's overlays
+      for (const [sceneId, config] of Object.entries(sceneOverlayConfigs)) {
+        const overlayConfig = config as any;
+        const overlayTypes: string[] = [];
+        if (overlayConfig.logo?.enabled) overlayTypes.push('logo');
+        if (overlayConfig.watermark?.enabled) overlayTypes.push('watermark');
+        if (overlayConfig.textOverlays?.length) overlayTypes.push(`${overlayConfig.textOverlays.length} texts`);
+        if (overlayConfig.ctaOverlay?.enabled) overlayTypes.push('CTA');
+        if (overlayConfig.badges?.length) overlayTypes.push(`${overlayConfig.badges.length} badges`);
+        if (overlayConfig.endCard?.enabled) overlayTypes.push('end-card');
+        
+        console.log(`[Render]   Scene ${sceneId}: ${overlayTypes.join(', ') || 'none'}`);
+      }
+    } catch (overlayError: any) {
+      console.error('[Render] Error generating overlay configs:', overlayError.message);
+      // Continue with empty configs rather than failing render
+    }
+    
     const inputProps = {
       scenes: preparedProject.scenes,
       voiceoverUrl: preparedProject.assets.voiceover.fullTrackUrl || null,
@@ -1989,6 +2071,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       // Phase 16: End card and sound design configs
       endCardConfig,
       soundDesignConfig,
+      // Phase 18B: Scene overlay configurations
+      sceneOverlayConfigs,
     };
     
     // Log video B-roll details for each scene

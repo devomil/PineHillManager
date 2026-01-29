@@ -144,6 +144,9 @@ export interface ProjectBrandInstructions {
   };
 }
 
+// Phase 18B: Scene overlay configurations from overlay-configuration-service
+import type { SceneOverlayConfig } from '../shared/types/scene-overlays';
+
 export interface UniversalVideoProps {
   scenes: Scene[];
   voiceoverUrl: string | null;
@@ -156,6 +159,8 @@ export interface UniversalVideoProps {
   soundDesignConfig?: SoundDesignConfig;
   audioDuckingKeyframes?: VolumeKeyframe[];
   transitions?: TransitionConfig[];
+  // Phase 18B: Scene overlay configurations
+  sceneOverlayConfigs?: Record<string, SceneOverlayConfig>;
 }
 
 // ============================================================
@@ -2339,6 +2344,7 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   soundDesignConfig,
   audioDuckingKeyframes,
   transitions,
+  sceneOverlayConfigs, // Phase 18B: Scene overlay configurations
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   
@@ -2366,6 +2372,9 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
     // Get scene-specific brand overlays
     const sceneBrandOverlays = brandInstructions?.sceneOverlays?.[scene.id];
     
+    // Phase 18B: Get scene overlay config from overlay-configuration-service
+    const sceneOverlayConfig = sceneOverlayConfigs?.[scene.id];
+    
     const sequence = (
       <Sequence
         key={scene.id || `scene-${index}`}
@@ -2383,22 +2392,66 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
             brandInstructions={brandInstructions}
           />
           
-          {/* BRAND OVERLAYS (Phase 4E) */}
+          {/* BRAND OVERLAYS (Phase 4E + Phase 18B) */}
           
           {/* Intro animation on first scene */}
-          {isFirstScene && brandInstructions?.introAnimation && (
-            <IntroAnimation
-              overlay={brandInstructions.introAnimation}
-              fps={fps}
-            />
+          {/* Phase 18B: Use sceneOverlayConfig.logo if available for intro, then fall back to brandInstructions */}
+          {isFirstScene && (
+            sceneOverlayConfig?.logo?.enabled && sceneOverlayConfig.logo.url ? (
+              (() => {
+                const logoStartTime = sceneOverlayConfig.logo.timing?.startTime || 0.5;
+                const logoDuration = sceneOverlayConfig.logo.timing?.duration || 2.5;
+                const logoStartFrame = Math.round(logoStartTime * fps);
+                const logoDurationFrames = Math.round(logoDuration * fps);
+                
+                return (
+                  <Sequence
+                    from={logoStartFrame}
+                    durationInFrames={logoDurationFrames}
+                  >
+                    <LogoOverlay
+                      logoUrl={sceneOverlayConfig.logo.url}
+                      position={sceneOverlayConfig.logo.position || 'center'}
+                      size={sceneOverlayConfig.logo.size || 25}
+                      opacity={sceneOverlayConfig.logo.opacity || 1}
+                      animation={{
+                        type: (sceneOverlayConfig.logo.animation as any) || 'fade-in',
+                        duration: Math.round(fps * 0.8),
+                        delay: 0,
+                      }}
+                      timing={{
+                        startFrame: 0,
+                        endFrame: logoDurationFrames,
+                      }}
+                    />
+                  </Sequence>
+                );
+              })()
+            ) : brandInstructions?.introAnimation ? (
+              <IntroAnimation
+                overlay={brandInstructions.introAnimation}
+                fps={fps}
+              />
+            ) : null
           )}
           
           {/* Brand watermark on middle scenes (respects scene-level showWatermark flag) */}
+          {/* Phase 18B: Use sceneOverlayConfig.watermark if available, then fall back to brandInstructions */}
           {!isFirstScene && !isLastScene && (
             // Use scene-level watermark if provided, otherwise use global watermark
             // Only show if showWatermark is true (defaults to true if not specified)
             (sceneBrandOverlays?.showWatermark !== false) && (
-              sceneBrandOverlays?.watermark ? (
+              // Priority: sceneOverlayConfig (Phase 18B) > sceneBrandOverlays > brandInstructions
+              sceneOverlayConfig?.watermark?.enabled && sceneOverlayConfig.watermark.url ? (
+                <WatermarkOverlay
+                  logoUrl={sceneOverlayConfig.watermark.url}
+                  position={sceneOverlayConfig.watermark.position || 'bottom-right'}
+                  size={sceneOverlayConfig.watermark.size || 8}
+                  opacity={sceneOverlayConfig.watermark.opacity || 0.6}
+                  margin={20}
+                  showDuring="all"
+                />
+              ) : sceneBrandOverlays?.watermark ? (
                 <BrandWatermark
                   overlay={sceneBrandOverlays.watermark}
                   sceneDuration={scene.duration || 5}
