@@ -4879,6 +4879,7 @@ export default function UniversalVideoProducer() {
         
         // Handle timeout or errors
         if (data.timeout || (data.errors && data.errors.length > 0)) {
+          setRenderProgress(null);
           toast({
             title: "Render Failed",
             description: data.errors?.[0] || "Render timed out. Please try again.",
