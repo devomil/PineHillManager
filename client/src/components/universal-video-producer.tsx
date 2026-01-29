@@ -4608,6 +4608,12 @@ export default function UniversalVideoProducer() {
   const [renderId, setRenderId] = useState<string | null>(null);
   const [bucketName, setBucketName] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [renderProgress, setRenderProgress] = useState<{
+    progressPercent: number;
+    elapsedSeconds: number;
+    estimatedRemainingSeconds: number;
+    renderPhase: 'initializing' | 'rendering' | 'encoding' | 'complete';
+  } | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewSceneIndex, setPreviewSceneIndex] = useState(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
@@ -4850,6 +4856,16 @@ export default function UniversalVideoProducer() {
           setProject(data.project);
         }
         
+        // Update render progress details
+        if (data.progressPercent !== undefined) {
+          setRenderProgress({
+            progressPercent: data.progressPercent,
+            elapsedSeconds: data.elapsedSeconds || 0,
+            estimatedRemainingSeconds: data.estimatedRemainingSeconds || 0,
+            renderPhase: data.renderPhase || 'rendering',
+          });
+        }
+        
         // Handle rate limiting - slow down polling
         if (data.rateLimited) {
           pollInterval = Math.min(pollInterval * 1.5, 15000); // Increase delay, max 15s
@@ -4874,6 +4890,7 @@ export default function UniversalVideoProducer() {
         // Handle success with output
         if (data.success && data.done && data.outputUrl) {
           setOutputUrl(data.outputUrl);
+          setRenderProgress(null);
           toast({
             title: "Video Complete!",
             description: "Your video has been rendered successfully.",
@@ -5314,15 +5331,52 @@ export default function UniversalVideoProducer() {
               {project.status === 'rendering' && (
                 <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                  <AlertTitle className="text-blue-800 dark:text-blue-200">Video is rendering</AlertTitle>
-                  <AlertDescription className="text-blue-700 dark:text-blue-300">
-                    You can navigate away from this page - your video will continue rendering in the background. 
-                    Come back anytime to check progress or download when complete.
-                    {project.progress.steps.rendering?.progress > 0 && (
-                      <span className="block mt-1 font-medium">
-                        Progress: {Math.round(project.progress.steps.rendering.progress)}%
-                      </span>
+                  <AlertTitle className="text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                    Video is rendering
+                    {renderProgress && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        {renderProgress.renderPhase === 'initializing' && 'Initializing...'}
+                        {renderProgress.renderPhase === 'rendering' && 'Rendering frames'}
+                        {renderProgress.renderPhase === 'encoding' && 'Encoding video'}
+                        {renderProgress.renderPhase === 'complete' && 'Finalizing'}
+                      </Badge>
                     )}
+                  </AlertTitle>
+                  <AlertDescription className="text-blue-700 dark:text-blue-300">
+                    <div className="space-y-3 mt-2">
+                      {/* Progress bar with percentage */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium">
+                            {renderProgress ? `${renderProgress.progressPercent}%` : `${Math.round(project.progress.steps.rendering?.progress || 0)}%`}
+                          </span>
+                          {renderProgress && renderProgress.elapsedSeconds > 0 && (
+                            <span className="text-muted-foreground">
+                              Elapsed: {Math.floor(renderProgress.elapsedSeconds / 60)}:{String(renderProgress.elapsedSeconds % 60).padStart(2, '0')}
+                              {renderProgress.estimatedRemainingSeconds > 0 && (
+                                <> • ETA: ~{Math.ceil(renderProgress.estimatedRemainingSeconds / 60)} min</>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <Progress 
+                          value={renderProgress?.progressPercent || project.progress.steps.rendering?.progress || 0} 
+                          className="h-2" 
+                        />
+                      </div>
+                      
+                      {/* Status message */}
+                      <p className="text-xs text-muted-foreground">
+                        You can navigate away - rendering continues in the background. 
+                        {renderProgress && renderProgress.progressPercent > 0 && renderProgress.progressPercent < 100 && (
+                          <span className="block mt-1">
+                            {renderProgress.renderPhase === 'initializing' && 'Starting up Lambda render environment...'}
+                            {renderProgress.renderPhase === 'rendering' && 'Processing video frames on AWS Lambda...'}
+                            {renderProgress.renderPhase === 'encoding' && 'Encoding final video file...'}
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </AlertDescription>
                 </Alert>
               )}

@@ -2470,13 +2470,33 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
         await saveProjectToDb(projectData, projectData.ownerId);
       }
       
+      const progressPercent = Math.round(statusResult.overallProgress * 100);
+      const elapsedSeconds = Math.round(elapsedTime / 1000);
+      let estimatedTotalSeconds = 0;
+      let estimatedRemainingSeconds = 0;
+      
+      if (progressPercent > 5 && !statusResult.done) {
+        estimatedTotalSeconds = Math.round(elapsedSeconds / (progressPercent / 100));
+        estimatedRemainingSeconds = Math.max(0, estimatedTotalSeconds - elapsedSeconds);
+      }
+      
+      const renderPhase = statusResult.done ? 'complete' : 
+        progressPercent < 10 ? 'initializing' :
+        progressPercent < 80 ? 'rendering' : 'encoding';
+      
       res.json({
         success: true,
         done: statusResult.done,
         progress: statusResult.overallProgress,
+        progressPercent,
         outputUrl: statusResult.outputFile,
         errors: statusResult.errors,
         project: projectData,
+        elapsedSeconds,
+        estimatedRemainingSeconds,
+        estimatedTotalSeconds,
+        renderPhase,
+        renderStartTime,
       });
     } catch (progressError: any) {
       console.error(`[UniversalVideo] Error getting render progress for ${projectId}:`, progressError.message);
