@@ -8,7 +8,7 @@ import {
 import path from "path";
 
 const REGION: AwsRegion = "us-east-1";
-const DEPLOYED_FUNCTION_NAME = "remotion-render-4-0-382-mem3008mb-disk10240mb-900sec";
+const DEPLOYED_FUNCTION_NAME = "remotion-render-4-0-410-mem3008mb-disk10240mb-900sec";
 const DEPLOYED_SITE_NAME = "pine-hill-farm-videos";
 const DEPLOYED_BUCKET_NAME = "remotionlambda-useast1-refjo5giq5";
 const DEPLOYED_SERVE_URL = `https://${DEPLOYED_BUCKET_NAME}.s3.${REGION}.amazonaws.com/sites/${DEPLOYED_SITE_NAME}/index.html`;
