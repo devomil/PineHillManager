@@ -2,6 +2,7 @@ import { db } from '../db';
 import { brandAssets } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { objectStorageClient } from '../objectStorage';
 
 const urlCache = new Map<string, string>();
 
@@ -169,19 +170,22 @@ class AssetUrlResolver {
     try {
       console.log('[AssetURL] Fetching asset from Replit object storage:', objectPath);
       
-      const { Client } = await import('@replit/object-storage');
-      const objectStorageClient = new Client();
+      // Get bucket name from environment
+      const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID || 
+                       (process.env.PUBLIC_OBJECT_SEARCH_PATHS?.split('/')[1]);
       
-      const result = await objectStorageClient.downloadAsBytes(objectPath);
-      
-      // Handle Result type - check if it's an error result
-      if (!result.ok) {
-        console.error('[AssetURL] Failed to download from object storage:', result.error);
+      if (!bucketId) {
+        console.error('[AssetURL] No Replit bucket ID found in environment');
         return null;
       }
       
-      // Extract the buffer from the successful result (first element of the tuple)
-      const buffer = result.value[0];
+      // Use the GCS client from objectStorage.ts with proper sidecar authentication
+      const bucket = objectStorageClient.bucket(bucketId);
+      const file = bucket.file(objectPath);
+      
+      // Download file contents
+      const [contents] = await file.download();
+      const buffer = contents;
       
       const extension = objectPath.split('.').pop() || 'png';
       const contentType = this.getContentType(extension);
