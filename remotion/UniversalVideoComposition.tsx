@@ -1893,10 +1893,10 @@ const BrandWatermark: React.FC<BrandWatermarkProps> = ({ overlay, sceneDuration,
 };
 
 // ============================================================
-// CTA OUTRO COMPONENT (Phase 4E)
+// CTA OUTRO COMPONENT (Phase 4E) - Legacy version for brandInstructions
 // ============================================================
 
-interface CTAOutroProps {
+interface LegacyCTAOutroProps {
   logo: BrandOverlay;
   ctaOverlay: CTAOverlay;
   colors: ProjectBrandInstructions['colors'];
@@ -1904,7 +1904,7 @@ interface CTAOutroProps {
   fps: number;
 }
 
-const CTAOutro: React.FC<CTAOutroProps> = ({
+const LegacyCTAOutro: React.FC<LegacyCTAOutroProps> = ({
   logo,
   ctaOverlay,
   colors,
@@ -2576,6 +2576,8 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
             position={brandInjectionPlan.watermark.position || 'bottom-right'}
             size={Math.round((brandInjectionPlan.watermark.scale || 0.08) * 100)}
             opacity={brandInjectionPlan.watermark.opacity || 0.7}
+            margin={40}
+            showDuring="middle"
           />
         </Sequence>
       )}
