@@ -146,6 +146,8 @@ export interface ProjectBrandInstructions {
 
 // Phase 18B: Scene overlay configurations from overlay-configuration-service
 import type { SceneOverlayConfig } from '../shared/types/scene-overlays';
+import type { BrandInjectionPlan } from '../shared/types/brand-injection';
+import { LogoIntro } from './components/LogoIntro';
 
 export interface UniversalVideoProps {
   scenes: Scene[];
@@ -161,6 +163,8 @@ export interface UniversalVideoProps {
   transitions?: TransitionConfig[];
   // Phase 18B: Scene overlay configurations
   sceneOverlayConfigs?: Record<string, SceneOverlayConfig>;
+  // Phase 18C: Brand injection plan (logo intro, watermark, CTA outro)
+  brandInjectionPlan?: BrandInjectionPlan;
 }
 
 // ============================================================
@@ -2345,6 +2349,7 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   audioDuckingKeyframes,
   transitions,
   sceneOverlayConfigs, // Phase 18B: Scene overlay configurations
+  brandInjectionPlan, // Phase 18C: Brand injection plan
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   
@@ -2508,6 +2513,15 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
     return sequence;
   });
 
+  // Phase 18C: Calculate logo intro timing
+  const logoIntroEnabled = brandInjectionPlan?.logoIntro?.enabled && brandInjectionPlan?.logoIntro?.asset?.url;
+  const logoIntroDuration = logoIntroEnabled ? Math.round((brandInjectionPlan?.logoIntro?.duration || 2.5) * fps) : 0;
+  
+  // Phase 18C: Watermark timing (skip intro and outro)
+  const watermarkEnabled = brandInjectionPlan?.watermark?.enabled && brandInjectionPlan?.watermark?.asset?.url;
+  const watermarkStartFrame = logoIntroDuration + Math.round(fps); // Start 1s after intro ends
+  const watermarkEndFrame = endCardStartFrame - Math.round(fps); // End 1s before end card
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {/* Validation logging (development only) */}
@@ -2517,15 +2531,52 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
         musicUrl={musicUrl} 
       />
       
+      {/* Phase 18C: Logo Intro (first 2-3 seconds) */}
+      {logoIntroEnabled && brandInjectionPlan?.logoIntro && (
+        <Sequence
+          from={0}
+          durationInFrames={logoIntroDuration}
+          name="Phase18C-LogoIntro"
+        >
+          <LogoIntro
+            enabled={true}
+            durationInFrames={logoIntroDuration}
+            logoUrl={brandInjectionPlan.logoIntro.asset!.url}
+            backgroundColor={brandInjectionPlan.logoIntro.backgroundColor || '#1a1a1a'}
+            position={brandInjectionPlan.logoIntro.position || 'center'}
+            animation={brandInjectionPlan.logoIntro.animation || 'fade'}
+            tagline={brandInjectionPlan.logoIntro.includeTagline ? brandInjectionPlan.logoIntro.tagline : undefined}
+            fadeIn={Math.round(0.5 * fps)}
+            fadeOut={Math.round(0.3 * fps)}
+          />
+        </Sequence>
+      )}
+      
       {/* Main content */}
       {scenes.length === 0 ? (
         <IntroSlate brand={brand} />
       ) : (
         sceneSequences
       )}
+      
+      {/* Phase 18C: Watermark from brand injection plan */}
+      {watermarkEnabled && brandInjectionPlan?.watermark && watermarkEndFrame > watermarkStartFrame && (
+        <Sequence
+          from={watermarkStartFrame}
+          durationInFrames={watermarkEndFrame - watermarkStartFrame}
+          name="Phase18C-Watermark"
+        >
+          <WatermarkOverlay
+            logoUrl={brandInjectionPlan.watermark.asset!.url}
+            position={brandInjectionPlan.watermark.position || 'bottom-right'}
+            size={Math.round((brandInjectionPlan.watermark.scale || 0.08) * 100)}
+            opacity={brandInjectionPlan.watermark.opacity || 0.7}
+          />
+        </Sequence>
+      )}
 
-      {/* Fallback watermark - only if no brand instructions */}
-      {!brandInstructions?.watermark && <Watermark brand={brand} />}
+      {/* Fallback watermark - only if no brand instructions AND no brand injection watermark */}
+      {!brandInstructions?.watermark && !watermarkEnabled && <Watermark brand={brand} />}
 
       {/* Background Music - legacy ducking (only when no keyframes provided) */}
       {(!audioDuckingKeyframes || audioDuckingKeyframes.length === 0) && (

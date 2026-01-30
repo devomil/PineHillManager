@@ -2066,6 +2066,58 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       // Continue with empty configs rather than failing render
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 18C: Generate brand injection plan (logo intro, watermark, CTA outro)
+    // ═══════════════════════════════════════════════════════════════
+    console.log('[Render] Step 3: Generating brand injection plan...');
+    let brandInjectionPlan: BrandInjectionPlan | undefined;
+    try {
+      const plan = await brandInjectionService.createInjectionPlan(projectId);
+      
+      // Resolve all logo URLs to Lambda-accessible URLs
+      if (plan.logoIntro.enabled && plan.logoIntro.asset?.url) {
+        const resolvedIntroUrl = await assetUrlResolver.resolve(plan.logoIntro.asset.url);
+        if (resolvedIntroUrl && assetUrlResolver.isLambdaAccessible(resolvedIntroUrl)) {
+          plan.logoIntro.asset = { ...plan.logoIntro.asset, url: resolvedIntroUrl };
+          console.log('[Render]   Logo intro: URL resolved ✓');
+        } else {
+          console.warn('[Render]   Logo intro: URL resolution failed, disabling');
+          plan.logoIntro.enabled = false;
+        }
+      }
+      
+      if (plan.watermark.enabled && plan.watermark.asset?.url) {
+        const resolvedWatermarkUrl = await assetUrlResolver.resolve(plan.watermark.asset.url);
+        if (resolvedWatermarkUrl && assetUrlResolver.isLambdaAccessible(resolvedWatermarkUrl)) {
+          plan.watermark.asset = { ...plan.watermark.asset, url: resolvedWatermarkUrl };
+          console.log('[Render]   Watermark: URL resolved ✓');
+        } else {
+          console.warn('[Render]   Watermark: URL resolution failed, disabling');
+          plan.watermark.enabled = false;
+        }
+      }
+      
+      if (plan.ctaOutro.enabled && plan.ctaOutro.logo?.url) {
+        const resolvedOutroUrl = await assetUrlResolver.resolve(plan.ctaOutro.logo.url);
+        if (resolvedOutroUrl && assetUrlResolver.isLambdaAccessible(resolvedOutroUrl)) {
+          plan.ctaOutro.logo = { ...plan.ctaOutro.logo, url: resolvedOutroUrl };
+          console.log('[Render]   CTA outro: URL resolved ✓');
+        } else {
+          console.warn('[Render]   CTA outro: URL resolution failed');
+        }
+      }
+      
+      brandInjectionPlan = plan;
+      console.log('[Render] Brand injection plan:');
+      console.log(`[Render]   Logo intro: ${plan.logoIntro.enabled ? 'ENABLED' : 'disabled'} (${plan.logoIntro.duration}s)`);
+      console.log(`[Render]   Watermark: ${plan.watermark.enabled ? 'ENABLED' : 'disabled'} (${plan.watermark.position})`);
+      console.log(`[Render]   CTA outro: ${plan.ctaOutro.enabled ? 'ENABLED' : 'disabled'} (${plan.ctaOutro.duration}s)`);
+      console.log(`[Render]   Total added duration: ${plan.totalAddedDuration}s`);
+    } catch (brandError: any) {
+      console.error('[Render] Error generating brand injection plan:', brandError.message);
+      // Continue without brand injection
+    }
+    
     const inputProps = {
       scenes: preparedProject.scenes,
       voiceoverUrl: preparedProject.assets.voiceover.fullTrackUrl || null,
@@ -2079,6 +2131,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       soundDesignConfig,
       // Phase 18B: Scene overlay configurations
       sceneOverlayConfigs,
+      // Phase 18C: Brand injection plan (logo intro, watermark, CTA outro)
+      brandInjectionPlan,
     };
     
     // Log video B-roll details for each scene
