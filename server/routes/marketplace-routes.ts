@@ -1392,37 +1392,121 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
 
     // Update order with tracking info if orderId provided
     if (orderId) {
-      await db.execute(sql`
-        UPDATE marketplace_orders 
-        SET shipping_carrier = ${transactionData.rate?.provider || 'Unknown'},
-            updated_at = NOW()
-        WHERE id = ${orderId}
+      // Get order details to check channel type
+      const orderResult = await db.execute(sql`
+        SELECT o.*, c.type as channel_type
+        FROM marketplace_orders o
+        LEFT JOIN marketplace_channels c ON o.channel_id = c.id
+        WHERE o.id = ${orderId}
       `);
-
-      // Create fulfillment record
-      const rawResponse = {
-        labelUrl: transactionData.label_url,
-        shippoTransactionId: transactionData.object_id,
-        rate: transactionData.rate,
-        eta: transactionData.eta
-      };
       
-      await db.execute(sql`
-        INSERT INTO marketplace_fulfillments (
-          order_id, tracking_number, tracking_url, carrier, service_level, status, 
-          external_shipment_id, raw_response, created_at
-        ) VALUES (
-          ${orderId}, 
-          ${transactionData.tracking_number}, 
-          ${transactionData.tracking_url_provider}, 
-          ${transactionData.rate?.provider || 'Unknown'},
-          ${transactionData.rate?.servicelevel?.name || 'Standard'},
-          'label_created',
-          ${transactionData.object_id},
-          ${JSON.stringify(rawResponse)}::jsonb,
-          NOW()
-        )
-      `);
+      if (orderResult.rows.length === 0) {
+        console.warn(`⚠️ [Shippo] Order ${orderId} not found in database, skipping status update`);
+        // Continue with response - label was still purchased successfully
+      } else {
+        const order = orderResult.rows[0] as any;
+        const carrier = transactionData.rate?.provider || 'Unknown';
+        const trackingNumber = transactionData.tracking_number;
+        const trackingUrl = transactionData.tracking_url_provider;
+        const serviceLevel = transactionData.rate?.servicelevel?.name || 'Standard';
+        
+        // Update order status to 'shipped' in our database
+        await db.execute(sql`
+          UPDATE marketplace_orders 
+          SET status = 'shipped',
+              fulfillment_status = 'fulfilled',
+              shipping_carrier = ${carrier},
+              updated_at = NOW()
+          WHERE id = ${orderId}
+        `);
+
+        // Create fulfillment record
+        const rawResponse = {
+          labelUrl: transactionData.label_url,
+          shippoTransactionId: transactionData.object_id,
+          rate: transactionData.rate,
+          eta: transactionData.eta
+        };
+        
+        await db.execute(sql`
+          INSERT INTO marketplace_fulfillments (
+            order_id, tracking_number, tracking_url, carrier, service_level, status, 
+            external_shipment_id, raw_response, shipped_at, created_at
+          ) VALUES (
+            ${orderId}, 
+            ${trackingNumber}, 
+            ${trackingUrl}, 
+            ${carrier},
+            ${serviceLevel},
+            'shipped',
+            ${transactionData.object_id},
+            ${JSON.stringify(rawResponse)}::jsonb,
+            NOW(),
+            NOW()
+          )
+        `);
+        
+        // For BigCommerce orders, sync tracking info back to BigCommerce
+        if (order.channel_type === 'bigcommerce' && order.external_order_id) {
+          try {
+            const bcOrderId = parseInt(order.external_order_id);
+            
+            // Get shipping address to get address ID for shipment
+            const shippingAddresses = await bigCommerce.getOrderShippingAddresses(bcOrderId);
+            const addressId = shippingAddresses[0]?.id;
+            
+            if (addressId) {
+              // Get order items to include in shipment
+              const itemsResult = await db.execute(sql`
+                SELECT * FROM marketplace_order_items WHERE order_id = ${orderId}
+              `);
+              const orderItems = itemsResult.rows as any[];
+              
+              // Create shipment in BigCommerce with tracking info - filter out invalid item IDs
+              const shipmentItems = orderItems
+                .filter((item: any) => item.external_item_id && !isNaN(parseInt(item.external_item_id)))
+                .map((item: any) => ({
+                  order_product_id: parseInt(item.external_item_id),
+                  quantity: item.quantity,
+                }));
+              
+              if (shipmentItems.length > 0) {
+                // Map carrier name to BigCommerce shipping_provider
+                const carrierMapping: Record<string, string> = {
+                  'usps': 'usps',
+                  'ups': 'ups',
+                  'fedex': 'fedex',
+                  'unknown': 'usps',
+                };
+                const shippingProvider = carrierMapping[carrier.toLowerCase()] || 'usps';
+                
+                const shipment = await bigCommerce.createOrderShipment(bcOrderId, {
+                  tracking_number: trackingNumber,
+                  shipping_provider: shippingProvider,
+                  order_address_id: addressId,
+                  items: shipmentItems,
+                });
+                
+                console.log(`✅ [Shippo->BigCommerce] Created shipment ${shipment.id} for order ${bcOrderId}`);
+                
+                // Update fulfillment record with BigCommerce shipment ID
+                await db.execute(sql`
+                  UPDATE marketplace_fulfillments 
+                  SET external_shipment_id = ${shipment.id?.toString() || transactionData.object_id}
+                  WHERE order_id = ${orderId} AND tracking_number = ${trackingNumber}
+                `);
+              }
+              
+              // Update BigCommerce order status to Shipped (status 2)
+              await bigCommerce.updateOrderStatus(bcOrderId, 2);
+              console.log(`✅ [Shippo->BigCommerce] Updated order ${bcOrderId} status to Shipped`);
+            }
+          } catch (bcError) {
+            console.error('⚠️ [Shippo->BigCommerce] Failed to sync tracking:', bcError);
+            // Don't fail the label creation if BigCommerce sync fails
+          }
+        }
+      } // end else (order found)
     }
 
     res.json({
@@ -1437,6 +1521,122 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
   } catch (error: any) {
     console.error('Error purchasing Shippo label:', error);
     res.status(500).json({ error: 'Failed to purchase label', details: error?.message });
+  }
+});
+
+// Manually sync tracking info to BigCommerce for orders that have labels but weren't synced
+router.post('/orders/:id/sync-tracking', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: 'Invalid order ID' });
+    }
+    
+    // Get order details
+    const orderResult = await db.execute(sql`
+      SELECT o.*, c.type as channel_type
+      FROM marketplace_orders o
+      LEFT JOIN marketplace_channels c ON o.channel_id = c.id
+      WHERE o.id = ${orderId}
+    `);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const order = orderResult.rows[0] as any;
+    
+    // Get fulfillment with tracking info
+    const fulfillmentResult = await db.execute(sql`
+      SELECT * FROM marketplace_fulfillments WHERE order_id = ${orderId} ORDER BY created_at DESC LIMIT 1
+    `);
+    
+    if (fulfillmentResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No fulfillment record found for this order' });
+    }
+    
+    const fulfillment = fulfillmentResult.rows[0] as any;
+    const trackingNumber = fulfillment.tracking_number;
+    const carrier = fulfillment.carrier || 'usps';
+    
+    if (!trackingNumber) {
+      return res.status(400).json({ error: 'No tracking number found in fulfillment record' });
+    }
+    
+    // For BigCommerce orders, sync tracking info
+    if (order.channel_type === 'bigcommerce' && order.external_order_id) {
+      const bcOrderId = parseInt(order.external_order_id);
+      
+      // Get shipping address to get address ID for shipment
+      const shippingAddresses = await bigCommerce.getOrderShippingAddresses(bcOrderId);
+      const addressId = shippingAddresses[0]?.id;
+      
+      if (!addressId) {
+        return res.status(400).json({ error: 'No shipping address found for this order in BigCommerce' });
+      }
+      
+      // Get order items to include in shipment
+      const itemsResult = await db.execute(sql`
+        SELECT * FROM marketplace_order_items WHERE order_id = ${orderId}
+      `);
+      const orderItems = itemsResult.rows as any[];
+      
+      // Create shipment in BigCommerce with tracking info - filter out invalid item IDs
+      const shipmentItems = orderItems
+        .filter((item: any) => item.external_item_id && !isNaN(parseInt(item.external_item_id)))
+        .map((item: any) => ({
+          order_product_id: parseInt(item.external_item_id),
+          quantity: item.quantity,
+        }));
+      
+      if (shipmentItems.length === 0) {
+        return res.status(400).json({ error: 'No valid items found for this order (missing or invalid external_item_id)' });
+      }
+      
+      // Map carrier name to BigCommerce shipping_provider
+      const carrierMapping: Record<string, string> = {
+        'usps': 'usps',
+        'ups': 'ups',
+        'fedex': 'fedex',
+        'unknown': 'usps', // Default to USPS for unknown carriers
+      };
+      const shippingProvider = carrierMapping[carrier.toLowerCase()] || 'usps';
+      
+      const shipment = await bigCommerce.createOrderShipment(bcOrderId, {
+        tracking_number: trackingNumber,
+        shipping_provider: shippingProvider,
+        order_address_id: addressId,
+        items: shipmentItems,
+      });
+      
+      console.log(`✅ [Manual Sync] Created shipment ${shipment.id} for BigCommerce order ${bcOrderId}`);
+      
+      // Update fulfillment record with BigCommerce shipment ID
+      await db.execute(sql`
+        UPDATE marketplace_fulfillments 
+        SET external_shipment_id = ${shipment.id?.toString()},
+            status = 'shipped',
+            updated_at = NOW()
+        WHERE id = ${fulfillment.id}
+      `);
+      
+      // Update BigCommerce order status to Shipped (status 2)
+      await bigCommerce.updateOrderStatus(bcOrderId, 2);
+      console.log(`✅ [Manual Sync] Updated BigCommerce order ${bcOrderId} status to Shipped`);
+      
+      return res.json({
+        success: true,
+        message: 'Tracking synced to BigCommerce',
+        shipmentId: shipment.id,
+        trackingNumber,
+      });
+    } else {
+      return res.status(400).json({ error: 'Order is not a BigCommerce order or missing external_order_id' });
+    }
+  } catch (error: any) {
+    console.error('Error syncing tracking to BigCommerce:', error);
+    res.status(500).json({ error: 'Failed to sync tracking', details: error?.message });
   }
 });
 
