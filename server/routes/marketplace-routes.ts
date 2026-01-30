@@ -1361,7 +1361,19 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
       return res.status(400).json({ error: 'Rate ID is required' });
     }
 
-    // Create transaction (purchase label)
+    // Get order details for metadata if orderId provided
+    let orderMetadata = '';
+    if (orderId) {
+      const orderLookup = await db.execute(sql`
+        SELECT external_order_number, external_order_id FROM marketplace_orders WHERE id = ${orderId}
+      `);
+      if (orderLookup.rows.length > 0) {
+        const orderInfo = orderLookup.rows[0] as any;
+        orderMetadata = `Order ${orderInfo.external_order_number || orderInfo.external_order_id || orderId}`;
+      }
+    }
+
+    // Create transaction (purchase label) with order metadata
     const transactionResponse = await fetch(`${SHIPPO_BASE_URL}/transactions`, {
       method: 'POST',
       headers: {
@@ -1371,7 +1383,8 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
       body: JSON.stringify({
         rate: rateId,
         label_file_type: 'PDF',
-        async: false
+        async: false,
+        metadata: orderMetadata || undefined
       })
     });
 
@@ -1521,6 +1534,85 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
   } catch (error: any) {
     console.error('Error purchasing Shippo label:', error);
     res.status(500).json({ error: 'Failed to purchase label', details: error?.message });
+  }
+});
+
+// Register tracking with Shippo for an order (associates tracking with order in Shippo dashboard)
+router.post('/orders/:id/register-shippo-tracking', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+    
+    const orderId = parseInt(req.params.id);
+    
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: 'Invalid order ID' });
+    }
+    
+    // Get order and fulfillment details
+    const orderResult = await db.execute(sql`
+      SELECT o.external_order_number, o.external_order_id, f.tracking_number, f.carrier
+      FROM marketplace_orders o
+      JOIN marketplace_fulfillments f ON f.order_id = o.id
+      WHERE o.id = ${orderId}
+      ORDER BY f.created_at DESC
+      LIMIT 1
+    `);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order or fulfillment not found' });
+    }
+    
+    const { external_order_number, external_order_id, tracking_number, carrier } = orderResult.rows[0] as any;
+    
+    if (!tracking_number) {
+      return res.status(400).json({ error: 'No tracking number found for this order' });
+    }
+    
+    // Map carrier to Shippo carrier token
+    const carrierMapping: Record<string, string> = {
+      'usps': 'usps',
+      'ups': 'ups',
+      'fedex': 'fedex',
+      'unknown': 'usps',
+    };
+    const shippoCarrier = carrierMapping[(carrier || 'usps').toLowerCase()] || 'usps';
+    const orderNumber = external_order_number || external_order_id || orderId;
+    
+    // Register tracking with Shippo
+    const trackResponse = await fetch(`${SHIPPO_BASE_URL}/tracks/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `ShippoToken ${SHIPPO_API_KEY}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        carrier: shippoCarrier,
+        tracking_number: tracking_number,
+        metadata: `Order ${orderNumber}`
+      }).toString()
+    });
+    
+    if (!trackResponse.ok) {
+      const errorText = await trackResponse.text();
+      console.error('Shippo track registration error:', errorText);
+      return res.status(trackResponse.status).json({ error: 'Failed to register tracking with Shippo', details: errorText });
+    }
+    
+    const trackData = await trackResponse.json();
+    console.log(`✅ [Shippo] Registered tracking ${tracking_number} for order ${orderNumber}`);
+    
+    res.json({
+      success: true,
+      message: `Tracking registered with Shippo for order ${orderNumber}`,
+      trackingNumber: tracking_number,
+      carrier: shippoCarrier,
+      trackingStatus: trackData.tracking_status
+    });
+  } catch (error: any) {
+    console.error('Error registering tracking with Shippo:', error);
+    res.status(500).json({ error: 'Failed to register tracking', details: error?.message });
   }
 });
 
