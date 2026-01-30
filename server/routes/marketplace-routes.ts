@@ -1577,21 +1577,41 @@ router.post('/orders/:id/register-shippo-tracking', isAuthenticated, async (req:
       'fedex': 'fedex',
       'unknown': 'usps',
     };
-    const shippoCarrier = carrierMapping[(carrier || 'usps').toLowerCase()] || 'usps';
+    
+    // Detect carrier from tracking number format if carrier is unknown
+    let detectedCarrier = (carrier || 'unknown').toLowerCase();
+    if (detectedCarrier === 'unknown' && tracking_number) {
+      // USPS tracking numbers are typically 20-22 digits
+      if (/^\d{20,22}$/.test(tracking_number)) {
+        detectedCarrier = 'usps';
+      }
+      // UPS starts with 1Z
+      else if (/^1Z/i.test(tracking_number)) {
+        detectedCarrier = 'ups';
+      }
+      // FedEx is typically 12-15 digits
+      else if (/^\d{12,15}$/.test(tracking_number)) {
+        detectedCarrier = 'fedex';
+      }
+    }
+    
+    const shippoCarrier = carrierMapping[detectedCarrier] || 'usps';
     const orderNumber = external_order_number || external_order_id || orderId;
     
-    // Register tracking with Shippo
+    console.log(`📦 [Shippo] Registering tracking: carrier=${shippoCarrier}, tracking=${tracking_number}, order=${orderNumber}`);
+    
+    // Register tracking with Shippo using JSON format
     const trackResponse = await fetch(`${SHIPPO_BASE_URL}/tracks/`, {
       method: 'POST',
       headers: {
         'Authorization': `ShippoToken ${SHIPPO_API_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json'
       },
-      body: new URLSearchParams({
+      body: JSON.stringify({
         carrier: shippoCarrier,
         tracking_number: tracking_number,
         metadata: `Order ${orderNumber}`
-      }).toString()
+      })
     });
     
     if (!trackResponse.ok) {
