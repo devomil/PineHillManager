@@ -1967,9 +1967,43 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         ambientLayer: soundDesignSettings?.ambientLayer !== false,
         ambientType: soundDesignSettings?.ambientType || 'nature',
         masterVolume: soundDesignSettings?.masterVolume ?? 1.0,
+        // Phase 18D: Audio ducking configuration
+        audioDucking: {
+          enabled: true,
+          baseVolume: soundDesignSettings?.audioDucking?.baseVolume ?? 0.35,
+          duckLevel: soundDesignSettings?.audioDucking?.duckLevel ?? 0.1,
+          fadeFrames: soundDesignSettings?.audioDucking?.fadeFrames ?? 15,
+        },
       };
-      console.log('[UniversalVideo] Phase 16: Sound design config built:', soundDesignConfig);
+      console.log('[UniversalVideo] Phase 16/18D: Sound design config built:', soundDesignConfig);
     }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 18D: Calculate voiceover ranges for audio ducking
+    // ═══════════════════════════════════════════════════════════════
+    const fps = 30; // Standard FPS
+    const voiceoverRanges: Array<{ startFrame: number; endFrame: number }> = [];
+    let currentFrame = 0;
+    
+    for (const scene of preparedProject.scenes) {
+      const sceneDurationFrames = Math.round((scene.duration || 5) * fps);
+      
+      // Check if scene has voiceover audio
+      const hasVoiceover = scene.voiceover?.audioUrl || 
+                          scene.assets?.voiceover?.url ||
+                          preparedProject.assets?.voiceover?.fullTrackUrl;
+      
+      if (hasVoiceover) {
+        voiceoverRanges.push({
+          startFrame: currentFrame,
+          endFrame: currentFrame + sceneDurationFrames,
+        });
+      }
+      
+      currentFrame += sceneDurationFrames;
+    }
+    
+    console.log(`[UniversalVideo] Phase 18D: Calculated ${voiceoverRanges.length} voiceover ranges for audio ducking`);
     
     // Create a brand copy with S3-cached logo URL for Lambda accessibility
     const brandWithCachedLogo = preparedProject.brand ? {
@@ -2133,6 +2167,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       sceneOverlayConfigs,
       // Phase 18C: Brand injection plan (logo intro, watermark, CTA outro)
       brandInjectionPlan,
+      // Phase 18D: Voiceover ranges for audio ducking
+      voiceoverRanges,
+      soundEffectsBaseUrl: process.env.SOUND_EFFECTS_URL || 'https://storage.googleapis.com/pinehillfarm-renders/audio/sfx',
     };
     
     // Log video B-roll details for each scene

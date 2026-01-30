@@ -1,12 +1,14 @@
-import React from 'react';
-import { Audio, interpolate, useCurrentFrame } from 'remotion';
+import React, { useMemo } from 'react';
+import { Audio, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import type { VoiceoverRange } from '../../../shared/types/sound-design';
 
 export interface VolumeKeyframe {
   time: number;
   volume: number;
 }
 
-interface DuckedMusicProps {
+// Legacy interface (used with volumeKeyframes)
+interface DuckedMusicLegacyProps {
   musicUrl: string;
   baseVolume: number;
   volumeKeyframes: VolumeKeyframe[];
@@ -14,39 +16,96 @@ interface DuckedMusicProps {
   startFrom?: number;
 }
 
-export const DuckedMusic: React.FC<DuckedMusicProps> = ({
-  musicUrl,
-  baseVolume,
-  volumeKeyframes,
-  fps,
-  startFrom = 0,
-}) => {
+// Phase 18D interface (used with voiceoverRanges)
+interface DuckedMusicPhase18DProps {
+  musicUrl: string;
+  baseVolume: number;
+  duckLevel: number;
+  voiceoverRanges: VoiceoverRange[];
+  fadeFrames: number;
+}
+
+type DuckedMusicProps = DuckedMusicLegacyProps | DuckedMusicPhase18DProps;
+
+function isPhase18DProps(props: DuckedMusicProps): props is DuckedMusicPhase18DProps {
+  return 'voiceoverRanges' in props;
+}
+
+export const DuckedMusic: React.FC<DuckedMusicProps> = (props) => {
   const frame = useCurrentFrame();
-  const currentTime = frame / fps;
+  const { durationInFrames, fps: configFps } = useVideoConfig();
   
-  let currentVolume = baseVolume;
-  
-  if (volumeKeyframes.length > 0) {
-    const times = volumeKeyframes.map(k => k.time);
-    const volumes = volumeKeyframes.map(k => k.volume);
-    
-    currentVolume = interpolate(
-      currentTime,
-      times,
-      volumes,
-      {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
+  const volume = useMemo(() => {
+    if (isPhase18DProps(props)) {
+      // Phase 18D: VoiceoverRange-based ducking
+      const { baseVolume, duckLevel, voiceoverRanges, fadeFrames } = props;
+      
+      for (const range of voiceoverRanges) {
+        // Fade down into voiceover
+        if (frame >= range.startFrame - fadeFrames && frame < range.startFrame) {
+          return interpolate(
+            frame,
+            [range.startFrame - fadeFrames, range.startFrame],
+            [baseVolume, duckLevel],
+            { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+          );
+        }
+        
+        // During voiceover - stay ducked
+        if (frame >= range.startFrame && frame < range.endFrame) {
+          return duckLevel;
+        }
+        
+        // Fade up after voiceover
+        if (frame >= range.endFrame && frame < range.endFrame + fadeFrames) {
+          return interpolate(
+            frame,
+            [range.endFrame, range.endFrame + fadeFrames],
+            [duckLevel, baseVolume],
+            { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+          );
+        }
       }
-    );
-  }
+      
+      // Fade out at the end
+      return interpolate(
+        frame,
+        [durationInFrames - 60, durationInFrames],
+        [baseVolume, 0],
+        { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+      );
+    } else {
+      // Legacy: VolumeKeyframe-based ducking
+      const { baseVolume, volumeKeyframes, fps } = props;
+      const currentTime = frame / fps;
+      
+      if (volumeKeyframes.length > 0) {
+        const times = volumeKeyframes.map(k => k.time);
+        const volumes = volumeKeyframes.map(k => k.volume);
+        
+        return interpolate(
+          currentTime,
+          times,
+          volumes,
+          {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          }
+        );
+      }
+      
+      return baseVolume;
+    }
+  }, [frame, props, durationInFrames]);
   
-  if (!musicUrl) return null;
+  if (!props.musicUrl) return null;
+  
+  const startFrom = isPhase18DProps(props) ? 0 : (props.startFrom || 0);
   
   return (
     <Audio
-      src={musicUrl}
-      volume={currentVolume}
+      src={props.musicUrl}
+      volume={volume}
       startFrom={startFrom}
     />
   );

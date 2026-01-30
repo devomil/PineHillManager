@@ -115,6 +115,13 @@ export interface SoundDesignConfig {
   ambientLayer: boolean;
   ambientType: 'warm' | 'nature' | 'none';
   masterVolume: number;
+  // Phase 18D: Audio ducking configuration (optional for backward compatibility)
+  audioDucking?: {
+    enabled: boolean;
+    baseVolume: number;
+    duckLevel: number;
+    fadeFrames: number;
+  };
 }
 
 export const DEFAULT_SOUND_DESIGN_CONFIG: SoundDesignConfig = {

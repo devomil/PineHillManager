@@ -35,6 +35,7 @@ import { EndCardConfig, PINE_HILL_FARM_END_CARD } from "../shared/config/end-car
 import { SoundDesignLayer } from "./components/audio/SoundDesignLayer";
 import { DuckedMusic, VolumeKeyframe } from "./components/audio/DuckedMusic";
 import { TransitionConfig, SoundDesignConfig, PINE_HILL_FARM_SOUND_CONFIG } from "../shared/config/sound-design";
+import { SoundDesignConfig as Phase18DSoundDesignConfig, TransitionSound, DEFAULT_SOUND_DESIGN_CONFIG } from "../shared/types/sound-design";
 
 // ============================================================
 // BRAND OVERLAY TYPES (Phase 4E)
@@ -167,6 +168,9 @@ export interface UniversalVideoProps {
   sceneOverlayConfigs?: Record<string, SceneOverlayConfig>;
   // Phase 18C: Brand injection plan (logo intro, watermark, CTA outro)
   brandInjectionPlan?: BrandInjectionPlan;
+  // Phase 18D: Voiceover ranges for audio ducking
+  voiceoverRanges?: Array<{ startFrame: number; endFrame: number }>;
+  soundEffectsBaseUrl?: string;
 }
 
 // ============================================================
@@ -2352,6 +2356,8 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   transitions,
   sceneOverlayConfigs, // Phase 18B: Scene overlay configurations
   brandInjectionPlan, // Phase 18C: Brand injection plan
+  voiceoverRanges, // Phase 18D: Voiceover ranges for audio ducking
+  soundEffectsBaseUrl, // Phase 18D: Base URL for sound effects
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   
@@ -2653,8 +2659,63 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
         </Sequence>
       )}
       
-      {/* Enhanced Sound Design Layer (Phase 16) */}
-      {effectiveSoundConfig.enabled && effectiveSoundConfig.transitionSounds && transitions && transitions.length > 0 && (
+      {/* Phase 18D: Sound Design Layer with S3/GCS URLs (preferred when soundEffectsBaseUrl available) */}
+      {soundEffectsBaseUrl && effectiveSoundConfig.enabled && (
+        <SoundDesignLayer
+          config={{
+            enabled: true,
+            transitions: {
+              enabled: effectiveSoundConfig.transitionSounds,
+              defaultSound: 'whoosh-soft',
+              volume: 0.4,
+            },
+            logoReveal: {
+              enabled: effectiveSoundConfig.impactSounds,
+              sound: 'logo-impact',
+              volume: 0.5,
+            },
+            riseSwell: {
+              enabled: effectiveSoundConfig.impactSounds,
+              durationBeforeCTA: 3,
+              volume: 0.3,
+            },
+            audioDucking: soundDesignConfig?.audioDucking || {
+              enabled: true,
+              baseVolume: 0.35,
+              duckLevel: 0.1,
+              fadeFrames: 15,
+            },
+            ambient: {
+              enabled: effectiveSoundConfig.ambientLayer,
+              sound: effectiveSoundConfig.ambientType === 'nature' ? 'room-tone-warm' : 'room-tone-warm',
+              volume: 0.05,
+            },
+          }}
+          transitions={(() => {
+            // Build TransitionSound array from scenes
+            const transitionSounds: TransitionSound[] = [];
+            let frameOffset = logoIntroDuration;
+            scenes.forEach((scene, index) => {
+              if (index > 0) {
+                transitionSounds.push({
+                  sceneIndex: index,
+                  startFrame: frameOffset - Math.round(fps * 0.3),
+                  sound: 'whoosh-soft',
+                  volume: 0.4,
+                });
+              }
+              frameOffset += Math.round((scene.duration || 5) * fps);
+            });
+            return transitionSounds;
+          })()}
+          logoRevealFrame={hasEndCard ? endCardStartFrame + Math.round(0.3 * fps) : 0}
+          ctaStartFrame={hasEndCard ? endCardStartFrame : 0}
+          soundEffectsBaseUrl={soundEffectsBaseUrl}
+        />
+      )}
+      
+      {/* Legacy: Enhanced Sound Design Layer (Phase 16) - fallback when no soundEffectsBaseUrl */}
+      {!soundEffectsBaseUrl && effectiveSoundConfig.enabled && effectiveSoundConfig.transitionSounds && transitions && transitions.length > 0 && (
         <SoundDesignLayer
           transitions={transitions.map((t, i) => {
             let frameOffset = 0;
@@ -2675,8 +2736,19 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
         />
       )}
       
-      {/* Enhanced Ducked Music with Keyframes (Phase 16) */}
-      {musicUrl && audioDuckingKeyframes && audioDuckingKeyframes.length > 0 && (
+      {/* Phase 18D: Ducked Music with VoiceoverRanges (preferred) - uses soundDesignConfig values */}
+      {musicUrl && voiceoverRanges && voiceoverRanges.length > 0 && (
+        <DuckedMusic
+          musicUrl={musicUrl}
+          baseVolume={soundDesignConfig?.audioDucking?.baseVolume ?? musicVolume}
+          duckLevel={soundDesignConfig?.audioDucking?.duckLevel ?? 0.1}
+          voiceoverRanges={voiceoverRanges}
+          fadeFrames={soundDesignConfig?.audioDucking?.fadeFrames ?? 15}
+        />
+      )}
+      
+      {/* Legacy: Enhanced Ducked Music with Keyframes (Phase 16) - fallback if no voiceoverRanges */}
+      {musicUrl && (!voiceoverRanges || voiceoverRanges.length === 0) && audioDuckingKeyframes && audioDuckingKeyframes.length > 0 && (
         <DuckedMusic
           musicUrl={musicUrl}
           baseVolume={musicVolume}
