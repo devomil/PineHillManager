@@ -2368,9 +2368,9 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   const effectiveEndCardConfig = endCardConfig ?? PINE_HILL_FARM_END_CARD;
   const effectiveSoundConfig = soundDesignConfig ?? PINE_HILL_FARM_SOUND_CONFIG;
   
-  // Phase 16 Fix: End card should ALWAYS render (using defaults if no config provided)
-  // Only skip if endCardConfig is explicitly set with enabled: false (not implemented in current API)
-  const hasEndCard = true; // Always render end card with Pine Hill Farm branding
+  // Phase 18E: Check enabled flag on end card config
+  // Render end card unless explicitly disabled (enabled defaults to true if not specified)
+  const hasEndCard = effectiveEndCardConfig.enabled !== false;
   const endCardDuration = Math.round((effectiveEndCardConfig.duration || 5) * fps);
   const endCardStartFrame = durationInFrames - endCardDuration;
 

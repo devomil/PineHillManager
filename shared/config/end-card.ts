@@ -1,4 +1,5 @@
 export interface EndCardConfig {
+  enabled?: boolean;  // Phase 18E: Optional enabled flag (defaults to true)
   duration: number;
   background: {
     type: 'solid' | 'gradient' | 'animated-gradient' | 'image';
@@ -50,6 +51,7 @@ export interface EndCardConfig {
 }
 
 export const DEFAULT_END_CARD_CONFIG: EndCardConfig = {
+  enabled: true,
   duration: 5,
   background: {
     type: 'gradient',
@@ -80,6 +82,7 @@ export const DEFAULT_END_CARD_CONFIG: EndCardConfig = {
 };
 
 export const PINE_HILL_FARM_END_CARD: EndCardConfig = {
+  enabled: true,
   duration: 5,
   background: {
     type: 'animated-gradient',
@@ -137,6 +140,7 @@ export function mergeEndCardConfig(
   return {
     ...base,
     ...overrides,
+    enabled: overrides.enabled ?? base.enabled ?? true,  // Phase 18E: Include enabled
     background: {
       ...base.background,
       ...overrides.background,

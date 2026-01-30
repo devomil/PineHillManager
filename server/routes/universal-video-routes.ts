@@ -303,6 +303,14 @@ const endCardSettingsSchema = z.object({
   contactWebsite: z.string().default('PineHillFarm.com'),
   contactPhone: z.string().default(''),
   contactEmail: z.string().default(''),
+  // Phase 18E: Social icons
+  socialIcons: z.array(z.object({
+    platform: z.enum(['facebook', 'instagram', 'twitter', 'linkedin', 'youtube', 'tiktok']),
+    url: z.string(),
+  })).optional(),
+  socialSize: z.number().min(20).max(60).default(36),
+  socialDelay: z.number().min(0).max(5).default(2.5),
+  socialAnimation: z.enum(['pop', 'fade', 'stagger']).default('pop'),
   ambientEffect: z.enum(['particles', 'bokeh', 'none']).default('bokeh'),
   ambientIntensity: z.number().min(0).max(100).default(40),
 }).optional();
@@ -1911,6 +1919,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       }
       // Default to enabled if not explicitly disabled
       endCardConfig = {
+        enabled: true,  // Phase 18E: Explicit enabled flag
         duration: endCardSettings?.duration || 5,
         background: {
           type: 'animated-gradient' as const,
@@ -1946,13 +1955,28 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
             color: '#FFFFFF',
           },
         },
+        // Phase 18E: Social icons
+        social: endCardSettings?.socialIcons?.length ? {
+          icons: endCardSettings.socialIcons,
+          size: endCardSettings.socialSize || 36,
+          delay: endCardSettings.socialDelay || 2.5,
+          animation: (endCardSettings.socialAnimation || 'pop') as 'pop' | 'fade' | 'stagger',
+        } : {
+          icons: [
+            { platform: 'facebook', url: 'facebook.com/pinehillfarm' },
+            { platform: 'instagram', url: 'instagram.com/pinehillfarm' },
+          ],
+          size: 36,
+          delay: 2.5,
+          animation: 'pop' as const,
+        },
         ambientEffect: {
           type: (endCardSettings?.ambientEffect || 'bokeh') as 'particles' | 'bokeh' | 'none',
           color: 'rgba(232, 213, 183, 0.3)',
           intensity: endCardSettings?.ambientIntensity || 40,
         },
       };
-      console.log('[UniversalVideo] Phase 16: End card config built with logo:', endCardConfig.logo.url?.substring(0, 50));
+      console.log('[UniversalVideo] Phase 18E: End card config built with logo:', endCardConfig.logo.url?.substring(0, 50));
     }
     
     // Phase 16: Build sound design config from settings
