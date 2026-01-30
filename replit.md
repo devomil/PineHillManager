@@ -106,3 +106,29 @@ The AI script generation now uses health-intelligent prompts with researched dat
 ```
 "Cinematic shot with golden hour lighting, shallow depth of field, 35mm lens..."
 ```
+
+### Phase 18F: Film Treatment Post-Processing (January 2026)
+The video composition now includes cinematic post-processing effects via the `FilmTreatment` component system:
+
+**Components (remotion/components/post-processing/):**
+- `ColorGrading.tsx`: CSS filter-based color grading with 6 presets and intensity-based scaling
+- `FilmGrain.tsx`: Animated noise overlay using SVG turbulence
+- `Vignette.tsx`: Radial gradient edge darkening
+- `Letterbox.tsx`: Cinematic aspect ratio bars (2.35:1, 2.39:1, 1.85:1)
+- `FilmTreatment.tsx`: Wrapper component with preset configurations
+
+**Color Grade Presets:**
+- `warm-cinematic`: Orange/amber tones, high contrast (hero, cinematic styles)
+- `cool-corporate`: Blue tones, neutral saturation (product, professional styles)
+- `vibrant-lifestyle`: Saturated, bright (social, energetic styles)
+- `moody-dramatic`: Desaturated, high contrast (documentary styles)
+- `natural-organic`: Subtle warmth, minimal grading (lifestyle, educational styles)
+- `luxury-elegant`: Muted saturation, subtle sepia (premium, luxury styles)
+
+**Route Integration:**
+- `filmTreatmentSettingsSchema` validates API requests
+- Visual style auto-maps to appropriate preset (e.g., 'hero'→'warm-cinematic')
+- Explicit `enabled: false` disables all film treatment effects
+
+**Key Implementation Detail:**
+ColorGrading uses CSS filter scaling (not opacity) to adjust intensity. Filter values are scaled toward neutral (1.0 for contrast/brightness, 0 for sepia/hue-rotate) based on intensity parameter.
