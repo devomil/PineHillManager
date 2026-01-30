@@ -36,6 +36,7 @@ import { SoundDesignLayer } from "./components/audio/SoundDesignLayer";
 import { DuckedMusic, VolumeKeyframe } from "./components/audio/DuckedMusic";
 import { TransitionConfig, SoundDesignConfig, PINE_HILL_FARM_SOUND_CONFIG } from "../shared/config/sound-design";
 import { SoundDesignConfig as Phase18DSoundDesignConfig, TransitionSound, DEFAULT_SOUND_DESIGN_CONFIG } from "../shared/types/sound-design";
+import { FilmTreatment, FilmTreatmentConfig, FILM_TREATMENT_PRESETS } from "./components/post-processing";
 
 // ============================================================
 // BRAND OVERLAY TYPES (Phase 4E)
@@ -171,6 +172,8 @@ export interface UniversalVideoProps {
   // Phase 18D: Voiceover ranges for audio ducking
   voiceoverRanges?: Array<{ startFrame: number; endFrame: number }>;
   soundEffectsBaseUrl?: string;
+  // Phase 18F: Film treatment config
+  filmTreatmentConfig?: FilmTreatmentConfig;
 }
 
 // ============================================================
@@ -2358,6 +2361,7 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   brandInjectionPlan, // Phase 18C: Brand injection plan
   voiceoverRanges, // Phase 18D: Voiceover ranges for audio ducking
   soundEffectsBaseUrl, // Phase 18D: Base URL for sound effects
+  filmTreatmentConfig, // Phase 18F: Film treatment config
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   
@@ -2371,6 +2375,12 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   // Phase 18E: Check enabled flag on end card config
   // Render end card unless explicitly disabled (enabled defaults to true if not specified)
   const hasEndCard = effectiveEndCardConfig.enabled !== false;
+  
+  // Phase 18F: Film treatment config with defaults
+  // If config is provided (even with enabled:false), use it; otherwise use lifestyle defaults
+  const effectiveFilmTreatment: FilmTreatmentConfig = filmTreatmentConfig?.enabled !== undefined 
+    ? filmTreatmentConfig as FilmTreatmentConfig
+    : { ...FILM_TREATMENT_PRESETS['lifestyle'], enabled: true };
   const endCardDuration = Math.round((effectiveEndCardConfig.duration || 5) * fps);
   const endCardStartFrame = durationInFrames - endCardDuration;
 
@@ -2545,6 +2555,9 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
         musicUrl={musicUrl} 
       />
       
+      {/* Phase 18F: Film Treatment - applies color grading, grain, vignette, letterbox */}
+      <FilmTreatment config={effectiveFilmTreatment}>
+      
       {/* Phase 18C: Logo Intro (first 2-3 seconds) */}
       {logoIntroEnabled && brandInjectionPlan?.logoIntro?.asset?.url && (
         <Sequence
@@ -2658,6 +2671,9 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
           />
         </Sequence>
       )}
+      
+      </FilmTreatment>
+      {/* End Phase 18F: Film Treatment */}
       
       {/* Phase 18D: Sound Design Layer with S3/GCS URLs (preferred when soundEffectsBaseUrl available) */}
       {soundEffectsBaseUrl && effectiveSoundConfig.enabled && (

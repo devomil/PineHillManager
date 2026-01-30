@@ -326,6 +326,16 @@ const soundDesignSettingsSchema = z.object({
   masterVolume: z.number().min(0).max(1).default(1.0),
 }).optional();
 
+// Phase 18F: Film treatment settings schema
+const filmTreatmentSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  colorGrade: z.enum(['warm-cinematic', 'cool-corporate', 'vibrant-lifestyle', 'moody-dramatic', 'natural-organic', 'luxury-elegant', 'none']).default('natural-organic'),
+  colorIntensity: z.number().min(0).max(1).default(1.0),
+  grainIntensity: z.number().min(0).max(0.1).default(0.03),
+  vignetteIntensity: z.number().min(0).max(0.5).default(0.15),
+  letterbox: z.enum(['2.35:1', '2.39:1', '1.85:1', 'none']).default('none'),
+}).optional();
+
 const referenceConfigSchema = z.object({
   mode: z.enum(['none', 'image-to-image', 'image-to-video', 'style-reference']),
   sourceUrl: z.string().optional(),
@@ -356,6 +366,8 @@ const scriptVideoInputSchema = z.object({
   // Phase 16: End card and sound design settings
   endCardSettings: endCardSettingsSchema,
   soundDesignSettings: soundDesignSettingsSchema,
+  // Phase 18F: Film treatment settings
+  filmTreatmentSettings: filmTreatmentSettingsSchema,
 });
 
 function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null; qualityReport?: VideoQualityReport } {
@@ -2003,6 +2015,49 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     }
     
     // ═══════════════════════════════════════════════════════════════
+    // PHASE 18F: Build film treatment config from settings or style
+    // ═══════════════════════════════════════════════════════════════
+    const filmTreatmentSettings = (preparedProject as any).filmTreatmentSettings;
+    let filmTreatmentConfig: any = undefined;
+    
+    if (filmTreatmentSettings?.enabled !== false) {
+      // Map visual style to film treatment preset
+      const styleToPreset: Record<string, any> = {
+        'hero': { colorGrade: 'warm-cinematic', colorIntensity: 1.0, grainIntensity: 0.04, vignetteIntensity: 0.25 },
+        'cinematic': { colorGrade: 'warm-cinematic', colorIntensity: 1.0, grainIntensity: 0.04, vignetteIntensity: 0.25 },
+        'lifestyle': { colorGrade: 'natural-organic', colorIntensity: 1.0, grainIntensity: 0.03, vignetteIntensity: 0.15 },
+        'product': { colorGrade: 'cool-corporate', colorIntensity: 0.8, grainIntensity: 0.02, vignetteIntensity: 0.1 },
+        'educational': { colorGrade: 'natural-organic', colorIntensity: 0.9, grainIntensity: 0.02, vignetteIntensity: 0.1 },
+        'training': { colorGrade: 'natural-organic', colorIntensity: 0.9, grainIntensity: 0.02, vignetteIntensity: 0.1 },
+        'instructional': { colorGrade: 'natural-organic', colorIntensity: 0.9, grainIntensity: 0.02, vignetteIntensity: 0.1 },
+        'social': { colorGrade: 'vibrant-lifestyle', colorIntensity: 1.0, grainIntensity: 0.01, vignetteIntensity: 0.05 },
+        'energetic': { colorGrade: 'vibrant-lifestyle', colorIntensity: 1.0, grainIntensity: 0.01, vignetteIntensity: 0.05 },
+        'premium': { colorGrade: 'luxury-elegant', colorIntensity: 1.0, grainIntensity: 0.03, vignetteIntensity: 0.3 },
+        'luxury': { colorGrade: 'luxury-elegant', colorIntensity: 1.0, grainIntensity: 0.03, vignetteIntensity: 0.3 },
+        'documentary': { colorGrade: 'moody-dramatic', colorIntensity: 0.9, grainIntensity: 0.04, vignetteIntensity: 0.2 },
+        'professional': { colorGrade: 'cool-corporate', colorIntensity: 0.8, grainIntensity: 0.02, vignetteIntensity: 0.1 },
+      };
+      
+      const visualStyle = preparedProject.visualStyle?.toLowerCase() || 'lifestyle';
+      const stylePreset = styleToPreset[visualStyle] || styleToPreset['lifestyle'];
+      
+      filmTreatmentConfig = {
+        enabled: true,
+        colorGrade: filmTreatmentSettings?.colorGrade || stylePreset.colorGrade,
+        colorIntensity: filmTreatmentSettings?.colorIntensity ?? stylePreset.colorIntensity,
+        grainIntensity: filmTreatmentSettings?.grainIntensity ?? stylePreset.grainIntensity,
+        vignetteIntensity: filmTreatmentSettings?.vignetteIntensity ?? stylePreset.vignetteIntensity,
+        letterbox: filmTreatmentSettings?.letterbox || 'none',
+      };
+      
+      console.log(`[UniversalVideo] Phase 18F: Film treatment config built for style "${visualStyle}":`, filmTreatmentConfig);
+    } else {
+      // Explicitly disabled
+      filmTreatmentConfig = { enabled: false };
+      console.log('[UniversalVideo] Phase 18F: Film treatment disabled by settings');
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
     // PHASE 18D: Calculate voiceover ranges for audio ducking
     // ═══════════════════════════════════════════════════════════════
     const fps = 30; // Standard FPS
@@ -2194,6 +2249,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       // Phase 18D: Voiceover ranges for audio ducking
       voiceoverRanges,
       soundEffectsBaseUrl: process.env.SOUND_EFFECTS_URL || 'https://storage.googleapis.com/pinehillfarm-renders/audio/sfx',
+      // Phase 18F: Film treatment config
+      filmTreatmentConfig,
     };
     
     // Log video B-roll details for each scene

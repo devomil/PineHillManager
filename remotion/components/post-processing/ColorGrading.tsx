@@ -60,6 +60,27 @@ const COLOR_GRADE_FILTERS: Record<ColorGradePreset, string> = {
   'none': '',
 };
 
+function scaleFilter(filter: string, intensity: number): string {
+  if (intensity >= 1 || !filter) return filter;
+  
+  return filter.replace(/(\w+)\(([\d.]+)(%?)\)/g, (match, fn, value, suffix) => {
+    const numValue = parseFloat(value);
+    let scaledValue: number;
+    
+    if (fn === 'contrast' || fn === 'saturate' || fn === 'brightness') {
+      scaledValue = 1 + (numValue - 1) * intensity;
+    } else if (fn === 'sepia' || fn === 'grayscale' || fn === 'invert') {
+      scaledValue = numValue * intensity;
+    } else if (fn === 'hue-rotate') {
+      scaledValue = numValue * intensity;
+    } else {
+      scaledValue = numValue;
+    }
+    
+    return `${fn}(${scaledValue.toFixed(3)}${suffix})`;
+  });
+}
+
 export const ColorGrading: React.FC<ColorGradingProps> = ({
   preset,
   intensity,
@@ -69,13 +90,13 @@ export const ColorGrading: React.FC<ColorGradingProps> = ({
     return <>{children}</>;
   }
 
-  const filter = COLOR_GRADE_FILTERS[preset];
+  const baseFilter = COLOR_GRADE_FILTERS[preset];
+  const scaledFilter = scaleFilter(baseFilter, intensity);
 
   return (
     <AbsoluteFill
       style={{
-        filter: filter,
-        opacity: intensity,
+        filter: scaledFilter,
       }}
     >
       {children}
