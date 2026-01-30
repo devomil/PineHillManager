@@ -147,7 +147,9 @@ export interface ProjectBrandInstructions {
 // Phase 18B: Scene overlay configurations from overlay-configuration-service
 import type { SceneOverlayConfig } from '../shared/types/scene-overlays';
 import type { BrandInjectionPlan } from '../shared/types/brand-injection';
-import { LogoIntro } from './components/LogoIntro';
+// Phase 18C: Brand injection components
+import { LogoIntro } from './components/brand/LogoIntro';
+import { CTAOutro } from './components/brand/CTAOutro';
 
 export interface UniversalVideoProps {
   scenes: Scene[];
@@ -2538,22 +2540,19 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
       />
       
       {/* Phase 18C: Logo Intro (first 2-3 seconds) */}
-      {logoIntroEnabled && brandInjectionPlan?.logoIntro && (
+      {logoIntroEnabled && brandInjectionPlan?.logoIntro?.asset?.url && (
         <Sequence
           from={0}
           durationInFrames={logoIntroDuration}
           name="Phase18C-LogoIntro"
         >
           <LogoIntro
-            enabled={true}
-            durationInFrames={logoIntroDuration}
-            logoUrl={brandInjectionPlan.logoIntro.asset!.url}
+            logoUrl={brandInjectionPlan.logoIntro.asset.url}
             backgroundColor={brandInjectionPlan.logoIntro.backgroundColor || '#1a1a1a'}
-            position={brandInjectionPlan.logoIntro.position || 'center'}
             animation={brandInjectionPlan.logoIntro.animation || 'fade'}
+            duration={brandInjectionPlan.logoIntro.duration || 2.5}
+            position={brandInjectionPlan.logoIntro.position || 'center'}
             tagline={brandInjectionPlan.logoIntro.includeTagline ? brandInjectionPlan.logoIntro.tagline : undefined}
-            fadeIn={Math.round(0.5 * fps)}
-            fadeOut={Math.round(0.3 * fps)}
           />
         </Sequence>
       )}
@@ -2566,14 +2565,14 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
       )}
       
       {/* Phase 18C: Watermark from brand injection plan */}
-      {watermarkEnabled && brandInjectionPlan?.watermark && watermarkEndFrame > watermarkStartFrame && (
+      {watermarkEnabled && brandInjectionPlan?.watermark?.asset?.url && watermarkEndFrame > watermarkStartFrame && (
         <Sequence
           from={watermarkStartFrame}
           durationInFrames={watermarkEndFrame - watermarkStartFrame}
           name="Phase18C-Watermark"
         >
           <WatermarkOverlay
-            logoUrl={brandInjectionPlan.watermark.asset!.url}
+            logoUrl={brandInjectionPlan.watermark.asset.url}
             position={brandInjectionPlan.watermark.position || 'bottom-right'}
             size={Math.round((brandInjectionPlan.watermark.scale || 0.08) * 100)}
             opacity={brandInjectionPlan.watermark.opacity || 0.7}
@@ -2622,10 +2621,33 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
         });
       })()}
       
-      {/* Animated End Card (Phase 16) */}
+      {/* Animated End Card (Phase 16) - serves as CTA outro with Pine Hill Farm branding */}
+      {/* Phase 18C Note: brandInjectionPlan.ctaOutro is available but AnimatedEndCard takes precedence */}
       {hasEndCard && (
         <Sequence from={endCardStartFrame} durationInFrames={endCardDuration}>
           <AnimatedEndCard config={effectiveEndCardConfig} />
+        </Sequence>
+      )}
+      
+      {/* Phase 18C: Alternative CTA Outro (only if end card disabled and CTA outro enabled) */}
+      {!hasEndCard && brandInjectionPlan?.ctaOutro?.enabled && brandInjectionPlan.ctaOutro.logo?.url && (
+        <Sequence
+          from={durationInFrames - Math.round((brandInjectionPlan.ctaOutro.duration || 5) * fps)}
+          durationInFrames={Math.round((brandInjectionPlan.ctaOutro.duration || 5) * fps)}
+          name="Phase18C-CTAOutro"
+        >
+          <CTAOutro
+            logoUrl={brandInjectionPlan.ctaOutro.logo.url}
+            headline={brandInjectionPlan.ctaOutro.headline}
+            subheadline={brandInjectionPlan.ctaOutro.subheadline}
+            website={brandInjectionPlan.ctaOutro.contactInfo?.website}
+            phone={brandInjectionPlan.ctaOutro.contactInfo?.phone}
+            email={brandInjectionPlan.ctaOutro.contactInfo?.email}
+            backgroundColor={brandInjectionPlan.ctaOutro.backgroundColor}
+            animation={brandInjectionPlan.ctaOutro.animation === 'build' ? 'build' : 
+                       brandInjectionPlan.ctaOutro.animation === 'slide-up' ? 'slide-up' : 'fade'}
+            buttonText={brandInjectionPlan.ctaOutro.buttonText}
+          />
         </Sequence>
       )}
       

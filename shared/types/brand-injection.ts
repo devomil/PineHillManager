@@ -1,7 +1,8 @@
 // shared/types/brand-injection.ts
 // Phase 18C: Brand Injection Plan types for Remotion composition
+// This matches the existing brand-injection-service.ts interface
 
-export interface BrandAssetRef {
+export interface BrandAsset {
   id?: number;
   name: string;
   url: string;
@@ -11,7 +12,7 @@ export interface BrandAssetRef {
 
 export interface LogoIntroConfig {
   enabled: boolean;
-  asset: BrandAssetRef | null;
+  asset: BrandAsset | null;
   duration: number;
   animation: 'fade' | 'zoom' | 'slide-up' | 'none';
   backgroundColor?: string;
@@ -22,7 +23,7 @@ export interface LogoIntroConfig {
 
 export interface WatermarkConfig {
   enabled: boolean;
-  asset: BrandAssetRef | null;
+  asset: BrandAsset | null;
   position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   opacity: number;
   scale: number;
@@ -36,7 +37,7 @@ export interface CTAOutroConfig {
   enabled: boolean;
   duration: number;
   backgroundColor: string;
-  logo: BrandAssetRef | null;
+  logo: BrandAsset | null;
   contactInfo: {
     phone?: string;
     email?: string;
