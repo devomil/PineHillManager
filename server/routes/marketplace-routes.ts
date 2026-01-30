@@ -1363,29 +1363,58 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
 
     // Get order details for metadata if orderId provided
     let orderMetadata = '';
+    let shippoOrderObjectId: string | null = null;
     if (orderId) {
       const orderLookup = await db.execute(sql`
         SELECT external_order_number, external_order_id FROM marketplace_orders WHERE id = ${orderId}
       `);
       if (orderLookup.rows.length > 0) {
         const orderInfo = orderLookup.rows[0] as any;
-        orderMetadata = `Order ${orderInfo.external_order_number || orderInfo.external_order_id || orderId}`;
+        const orderNumber = orderInfo.external_order_number || orderInfo.external_order_id || orderId;
+        orderMetadata = `Order ${orderNumber}`;
+        
+        // Look up Shippo order object_id to link the transaction properly
+        try {
+          const shippoOrdersResponse = await fetch(`${SHIPPO_BASE_URL}/orders`, {
+            headers: { 'Authorization': `ShippoToken ${SHIPPO_API_KEY}` }
+          });
+          if (shippoOrdersResponse.ok) {
+            const shippoOrdersData = await shippoOrdersResponse.json();
+            const matchingOrder = shippoOrdersData.results?.find(
+              (o: any) => o.order_number === String(orderNumber)
+            );
+            if (matchingOrder) {
+              shippoOrderObjectId = matchingOrder.object_id;
+              console.log(`📦 [Shippo] Found Shippo order ${shippoOrderObjectId} for order ${orderNumber}`);
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ [Shippo] Could not look up Shippo order:', err);
+        }
       }
     }
 
-    // Create transaction (purchase label) with order metadata
+    // Create transaction (purchase label) with order metadata and link to Shippo order
+    const transactionBody: any = {
+      rate: rateId,
+      label_file_type: 'PDF',
+      async: false,
+      metadata: orderMetadata || undefined
+    };
+    
+    // If we found the Shippo order, link the transaction to it
+    if (shippoOrderObjectId) {
+      transactionBody.order = shippoOrderObjectId;
+      console.log(`📦 [Shippo] Linking transaction to Shippo order ${shippoOrderObjectId}`);
+    }
+    
     const transactionResponse = await fetch(`${SHIPPO_BASE_URL}/transactions`, {
       method: 'POST',
       headers: {
         'Authorization': `ShippoToken ${SHIPPO_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        rate: rateId,
-        label_file_type: 'PDF',
-        async: false,
-        metadata: orderMetadata || undefined
-      })
+      body: JSON.stringify(transactionBody)
     });
 
     if (!transactionResponse.ok) {
