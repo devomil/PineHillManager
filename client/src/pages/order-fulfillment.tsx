@@ -78,6 +78,7 @@ interface MarketplaceOrder {
   external_order_id: string;
   external_order_number: string;
   status: string;
+  fulfillment_status?: string;
   order_placed_at: string;
   customer_name: string;
   customer_email: string;
@@ -185,6 +186,32 @@ export default function OrderFulfillmentPage() {
     },
     onError: () => {
       toast({ title: 'Error', description: 'Failed to fulfill order.', variant: 'destructive' });
+    },
+  });
+
+  const syncShippoMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/marketplace/orders/${orderId}/register-shippo-tracking`, {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketplace/orders', orderId] });
+      toast({ title: 'Synced to Shippo', description: `Tracking ${data.trackingNumber} registered with Shippo.` });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Sync Failed', description: error?.message || 'Failed to sync tracking to Shippo.', variant: 'destructive' });
+    },
+  });
+
+  const syncBigCommerceMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/marketplace/orders/${orderId}/sync-tracking`, {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketplace/orders', orderId] });
+      toast({ title: 'Synced to BigCommerce', description: `Shipment created with tracking ${data.trackingNumber}.` });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Sync Failed', description: error?.message || 'Failed to sync tracking to BigCommerce.', variant: 'destructive' });
     },
   });
 
@@ -852,6 +879,59 @@ export default function OrderFulfillmentPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {/* Sync Tracking Card - Show when order has fulfillments or is shipped */}
+            {((order.fulfillments?.length ?? 0) > 0 || order.status?.toLowerCase() === 'shipped' || order.fulfillment_status === 'fulfilled') && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Sync Tracking
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-gray-500 mb-3">
+                    Sync tracking info to external platforms for orders with existing labels.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => syncShippoMutation.mutate()}
+                    disabled={syncShippoMutation.isPending}
+                    data-testid="button-sync-shippo"
+                  >
+                    {syncShippoMutation.isPending ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600 mr-2" />
+                        Syncing...
+                      </>
+                    ) : (
+                      'Sync to Shippo'
+                    )}
+                  </Button>
+                  {order.channel_type === 'bigcommerce' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => syncBigCommerceMutation.mutate()}
+                      disabled={syncBigCommerceMutation.isPending}
+                      data-testid="button-sync-bigcommerce"
+                    >
+                      {syncBigCommerceMutation.isPending ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600 mr-2" />
+                          Syncing...
+                        </>
+                      ) : (
+                        'Sync to BigCommerce'
+                      )}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
