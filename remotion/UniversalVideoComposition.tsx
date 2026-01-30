@@ -2366,8 +2366,14 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   const endCardDuration = Math.round((effectiveEndCardConfig.duration || 5) * fps);
   const endCardStartFrame = durationInFrames - endCardDuration;
 
+  // Phase 18C: Calculate logo intro timing BEFORE scene building
+  // Logo intro plays at the very start, then scenes start after it
+  const logoIntroEnabled = brandInjectionPlan?.logoIntro?.enabled && brandInjectionPlan?.logoIntro?.asset?.url;
+  const logoIntroDuration = logoIntroEnabled ? Math.round((brandInjectionPlan?.logoIntro?.duration || 2.5) * fps) : 0;
+
   // Build scene sequences with brand overlays
-  let currentFrame = 0;
+  // Phase 18C: Offset scene start by logo intro duration so intro plays BEFORE content
+  let currentFrame = logoIntroDuration;
   const sceneSequences = scenes.map((scene, index) => {
     const durationInFrames = (scene.duration || 5) * fps;
     const isFirstScene = index === 0;
@@ -2513,14 +2519,14 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
     return sequence;
   });
 
-  // Phase 18C: Calculate logo intro timing
-  const logoIntroEnabled = brandInjectionPlan?.logoIntro?.enabled && brandInjectionPlan?.logoIntro?.asset?.url;
-  const logoIntroDuration = logoIntroEnabled ? Math.round((brandInjectionPlan?.logoIntro?.duration || 2.5) * fps) : 0;
-  
   // Phase 18C: Watermark timing (skip intro and outro)
+  // Note: logoIntroEnabled and logoIntroDuration are calculated above scene building
   const watermarkEnabled = brandInjectionPlan?.watermark?.enabled && brandInjectionPlan?.watermark?.asset?.url;
   const watermarkStartFrame = logoIntroDuration + Math.round(fps); // Start 1s after intro ends
   const watermarkEndFrame = endCardStartFrame - Math.round(fps); // End 1s before end card
+  
+  // Phase 18C Note: CTA outro is not rendered separately - the existing AnimatedEndCard 
+  // (Phase 16) serves as the CTA outro with Pine Hill Farm branding
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
