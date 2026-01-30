@@ -1,8 +1,8 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
-import { LightLeak, AnimatedLightLeak } from './LightLeak';
-import { FilmBurn, FilmBurnTransition } from './FilmBurn';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
+import { AnimatedLightLeak } from './LightLeak';
+import { FilmBurnTransition } from './FilmBurn';
 import { WhipPanTransition } from './WhipPan';
-import { ElegantDissolve, SimpleFade } from './ElegantDissolve';
+import { ElegantDissolve } from './ElegantDissolve';
 
 export type TransitionType = 
   | 'cut'
@@ -40,10 +40,14 @@ export const TransitionManager: React.FC<TransitionManagerProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const transitionDuration = Math.round(transition.duration * fps);
+  const transitionDuration = Math.max(1, Math.round(transition.duration * fps));
   const relativeFrame = frame - startFrame;
-  const progress = Math.min(1, Math.max(0, relativeFrame / transitionDuration));
   
+  if (transition.type === 'cut' || transition.duration <= 0) {
+    return <>{relativeFrame < 0 ? fromContent : toContent}</>;
+  }
+  
+  const progress = Math.min(1, Math.max(0, relativeFrame / transitionDuration));
   const isInTransition = relativeFrame >= 0 && relativeFrame <= transitionDuration;
 
   if (!isInTransition) {
@@ -51,8 +55,6 @@ export const TransitionManager: React.FC<TransitionManagerProps> = ({
   }
 
   switch (transition.type) {
-    case 'cut':
-      return <>{progress < 0.5 ? fromContent : toContent}</>;
 
     case 'fade':
     case 'dissolve':
