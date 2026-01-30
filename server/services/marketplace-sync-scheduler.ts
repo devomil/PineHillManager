@@ -174,10 +174,26 @@ class MarketplaceSyncScheduler {
       console.log(`📦 [Marketplace Sync] Processing ${uniqueOrders.length} unique BigCommerce orders...`);
       
       for (const rawOrder of uniqueOrders) {
-        // Transform raw BigCommerce order to expected format
-        const transformedOrder = this.transformBigCommerceOrder(rawOrder);
-        await this.upsertOrder(channel, transformedOrder, 'bigcommerce');
-        ordersProcessed++;
+        try {
+          // Fetch shipping addresses and products separately (BigCommerce returns these as sub-resources)
+          const [shippingAddresses, orderProducts] = await Promise.all([
+            bigCommerce.getOrderShippingAddresses(rawOrder.id).catch(err => {
+              console.warn(`⚠️ [BigCommerce] Could not fetch shipping addresses for order ${rawOrder.id}:`, err.message);
+              return [];
+            }),
+            bigCommerce.getOrderProducts(rawOrder.id).catch(err => {
+              console.warn(`⚠️ [BigCommerce] Could not fetch products for order ${rawOrder.id}:`, err.message);
+              return [];
+            })
+          ]);
+          
+          // Transform raw BigCommerce order with fetched sub-resources
+          const transformedOrder = this.transformBigCommerceOrder(rawOrder, shippingAddresses, orderProducts);
+          await this.upsertOrder(channel, transformedOrder, 'bigcommerce');
+          ordersProcessed++;
+        } catch (err: any) {
+          console.error(`❌ [BigCommerce] Error processing order ${rawOrder.id}:`, err.message);
+        }
       }
     } else if (channel.type === 'amazon') {
       console.log('📦 [Amazon Sync] Starting Amazon order sync...');
@@ -246,15 +262,56 @@ class MarketplaceSyncScheduler {
     `);
 
     if (existingOrder.rows.length > 0) {
+      const existingOrderId = (existingOrder.rows[0] as any).id;
+      
+      // Update order details including shipping address if it was previously empty
       await db.execute(sql`
         UPDATE marketplace_orders SET
           status = ${order.status},
           payment_status = ${order.paymentStatus || 'unknown'},
           grand_total = ${order.totalAmount},
+          subtotal = COALESCE(${order.subtotal || order.totalAmount}, subtotal),
+          tax_total = COALESCE(${order.taxAmount || 0}, tax_total),
+          shipping_total = COALESCE(${order.shippingAmount || 0}, shipping_total),
+          discount_total = COALESCE(${order.discountAmount || 0}, discount_total),
+          shipping_address = CASE 
+            WHEN shipping_address = '{}' OR shipping_address IS NULL 
+            THEN ${JSON.stringify(order.shippingAddress || {})}::jsonb
+            ELSE shipping_address 
+          END,
+          billing_address = CASE 
+            WHEN billing_address = '{}' OR billing_address IS NULL 
+            THEN ${JSON.stringify(order.billingAddress || {})}::jsonb
+            ELSE billing_address 
+          END,
+          shipping_method = COALESCE(${order.shippingMethod}, shipping_method, 'Standard'),
           currency = ${order.currency || 'USD'},
           updated_at = NOW()
         WHERE channel_id = ${channel.id} AND external_order_id = ${order.externalOrderId}
       `);
+      
+      // Insert items if they don't exist for this order
+      if (order.items && order.items.length > 0) {
+        const existingItems = await db.execute(sql`
+          SELECT COUNT(*) as count FROM marketplace_order_items WHERE order_id = ${existingOrderId}
+        `);
+        
+        const itemCount = parseInt((existingItems.rows[0] as any)?.count || '0');
+        if (itemCount === 0) {
+          for (const item of order.items) {
+            await db.execute(sql`
+              INSERT INTO marketplace_order_items (
+                order_id, external_item_id, sku, name, quantity, unit_price, total_price,
+                created_at, updated_at
+              ) VALUES (
+                ${existingOrderId}, ${item.externalItemId || item.sku}, ${item.sku}, ${item.name},
+                ${item.quantity}, ${item.unitPrice}, ${item.totalPrice || item.unitPrice * item.quantity},
+                NOW(), NOW()
+              )
+            `);
+          }
+        }
+      }
     } else {
       await db.execute(sql`
         INSERT INTO marketplace_orders (
@@ -300,8 +357,35 @@ class MarketplaceSyncScheduler {
     }
   }
 
-  private transformBigCommerceOrder(rawOrder: any): any {
+  private transformBigCommerceOrder(rawOrder: any, shippingAddresses?: any[], orderProducts?: any[]): any {
     const billing = rawOrder.billing_address || {};
+    
+    // Use the first shipping address if available (most orders have one destination)
+    const shippingAddr = shippingAddresses && shippingAddresses.length > 0 ? shippingAddresses[0] : null;
+    const formattedShippingAddress = shippingAddr ? {
+      first_name: shippingAddr.first_name || '',
+      last_name: shippingAddr.last_name || '',
+      street_1: shippingAddr.street_1 || '',
+      street_2: shippingAddr.street_2 || '',
+      city: shippingAddr.city || '',
+      state: shippingAddr.state || '',
+      zip: shippingAddr.zip || '',
+      country: shippingAddr.country || 'US',
+      phone: shippingAddr.phone || '',
+      email: shippingAddr.email || billing.email || ''
+    } : null;
+    
+    // Transform order products to standard items format
+    const items = (orderProducts || []).map((product: any) => ({
+      externalItemId: String(product.id),
+      sku: product.sku || '',
+      name: product.name || 'Unknown Product',
+      quantity: product.quantity || 1,
+      unitPrice: parseFloat(product.price_inc_tax) || parseFloat(product.base_price) || 0,
+      totalPrice: parseFloat(product.total_inc_tax) || (parseFloat(product.price_inc_tax) * product.quantity) || 0,
+      options: product.product_options || []
+    }));
+    
     return {
       externalOrderId: String(rawOrder.id),
       externalOrderNumber: String(rawOrder.id),
@@ -309,7 +393,7 @@ class MarketplaceSyncScheduler {
       paymentStatus: rawOrder.payment_status || 'pending',
       customerName: `${billing.first_name || ''} ${billing.last_name || ''}`.trim() || 'Unknown Customer',
       customerEmail: billing.email || '',
-      shippingAddress: rawOrder.shipping_addresses?.url ? null : rawOrder.shipping_addresses,
+      shippingAddress: formattedShippingAddress,
       billingAddress: billing,
       totalAmount: parseFloat(rawOrder.total_inc_tax) || 0,
       subtotal: parseFloat(rawOrder.subtotal_inc_tax) || 0,
@@ -317,9 +401,9 @@ class MarketplaceSyncScheduler {
       shippingAmount: parseFloat(rawOrder.shipping_cost_inc_tax) || 0,
       discountAmount: parseFloat(rawOrder.discount_amount) || 0,
       currency: rawOrder.currency_code || 'USD',
-      shippingMethod: 'Standard',
+      shippingMethod: shippingAddr?.shipping_method || 'Standard',
       orderPlacedAt: rawOrder.date_created,
-      items: []
+      items: items
     };
   }
 
