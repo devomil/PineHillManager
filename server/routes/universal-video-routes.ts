@@ -6995,8 +6995,9 @@ router.get('/projects/:projectId/scenes/:sceneId/regeneration-history', isAuthen
     }
     
     const projectData = dbRowToVideoProject(projectRows[0]);
+    const projectOwnerId = projectRows[0].ownerId;
     
-    if (projectData.ownerId !== userId) {
+    if (String(projectOwnerId) !== String(userId)) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
