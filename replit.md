@@ -112,3 +112,22 @@ npx remotion lambda functions deploy --region us-east-2 --memory 10240 --timeout
 # Redeploy site bundle
 npx remotion lambda sites create --site-name pinehillfarm-video --region us-east-2
 ```
+
+### Phase 18J: S3 Sound Effects Upload (January 2026)
+Placeholder sound effects uploaded to S3 for video production:
+
+**S3 Location:** `s3://remotionlambda-useast2-1vc2l6a56o/audio/sfx/`
+
+**Sound Effect Files:**
+- `whoosh-soft.mp3`, `whoosh-medium.mp3`, `whoosh-light.mp3`, `whoosh-heavy.mp3` (transitions)
+- `logo-impact.mp3`, `logo-reveal.mp3` (brand moments)
+- `rise-swell.mp3`, `rise-tension.mp3` (CTA buildup)
+- `impact-deep.mp3`, `impact-soft.mp3` (emphasis)
+- `shimmer.mp3` (dissolve transitions)
+- `room-tone-warm.mp3`, `room-tone-nature.mp3` (ambient)
+
+**Configuration:**
+- `SOUND_EFFECTS_URL` environment variable or default: `https://remotionlambda-useast2-1vc2l6a56o.s3.us-east-2.amazonaws.com/audio/sfx`
+- `shared/config/sound-design.ts` exports `getSoundEffectUrl()` for URL resolution
+
+**Upload Script:** `scripts/upload-placeholder-sfx.ts` (use `--force` to re-upload)
