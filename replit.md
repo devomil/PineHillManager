@@ -48,3 +48,43 @@ The system maintains a clear separation of concerns between frontend and backend
 -   **Content Generation**: Hugging Face API
 -   **SMS Service**: Twilio API
 -   **AI Video Production**: fal.ai (LongCat-Video, Wan 2.2, FLUX models), ElevenLabs (voiceover), Pexels/Pixabay/Unsplash (stock media), Runway Gen-4, Stability AI, Anthropic (Claude for visual directions and context), AWS (for Remotion Lambda), LegNext.ai, PiAPI (Veo 3.1, Kling, Luma I2V).
+
+## Video Production Pipeline - Technical Details
+
+### Phase 18G: Premium Transitions (January 2026)
+Premium cinematic transitions for video production:
+
+**Components (remotion/components/transitions/):**
+- `LightLeak.tsx`: Warm/golden/cool light leak effects with animated multi-layer gradients
+- `FilmBurn.tsx`: Vintage film burn effects with organic animated shapes
+- `WhipPan.tsx`: Dynamic motion blur transitions with directional movement
+- `ElegantDissolve.tsx`: Smooth dissolves with exponential easing and subtle scale effects
+- `TransitionManager.tsx`: Central manager that handles all transition types
+
+**Transition Types:** cut, fade, dissolve, elegant-dissolve, light-leak, light-leak-golden, light-leak-warm, film-burn, film-burn-classic, whip-pan, whip-pan-left, whip-pan-up, whip-pan-down
+
+**Visual Style Mapping (server/config/visual-style-transitions.ts):**
+- hero/cinematic/premium/luxury → light-leak-golden
+- lifestyle → elegant-dissolve
+- product → fade
+- educational/training → dissolve
+- social/energetic → whip-pan
+- documentary → film-burn
+
+### Phase 18H: Broadcast Composition Wrapper (January 2026)
+Broadcast-quality composition wrapper:
+
+**Files:**
+- `remotion/BroadcastVideoComposition.tsx`: Wraps UniversalVideoComposition with FilmTreatment
+- `server/utils/composition-selector.ts`: Utility for selecting composition based on render preset
+
+**Compositions (registered in remotion/Root.tsx):**
+- `BroadcastVideoComposition`: Primary 1920x1080@30fps production composition
+- `PreviewComposition`: Fast preview 854x480@24fps with reduced effects
+- `SocialVerticalComposition`: Vertical 1080x1920@30fps for TikTok/Reels
+
+**Render Presets:**
+- `preview`: Fast render, reduced quality (CRF 28)
+- `broadcast-1080p`: Standard production (CRF 18)
+- `social-vertical`: Vertical format (CRF 20)
+- `premium-4k`: Ultra HD 3840x2160 (CRF 16)
