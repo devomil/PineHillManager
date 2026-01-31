@@ -1,3 +1,22 @@
+// server/config/video-providers.ts - Detailed Provider Capabilities
+//
+// This file contains detailed provider information including:
+// - capabilities (imageToVideo, textToVideo, etc.)
+// - modelId (actual API model identifier for PiAPI calls)
+// - apiProvider (which API service to use)
+// - audioCapabilities (for Kling 2.6+ with native audio)
+//
+// Used by: smart-provider-router.ts, quality-aware-provider-router.ts, regeneration-strategy-engine.ts
+//
+// RELATED FILES:
+// - shared/provider-config.ts: Simplified provider info for selection logic (UI, video-provider-selector)
+// - server/config/ai-video-providers.ts: API-level routing and complexity analysis
+// - server/services/piapi-video-service.ts: Actual API calls (uses buildRequestBody switch)
+//
+// When adding new providers, ensure you also update:
+// 1. shared/provider-config.ts (for selection logic)
+// 2. piapi-video-service.ts buildRequestBody (for actual API calls)
+
 import { VideoProvider, ProviderStrength } from '@shared/types/video-providers';
 
 export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {

@@ -3,13 +3,26 @@ export interface SoundEffect {
   volume: number;
   duration?: number;
   category: 'transition' | 'impact' | 'ambient' | 'rise';
+  // Optional fallback URL for when primary file is not available
+  fallbackUrl?: string;
 }
 
-export const SOUND_EFFECTS_BASE_URL = process.env.SOUND_EFFECTS_URL || 
+// Primary S3 bucket for sound effects
+export const SOUND_EFFECTS_BASE_URL = process.env.SOUND_EFFECTS_URL ||
   'https://remotionlambda-useast2-1vc2l6a56o.s3.us-east-2.amazonaws.com/audio/sfx';
+
+// Use the same S3 bucket as assets (where voiceover/music are cached)
+export const SOUND_EFFECTS_ASSETS_URL = process.env.REMOTION_AWS_BUCKET
+  ? `https://${process.env.REMOTION_AWS_BUCKET}.s3.us-east-1.amazonaws.com/stock-sounds`
+  : 'https://remotionlambda-useast1-refjo5giq5.s3.us-east-1.amazonaws.com/stock-sounds';
 
 export function getSoundEffectUrl(filename: string): string {
   return `${SOUND_EFFECTS_BASE_URL}/${filename}`;
+}
+
+// Get URL from assets bucket (where uploaded sounds should go)
+export function getStockSoundUrl(filename: string): string {
+  return `${SOUND_EFFECTS_ASSETS_URL}/${filename}`;
 }
 
 export const SOUND_EFFECTS: Record<string, SoundEffect> = {

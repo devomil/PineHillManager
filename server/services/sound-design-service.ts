@@ -414,18 +414,77 @@ class SoundDesignService {
     return ambientScenes.includes(sceneType);
   }
 
+  /**
+   * Get stock transition sound from S3
+   *
+   * To enable stock sounds, upload the following files to your S3 bucket:
+   * - stock-sounds/whoosh-soft.mp3
+   * - stock-sounds/whoosh-medium.mp3
+   * - stock-sounds/whoosh-dramatic.mp3
+   *
+   * You can use royalty-free sounds from sources like:
+   * - freesound.org (CC0/CC-BY licensed)
+   * - pixabay.com/sound-effects (Pixabay License)
+   * - mixkit.co/free-sound-effects (free for commercial use)
+   */
   getStockTransitionSound(intensity: 'soft' | 'medium' | 'dramatic'): SoundEffect | undefined {
-    // Stock sounds disabled until files are uploaded to S3
-    // TODO: Upload whoosh-soft.mp3, whoosh-medium.mp3, whoosh-dramatic.mp3 to stock-sounds/
-    console.log(`[SoundDesign] Stock transition sounds not available (${intensity})`);
-    return undefined;
+    const stockSoundBaseUrl = process.env.REMOTION_AWS_BUCKET
+      ? `https://${process.env.REMOTION_AWS_BUCKET}.s3.us-east-1.amazonaws.com/stock-sounds`
+      : `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds`;
+
+    const stockSounds: Record<string, { url: string; volume: number; duration: number }> = {
+      'soft': { url: `${stockSoundBaseUrl}/whoosh-soft.mp3`, volume: 0.4, duration: 0.5 },
+      'medium': { url: `${stockSoundBaseUrl}/whoosh-medium.mp3`, volume: 0.5, duration: 0.6 },
+      'dramatic': { url: `${stockSoundBaseUrl}/whoosh-dramatic.mp3`, volume: 0.6, duration: 0.8 },
+    };
+
+    const sound = stockSounds[intensity];
+    if (!sound) {
+      console.log(`[SoundDesign] Unknown intensity: ${intensity}`);
+      return undefined;
+    }
+
+    console.log(`[SoundDesign] Using stock transition sound: ${intensity} -> ${sound.url}`);
+    return {
+      type: 'whoosh',
+      url: sound.url,
+      duration: sound.duration,
+      volume: sound.volume,
+    };
   }
 
+  /**
+   * Get stock ambient sound from S3
+   *
+   * To enable stock ambient sounds, upload the following files to your S3 bucket:
+   * - stock-sounds/ambient-nature.mp3
+   * - stock-sounds/ambient-wellness.mp3
+   * - stock-sounds/ambient-energy.mp3
+   */
   getStockAmbientSound(type: 'nature' | 'wellness' | 'energy'): SoundEffect | undefined {
-    // Stock sounds disabled until files are uploaded to S3
-    // TODO: Upload ambient-nature.mp3, ambient-wellness.mp3, ambient-energy.mp3 to stock-sounds/
-    console.log(`[SoundDesign] Stock ambient sounds not available (${type})`);
-    return undefined;
+    const stockSoundBaseUrl = process.env.REMOTION_AWS_BUCKET
+      ? `https://${process.env.REMOTION_AWS_BUCKET}.s3.us-east-1.amazonaws.com/stock-sounds`
+      : `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds`;
+
+    const stockSounds: Record<string, { url: string; volume: number }> = {
+      'nature': { url: `${stockSoundBaseUrl}/ambient-nature.mp3`, volume: 0.1 },
+      'wellness': { url: `${stockSoundBaseUrl}/ambient-wellness.mp3`, volume: 0.08 },
+      'energy': { url: `${stockSoundBaseUrl}/ambient-energy.mp3`, volume: 0.12 },
+    };
+
+    const sound = stockSounds[type];
+    if (!sound) {
+      console.log(`[SoundDesign] Unknown ambient type: ${type}`);
+      return undefined;
+    }
+
+    console.log(`[SoundDesign] Using stock ambient sound: ${type} -> ${sound.url}`);
+    return {
+      type: 'ambient',
+      url: sound.url,
+      duration: 30, // Ambient sounds typically loop
+      volume: sound.volume,
+    };
   }
 
   private sleep(ms: number): Promise<void> {
