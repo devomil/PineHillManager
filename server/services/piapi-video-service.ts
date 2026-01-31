@@ -336,7 +336,37 @@ class PiAPIVideoService {
             version: '1.6',
           },
         };
-        
+
+      // Kling 2.6 Motion Control (motion transfer from reference video)
+      case 'kling-2.6-motion-control':
+        console.log(`[PiAPI T2V] Using Kling 2.6 Motion Control (version 2.6, std mode, motion transfer)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'std',
+            version: '2.6',
+            ...motionParams,
+          },
+        };
+
+      // Kling 2.6 Motion Control Pro (premium motion transfer)
+      case 'kling-2.6-motion-control-pro':
+        console.log(`[PiAPI T2V] Using Kling 2.6 Motion Control Pro (version 2.6, pro mode, motion transfer)`);
+        return {
+          ...baseRequest,
+          model: 'kling',
+          task_type: 'video_generation',
+          input: {
+            ...baseRequest.input,
+            mode: 'pro',
+            version: '2.6',
+            ...motionParams,
+          },
+        };
+
       // Luma variants
       case 'luma':
       case 'luma-dream-machine':
@@ -1119,6 +1149,18 @@ class PiAPIVideoService {
         version = '1.6';
         mode = 'std';
         console.log(`[PiAPI I2V] Using Kling Effects (version 1.6, std mode)`);
+      }
+      // Kling 2.6 Motion Control
+      else if (options.model === 'kling-2.6-motion-control') {
+        version = '2.6';
+        mode = 'std';
+        console.log(`[PiAPI I2V] Using Kling 2.6 Motion Control (version 2.6, std mode, motion transfer)`);
+      }
+      // Kling 2.6 Motion Control Pro
+      else if (options.model === 'kling-2.6-motion-control-pro') {
+        version = '2.6';
+        mode = 'pro';
+        console.log(`[PiAPI I2V] Using Kling 2.6 Motion Control Pro (version 2.6, pro mode, motion transfer)`);
       }
       // Default fallback
       else {
