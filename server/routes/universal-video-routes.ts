@@ -2248,7 +2248,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       brandInjectionPlan,
       // Phase 18D: Voiceover ranges for audio ducking
       voiceoverRanges,
-      soundEffectsBaseUrl: process.env.SOUND_EFFECTS_URL || 'https://storage.googleapis.com/pinehillfarm-renders/audio/sfx',
+      soundEffectsBaseUrl: process.env.SOUND_EFFECTS_URL || 'https://remotionlambda-useast2-1vc2l6a56o.s3.us-east-2.amazonaws.com/audio/sfx',
       // Phase 18F: Film treatment config
       filmTreatmentConfig,
     };
