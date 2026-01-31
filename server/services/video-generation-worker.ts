@@ -31,8 +31,13 @@ async function updateSceneMedia(projectId: string, sceneId: string, videoUrl: st
     }
     
     scenes[sceneIndex].background = scenes[sceneIndex].background || {};
+    scenes[sceneIndex].background.videoUrl = videoUrl;
     scenes[sceneIndex].background.mediaUrl = videoUrl;
     scenes[sceneIndex].background.type = 'video';
+    
+    // Also update assets.videoUrl for compatibility
+    scenes[sceneIndex].assets = scenes[sceneIndex].assets || {};
+    scenes[sceneIndex].assets.videoUrl = videoUrl;
     
     await db.update(universalVideoProjects)
       .set({
