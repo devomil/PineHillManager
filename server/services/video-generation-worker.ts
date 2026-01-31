@@ -4,8 +4,50 @@ import { nanoid } from "nanoid";
 import type { VideoGenerationJob } from "@shared/schema";
 import { createLogger } from "../utils/logger";
 import { intelligentRegenerationService } from "./intelligent-regeneration-service";
+import { db } from "../db";
+import { universalVideoProjects } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("VideoWorker");
+
+async function updateSceneMedia(projectId: string, sceneId: string, videoUrl: string): Promise<boolean> {
+  try {
+    const rows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+    
+    if (rows.length === 0) {
+      log.warn(`Project ${projectId} not found when updating scene media`);
+      return false;
+    }
+    
+    const project = rows[0];
+    const scenes = project.scenes as any[];
+    
+    const sceneIndex = scenes.findIndex((s: any) => s.id === sceneId);
+    if (sceneIndex === -1) {
+      log.warn(`Scene ${sceneId} not found in project ${projectId}`);
+      return false;
+    }
+    
+    scenes[sceneIndex].background = scenes[sceneIndex].background || {};
+    scenes[sceneIndex].background.mediaUrl = videoUrl;
+    scenes[sceneIndex].background.type = 'video';
+    
+    await db.update(universalVideoProjects)
+      .set({
+        scenes: scenes,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+    
+    log.info(`Updated scene ${sceneId} media to: ${videoUrl.substring(0, 50)}...`);
+    return true;
+  } catch (error: any) {
+    log.error(`Failed to update scene media for ${sceneId}:`, error.message);
+    return false;
+  }
+}
 
 interface I2VSettings {
   imageControlStrength?: number; // 0-1: how much to preserve source image
@@ -335,6 +377,14 @@ class VideoGenerationWorker {
         });
         this.notifyJobUpdate(completedJob);
         log.debug(` Job ${job.jobId} completed successfully: ${videoUrl}`);
+
+        // Update the scene's media URL with the generated video
+        const sceneUpdated = await updateSceneMedia(job.projectId, job.sceneId, videoUrl);
+        if (sceneUpdated) {
+          log.info(`Scene ${job.sceneId} updated with new video from job ${job.jobId}`);
+        } else {
+          log.warn(`Failed to update scene ${job.sceneId} media - video URL saved to job only`);
+        }
 
         // Record regeneration history for successful video generation
         await intelligentRegenerationService.recordVideoAttempt({
