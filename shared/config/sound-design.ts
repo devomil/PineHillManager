@@ -7,9 +7,9 @@ export interface SoundEffect {
   fallbackUrl?: string;
 }
 
-// Primary S3 bucket for sound effects
+// Primary S3 bucket for sound effects - updated to us-east-1 bucket with stock-sounds folder
 export const SOUND_EFFECTS_BASE_URL = process.env.SOUND_EFFECTS_URL ||
-  'https://remotionlambda-useast2-1vc2l6a56o.s3.us-east-2.amazonaws.com/audio/sfx';
+  'https://remotionlambda-useast1-refjo5giq5.s3.us-east-1.amazonaws.com/stock-sounds';
 
 // Use the same S3 bucket as assets (where voiceover/music are cached)
 export const SOUND_EFFECTS_ASSETS_URL = process.env.REMOTION_AWS_BUCKET
@@ -27,13 +27,13 @@ export function getStockSoundUrl(filename: string): string {
 
 export const SOUND_EFFECTS: Record<string, SoundEffect> = {
   'whoosh-light': {
-    file: 'whoosh-light.mp3',
+    file: 'whoosh-medium.mp3', // Use uploaded medium whoosh
     volume: 0.3,
     duration: 0.5,
     category: 'transition',
   },
   'whoosh-heavy': {
-    file: 'whoosh-heavy.mp3',
+    file: 'whoosh-dramatic.mp3', // Use uploaded dramatic whoosh
     volume: 0.35,
     duration: 0.6,
     category: 'transition',
@@ -45,31 +45,31 @@ export const SOUND_EFFECTS: Record<string, SoundEffect> = {
     category: 'transition',
   },
   'impact-deep': {
-    file: 'impact-deep.mp3',
+    file: 'whoosh-dramatic.mp3', // Fallback to dramatic whoosh until impact sounds uploaded
     volume: 0.4,
     duration: 0.3,
     category: 'impact',
   },
   'impact-soft': {
-    file: 'impact-soft.mp3',
+    file: 'whoosh-soft.mp3', // Fallback to soft whoosh until impact sounds uploaded
     volume: 0.25,
     duration: 0.25,
     category: 'impact',
   },
   'logo-reveal': {
-    file: 'logo-reveal.mp3',
+    file: 'whoosh-dramatic.mp3', // Fallback to dramatic whoosh until logo-reveal uploaded
     volume: 0.5,
     duration: 1.5,
     category: 'impact',
   },
   'rise-swell': {
-    file: 'rise-swell.mp3',
+    file: 'ambient-energy.mp3', // Fallback to ambient energy until rise sounds uploaded
     volume: 0.35,
     duration: 3.0,
     category: 'rise',
   },
   'rise-tension': {
-    file: 'rise-tension.mp3',
+    file: 'ambient-energy.mp3', // Fallback to ambient energy until rise sounds uploaded
     volume: 0.3,
     duration: 2.5,
     category: 'rise',
@@ -80,15 +80,31 @@ export const SOUND_EFFECTS: Record<string, SoundEffect> = {
     category: 'ambient',
   },
   'room-tone-nature': {
-    file: 'room-tone-nature.mp3',
+    file: 'ambient-nature.mp3', // Use uploaded nature ambient
     volume: 0.1,
     category: 'ambient',
   },
   'shimmer': {
-    file: 'shimmer.mp3',
+    file: 'whoosh-soft.mp3', // Fallback to soft whoosh until shimmer uploaded
     volume: 0.2,
     duration: 1.0,
     category: 'transition',
+  },
+  // New ambient sounds from uploaded files
+  'ambient-nature': {
+    file: 'ambient-nature.mp3',
+    volume: 0.08,
+    category: 'ambient',
+  },
+  'ambient-wellness': {
+    file: 'ambient-wellness.mp3',
+    volume: 0.06,
+    category: 'ambient',
+  },
+  'ambient-energy': {
+    file: 'ambient-energy.mp3',
+    volume: 0.08,
+    category: 'ambient',
   },
 };
 
@@ -150,19 +166,19 @@ export interface SoundDesignConfig {
 }
 
 export const DEFAULT_SOUND_DESIGN_CONFIG: SoundDesignConfig = {
-  enabled: false, // Disabled until sound effect files are uploaded to S3
-  transitionSounds: false,
-  impactSounds: false,
-  ambientLayer: false,
+  enabled: true,
+  transitionSounds: true,
+  impactSounds: true,
+  ambientLayer: true,
   ambientType: 'warm',
   masterVolume: 1.0,
 };
 
 export const PINE_HILL_FARM_SOUND_CONFIG: SoundDesignConfig = {
-  enabled: false, // Disabled until sound effect files are uploaded to S3
-  transitionSounds: false,
-  impactSounds: false,
-  ambientLayer: false,
+  enabled: true,
+  transitionSounds: true,
+  impactSounds: true,
+  ambientLayer: true,
   ambientType: 'nature',
   masterVolume: 1.0,
 };
