@@ -3839,12 +3839,26 @@ function ScenePreview({
                       const autoSourceAsset = sceneWorkflow?.matchedAssets?.products?.[0]?.name || 
                                               sceneWorkflow?.matchedAssets?.locations?.[0]?.name;
                       
+                      // Also check for existing scene images that would trigger I2V
+                      const hasExistingImage = scene.brandAssetUrl || scene.assets?.imageUrl;
+                      
                       if (hasMatchedAssets) {
                         return (
                           <div className="flex items-center gap-2 p-2 rounded-lg border bg-purple-50 border-purple-200">
                             <ImageIcon className="w-4 h-4 text-purple-600" />
                             <span className="text-sm text-purple-700">
                               I2V Reference: <strong>{autoSourceAsset}</strong> (auto-matched)
+                            </span>
+                          </div>
+                        );
+                      }
+                      
+                      if (hasExistingImage) {
+                        return (
+                          <div className="flex items-center gap-2 p-2 rounded-lg border bg-teal-50 border-teal-200">
+                            <ImageIcon className="w-4 h-4 text-teal-600" />
+                            <span className="text-sm text-teal-700">
+                              I2V Mode: Using scene image as source
                             </span>
                           </div>
                         );
