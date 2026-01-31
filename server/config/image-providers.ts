@@ -381,27 +381,83 @@ export const IMAGE_PROVIDERS: Record<string, ImageProvider> = {
     name: 'fal.ai',
     version: '1.0',
     apiProvider: 'falai',
-    
+
     capabilities: {
       textToImage: true,
       imageToImage: false,
       inpainting: false,
       outpainting: false,
       upscaling: false,
-      
+
       maxResolution: { width: 1280, height: 720 },
       supportedAspectRatios: ['16:9', '1:1', '4:3'],
-      
+
       strengths: ['people', 'landscapes', 'artistic'],
       weaknesses: ['products'],
     },
-    
+
     costPerImage: 0.02,
     qualityTier: 'standard',
     aestheticScore: 6,
     photorealismScore: 6,
-    
+
     modelId: 'fal-ai/flux/schnell',
+  },
+
+  'stable-diffusion-3': {
+    id: 'stable-diffusion-3',
+    name: 'Stability AI',
+    version: '3.0',
+    apiProvider: 'piapi',
+
+    capabilities: {
+      textToImage: true,
+      imageToImage: true,
+      inpainting: true,
+      outpainting: false,
+      upscaling: false,
+
+      maxResolution: { width: 1024, height: 1024 },
+      supportedAspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+
+      strengths: ['text-rendering', 'artistic', 'consistency'],
+      weaknesses: ['photorealism'],
+    },
+
+    costPerImage: 0.04,
+    qualityTier: 'standard',
+    aestheticScore: 7,
+    photorealismScore: 6,
+
+    modelId: 'sd3',
+  },
+
+  'ideogram': {
+    id: 'ideogram',
+    name: 'Ideogram',
+    version: '2.0',
+    apiProvider: 'piapi',
+
+    capabilities: {
+      textToImage: true,
+      imageToImage: true,
+      inpainting: false,
+      outpainting: false,
+      upscaling: false,
+
+      maxResolution: { width: 1280, height: 1280 },
+      supportedAspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+
+      strengths: ['text-rendering', 'specific-details', 'products'],
+      weaknesses: ['speed'],
+    },
+
+    costPerImage: 0.05,
+    qualityTier: 'premium',
+    aestheticScore: 8,
+    photorealismScore: 7,
+
+    modelId: 'ideogram-v2',
   },
 };
 

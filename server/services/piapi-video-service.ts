@@ -461,8 +461,10 @@ class PiAPIVideoService {
       // Veo 3.0 (Google) - uses veo3 model
       case 'veo':
       case 'veo-3':
+      case 'veo-3.0':
       case 'veo3':
-        console.log(`[PiAPI T2V] Using Veo 3 with motion-enhanced prompt`);
+      case 'veo3.0':
+        console.log(`[PiAPI T2V] Using Veo 3.0 with motion-enhanced prompt`);
         return {
           ...baseRequest,
           model: 'veo3',
@@ -1063,19 +1065,24 @@ class PiAPIVideoService {
     // Wan Family - adds light camera hint
     if (options.model.includes('wan')) {
       const prompt = `${sanitizedPrompt}. Camera: ${cameraHint}`;
-      console.log(`[PiAPI I2V] Wan: Adding light camera hint`);
+
+      // Differentiate between Wan 2.1 and Wan 2.6
+      const isWan21 = options.model.includes('2.1') || options.model === 'wan-2.1';
+      const taskType = isWan21 ? 'wan21-img2video' : 'wan26-img2video';
+
+      console.log(`[PiAPI I2V] ${isWan21 ? 'Wan 2.1' : 'Wan 2.6'}: Using ${taskType}`);
       console.log(`[PiAPI I2V] Prompt: ${prompt}`);
-      
+
       return {
         model: 'Wan',
-        task_type: 'wan26-img2video',
+        task_type: taskType,
         input: {
           prompt: prompt,
           image: options.imageUrl,
           prompt_extend: true,
           shot_type: 'single',
           resolution: '720p',
-          duration: Math.min(options.duration, 5),
+          duration: Math.min(options.duration, isWan21 ? 5 : 8),
           watermark: false,
         },
       };
