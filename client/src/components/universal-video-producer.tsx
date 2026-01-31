@@ -2101,9 +2101,27 @@ function ScenePreview({
                 
                 if (job.status === 'succeeded') {
                   toast({ title: 'Video generated successfully!' });
-                  if (statusData.project) {
-                    onProjectUpdate?.(statusData.project);
+                  
+                  // Force invalidate React Query cache to ensure fresh data
+                  queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+                  
+                  // Fetch fresh project data after cache invalidation
+                  try {
+                    const freshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+                    const freshData = await freshRes.json();
+                    if (freshData.project) {
+                      console.log('[regenerateVideo] Fresh project fetched with updated video:', freshData.project.scenes?.find((s: any) => s.id === sceneId)?.background?.videoUrl);
+                      onProjectUpdate?.(freshData.project);
+                    }
+                  } catch (refreshErr) {
+                    console.error('[regenerateVideo] Failed to fetch fresh project:', refreshErr);
+                    // Fallback to statusData.project
+                    if (statusData.project) {
+                      onProjectUpdate?.(statusData.project);
+                    }
                   }
+                  
                   onSceneUpdate?.();
                   cleanupPolling();
                   return;
