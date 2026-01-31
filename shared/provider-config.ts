@@ -1,4 +1,14 @@
-// shared/provider-config.ts - Phase 13: Unified Provider Registry (17 providers)
+// shared/provider-config.ts - Provider Registry for Selection Logic
+//
+// This file provides simplified provider information for the video-provider-selector.
+// It's used by: video-provider-selector.ts, universal-video-routes.ts, image-provider-selector.ts
+//
+// RELATED FILES:
+// - server/config/video-providers.ts: Detailed provider capabilities (modelId, apiProvider, capabilities object)
+// - server/config/ai-video-providers.ts: API-level configuration for actual PiAPI calls
+//
+// When adding new providers, update BOTH this file AND server/config/video-providers.ts
+// to keep them in sync.
 
 export interface VideoProvider {
   id: string;
@@ -265,7 +275,35 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
       'brand',
     ],
   },
-  
+
+  // Alias for server/config compatibility
+  'luma-dream-machine': {
+    id: 'luma-dream-machine',
+    name: 'luma-dream-machine',
+    displayName: 'Luma Dream Machine',
+    costPerSecond: 0.04,
+    maxDuration: 5,
+    family: 'luma',
+    tier: 'standard',
+    strengths: ['Smooth reveals', 'Product animations', 'Clean transitions'],
+    weaknesses: ['Shorter max duration', 'Less natural for people'],
+    bestFor: ['product-reveal', 'product-shot', 'object-focus', 'reveal-animation'],
+  },
+
+  // Runway Gen-3 (alias for compatibility)
+  'runway-gen3': {
+    id: 'runway-gen3',
+    name: 'runway-gen3',
+    displayName: 'Runway Gen-3 Alpha',
+    costPerSecond: 0.06,
+    maxDuration: 10,
+    family: 'runway',
+    tier: 'premium',
+    strengths: ['Cinematic quality', 'Camera movement', 'Human faces'],
+    weaknesses: ['Higher cost', 'Text in video'],
+    bestFor: ['cinematic', 'dramatic', 'hero-shots', 'hook', 'cta'],
+  },
+
   // Hailuo Family
   hailuo: {
     id: 'hailuo',
@@ -295,6 +333,20 @@ export const VIDEO_PROVIDERS: Record<string, VideoProvider> = {
       'establishing',
       'explanation',
     ],
+  },
+
+  // Alias for server/config compatibility
+  'hailuo-minimax': {
+    id: 'hailuo-minimax',
+    name: 'hailuo-minimax',
+    displayName: 'Hailuo MiniMax',
+    costPerSecond: 0.015,
+    maxDuration: 6,
+    family: 'hailuo',
+    tier: 'budget',
+    strengths: ['Cost effective', 'B-roll', 'Nature scenes', 'Fast generation'],
+    weaknesses: ['Less detailed than premium', 'Simpler motion'],
+    bestFor: ['broll', 'b-roll', 'nature', 'landscape', 'ambient', 'background'],
   },
   
   // Hunyuan
