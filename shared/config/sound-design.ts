@@ -137,19 +137,19 @@ export interface SoundDesignConfig {
 }
 
 export const DEFAULT_SOUND_DESIGN_CONFIG: SoundDesignConfig = {
-  enabled: true,
-  transitionSounds: true,
-  impactSounds: true,
-  ambientLayer: true,
+  enabled: false, // Disabled until sound effect files are uploaded to S3
+  transitionSounds: false,
+  impactSounds: false,
+  ambientLayer: false,
   ambientType: 'warm',
   masterVolume: 1.0,
 };
 
 export const PINE_HILL_FARM_SOUND_CONFIG: SoundDesignConfig = {
-  enabled: true,
-  transitionSounds: true,
-  impactSounds: true,
-  ambientLayer: true,
+  enabled: false, // Disabled until sound effect files are uploaded to S3
+  transitionSounds: false,
+  impactSounds: false,
+  ambientLayer: false,
   ambientType: 'nature',
   masterVolume: 1.0,
 };
