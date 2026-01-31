@@ -2238,33 +2238,85 @@ const AssetValidationSummary: React.FC<{
 }> = ({ scenes, voiceoverUrl, musicUrl }) => {
   // This component logs validation info but doesn't render anything
   React.useEffect(() => {
-    console.log('=== REMOTION ASSET VALIDATION ===');
-    console.log(`Voiceover: ${getAssetStatus(voiceoverUrl)} - ${voiceoverUrl?.substring(0, 60)}`);
-    console.log(`Music: ${getAssetStatus(musicUrl)} - ${musicUrl?.substring(0, 60)}`);
-    
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    console.log('=== REMOTION ASSET VALIDATION (Lambda Compatibility Check) ===');
+
+    // Check voiceover
+    const voiceoverStatus = getAssetStatus(voiceoverUrl);
+    console.log(`Voiceover: ${voiceoverStatus} - ${voiceoverUrl?.substring(0, 60) || 'null'}`);
+    if (voiceoverStatus === 'data-url') {
+      errors.push('AUDIO SRC ERROR: Voiceover is base64 encoded - must be uploaded to S3 first');
+    } else if (voiceoverStatus === 'local-path') {
+      errors.push('AUDIO SRC ERROR: Voiceover uses local path - not accessible from Lambda');
+    } else if (voiceoverStatus === 'missing') {
+      warnings.push('Voiceover URL is missing - video will render without voiceover');
+    }
+
+    // Check music
+    const musicStatus = getAssetStatus(musicUrl);
+    console.log(`Music: ${musicStatus} - ${musicUrl?.substring(0, 60) || 'null'}`);
+    if (musicStatus === 'data-url') {
+      errors.push('AUDIO SRC ERROR: Music is base64 encoded - must be uploaded to S3 first');
+    } else if (musicStatus === 'local-path') {
+      errors.push('AUDIO SRC ERROR: Music uses local path - not accessible from Lambda');
+    } else if (musicStatus === 'missing') {
+      warnings.push('Music URL is missing - video will render without background music');
+    }
+
     const videoScenes = scenes.filter(s => s.background?.type === 'video');
     console.log(`Total scenes: ${scenes.length}, Scenes with video B-roll: ${videoScenes.length}`);
-    
+
     scenes.forEach((scene, i) => {
       const imgUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl;
       const videoUrl = scene.assets?.videoUrl;
       const prodUrl = scene.assets?.productOverlayUrl;
       const bgType = scene.background?.type;
-      
+
       console.log(`Scene ${i} (${scene.type}):`);
       console.log(`  Background type: ${bgType || 'undefined'}`);
-      console.log(`  Image: ${getAssetStatus(imgUrl)}`);
-      console.log(`  Video: ${getAssetStatus(videoUrl)} - ${videoUrl?.substring(0, 60) || 'none'}`);
-      if (prodUrl) {
-        console.log(`  Product: ${getAssetStatus(prodUrl)}`);
+
+      const imgStatus = getAssetStatus(imgUrl);
+      console.log(`  Image: ${imgStatus}`);
+      if (imgStatus === 'data-url') {
+        errors.push(`Scene ${i}: Image is base64 - must upload to S3`);
       }
-      
-      // Log whether video will render
-      const willRenderVideo = getAssetStatus(videoUrl) === 'valid' && bgType === 'video';
+
+      const vidStatus = getAssetStatus(videoUrl);
+      console.log(`  Video: ${vidStatus} - ${videoUrl?.substring(0, 60) || 'none'}`);
+      if (bgType === 'video' && vidStatus !== 'valid') {
+        errors.push(`Scene ${i}: Video B-roll expected but URL is ${vidStatus}`);
+      }
+
+      if (prodUrl) {
+        const prodStatus = getAssetStatus(prodUrl);
+        console.log(`  Product: ${prodStatus}`);
+        if (prodStatus !== 'valid') {
+          warnings.push(`Scene ${i}: Product overlay URL is ${prodStatus}`);
+        }
+      }
+
+      const willRenderVideo = vidStatus === 'valid' && bgType === 'video';
       console.log(`  >>> WILL RENDER VIDEO: ${willRenderVideo}`);
     });
-    
+
     console.log('=================================');
+
+    // Log errors prominently
+    if (errors.length > 0) {
+      console.error('=== REMOTION LAMBDA RENDER ERRORS ===');
+      errors.forEach(e => console.error(`  ❌ ${e}`));
+      console.error('====================================');
+      console.error('FIX: Ensure all audio/video/image URLs are public HTTPS URLs (e.g., S3, CDN)');
+      console.error('     Base64 data URLs and local paths are NOT accessible from Lambda!');
+    }
+
+    if (warnings.length > 0) {
+      console.warn('=== REMOTION RENDER WARNINGS ===');
+      warnings.forEach(w => console.warn(`  ⚠️ ${w}`));
+      console.warn('================================');
+    }
   }, []);
 
   return null;
