@@ -7,11 +7,19 @@ import {
 } from "@remotion/lambda";
 import path from "path";
 
-const REGION: AwsRegion = "us-east-1";
-const DEPLOYED_FUNCTION_NAME = "remotion-render-4-0-410-mem3008mb-disk10240mb-900sec";
-const DEPLOYED_SITE_NAME = "pine-hill-farm-videos";
-const DEPLOYED_BUCKET_NAME = "remotionlambda-useast1-refjo5giq5";
-const DEPLOYED_SERVE_URL = `https://${DEPLOYED_BUCKET_NAME}.s3.${REGION}.amazonaws.com/sites/${DEPLOYED_SITE_NAME}/index.html`;
+// Legacy fallback constants (for backwards compatibility with existing us-east-1 deployment)
+const LEGACY_REGION: AwsRegion = "us-east-1";
+const LEGACY_FUNCTION_NAME = "remotion-render-4-0-410-mem3008mb-disk10240mb-900sec";
+const LEGACY_SITE_NAME = "pine-hill-farm-videos";
+const LEGACY_BUCKET_NAME = "remotionlambda-useast1-refjo5giq5";
+const LEGACY_SERVE_URL = `https://${LEGACY_BUCKET_NAME}.s3.${LEGACY_REGION}.amazonaws.com/sites/${LEGACY_SITE_NAME}/index.html`;
+
+// Phase 18I: Use environment variables with legacy fallback for backwards compatibility
+const getRegion = (): AwsRegion => (process.env.REMOTION_AWS_REGION as AwsRegion) || LEGACY_REGION;
+const getFunctionName = (): string => process.env.REMOTION_FUNCTION_NAME || LEGACY_FUNCTION_NAME;
+const getSiteName = (): string => process.env.REMOTION_SITE_NAME || LEGACY_SITE_NAME;
+const getBucketName = (): string => process.env.REMOTION_S3_BUCKET || LEGACY_BUCKET_NAME;
+const getServeUrl = (): string => process.env.REMOTION_SERVE_URL || LEGACY_SERVE_URL;
 
 interface DeploymentResult {
   functionName: string;
@@ -31,10 +39,40 @@ interface RenderProgress {
   done: boolean;
 }
 
+interface HealthCheckResult {
+  status: 'healthy' | 'unhealthy' | 'error';
+  function?: {
+    name: string;
+    version?: string;
+    memory?: number;
+    timeout?: number;
+    disk?: number;
+  };
+  region: string;
+  serveUrl?: string;
+  bucket?: string;
+  timestamp: string;
+  error?: string;
+  expected?: string;
+  available?: string[];
+}
+
 class RemotionLambdaService {
-  private functionName: string = DEPLOYED_FUNCTION_NAME;
-  private bucketName: string = DEPLOYED_BUCKET_NAME;
-  private serveUrl: string = DEPLOYED_SERVE_URL;
+  private get functionName(): string {
+    return getFunctionName();
+  }
+  
+  private get bucketName(): string {
+    return getBucketName();
+  }
+  
+  private get serveUrl(): string {
+    return getServeUrl();
+  }
+  
+  private get region(): AwsRegion {
+    return getRegion();
+  }
 
   private getAwsCredentials() {
     const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID;
@@ -56,6 +94,56 @@ class RemotionLambdaService {
     }
   }
 
+  async healthCheck(): Promise<HealthCheckResult> {
+    const region = this.region;
+    const functionName = this.functionName;
+    
+    try {
+      this.getAwsCredentials();
+      
+      const functions = await getFunctions({
+        region,
+        compatibleOnly: true,
+      });
+
+      const ourFunction = functions.find(f => f.functionName === functionName);
+
+      if (!ourFunction) {
+        return {
+          status: 'unhealthy',
+          error: 'Lambda function not found',
+          expected: functionName,
+          available: functions.map(f => f.functionName),
+          region,
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      return {
+        status: 'healthy',
+        function: {
+          name: ourFunction.functionName,
+          version: ourFunction.version,
+          memory: ourFunction.memorySizeInMb,
+          timeout: ourFunction.timeoutInSeconds,
+          disk: ourFunction.diskSizeInMb,
+        },
+        region,
+        serveUrl: this.serveUrl,
+        bucket: this.bucketName,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      console.error('[Health] Check failed:', error);
+      return {
+        status: 'error',
+        error: error.message,
+        region,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
   async getDeploymentStatus(): Promise<{
     deployed: boolean;
     functionName: string | null;
@@ -66,12 +154,12 @@ class RemotionLambdaService {
       this.getAwsCredentials();
 
       const functions = await getFunctions({
-        region: REGION,
+        region: this.region,
         compatibleOnly: true,
       });
 
       const existingFunction = functions.find(
-        (f) => f.functionName === DEPLOYED_FUNCTION_NAME
+        (f) => f.functionName === this.functionName
       );
 
       if (existingFunction) {
@@ -122,8 +210,8 @@ class RemotionLambdaService {
       const { serveUrl } = await deploySite({
         bucketName: this.bucketName,
         entryPoint: path.resolve(process.cwd(), "remotion/index.ts"),
-        region: REGION,
-        siteName: DEPLOYED_SITE_NAME,
+        region: this.region,
+        siteName: getSiteName(),
       });
 
       console.log(`[Remotion Lambda] Site redeployed: ${serveUrl}`);
@@ -162,7 +250,7 @@ class RemotionLambdaService {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const result = await renderMediaOnLambda({
-          region: REGION,
+          region: this.region,
           functionName: this.functionName,
           serveUrl: this.serveUrl,
           composition: params.compositionId,
@@ -222,7 +310,7 @@ class RemotionLambdaService {
         renderId,
         bucketName,
         functionName: this.functionName,
-        region: REGION,
+        region: this.region,
       });
 
       return {

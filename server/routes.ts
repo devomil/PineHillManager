@@ -17297,6 +17297,26 @@ Respond in JSON format:
   // REMOTION LAMBDA VIDEO RENDERING
   // ================================
 
+  // Phase 18I: Health check endpoint for Lambda status
+  app.get('/api/render/health', async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      const health = await remotionLambdaService.healthCheck();
+      
+      const statusCode = health.status === 'healthy' ? 200 : 
+                         health.status === 'unhealthy' ? 503 : 500;
+      
+      res.status(statusCode).json(health);
+    } catch (error: any) {
+      console.error('[Health] Check failed:', error);
+      res.status(500).json({
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   // Check Remotion Lambda status
   app.get('/api/remotion/status', isAuthenticated, async (req, res) => {
     try {

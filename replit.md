@@ -88,3 +88,27 @@ Broadcast-quality composition wrapper:
 - `broadcast-1080p`: Standard production (CRF 18)
 - `social-vertical`: Vertical format (CRF 20)
 - `premium-4k`: Ultra HD 3840x2160 (CRF 16)
+
+### Phase 18I: Node.js 22 Lambda Upgrade (January 2026)
+Lambda configuration updated for environment variable-based setup:
+
+**Environment Variables:**
+- `REMOTION_AWS_REGION`: AWS region (default: us-east-2)
+- `REMOTION_FUNCTION_NAME`: Lambda function name
+- `REMOTION_SITE_NAME`: Remotion site name in S3
+- `REMOTION_S3_BUCKET`: S3 bucket name
+- `REMOTION_SERVE_URL`: Full URL to Remotion site bundle
+- `REMOTION_AWS_ACCESS_KEY_ID`: AWS access key
+- `REMOTION_AWS_SECRET_ACCESS_KEY`: AWS secret key
+
+**Health Check Endpoint:**
+`GET /api/render/health` - Returns Lambda function status, memory, timeout, and disk configuration.
+
+**Deployment Commands:**
+```bash
+# Deploy Node.js 22 Lambda
+npx remotion lambda functions deploy --region us-east-2 --memory 10240 --timeout 900 --disk 10240 --architecture arm64 --runtime nodejs22.x
+
+# Redeploy site bundle
+npx remotion lambda sites create --site-name pinehillfarm-video --region us-east-2
+```
