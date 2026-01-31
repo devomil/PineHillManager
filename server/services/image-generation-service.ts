@@ -115,6 +115,7 @@ class ImageGenerationService {
       'flux': 'flux-schnell',
       'gpt-image-1.5': 'gpt-image-1.5',
       'stable-diffusion-3': 'sd3',
+      'ideogram': 'ideogram-v2',
     };
     
     const model = piapiModelMap[providerId] || 'flux-pro';
