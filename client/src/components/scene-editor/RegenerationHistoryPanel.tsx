@@ -99,9 +99,9 @@ export const RegenerationHistoryPanel = ({
     const labels: Record<string, string> = {
       'flux': 'Flux.1',
       'kling-2.0': 'Kling 2.0',
-      'kling-2.6-master': 'Kling Master',
+      'kling-2.6-motion-control-pro': 'Kling Motion Pro',
       'kling-2.6-pro': 'Kling Pro',
-      'kling-2.6-standard': 'Kling Standard',
+      'kling-2.6': 'Kling 2.6',
       'runway': 'Runway',
       'luma': 'Luma',
       'falai': 'fal.ai',

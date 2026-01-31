@@ -39,9 +39,9 @@ const IMAGE_PROVIDERS: ProviderInfo[] = [
 
 const VIDEO_PROVIDERS: ProviderInfo[] = [
   { id: 'kling-2.0', name: 'Kling 2.0', description: 'Native audio, motion control', icon: '🎬', supportsI2I: false, supportsI2V: true, supportsStyle: true },
-  { id: 'kling-2.6-master', name: 'Kling 2.6 Master', description: 'Top quality, cinematic', icon: '👑', supportsI2I: false, supportsI2V: true, supportsStyle: true },
+  { id: 'kling-2.6-motion-control-pro', name: 'Kling 2.6 Motion Pro', description: 'Top quality, cinematic', icon: '👑', supportsI2I: false, supportsI2V: true, supportsStyle: true },
   { id: 'kling-2.6-pro', name: 'Kling 2.6 Pro', description: 'Professional quality', icon: '⭐', supportsI2I: false, supportsI2V: true, supportsStyle: true },
-  { id: 'kling-2.6-standard', name: 'Kling 2.6 Standard', description: 'Fast, cost-effective', icon: '🚀', supportsI2I: false, supportsI2V: true, supportsStyle: false },
+  { id: 'kling-2.6', name: 'Kling 2.6', description: 'Fast, cost-effective', icon: '🚀', supportsI2I: false, supportsI2V: true, supportsStyle: false },
   { id: 'kling-1.6', name: 'Kling 1.6', description: 'Human faces, lifestyle', icon: '🎭', supportsI2I: false, supportsI2V: true, supportsStyle: false },
   { id: 'runway', name: 'Runway Gen-3', description: 'Cinematic, dramatic shots', icon: '🎥', supportsI2I: false, supportsI2V: true, supportsStyle: true },
   { id: 'luma', name: 'Luma Dream Machine', description: 'Product reveals, smooth motion', icon: '✨', supportsI2I: false, supportsI2V: true, supportsStyle: false },

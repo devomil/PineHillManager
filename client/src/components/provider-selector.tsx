@@ -20,8 +20,8 @@ export interface ProviderInfo {
 
 export const VIDEO_PROVIDERS: ProviderInfo[] = [
   {
-    id: 'kling-2.6-master',
-    name: 'Kling 2.6 Master',
+    id: 'kling-2.6-motion-control-pro',
+    name: 'Kling 2.6 Motion Pro',
     description: 'Top quality, cinematic',
     bestFor: ['cinematic', 'dramatic', 'premium'],
     icon: '👑',
@@ -42,8 +42,8 @@ export const VIDEO_PROVIDERS: ProviderInfo[] = [
     supportsStyle: true,
   },
   {
-    id: 'kling-2.6-standard',
-    name: 'Kling 2.6 Standard',
+    id: 'kling-2.6',
+    name: 'Kling 2.6',
     description: 'Fast, cost-effective',
     bestFor: ['fast', 'quick', 'budget'],
     icon: '🚀',
@@ -848,7 +848,7 @@ export function getRecommendedProvider(
       return 'kling';
     }
     if (content.includes('cinematic') || content.includes('dramatic') || content.includes('premium')) {
-      return 'kling-2.6-master';
+      return 'kling-2.6-motion-control-pro';
     }
     if (content.includes('product') || content.includes('reveal')) {
       return 'luma';
