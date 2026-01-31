@@ -439,7 +439,7 @@ class AIVideoService {
       const fallbackProvider = result.fallbackProvider;
       
       // Build provider order: recommended first, then fallback, then other configured providers
-      const providerOrder = [recommendedProvider];
+      const providerOrder: string[] = [recommendedProvider];
       if (fallbackProvider && fallbackProvider !== recommendedProvider && configuredProviders.includes(fallbackProvider)) {
         providerOrder.push(fallbackProvider);
       }
