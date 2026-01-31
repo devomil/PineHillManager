@@ -139,22 +139,31 @@ const STEP_ICONS: Record<string, any> = {
   rendering: Play,
 };
 
-function convertToDisplayUrl(url: string): string {
+function convertToDisplayUrl(url: string, bustCache?: boolean): string {
   if (!url) return '';
   
-  if (url.startsWith('http')) return url;
+  let result = url;
   
-  if (url.startsWith('/objects')) return url;
-  
-  // API URLs (like /api/brand-assets/file/7) should be used as-is
-  if (url.startsWith('/api/')) return url;
-  
-  if (url.startsWith('/replit-objstore-')) {
-    return `/objects${url}`;
+  if (url.startsWith('http')) {
+    result = url;
+  } else if (url.startsWith('/objects')) {
+    result = url;
+  } else if (url.startsWith('/api/')) {
+    result = url;
+  } else if (url.startsWith('/replit-objstore-')) {
+    result = `/objects${url}`;
+  } else {
+    let normalizedPath = url.startsWith('/') ? url : `/${url}`;
+    result = `/objects${normalizedPath}`;
   }
   
-  let normalizedPath = url.startsWith('/') ? url : `/${url}`;
-  return `/objects${normalizedPath}`;
+  // Add cache-busting for video URLs to prevent stale video content
+  if (bustCache && (url.endsWith('.mp4') || url.includes('.mp4'))) {
+    const separator = result.includes('?') ? '&' : '?';
+    result = `${result}${separator}_t=${Date.now()}`;
+  }
+  
+  return result;
 }
 
 function getImageDisplayUrl(image: ProductImage): string {
@@ -2633,8 +2642,8 @@ function ScenePreview({
                 {hasBrollVideo ? (
                   <div className="relative w-full h-full">
                     <video 
-                      key={scene.background!.videoUrl}
-                      src={convertToDisplayUrl(scene.background!.videoUrl!)}
+                      key={`video-card-${scene.id}-${scene.background!.videoUrl}`}
+                      src={convertToDisplayUrl(scene.background!.videoUrl!, true)}
                       className="w-full h-full object-cover"
                       muted
                       playsInline
@@ -2876,8 +2885,8 @@ function ScenePreview({
                     </Label>
                     <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
                       <video 
-                        key={scene.background!.videoUrl}
-                        src={convertToDisplayUrl(scene.background!.videoUrl!)}
+                        key={`video-modal-${scene.id}-${scene.background!.videoUrl}`}
+                        src={convertToDisplayUrl(scene.background!.videoUrl!, true)}
                         className="w-full h-full object-contain i2v-video-fade"
                         controls
                         muted
