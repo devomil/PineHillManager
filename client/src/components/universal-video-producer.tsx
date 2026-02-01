@@ -2106,23 +2106,24 @@ function ScenePreview({
                   queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
                   queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
                   
-                  // Fetch fresh project data and update state directly
+                  // Fetch fresh project data and update parent component state
                   try {
                     const freshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
                     const freshData = await freshRes.json();
                     if (freshData.project) {
                       console.log('[regenerateVideo] Fresh project fetched with updated video:', freshData.project.scenes?.find((s: any) => s.id === sceneId)?.background?.videoUrl);
-                      // Use setProject directly instead of onProjectUpdate callback
-                      setProject(freshData.project);
+                      // Use onProjectUpdate callback to update parent component's project state
+                      onProjectUpdate?.(freshData.project);
                     }
                   } catch (refreshErr) {
                     console.error('[regenerateVideo] Failed to fetch fresh project:', refreshErr);
-                    // Fallback to statusData.project
+                    // Fallback to statusData.project from job status response
                     if (statusData.project) {
-                      setProject(statusData.project);
+                      onProjectUpdate?.(statusData.project);
                     }
                   }
                   
+                  onSceneUpdate?.();
                   cleanupPolling();
                   return;
                 } else if (job.status === 'failed') {
