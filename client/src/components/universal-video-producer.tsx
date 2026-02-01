@@ -2100,6 +2100,7 @@ function ScenePreview({
                 }));
                 
                 if (job.status === 'succeeded') {
+                  console.log('[regenerateVideo] SUCCESS - Job completed, fetching fresh data...');
                   toast({ title: 'Video generated successfully!' });
                   
                   // Force invalidate React Query cache to ensure fresh data
@@ -2108,18 +2109,32 @@ function ScenePreview({
                   
                   // Fetch fresh project data and update parent component state
                   try {
+                    console.log('[regenerateVideo] Fetching fresh project from:', `/api/universal-video/projects/${projectId}`);
                     const freshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+                    console.log('[regenerateVideo] Fresh response status:', freshRes.status);
                     const freshData = await freshRes.json();
+                    console.log('[regenerateVideo] Fresh data received, has project:', !!freshData.project);
                     if (freshData.project) {
-                      console.log('[regenerateVideo] Fresh project fetched with updated video:', freshData.project.scenes?.find((s: any) => s.id === sceneId)?.background?.videoUrl);
+                      const updatedScene = freshData.project.scenes?.find((s: any) => s.id === sceneId);
+                      console.log('[regenerateVideo] Updated scene video URL:', updatedScene?.background?.videoUrl);
+                      console.log('[regenerateVideo] onProjectUpdate available:', !!onProjectUpdate);
                       // Use onProjectUpdate callback to update parent component's project state
-                      onProjectUpdate?.(freshData.project);
+                      if (onProjectUpdate) {
+                        console.log('[regenerateVideo] Calling onProjectUpdate with fresh project...');
+                        onProjectUpdate(freshData.project);
+                        console.log('[regenerateVideo] onProjectUpdate called successfully');
+                      } else {
+                        console.error('[regenerateVideo] ERROR: onProjectUpdate is not defined!');
+                      }
+                    } else {
+                      console.error('[regenerateVideo] ERROR: freshData.project is falsy:', freshData);
                     }
                   } catch (refreshErr) {
                     console.error('[regenerateVideo] Failed to fetch fresh project:', refreshErr);
                     // Fallback to statusData.project from job status response
-                    if (statusData.project) {
-                      onProjectUpdate?.(statusData.project);
+                    if (statusData.project && onProjectUpdate) {
+                      console.log('[regenerateVideo] Using fallback statusData.project');
+                      onProjectUpdate(statusData.project);
                     }
                   }
                   
