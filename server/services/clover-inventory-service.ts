@@ -99,6 +99,7 @@ export class CloverInventoryService {
 
   /**
    * Get current stock count for an item using item_stocks endpoint
+   * Returns 0 if no stock record exists but tracking is enabled, null only if tracking is disabled
    */
   async getStockCount(itemId: string): Promise<number | null> {
     try {
@@ -115,8 +116,20 @@ export class CloverInventoryService {
         }
       }
       
-      // No stock record found - item may not have inventory tracking enabled
-      console.log(`📦 [CLOVER INVENTORY] No stock record found for item ${itemId}`);
+      // No stock record found - check if item has stock tracking enabled at item level
+      console.log(`📦 [CLOVER INVENTORY] No stock record in item_stocks for item ${itemId}, checking item directly...`);
+      
+      try {
+        const itemResponse = await this.makeAPICall(`items/${itemId}`);
+        if (itemResponse && itemResponse.trackingStock === true) {
+          // Stock tracking is enabled but no stock record exists yet - assume 0 stock
+          console.log(`📦 [CLOVER INVENTORY] Item ${itemId} has trackingStock=true, assuming 0 stock`);
+          return 0;
+        }
+      } catch (itemError) {
+        console.log(`📦 [CLOVER INVENTORY] Could not check item trackingStock property`);
+      }
+      
       return null;
     } catch (error) {
       console.error(`❌ [CLOVER INVENTORY] Error getting stock count for item ${itemId}:`, error);
