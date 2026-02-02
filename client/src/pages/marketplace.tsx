@@ -318,7 +318,8 @@ export default function MarketplacePage() {
 
   const cloverInventorySyncMutation = useMutation({
     mutationFn: async (orderId: number) => {
-      return apiRequest('POST', `/api/marketplace/orders/${orderId}/adjust-clover-inventory`, {});
+      const response = await apiRequest('POST', `/api/marketplace/orders/${orderId}/adjust-clover-inventory`, {});
+      return response.json();
     },
     onSuccess: (data: any) => {
       const results = data.results || [];
