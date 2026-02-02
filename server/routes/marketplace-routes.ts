@@ -2314,69 +2314,89 @@ router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin
     
     console.log(`📦 [Manual Inventory] Using Clover merchant: ${activeCloverConfig.merchantId}`);
     
-    // Look up SKU mappings from the SKU Manager
+    // Look up SKU mappings from the SKU Manager (including merchant ID)
     const bcSkus = itemsWithSku.map((item: any) => item.sku);
     const skuMappings = await db.select({
       sku: bigcommerceProductMappings.sku,
       cloverSku: bigcommerceProductMappings.cloverSku,
+      cloverMerchantId: bigcommerceProductMappings.cloverMerchantId,
     })
     .from(bigcommerceProductMappings)
     .where(inArray(bigcommerceProductMappings.sku, bcSkus));
     
-    // Build a map of BC SKU -> Clover SKU
-    const skuMappingMap = new Map<string, string>();
+    // Build a map of BC SKU -> { cloverSku, merchantId }
+    const skuMappingMap = new Map<string, { cloverSku: string; merchantId: string | null }>();
     for (const mapping of skuMappings) {
       if (mapping.cloverSku) {
-        skuMappingMap.set(mapping.sku, mapping.cloverSku);
-        console.log(`📦 [Manual Inventory] SKU mapping: ${mapping.sku} → ${mapping.cloverSku}`);
+        skuMappingMap.set(mapping.sku, {
+          cloverSku: mapping.cloverSku,
+          merchantId: mapping.cloverMerchantId,
+        });
+        console.log(`📦 [Manual Inventory] SKU mapping: ${mapping.sku} → ${mapping.cloverSku} (merchant: ${mapping.cloverMerchantId || 'default'})`);
       }
     }
     
     console.log(`📦 [Manual Inventory] Found ${skuMappingMap.size} SKU mappings out of ${bcSkus.length} items`);
     
-    const cloverInventoryService = new CloverInventoryService();
-    await cloverInventoryService.initialize(activeCloverConfig.merchantId);
+    // Group items by target merchant
+    const defaultMerchantId = activeCloverConfig.merchantId;
+    const itemsByMerchant = new Map<string, { sku: string; originalSku: string; quantity: number; itemName: string }[]>();
     
-    // Use mapped Clover SKU if available, otherwise use original BC SKU
-    const deductionItems = itemsWithSku.map((item: any) => {
+    for (const item of itemsWithSku as { sku: string; quantity: number; name: string }[]) {
       const bcSku = item.sku;
-      const cloverSku = skuMappingMap.get(bcSku) || bcSku;
-      return {
+      const mapping = skuMappingMap.get(bcSku);
+      const cloverSku = mapping?.cloverSku || bcSku;
+      const merchantId = mapping?.merchantId || defaultMerchantId;
+      
+      if (!itemsByMerchant.has(merchantId)) {
+        itemsByMerchant.set(merchantId, []);
+      }
+      itemsByMerchant.get(merchantId)!.push({
         sku: cloverSku,
         originalSku: bcSku,
         quantity: item.quantity || 1,
         itemName: item.name,
-      };
-    });
+      });
+    }
     
-    console.log(`📦 [Manual Inventory] Deduction items:`, JSON.stringify(deductionItems));
+    console.log(`📦 [Manual Inventory] Items grouped by ${itemsByMerchant.size} merchant(s)`);
     
-    const result = await cloverInventoryService.batchDeductStock(deductionItems);
-    console.log(`📦 [Manual Inventory] Batch deduct result:`, JSON.stringify(result));
-    
-    // Enrich results with original BC SKU for better error messages
-    const enrichedResults = result.results.map((r: any, index: number) => ({
-      ...r,
-      bcSku: deductionItems[index]?.originalSku || r.sku,
-      cloverSku: deductionItems[index]?.sku || r.sku,
-      wasMapped: deductionItems[index]?.originalSku !== deductionItems[index]?.sku,
-    }));
+    // Process each merchant's items
+    const allResults: any[] = [];
+    for (const [merchantId, deductionItems] of Array.from(itemsByMerchant.entries())) {
+      console.log(`📦 [Manual Inventory] Processing ${deductionItems.length} items for merchant: ${merchantId}`);
+      
+      const cloverInventoryService = new CloverInventoryService();
+      await cloverInventoryService.initialize(merchantId);
+      
+      console.log(`📦 [Manual Inventory] Deduction items for ${merchantId}:`, JSON.stringify(deductionItems));
+      
+      const result = await cloverInventoryService.batchDeductStock(deductionItems);
+      console.log(`📦 [Manual Inventory] Batch deduct result for ${merchantId}:`, JSON.stringify(result));
+      
+      allResults.push(...result.results.map((r: any, index: number) => ({
+        ...r,
+        merchantId,
+        bcSku: deductionItems[index]?.originalSku || r.sku,
+        cloverSku: deductionItems[index]?.sku || r.sku,
+        wasMapped: deductionItems[index]?.originalSku !== deductionItems[index]?.sku,
+      })));
+    }
     
     console.log(`📦 [Manual Inventory] Adjustment complete:`, {
-      success: result.success,
-      itemsProcessed: enrichedResults.length,
-      successful: enrichedResults.filter((r: any) => r.success).length,
-      failed: enrichedResults.filter((r: any) => !r.success).length,
+      itemsProcessed: allResults.length,
+      successful: allResults.filter((r: any) => r.success).length,
+      failed: allResults.filter((r: any) => !r.success).length,
     });
     
     res.json({
       message: 'Clover inventory adjustment complete',
       orderId,
-      results: enrichedResults,
+      results: allResults,
       summary: {
-        total: enrichedResults.length,
-        successful: enrichedResults.filter((r: any) => r.success).length,
-        failed: enrichedResults.filter((r: any) => !r.success).length,
+        total: allResults.length,
+        successful: allResults.filter((r: any) => r.success).length,
+        failed: allResults.filter((r: any) => !r.success).length,
       }
     });
   } catch (error: any) {

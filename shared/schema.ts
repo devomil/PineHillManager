@@ -6148,6 +6148,7 @@ export const bigcommerceProductMappings = pgTable("bigcommerce_product_mappings"
   inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
   sku: varchar("sku").notNull(), // BigCommerce variant SKU
   cloverSku: varchar("clover_sku"), // Manual override: Clover SKU to match for inventory lookup
+  cloverMerchantId: varchar("clover_merchant_id", { length: 50 }), // Optional: Target specific Clover merchant for this product
   bigcommerceProductId: integer("bigcommerce_product_id").notNull(),
   bigcommerceVariantId: integer("bigcommerce_variant_id"),
   productName: varchar("product_name"),
