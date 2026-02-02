@@ -98,12 +98,26 @@ export class CloverInventoryService {
   }
 
   /**
-   * Get current stock count for an item
+   * Get current stock count for an item using item_stocks endpoint
    */
   async getStockCount(itemId: string): Promise<number | null> {
     try {
-      const response = await this.makeAPICall(`items/${itemId}`);
-      return response.stockCount ?? null;
+      // Clover uses item_stocks endpoint for inventory tracking
+      const response = await this.makeAPICall('item_stocks?limit=1000');
+      
+      if (response && response.elements) {
+        // Find the stock data for this specific item
+        const itemStock = response.elements.find((stock: any) => stock.item?.id === itemId);
+        
+        if (itemStock) {
+          console.log(`📊 [CLOVER INVENTORY] Found stock for item ${itemId}: ${itemStock.quantity} units`);
+          return itemStock.quantity ?? 0;
+        }
+      }
+      
+      // No stock record found - item may not have inventory tracking enabled
+      console.log(`📦 [CLOVER INVENTORY] No stock record found for item ${itemId}`);
+      return null;
     } catch (error) {
       console.error(`❌ [CLOVER INVENTORY] Error getting stock count for item ${itemId}:`, error);
       throw error;
@@ -111,12 +125,14 @@ export class CloverInventoryService {
   }
 
   /**
-   * Update stock count for an item
+   * Update stock count for an item using item_stocks endpoint
    */
   async updateStockCount(itemId: string, newStockCount: number): Promise<void> {
     try {
-      await this.makeAPICall(`items/${itemId}`, 'POST', {
-        stockCount: newStockCount
+      // Clover requires item_stocks endpoint for stock updates
+      await this.makeAPICall(`item_stocks/${itemId}`, 'POST', {
+        item: { id: itemId },
+        quantity: newStockCount
       });
       
       console.log(`✅ [CLOVER INVENTORY] Updated stock count for item ${itemId} to ${newStockCount}`);
