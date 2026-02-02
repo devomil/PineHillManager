@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { isAuthenticated, requireAdmin, requireRole } from '../auth';
 import { db } from '../db';
+import { storage } from '../storage';
 import { sql } from 'drizzle-orm';
 import { BigCommerceIntegration } from '../integrations/bigcommerce';
 import { AmazonIntegration } from '../integrations/amazon';
@@ -935,30 +936,38 @@ router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Re
       
       if (itemsWithSku.length > 0) {
         console.log(`📦 [Marketplace] Adjusting Clover inventory for ${itemsWithSku.length} items`);
-        const cloverInventoryService = new CloverInventoryService();
         
-        const deductionItems = itemsWithSku.map((item) => ({
-          sku: item.dbItem.sku,
-          quantity: item.quantity,
-          itemName: item.dbItem.name,
-        }));
+        // Get active Clover configuration to initialize the inventory service
+        const activeCloverConfig = await storage.getActiveCloverConfig();
+        if (!activeCloverConfig) {
+          console.warn('⚠️ [Marketplace] No active Clover configuration found, skipping inventory adjustment');
+        } else {
+          const cloverInventoryService = new CloverInventoryService();
+          await cloverInventoryService.initialize(activeCloverConfig.merchantId);
         
-        const result = await cloverInventoryService.batchDeductStock(deductionItems);
-        inventoryAdjustmentResults.push(...result.results);
+          const deductionItems = itemsWithSku.map((item) => ({
+            sku: item.dbItem.sku,
+            quantity: item.quantity,
+            itemName: item.dbItem.name,
+          }));
         
-        console.log(`📦 [Marketplace] Inventory adjustment complete:`, {
-          success: result.success,
-          itemsProcessed: result.results.length,
-          successful: result.results.filter(r => r.success).length,
-          failed: result.results.filter(r => !r.success).length,
-        });
+          const result = await cloverInventoryService.batchDeductStock(deductionItems);
+          inventoryAdjustmentResults.push(...result.results);
+        
+          console.log(`📦 [Marketplace] Inventory adjustment complete:`, {
+            success: result.success,
+            itemsProcessed: result.results.length,
+            successful: result.results.filter(r => r.success).length,
+            failed: result.results.filter(r => !r.success).length,
+          });
 
-        // Update fulfillment record with inventory adjustment results
-        await db.execute(sql`
-          UPDATE marketplace_fulfillments 
-          SET notes = COALESCE(notes, '') || ${`\nInventory adjusted: ${result.results.filter(r => r.success).length}/${result.results.length} items`}
-          WHERE id = ${fulfillment.id}
-        `);
+          // Update fulfillment record with inventory adjustment results
+          await db.execute(sql`
+            UPDATE marketplace_fulfillments 
+            SET notes = COALESCE(notes, '') || ${`\nInventory adjusted: ${result.results.filter(r => r.success).length}/${result.results.length} items`}
+            WHERE id = ${fulfillment.id}
+          `);
+        }
       }
     } catch (inventoryError) {
       console.error('Error adjusting Clover inventory:', inventoryError);
