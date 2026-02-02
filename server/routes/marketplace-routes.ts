@@ -2255,6 +2255,7 @@ router.get('/shippo/backfill/preview', isAuthenticated, requireAdmin, async (req
 router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin, async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.id);
+    console.log(`📦 [Manual Inventory] Starting adjustment for order ${orderId}`);
     
     // Get order items
     const itemsResult = await db.execute(sql`
@@ -2263,11 +2264,15 @@ router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin
       WHERE oi.order_id = ${orderId}
     `);
     
+    console.log(`📦 [Manual Inventory] Found ${itemsResult.rows.length} items in database`);
+    console.log(`📦 [Manual Inventory] Items:`, JSON.stringify(itemsResult.rows));
+    
     if (itemsResult.rows.length === 0) {
       return res.status(404).json({ error: 'No items found for this order' });
     }
     
     const itemsWithSku = itemsResult.rows.filter((item: any) => item.sku);
+    console.log(`📦 [Manual Inventory] Items with SKU: ${itemsWithSku.length}`);
     
     if (itemsWithSku.length === 0) {
       return res.status(400).json({ error: 'No items with SKUs found for this order' });
@@ -2279,7 +2284,7 @@ router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin
       return res.status(400).json({ error: 'No active Clover configuration found' });
     }
     
-    console.log(`📦 [Manual Inventory] Adjusting Clover inventory for order ${orderId}`);
+    console.log(`📦 [Manual Inventory] Using Clover merchant: ${activeCloverConfig.merchantId}`);
     
     const cloverInventoryService = new CloverInventoryService();
     await cloverInventoryService.initialize(activeCloverConfig.merchantId);
@@ -2290,7 +2295,10 @@ router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin
       itemName: item.name,
     }));
     
+    console.log(`📦 [Manual Inventory] Deduction items:`, JSON.stringify(deductionItems));
+    
     const result = await cloverInventoryService.batchDeductStock(deductionItems);
+    console.log(`📦 [Manual Inventory] Batch deduct result:`, JSON.stringify(result));
     
     console.log(`📦 [Manual Inventory] Adjustment complete:`, {
       success: result.success,
