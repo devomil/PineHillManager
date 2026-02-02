@@ -2251,4 +2251,68 @@ router.get('/shippo/backfill/preview', isAuthenticated, requireAdmin, async (req
   }
 });
 
+// Manual Clover inventory adjustment for specific order
+router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    
+    // Get order items
+    const itemsResult = await db.execute(sql`
+      SELECT oi.id, oi.sku, oi.name, oi.quantity, oi.quantity_fulfilled
+      FROM marketplace_order_items oi
+      WHERE oi.order_id = ${orderId}
+    `);
+    
+    if (itemsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No items found for this order' });
+    }
+    
+    const itemsWithSku = itemsResult.rows.filter((item: any) => item.sku);
+    
+    if (itemsWithSku.length === 0) {
+      return res.status(400).json({ error: 'No items with SKUs found for this order' });
+    }
+    
+    // Get active Clover configuration
+    const activeCloverConfig = await storage.getActiveCloverConfig();
+    if (!activeCloverConfig) {
+      return res.status(400).json({ error: 'No active Clover configuration found' });
+    }
+    
+    console.log(`📦 [Manual Inventory] Adjusting Clover inventory for order ${orderId}`);
+    
+    const cloverInventoryService = new CloverInventoryService();
+    await cloverInventoryService.initialize(activeCloverConfig.merchantId);
+    
+    const deductionItems = itemsWithSku.map((item: any) => ({
+      sku: item.sku,
+      quantity: item.quantity || 1,
+      itemName: item.name,
+    }));
+    
+    const result = await cloverInventoryService.batchDeductStock(deductionItems);
+    
+    console.log(`📦 [Manual Inventory] Adjustment complete:`, {
+      success: result.success,
+      itemsProcessed: result.results.length,
+      successful: result.results.filter(r => r.success).length,
+      failed: result.results.filter(r => !r.success).length,
+    });
+    
+    res.json({
+      message: 'Clover inventory adjustment complete',
+      orderId,
+      results: result.results,
+      summary: {
+        total: result.results.length,
+        successful: result.results.filter(r => r.success).length,
+        failed: result.results.filter(r => !r.success).length,
+      }
+    });
+  } catch (error: any) {
+    console.error('Error adjusting Clover inventory:', error);
+    res.status(500).json({ error: 'Failed to adjust Clover inventory', details: error?.message });
+  }
+});
+
 export default router;

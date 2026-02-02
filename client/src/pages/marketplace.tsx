@@ -316,6 +316,21 @@ export default function MarketplacePage() {
     },
   });
 
+  const cloverInventorySyncMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      return apiRequest('POST', `/api/marketplace/orders/${orderId}/adjust-clover-inventory`, {});
+    },
+    onSuccess: (data: any) => {
+      toast({ 
+        title: 'Clover inventory synced', 
+        description: `Successfully adjusted ${data.summary?.successful || 0} of ${data.summary?.total || 0} items in Clover.` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Inventory sync failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const orders = ordersData?.orders || [];
   const filteredOrders = orders.filter(order => {
     if (searchQuery) {
@@ -1225,10 +1240,25 @@ export default function MarketplacePage() {
                 </div>
               );
             })()}
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={() => setViewOrderDialogOpen(false)} data-testid="button-close-order-view">
                 Close
               </Button>
+              {selectedOrder && ['shipped', 'completed', 'fulfilled'].includes((selectedOrder.status || '').toLowerCase()) && (
+                <Button
+                  variant="secondary"
+                  onClick={() => cloverInventorySyncMutation.mutate(selectedOrder.id)}
+                  disabled={cloverInventorySyncMutation.isPending}
+                  data-testid="button-sync-clover-inventory"
+                >
+                  {cloverInventorySyncMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Package className="h-4 w-4 mr-2" />
+                  )}
+                  Sync to Clover
+                </Button>
+              )}
               {selectedOrder && !['shipped', 'completed'].includes((selectedOrder.status || '').toLowerCase()) && (
                 <Button
                   onClick={() => {
