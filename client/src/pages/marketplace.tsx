@@ -321,10 +321,43 @@ export default function MarketplacePage() {
       return apiRequest('POST', `/api/marketplace/orders/${orderId}/adjust-clover-inventory`, {});
     },
     onSuccess: (data: any) => {
-      toast({ 
-        title: 'Clover inventory synced', 
-        description: `Successfully adjusted ${data.summary?.successful || 0} of ${data.summary?.total || 0} items in Clover.` 
-      });
+      const results = data.results || [];
+      const successful = data.summary?.successful || 0;
+      const failed = data.summary?.failed || 0;
+      
+      if (failed === 0 && successful > 0) {
+        const successItems = results.filter((r: any) => r.success).map((r: any) => 
+          `${r.itemName || r.bcSku}: -${r.quantity}`
+        ).join(', ');
+        toast({ 
+          title: 'Clover inventory synced', 
+          description: `Adjusted ${successful} item${successful > 1 ? 's' : ''}: ${successItems}` 
+        });
+      } else if (failed > 0 && successful > 0) {
+        const failedItems = results.filter((r: any) => !r.success).map((r: any) => 
+          `${r.itemName || r.bcSku}: ${r.error}`
+        ).join('; ');
+        toast({ 
+          title: 'Partial sync complete', 
+          description: `${successful} succeeded, ${failed} failed. Failures: ${failedItems}`,
+          variant: 'destructive'
+        });
+      } else if (failed > 0 && successful === 0) {
+        const failedItems = results.filter((r: any) => !r.success).map((r: any) => {
+          const skuInfo = r.wasMapped ? `${r.bcSku} → ${r.cloverSku}` : r.bcSku;
+          return `${r.itemName || skuInfo}: ${r.error}`;
+        }).join('; ');
+        toast({ 
+          title: 'Clover inventory sync failed', 
+          description: `All ${failed} item${failed > 1 ? 's' : ''} failed: ${failedItems}`,
+          variant: 'destructive'
+        });
+      } else {
+        toast({ 
+          title: 'No items to sync', 
+          description: 'No items with SKUs found for this order.' 
+        });
+      }
     },
     onError: (error: any) => {
       toast({ title: 'Inventory sync failed', description: error.message, variant: 'destructive' });

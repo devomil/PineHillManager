@@ -2,13 +2,14 @@ import { Router, Request, Response } from 'express';
 import { isAuthenticated, requireAdmin, requireRole } from '../auth';
 import { db } from '../db';
 import { storage } from '../storage';
-import { sql } from 'drizzle-orm';
+import { sql, eq, inArray } from 'drizzle-orm';
 import { BigCommerceIntegration } from '../integrations/bigcommerce';
 import { AmazonIntegration } from '../integrations/amazon';
 import { shippoIntegration } from '../integrations/shippo';
 import { CloverInventoryService } from '../services/clover-inventory-service';
 import { marketplaceSyncScheduler } from '../services/marketplace-sync-scheduler';
 import { z } from 'zod';
+import { bigcommerceProductMappings } from '@shared/schema';
 
 const router = Router();
 const bigCommerce = new BigCommerceIntegration();
@@ -942,14 +943,40 @@ router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Re
         if (!activeCloverConfig) {
           console.warn('⚠️ [Marketplace] No active Clover configuration found, skipping inventory adjustment');
         } else {
+          // Look up SKU mappings from the SKU Manager
+          const bcSkus = itemsWithSku.map((item) => item.dbItem.sku);
+          const skuMappings = await db.select({
+            sku: bigcommerceProductMappings.sku,
+            cloverSku: bigcommerceProductMappings.cloverSku,
+          })
+          .from(bigcommerceProductMappings)
+          .where(inArray(bigcommerceProductMappings.sku, bcSkus));
+          
+          // Build a map of BC SKU -> Clover SKU
+          const skuMappingMap = new Map<string, string>();
+          for (const mapping of skuMappings) {
+            if (mapping.cloverSku) {
+              skuMappingMap.set(mapping.sku, mapping.cloverSku);
+              console.log(`📦 [Marketplace] SKU mapping: ${mapping.sku} → ${mapping.cloverSku}`);
+            }
+          }
+          
+          console.log(`📦 [Marketplace] Found ${skuMappingMap.size} SKU mappings out of ${bcSkus.length} items`);
+          
           const cloverInventoryService = new CloverInventoryService();
           await cloverInventoryService.initialize(activeCloverConfig.merchantId);
         
-          const deductionItems = itemsWithSku.map((item) => ({
-            sku: item.dbItem.sku,
-            quantity: item.quantity,
-            itemName: item.dbItem.name,
-          }));
+          // Use mapped Clover SKU if available, otherwise use original BC SKU
+          const deductionItems = itemsWithSku.map((item) => {
+            const bcSku = item.dbItem.sku;
+            const cloverSku = skuMappingMap.get(bcSku) || bcSku;
+            return {
+              sku: cloverSku,
+              originalSku: bcSku,
+              quantity: item.quantity,
+              itemName: item.dbItem.name,
+            };
+          });
         
           const result = await cloverInventoryService.batchDeductStock(deductionItems);
           inventoryAdjustmentResults.push(...result.results);
@@ -962,9 +989,10 @@ router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Re
           });
 
           // Update fulfillment record with inventory adjustment results
+          const mappedCount = deductionItems.filter(i => i.originalSku !== i.sku).length;
           await db.execute(sql`
             UPDATE marketplace_fulfillments 
-            SET notes = COALESCE(notes, '') || ${`\nInventory adjusted: ${result.results.filter(r => r.success).length}/${result.results.length} items`}
+            SET notes = COALESCE(notes, '') || ${`\nInventory adjusted: ${result.results.filter(r => r.success).length}/${result.results.length} items (${mappedCount} SKU mapped)`}
             WHERE id = ${fulfillment.id}
           `);
         }
@@ -2286,35 +2314,69 @@ router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin
     
     console.log(`📦 [Manual Inventory] Using Clover merchant: ${activeCloverConfig.merchantId}`);
     
+    // Look up SKU mappings from the SKU Manager
+    const bcSkus = itemsWithSku.map((item: any) => item.sku);
+    const skuMappings = await db.select({
+      sku: bigcommerceProductMappings.sku,
+      cloverSku: bigcommerceProductMappings.cloverSku,
+    })
+    .from(bigcommerceProductMappings)
+    .where(inArray(bigcommerceProductMappings.sku, bcSkus));
+    
+    // Build a map of BC SKU -> Clover SKU
+    const skuMappingMap = new Map<string, string>();
+    for (const mapping of skuMappings) {
+      if (mapping.cloverSku) {
+        skuMappingMap.set(mapping.sku, mapping.cloverSku);
+        console.log(`📦 [Manual Inventory] SKU mapping: ${mapping.sku} → ${mapping.cloverSku}`);
+      }
+    }
+    
+    console.log(`📦 [Manual Inventory] Found ${skuMappingMap.size} SKU mappings out of ${bcSkus.length} items`);
+    
     const cloverInventoryService = new CloverInventoryService();
     await cloverInventoryService.initialize(activeCloverConfig.merchantId);
     
-    const deductionItems = itemsWithSku.map((item: any) => ({
-      sku: item.sku,
-      quantity: item.quantity || 1,
-      itemName: item.name,
-    }));
+    // Use mapped Clover SKU if available, otherwise use original BC SKU
+    const deductionItems = itemsWithSku.map((item: any) => {
+      const bcSku = item.sku;
+      const cloverSku = skuMappingMap.get(bcSku) || bcSku;
+      return {
+        sku: cloverSku,
+        originalSku: bcSku,
+        quantity: item.quantity || 1,
+        itemName: item.name,
+      };
+    });
     
     console.log(`📦 [Manual Inventory] Deduction items:`, JSON.stringify(deductionItems));
     
     const result = await cloverInventoryService.batchDeductStock(deductionItems);
     console.log(`📦 [Manual Inventory] Batch deduct result:`, JSON.stringify(result));
     
+    // Enrich results with original BC SKU for better error messages
+    const enrichedResults = result.results.map((r: any, index: number) => ({
+      ...r,
+      bcSku: deductionItems[index]?.originalSku || r.sku,
+      cloverSku: deductionItems[index]?.sku || r.sku,
+      wasMapped: deductionItems[index]?.originalSku !== deductionItems[index]?.sku,
+    }));
+    
     console.log(`📦 [Manual Inventory] Adjustment complete:`, {
       success: result.success,
-      itemsProcessed: result.results.length,
-      successful: result.results.filter(r => r.success).length,
-      failed: result.results.filter(r => !r.success).length,
+      itemsProcessed: enrichedResults.length,
+      successful: enrichedResults.filter((r: any) => r.success).length,
+      failed: enrichedResults.filter((r: any) => !r.success).length,
     });
     
     res.json({
       message: 'Clover inventory adjustment complete',
       orderId,
-      results: result.results,
+      results: enrichedResults,
       summary: {
-        total: result.results.length,
-        successful: result.results.filter(r => r.success).length,
-        failed: result.results.filter(r => !r.success).length,
+        total: enrichedResults.length,
+        successful: enrichedResults.filter((r: any) => r.success).length,
+        failed: enrichedResults.filter((r: any) => !r.success).length,
       }
     });
   } catch (error: any) {
