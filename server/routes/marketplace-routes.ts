@@ -2374,6 +2374,24 @@ router.post('/orders/:id/adjust-clover-inventory', isAuthenticated, requireAdmin
       const result = await cloverInventoryService.batchDeductStock(deductionItems);
       console.log(`📦 [Manual Inventory] Batch deduct result for ${merchantId}:`, JSON.stringify(result));
       
+      // Update local inventory_items table for successful deductions
+      for (const deductResult of result.results) {
+        if (deductResult.success && deductResult.newStockCount !== undefined) {
+          const deductItem = deductionItems.find(d => d.sku === deductResult.sku);
+          if (deductItem) {
+            // Update our local database to match Clover's new stock count
+            await db.execute(sql`
+              UPDATE inventory_items 
+              SET quantity_on_hand = ${deductResult.newStockCount}::decimal,
+                  last_sync_at = NOW()
+              WHERE sku = ${deductItem.sku} 
+                AND clover_merchant_id = ${merchantId}
+            `);
+            console.log(`📦 [Manual Inventory] Updated local inventory for SKU ${deductItem.sku} to ${deductResult.newStockCount}`);
+          }
+        }
+      }
+      
       allResults.push(...result.results.map((r: any, index: number) => ({
         ...r,
         merchantId,
