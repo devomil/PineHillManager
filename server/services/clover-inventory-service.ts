@@ -98,26 +98,42 @@ export class CloverInventoryService {
   }
 
   /**
-   * Get current stock count for an item using item_stocks endpoint
+   * Get current stock count for an item using item_stocks endpoint with pagination
    * Returns 0 if no stock record exists but tracking is enabled, null only if tracking is disabled
    */
   async getStockCount(itemId: string): Promise<number | null> {
     try {
-      // Clover uses item_stocks endpoint for inventory tracking
-      const response = await this.makeAPICall('item_stocks?limit=1000');
+      // Paginate through all stock records to find this item
+      let offset = 0;
+      const limit = 1000;
+      let hasMoreData = true;
       
-      if (response && response.elements) {
-        // Find the stock data for this specific item
-        const itemStock = response.elements.find((stock: any) => stock.item?.id === itemId);
+      while (hasMoreData) {
+        const response = await this.makeAPICall(`item_stocks?limit=${limit}&offset=${offset}&expand=item`);
         
-        if (itemStock) {
-          console.log(`📊 [CLOVER INVENTORY] Found stock for item ${itemId}: ${itemStock.quantity} units`);
-          return itemStock.quantity ?? 0;
+        if (response && response.elements && response.elements.length > 0) {
+          // Find the stock data for this specific item
+          const itemStock = response.elements.find((stock: any) => stock.item?.id === itemId);
+          
+          if (itemStock) {
+            console.log(`📊 [CLOVER INVENTORY] Found stock for item ${itemId}: ${itemStock.quantity} units (offset ${offset})`);
+            return itemStock.quantity ?? 0;
+          }
+          
+          // Check if there's more data
+          if (response.elements.length < limit) {
+            hasMoreData = false;
+          } else {
+            offset += limit;
+            console.log(`📦 [CLOVER INVENTORY] Item ${itemId} not in first ${offset} stock records, checking next batch...`);
+          }
+        } else {
+          hasMoreData = false;
         }
       }
       
       // No stock record found - check if item has stock tracking enabled at item level
-      console.log(`📦 [CLOVER INVENTORY] No stock record in item_stocks for item ${itemId}, checking item directly...`);
+      console.log(`📦 [CLOVER INVENTORY] No stock record in item_stocks for item ${itemId} after searching all ${offset} records, checking item directly...`);
       
       try {
         const itemResponse = await this.makeAPICall(`items/${itemId}`);
