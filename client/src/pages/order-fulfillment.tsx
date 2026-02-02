@@ -27,7 +27,10 @@ import {
   AlertCircle,
   ExternalLink,
   MessageSquare,
-  Tag
+  Tag,
+  Printer,
+  FileText,
+  Eye
 } from 'lucide-react';
 import { useRoute, useLocation } from 'wouter';
 import { format, addDays } from 'date-fns';
@@ -879,6 +882,91 @@ export default function OrderFulfillmentPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {/* Shipping Labels Card - Show when order has fulfillments */}
+            {order.fulfillments && order.fulfillments.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Shipping Labels
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {order.fulfillments.map((fulfillment: any, idx: number) => {
+                    const labelUrl = fulfillment.label_url || fulfillment.raw_response?.labelUrl;
+                    const trackingNumber = fulfillment.tracking_number;
+                    const trackingUrl = fulfillment.tracking_url;
+                    const carrier = fulfillment.carrier || 'Unknown';
+                    const serviceLevel = fulfillment.service_level || '';
+                    
+                    return (
+                      <div key={idx} className="border rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-medium">{carrier} {serviceLevel}</span>
+                          </div>
+                          <Badge className="bg-green-100 text-green-800 text-xs">
+                            {fulfillment.status || 'Shipped'}
+                          </Badge>
+                        </div>
+                        
+                        {trackingNumber && (
+                          <p className="text-xs text-gray-600 mb-2">
+                            Tracking: <span className="font-mono">{trackingNumber}</span>
+                          </p>
+                        )}
+                        
+                        <div className="flex gap-2">
+                          {labelUrl && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => window.open(labelUrl, '_blank')}
+                                data-testid={`button-view-label-${idx}`}
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="flex-1"
+                                onClick={() => {
+                                  const printWindow = window.open(labelUrl, '_blank');
+                                  if (printWindow) {
+                                    printWindow.addEventListener('load', () => {
+                                      printWindow.print();
+                                    });
+                                  }
+                                }}
+                                data-testid={`button-print-label-${idx}`}
+                              >
+                                <Printer className="h-3 w-3 mr-1" />
+                                Print
+                              </Button>
+                            </>
+                          )}
+                          {trackingUrl && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => window.open(trackingUrl, '_blank')}
+                              data-testid={`button-track-${idx}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Sync Tracking Card - Show when order has fulfillments or is shipped */}
             {((order.fulfillments?.length ?? 0) > 0 || order.status?.toLowerCase() === 'shipped' || order.fulfillment_status === 'fulfilled') && (

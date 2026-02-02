@@ -1395,9 +1395,10 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
     }
 
     // Create transaction (purchase label) with order metadata and link to Shippo order
+    // Use PDF_4x6 for 4"x6" thermal label printers (portrait orientation)
     const transactionBody: any = {
       rate: rateId,
-      label_file_type: 'PDF',
+      label_file_type: 'PDF_4x6',
       async: false,
       metadata: orderMetadata || undefined
     };
@@ -1470,14 +1471,17 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
           eta: transactionData.eta
         };
         
+        const labelUrl = transactionData.label_url;
+        
         await db.execute(sql`
           INSERT INTO marketplace_fulfillments (
-            order_id, tracking_number, tracking_url, carrier, service_level, status, 
+            order_id, tracking_number, tracking_url, label_url, carrier, service_level, status, 
             external_shipment_id, raw_response, shipped_at, created_at
           ) VALUES (
             ${orderId}, 
             ${trackingNumber}, 
             ${trackingUrl}, 
+            ${labelUrl},
             ${carrier},
             ${serviceLevel},
             'shipped',

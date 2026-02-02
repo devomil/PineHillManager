@@ -5303,6 +5303,7 @@ export const marketplaceFulfillments = pgTable("marketplace_fulfillments", {
   // Tracking info
   trackingNumber: varchar("tracking_number", { length: 255 }),
   trackingUrl: text("tracking_url"),
+  labelUrl: text("label_url"), // PDF label URL for reprinting
   carrier: varchar("carrier", { length: 100 }), // USPS, UPS, FedEx, etc.
   serviceLevel: varchar("service_level", { length: 100 }), // Ground, Priority, Express
   
