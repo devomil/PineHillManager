@@ -205,6 +205,61 @@ export class ShippoIntegration {
     }
   }
 
+  // Create a Shippo order to link transactions/labels to
+  // This allows the order to show "Shipment detail" instead of "Buy" in Shippo dashboard
+  async createOrder(orderData: {
+    order_number: string;
+    to_address: {
+      name: string;
+      street1: string;
+      street2?: string;
+      city: string;
+      state: string;
+      zip: string;
+      country: string;
+      phone?: string;
+      email?: string;
+    };
+    from_address: {
+      name: string;
+      company?: string;
+      street1: string;
+      street2?: string;
+      city: string;
+      state: string;
+      zip: string;
+      country: string;
+      phone?: string;
+      email?: string;
+    };
+    line_items?: Array<{
+      title: string;
+      sku?: string;
+      quantity: number;
+      total_price: string;
+      currency: string;
+      weight?: string;
+      weight_unit?: string;
+    }>;
+    placed_at?: string;
+    weight?: string;
+    weight_unit?: string;
+  }): Promise<any> {
+    console.log(`📦 [Shippo] Creating order ${orderData.order_number} in Shippo`);
+    
+    try {
+      const result = await this.request('/orders', {
+        method: 'POST',
+        body: JSON.stringify(orderData),
+      });
+      console.log(`✅ [Shippo] Created order ${orderData.order_number}, object_id: ${(result as any).object_id}`);
+      return result;
+    } catch (error: any) {
+      console.error(`⚠️ [Shippo] Failed to create order ${orderData.order_number}:`, error?.message || error);
+      throw error;
+    }
+  }
+
   // Register tracking with metadata that links to the order
   // This is the primary way to associate tracking with an order in Shippo
   async registerTrackingWithOrder(carrier: string, trackingNumber: string, orderNumber: string): Promise<any> {

@@ -194,14 +194,17 @@ export default function OrderFulfillmentPage() {
 
   const syncShippoMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/marketplace/orders/${orderId}/register-shippo-tracking`, {});
+      return apiRequest('POST', `/api/marketplace/orders/${orderId}/sync-to-shippo`, {});
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/marketplace/orders', orderId] });
-      toast({ title: 'Synced to Shippo', description: `Tracking ${data.trackingNumber} registered with Shippo.` });
+      const msg = data.trackingNumber 
+        ? `Order synced to Shippo with tracking ${data.trackingNumber}.`
+        : `Order synced to Shippo.`;
+      toast({ title: 'Synced to Shippo', description: msg });
     },
     onError: (error: any) => {
-      toast({ title: 'Sync Failed', description: error?.message || 'Failed to sync tracking to Shippo.', variant: 'destructive' });
+      toast({ title: 'Sync Failed', description: error?.message || 'Failed to sync order to Shippo.', variant: 'destructive' });
     },
   });
 

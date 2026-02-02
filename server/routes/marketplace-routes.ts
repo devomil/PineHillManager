@@ -1366,7 +1366,9 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
     let shippoOrderObjectId: string | null = null;
     if (orderId) {
       const orderLookup = await db.execute(sql`
-        SELECT external_order_number, external_order_id FROM marketplace_orders WHERE id = ${orderId}
+        SELECT o.external_order_number, o.external_order_id, o.customer_name, o.customer_email,
+               o.shipping_address, o.order_placed_at, o.grand_total
+        FROM marketplace_orders o WHERE o.id = ${orderId}
       `);
       if (orderLookup.rows.length > 0) {
         const orderInfo = orderLookup.rows[0] as any;
@@ -1385,11 +1387,67 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
             );
             if (matchingOrder) {
               shippoOrderObjectId = matchingOrder.object_id;
-              console.log(`📦 [Shippo] Found Shippo order ${shippoOrderObjectId} for order ${orderNumber}`);
+              console.log(`📦 [Shippo] Found existing Shippo order ${shippoOrderObjectId} for order ${orderNumber}`);
             }
           }
         } catch (err) {
           console.warn('⚠️ [Shippo] Could not look up Shippo order:', err);
+        }
+        
+        // If no Shippo order exists, create one so the transaction links properly
+        if (!shippoOrderObjectId) {
+          try {
+            const shippingAddr = orderInfo.shipping_address || {};
+            
+            // Get order items for line_items
+            const itemsResult = await db.execute(sql`
+              SELECT product_name, sku, quantity, total_price FROM marketplace_order_items WHERE order_id = ${orderId}
+            `);
+            
+            const lineItems = itemsResult.rows.map((item: any) => ({
+              title: item.product_name || 'Item',
+              sku: item.sku || '',
+              quantity: Number(item.quantity) || 1,
+              total_price: String(item.total_price || '0.00'),
+              currency: 'USD'
+            }));
+            
+            const shippoOrderData = {
+              order_number: String(orderNumber),
+              to_address: {
+                name: shippingAddr.first_name && shippingAddr.last_name 
+                  ? `${shippingAddr.first_name} ${shippingAddr.last_name}` 
+                  : orderInfo.customer_name || 'Customer',
+                street1: shippingAddr.street_1 || shippingAddr.address1 || '',
+                street2: shippingAddr.street_2 || shippingAddr.address2 || '',
+                city: shippingAddr.city || '',
+                state: shippingAddr.state || '',
+                zip: shippingAddr.zip || shippingAddr.postal_code || '',
+                country: shippingAddr.country_iso2 || shippingAddr.country || 'US',
+                phone: shippingAddr.phone || '',
+                email: orderInfo.customer_email || ''
+              },
+              from_address: {
+                name: 'Pine Hill Farm',
+                company: 'Pine Hill Farm LLC',
+                street1: '200 W. Main Street',
+                city: 'Watertown',
+                state: 'WI',
+                zip: '53094',
+                country: 'US',
+                phone: '920-253-0255',
+                email: 'info@pinehillfarm.co'
+              },
+              line_items: lineItems.length > 0 ? lineItems : undefined,
+              placed_at: orderInfo.order_placed_at ? new Date(orderInfo.order_placed_at).toISOString() : new Date().toISOString()
+            };
+            
+            const newShippoOrder = await shippoIntegration.createOrder(shippoOrderData);
+            shippoOrderObjectId = newShippoOrder.object_id;
+            console.log(`✅ [Shippo] Created new Shippo order ${shippoOrderObjectId} for order ${orderNumber}`);
+          } catch (createErr) {
+            console.warn('⚠️ [Shippo] Could not create Shippo order (will proceed without linking):', createErr);
+          }
         }
       }
     }
@@ -1684,6 +1742,169 @@ router.post('/orders/:id/register-shippo-tracking', isAuthenticated, async (req:
   } catch (error: any) {
     console.error('Error registering tracking with Shippo:', error);
     res.status(500).json({ error: 'Failed to register tracking', details: error?.message });
+  }
+});
+
+// Create Shippo order and link existing fulfillment to it (for orders that were fulfilled before Shippo order creation)
+router.post('/orders/:id/sync-to-shippo', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+    
+    const orderId = parseInt(req.params.id);
+    
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: 'Invalid order ID' });
+    }
+    
+    // Get order and fulfillment details
+    const orderResult = await db.execute(sql`
+      SELECT o.external_order_number, o.external_order_id, o.customer_name, o.customer_email,
+             o.shipping_address, o.order_placed_at, o.grand_total,
+             f.tracking_number, f.tracking_url, f.carrier, f.service_level, f.label_url, f.external_shipment_id
+      FROM marketplace_orders o
+      LEFT JOIN marketplace_fulfillments f ON f.order_id = o.id
+      WHERE o.id = ${orderId}
+      ORDER BY f.created_at DESC
+      LIMIT 1
+    `);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const orderInfo = orderResult.rows[0] as any;
+    const orderNumber = orderInfo.external_order_number || orderInfo.external_order_id || orderId;
+    const shippingAddr = orderInfo.shipping_address || {};
+    
+    // Check if Shippo order already exists using order_number query for better matching
+    let shippoOrderObjectId: string | null = null;
+    try {
+      // Use order_number query parameter for more targeted search
+      const shippoOrdersResponse = await fetch(
+        `${SHIPPO_BASE_URL}/orders?order_number=${encodeURIComponent(String(orderNumber))}`, 
+        {
+          headers: { 'Authorization': `ShippoToken ${SHIPPO_API_KEY}` }
+        }
+      );
+      if (shippoOrdersResponse.ok) {
+        const shippoOrdersData = await shippoOrdersResponse.json();
+        // Find exact match
+        const matchingOrder = shippoOrdersData.results?.find(
+          (o: any) => o.order_number === String(orderNumber)
+        );
+        if (matchingOrder) {
+          shippoOrderObjectId = matchingOrder.object_id;
+          console.log(`📦 [Shippo] Found existing Shippo order ${shippoOrderObjectId} for order ${orderNumber}`);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [Shippo] Could not look up Shippo order:', err);
+    }
+    
+    // If no Shippo order exists, create one
+    if (!shippoOrderObjectId) {
+      // Get order items for line_items
+      const itemsResult = await db.execute(sql`
+        SELECT product_name, sku, quantity, total_price FROM marketplace_order_items WHERE order_id = ${orderId}
+      `);
+      
+      const lineItems = itemsResult.rows.map((item: any) => ({
+        title: item.product_name || 'Item',
+        sku: item.sku || '',
+        quantity: Number(item.quantity) || 1,
+        total_price: String(item.total_price || '0.00'),
+        currency: 'USD'
+      }));
+      
+      const shippoOrderData = {
+        order_number: String(orderNumber),
+        to_address: {
+          name: shippingAddr.first_name && shippingAddr.last_name 
+            ? `${shippingAddr.first_name} ${shippingAddr.last_name}` 
+            : orderInfo.customer_name || 'Customer',
+          street1: shippingAddr.street_1 || shippingAddr.address1 || '',
+          street2: shippingAddr.street_2 || shippingAddr.address2 || '',
+          city: shippingAddr.city || '',
+          state: shippingAddr.state || '',
+          zip: shippingAddr.zip || shippingAddr.postal_code || '',
+          country: shippingAddr.country_iso2 || shippingAddr.country || 'US',
+          phone: shippingAddr.phone || '',
+          email: orderInfo.customer_email || ''
+        },
+        from_address: {
+          name: 'Pine Hill Farm',
+          company: 'Pine Hill Farm LLC',
+          street1: '200 W. Main Street',
+          city: 'Watertown',
+          state: 'WI',
+          zip: '53094',
+          country: 'US',
+          phone: '920-253-0255',
+          email: 'info@pinehillfarm.co'
+        },
+        line_items: lineItems.length > 0 ? lineItems : undefined,
+        placed_at: orderInfo.order_placed_at ? new Date(orderInfo.order_placed_at).toISOString() : new Date().toISOString(),
+        order_status: orderInfo.tracking_number ? 'SHIPPED' : 'PAID'
+      };
+      
+      try {
+        const newShippoOrder = await shippoIntegration.createOrder(shippoOrderData);
+        shippoOrderObjectId = newShippoOrder.object_id;
+        console.log(`✅ [Shippo] Created Shippo order ${shippoOrderObjectId} for order ${orderNumber}`);
+      } catch (createErr: any) {
+        console.error('⚠️ [Shippo] Failed to create Shippo order:', createErr);
+        return res.status(500).json({ error: 'Failed to create Shippo order', details: createErr?.message });
+      }
+    }
+    
+    // If there's a tracking number, register tracking with Shippo
+    let trackingRegistered = false;
+    if (orderInfo.tracking_number) {
+      const carrierMapping: Record<string, string> = {
+        'usps': 'usps',
+        'USPS': 'usps',
+        'USPS Ground Advantage': 'usps',
+        'ups': 'ups',
+        'UPS': 'ups',
+        'fedex': 'fedex',
+        'FedEx': 'fedex',
+      };
+      
+      let detectedCarrier = carrierMapping[orderInfo.carrier] || 'usps';
+      
+      // Register tracking webhook for status updates
+      try {
+        await fetch(`${SHIPPO_BASE_URL}/tracks/`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `ShippoToken ${SHIPPO_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            carrier: detectedCarrier,
+            tracking_number: orderInfo.tracking_number,
+            metadata: `Order ${orderNumber}`
+          })
+        });
+        trackingRegistered = true;
+        console.log(`✅ [Shippo] Registered tracking ${orderInfo.tracking_number} for order ${orderNumber}`);
+      } catch (trackErr) {
+        console.warn('⚠️ [Shippo] Could not register tracking:', trackErr);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Order ${orderNumber} synced to Shippo`,
+      shippoOrderId: shippoOrderObjectId,
+      trackingRegistered,
+      trackingNumber: orderInfo.tracking_number || null
+    });
+  } catch (error: any) {
+    console.error('Error syncing order to Shippo:', error);
+    res.status(500).json({ error: 'Failed to sync order to Shippo', details: error?.message });
   }
 });
 
