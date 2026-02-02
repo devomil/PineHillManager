@@ -31,7 +31,9 @@ import {
   ShoppingBag,
   ExternalLink,
   Calendar,
-  ShoppingCart
+  ShoppingCart,
+  Eye,
+  Printer
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { format } from 'date-fns';
@@ -1093,6 +1095,36 @@ export default function MarketplacePage() {
                                 <div className="col-span-2">
                                   <p className="text-gray-500">Shipped On</p>
                                   <p className="font-medium">{format(new Date(fulfillment.fulfilled_at), 'MMM d, yyyy h:mm a')}</p>
+                                </div>
+                              )}
+                              {(fulfillment.label_url || fulfillment.raw_response?.labelUrl) && (
+                                <div className="col-span-2 pt-2 flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => window.open(fulfillment.label_url || fulfillment.raw_response?.labelUrl, '_blank')}
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    View Label
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="flex-1"
+                                    onClick={() => {
+                                      const labelUrl = fulfillment.label_url || fulfillment.raw_response?.labelUrl;
+                                      const printWindow = window.open(labelUrl, '_blank');
+                                      if (printWindow) {
+                                        printWindow.addEventListener('load', () => {
+                                          printWindow.print();
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Printer className="h-3 w-3 mr-1" />
+                                    Print Label
+                                  </Button>
                                 </div>
                               )}
                             </div>
