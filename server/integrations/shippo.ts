@@ -186,6 +186,46 @@ export class ShippoIntegration {
 
     return metadata.trim() || null;
   }
+
+  async getOrders(page = 1, resultsPerPage = 100): Promise<{ results: any[]; next: string | null; count: number }> {
+    return this.request(`/orders?page=${page}&results=${resultsPerPage}`);
+  }
+
+  async getOrderByOrderNumber(orderNumber: string): Promise<any | null> {
+    try {
+      // Try to find by order_number query param first (if supported)
+      const response = await this.getOrders(1, 200);
+      const matchingOrder = response.results?.find(
+        (o: any) => String(o.order_number) === String(orderNumber)
+      );
+      return matchingOrder || null;
+    } catch (error) {
+      console.error('📦 [Shippo] Error finding order by number:', error);
+      return null;
+    }
+  }
+
+  // Register tracking with metadata that links to the order
+  // This is the primary way to associate tracking with an order in Shippo
+  async registerTrackingWithOrder(carrier: string, trackingNumber: string, orderNumber: string): Promise<any> {
+    console.log(`📦 [Shippo] Registering tracking ${trackingNumber} with order metadata: Order ${orderNumber}`);
+    
+    try {
+      const result = await this.request('/tracks', {
+        method: 'POST',
+        body: JSON.stringify({
+          carrier: carrier,
+          tracking_number: trackingNumber,
+          metadata: `Order ${orderNumber}`
+        }),
+      });
+      console.log(`✅ [Shippo] Successfully registered tracking for Order ${orderNumber}`);
+      return result;
+    } catch (error: any) {
+      console.error(`⚠️ [Shippo] Failed to register tracking for Order ${orderNumber}:`, error?.message || error);
+      throw error;
+    }
+  }
 }
 
 export const shippoIntegration = new ShippoIntegration();

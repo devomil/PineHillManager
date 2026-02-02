@@ -1274,13 +1274,13 @@ router.post('/shippo/rates', isAuthenticated, async (req: Request, res: Response
 
     const { orderId, fromAddress, toAddress, parcels } = req.body;
 
-    // Default from address (Pine Hill Farm)
+    // Default from address (Pine Hill Farm - Watertown location)
     const defaultFromAddress: ShippoAddress = fromAddress || {
       name: 'Pine Hill Farm',
-      street1: 'W3685 County Rd A',
-      city: 'Elkhorn',
+      street1: '200 W. Main Street',
+      city: 'Watertown',
       state: 'WI',
-      zip: '53121',
+      zip: '53094',
       country: 'US',
       phone: '2628034121',
       email: 'orders@pinehillfarm.com'
@@ -1547,6 +1547,24 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
             console.error('⚠️ [Shippo->BigCommerce] Failed to sync tracking:', bcError);
             // Don't fail the label creation if BigCommerce sync fails
           }
+        }
+        
+        // Register tracking with Shippo using order metadata
+        // This associates the tracking number with the order in Shippo's system
+        try {
+          const orderNumber = order.external_order_number || order.external_order_id;
+          if (orderNumber && trackingNumber) {
+            // Map carrier to Shippo carrier token
+            const carrierToken = (carrier || 'usps').toLowerCase();
+            await shippoIntegration.registerTrackingWithOrder(
+              carrierToken,
+              trackingNumber,
+              orderNumber
+            );
+          }
+        } catch (shippoTrackingError) {
+          console.error('⚠️ [Shippo] Failed to register tracking:', shippoTrackingError);
+          // Don't fail the label creation if Shippo tracking registration fails
         }
       } // end else (order found)
     }
