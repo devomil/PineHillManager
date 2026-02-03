@@ -2647,7 +2647,9 @@ function ScenePreview({
             const isEditing = sceneEditorOpen === scene.id;
             const hasAIBackground = scene.assets?.backgroundUrl;
             const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
-            const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
+            // Check for video URL in both background and assets for compatibility
+            const sceneVideoUrl = scene.background?.videoUrl || scene.assets?.videoUrl;
+            const hasBrollVideo = (scene.background?.type === 'video' && scene.background?.videoUrl) || !!scene.assets?.videoUrl;
             const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
             const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
             
@@ -2673,11 +2675,11 @@ function ScenePreview({
                     >
                       {dragHandle}
               <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
-                {hasBrollVideo ? (
+                {hasBrollVideo && sceneVideoUrl ? (
                   <div className="relative w-full h-full">
                     <video 
-                      key={`video-card-${scene.id}-${scene.background!.videoUrl}`}
-                      src={convertToDisplayUrl(scene.background!.videoUrl!, true)}
+                      key={`video-card-${scene.id}-${sceneVideoUrl}`}
+                      src={convertToDisplayUrl(sceneVideoUrl, true)}
                       className="w-full h-full object-cover"
                       muted
                       playsInline
@@ -2823,7 +2825,9 @@ function ScenePreview({
       const imageAsset = assets.images.find(img => img.sceneId === scene.id);
       const hasAIBackground = scene.assets?.backgroundUrl;
       const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
-      const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
+      // Check for video URL in both background and assets for compatibility
+      const sceneVideoUrl = scene.background?.videoUrl || scene.assets?.videoUrl;
+      const hasBrollVideo = (scene.background?.type === 'video' && scene.background?.videoUrl) || !!scene.assets?.videoUrl;
       const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
       const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
       const sceneWorkflow = workflowAnalysis[scene.id];
@@ -2899,7 +2903,7 @@ function ScenePreview({
                   <OverlayPreview
                     key={`overlay-${scene.id}-${JSON.stringify((previewOverlayConfig[scene.id] || scene.overlayConfig)?.logo?.position || 'center')}`}
                     mediaUrl={convertToDisplayUrl(
-                      hasBrollVideo ? scene.background!.videoUrl! :
+                      hasBrollVideo && sceneVideoUrl ? sceneVideoUrl :
                       hasAIBackground ? scene.assets!.backgroundUrl! :
                       imageAsset!.url
                     )}
@@ -2907,7 +2911,7 @@ function ScenePreview({
                     config={previewOverlayConfig[scene.id] || (scene.overlayConfig as OverlayConfig) || getDefaultOverlayConfig(scene.type || 'general')}
                     convertUrl={convertToDisplayUrl}
                   />
-                ) : hasBrollVideo ? (
+                ) : hasBrollVideo && sceneVideoUrl ? (
                   <div>
                     <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
                       <Video className="w-4 h-4" /> B-Roll Video
@@ -2919,8 +2923,8 @@ function ScenePreview({
                     </Label>
                     <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
                       <video 
-                        key={`video-modal-${scene.id}-${scene.background!.videoUrl}`}
-                        src={convertToDisplayUrl(scene.background!.videoUrl!, true)}
+                        key={`video-modal-${scene.id}-${sceneVideoUrl}`}
+                        src={convertToDisplayUrl(sceneVideoUrl!, true)}
                         className="w-full h-full object-contain i2v-video-fade"
                         controls
                         muted
