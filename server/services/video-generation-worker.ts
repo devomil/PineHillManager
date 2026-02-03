@@ -7,6 +7,7 @@ import { intelligentRegenerationService } from "./intelligent-regeneration-servi
 import { db } from "../db";
 import { universalVideoProjects } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { preparePromptForProvider, type SanitizedPrompt } from "./prompt-sanitizer";
 
 const log = createLogger("VideoWorker");
 
@@ -295,13 +296,38 @@ class VideoGenerationWorker {
           log.debug(` Using intelligent motion control for scene type: ${job.sceneType}`);
         }
 
+        // Phase 11A: Sanitize prompt to prevent AI from rendering text/logos
+        const sanitizedResult: SanitizedPrompt = preparePromptForProvider(
+          job.prompt || "",
+          job.sceneType || "hook",
+          provider
+        );
+        
+        // Log sanitization results for debugging
+        if (sanitizedResult.removedElements.length > 0) {
+          log.info(`[PromptSanitizer] Job ${job.jobId}: Removed ${sanitizedResult.removedElements.length} text/logo elements from prompt`);
+        }
+        if (sanitizedResult.warnings.length > 0) {
+          sanitizedResult.warnings.forEach(w => log.debug(`[PromptSanitizer] ${w}`));
+        }
+        
+        // Build enhanced negative prompt with anti-text directives
+        const baseNegativePrompt = job.negativePrompt || "";
+        const antiTextDirectives = "no text, no words, no letters, no numbers, no logos, no watermarks, no labels, no buttons, no badges, no banners, no UI elements, no captions, no titles, no subtitles";
+        const enhancedNegativePrompt = baseNegativePrompt 
+          ? `${baseNegativePrompt}, ${antiTextDirectives}`
+          : antiTextDirectives;
+
+        log.debug(`[PromptSanitizer] Job ${job.jobId} using sanitized prompt: ${sanitizedResult.cleanPrompt.substring(0, 100)}...`);
+        log.debug(`[PromptSanitizer] Job ${job.jobId} enhanced negative prompt: ${enhancedNegativePrompt.substring(0, 100)}...`);
+
         const result = await aiVideoService.generateVideo({
-          prompt: job.prompt || "",
+          prompt: sanitizedResult.cleanPrompt,
           duration: job.duration || 6,
           aspectRatio,
           sceneType: job.sceneType || "hook",
           preferredProvider: provider,
-          negativePrompt: job.negativePrompt || undefined,
+          negativePrompt: enhancedNegativePrompt,
           visualStyle: job.style || "professional",
           imageUrl: job.sourceImageUrl || undefined, // For I2V: pass the matched brand asset image
           i2vSettings: jobI2vSettings || undefined, // I2V-specific settings from UI

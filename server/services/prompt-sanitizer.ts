@@ -237,8 +237,8 @@ export function sanitizePromptForAI(
   return {
     cleanPrompt,
     removedElements,
-    extractedText: [...new Set(extractedText)], // Deduplicate
-    extractedLogos: [...new Set(extractedLogos)], // Deduplicate
+    extractedText: Array.from(new Set(extractedText)), // Deduplicate
+    extractedLogos: Array.from(new Set(extractedLogos)), // Deduplicate
     warnings,
     originalPrompt: visualDirection,
   };
