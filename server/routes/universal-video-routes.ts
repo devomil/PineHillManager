@@ -3578,9 +3578,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { query, provider, sourceImageUrl, i2vSettings, motionControl } = req.body;
+    const { query, provider, sourceImageUrl, i2vSettings, motionControl, forceRegenerate } = req.body;
     
-    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}${i2vSettings ? ', with I2V settings' : ''}`);
+    console.log(`[Phase9B-Async] Creating async video generation job for scene ${sceneId} with provider: ${provider || 'default'}${sourceImageUrl ? ', using I2V with source image' : ''}${i2vSettings ? ', with I2V settings' : ''}${forceRegenerate ? ', FORCE REGENERATE' : ''}`);
     console.log(`[Phase9B-Async] Source image URL from request: ${sourceImageUrl?.substring(0, 80) || 'none'}`);
     console.log(`[Phase9B-Async] I2V settings: ${JSON.stringify(i2vSettings || 'none')}`);
     console.log(`[Phase9B-Async] Motion control: ${JSON.stringify(motionControl || 'auto (intelligent)')}`);
@@ -3608,14 +3608,18 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     // Check if there's already an active job for this scene
     const { videoGenerationWorker } = await import('../services/video-generation-worker');
     const existingJob = await videoGenerationWorker.getActiveJobForScene(projectId, sceneId);
-    if (existingJob) {
-      // Check if the existing job's prompt matches the current visual direction
-      // If prompts differ, we need to create a new job with the updated prompt
+    if (existingJob && !forceRegenerate) {
+      // Check if the existing job's prompt AND provider match the current request
+      // If either differs, we need to create a new job
       const existingPrompt = existingJob.prompt || '';
-      const promptsMatch = existingPrompt.trim().toLowerCase() === prompt.trim().toLowerCase();
+      const existingProvider = existingJob.provider || '';
+      const requestedProvider = provider || 'runway'; // Default provider
       
-      if (promptsMatch) {
-        console.log(`[Phase9B-Async] Scene ${sceneId} already has active job with matching prompt: ${existingJob.jobId}`);
+      const promptsMatch = existingPrompt.trim().toLowerCase() === prompt.trim().toLowerCase();
+      const providersMatch = existingProvider.toLowerCase() === requestedProvider.toLowerCase();
+      
+      if (promptsMatch && providersMatch) {
+        console.log(`[Phase9B-Async] Scene ${sceneId} already has active job with matching prompt AND provider: ${existingJob.jobId}`);
         return res.json({ 
           success: true, 
           jobId: existingJob.jobId,
@@ -3624,11 +3628,18 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
           message: 'Video generation already in progress'
         });
       } else {
-        console.log(`[Phase9B-Async] Scene ${sceneId} has active job but prompt changed - creating new job`);
-        console.log(`[Phase9B-Async] Old prompt: ${existingPrompt.substring(0, 80)}...`);
-        console.log(`[Phase9B-Async] New prompt: ${prompt.substring(0, 80)}...`);
-        // Continue to create new job with updated prompt
+        const changes = [];
+        if (!promptsMatch) changes.push('prompt');
+        if (!providersMatch) changes.push(`provider (${existingProvider} → ${requestedProvider})`);
+        console.log(`[Phase9B-Async] Scene ${sceneId} has active job but ${changes.join(' and ')} changed - creating new job`);
+        if (!promptsMatch) {
+          console.log(`[Phase9B-Async] Old prompt: ${existingPrompt.substring(0, 80)}...`);
+          console.log(`[Phase9B-Async] New prompt: ${prompt.substring(0, 80)}...`);
+        }
+        // Continue to create new job with updated settings
       }
+    } else if (existingJob && forceRegenerate) {
+      console.log(`[Phase9B-Async] Scene ${sceneId} has active job but force regenerate requested - creating new job`);
     }
     const fallbackPrompt = (scene as any).summary || 'professional video';
     

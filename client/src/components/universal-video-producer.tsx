@@ -2017,6 +2017,7 @@ function ScenePreview({
         camera_movement: sceneMotionSettings.cameraMovement,
         intensity: sceneMotionSettings.intensity / 100, // Convert to 0-1
       } : undefined, // undefined means use intelligent auto-detection
+      forceRegenerate: true, // Always create new job when user explicitly clicks regenerate
     };
     console.log('[regenerateVideo] About to fetch:', url, 'with body:', JSON.stringify(body));
     try {
