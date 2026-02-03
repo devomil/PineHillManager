@@ -26338,6 +26338,114 @@ Important:
     }
   });
 
+  // Search BigCommerce by SKU and optionally add mapping
+  app.post('/api/admin/bigcommerce-sync/search-sku', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const { sku, addMapping } = req.body;
+      if (!sku) {
+        return res.status(400).json({ message: 'SKU is required' });
+      }
+
+      const { BigCommerceIntegration } = await import('./integrations/bigcommerce');
+      const bc = new BigCommerceIntegration();
+      
+      // Search BigCommerce for products with this SKU
+      const products = await bc.searchProductBySku(sku);
+      
+      if (products.length === 0) {
+        // Also check variants
+        const allProducts = await bc.getProducts(500);
+        const matchingVariants: any[] = [];
+        
+        for (const product of allProducts) {
+          const variants = await bc.getProductVariants(product.id);
+          for (const variant of variants) {
+            if (variant.sku === sku) {
+              matchingVariants.push({
+                product,
+                variant,
+              });
+            }
+          }
+        }
+        
+        if (matchingVariants.length === 0) {
+          return res.json({ found: false, message: `No products or variants found with SKU ${sku}` });
+        }
+        
+        // If addMapping is true, add the mappings
+        if (addMapping) {
+          for (const match of matchingVariants) {
+            await bigcommerceInventorySyncService.addProductMapping({
+              sku: match.variant.sku,
+              bigcommerceProductId: match.product.id,
+              bigcommerceVariantId: match.variant.id,
+              productName: match.product.name,
+            });
+          }
+        }
+        
+        return res.json({
+          found: true,
+          type: 'variant',
+          products: matchingVariants.map(m => ({
+            productId: m.product.id,
+            productName: m.product.name,
+            variantId: m.variant.id,
+            variantSku: m.variant.sku,
+            inventoryLevel: m.variant.inventory_level,
+          })),
+          mappingAdded: addMapping,
+        });
+      }
+      
+      // Found product-level match
+      if (addMapping) {
+        for (const product of products) {
+          const variants = await bc.getProductVariants(product.id);
+          if (variants.length > 0) {
+            for (const variant of variants) {
+              if (variant.sku === sku || !variant.sku) {
+                await bigcommerceInventorySyncService.addProductMapping({
+                  sku: variant.sku || sku,
+                  bigcommerceProductId: product.id,
+                  bigcommerceVariantId: variant.id,
+                  productName: product.name,
+                });
+              }
+            }
+          } else {
+            await bigcommerceInventorySyncService.addProductMapping({
+              sku: product.sku || sku,
+              bigcommerceProductId: product.id,
+              productName: product.name,
+            });
+          }
+        }
+      }
+      
+      res.json({
+        found: true,
+        type: 'product',
+        products: products.map(p => ({
+          productId: p.id,
+          productName: p.name,
+          sku: p.sku,
+          inventoryLevel: p.inventory_level,
+        })),
+        mappingAdded: addMapping,
+      });
+    } catch (error) {
+      console.error('Error searching BigCommerce by SKU:', error);
+      res.status(500).json({ message: 'Search failed', error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post('/api/admin/bigcommerce-sync/test', isAuthenticated, async (req, res) => {
     try {
       const user = req.user as any;

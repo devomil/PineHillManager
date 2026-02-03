@@ -164,7 +164,7 @@ export class BigCommerceIntegration {
   /**
    * Fetch all products from BigCommerce
    */
-  async getProducts(limit: number = 250): Promise<BigCommerceProduct[]> {
+  async getProducts(limit: number = 1000): Promise<BigCommerceProduct[]> {
     if (!this.storeHash || !this.accessToken) {
       throw new Error('BigCommerce API credentials not configured');
     }
@@ -174,7 +174,7 @@ export class BigCommerceIntegration {
       let page = 1;
       let hasMore = true;
 
-      while (hasMore && products.length < limit) {
+      while (hasMore) {
         const url = `${this.baseUrl}/catalog/products?limit=250&page=${page}&include=images`;
         console.log(`🛒 Calling BigCommerce API: ${url}`);
         
@@ -217,6 +217,39 @@ export class BigCommerceIntegration {
       return products;
     } catch (error) {
       console.error('Error fetching BigCommerce products:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search for products by SKU
+   */
+  async searchProductBySku(sku: string): Promise<BigCommerceProduct[]> {
+    if (!this.storeHash || !this.accessToken) {
+      throw new Error('BigCommerce API credentials not configured');
+    }
+
+    try {
+      const url = `${this.baseUrl}/catalog/products?sku=${encodeURIComponent(sku)}&include=images`;
+      console.log(`🔍 Searching BigCommerce for SKU: ${sku}`);
+      
+      const response = await fetch(url, {
+        headers: {
+          'X-Auth-Token': this.accessToken,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`BigCommerce API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ Found ${data.data?.length || 0} products with SKU ${sku}`);
+      return data.data || [];
+    } catch (error) {
+      console.error('Error searching BigCommerce products:', error);
       throw error;
     }
   }
