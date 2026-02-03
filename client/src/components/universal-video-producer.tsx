@@ -1439,8 +1439,14 @@ function ScenePreview({
   const [pipelineStepExecutions, setPipelineStepExecutions] = useState<Record<string, WorkflowStepExecution[]>>({});
   const [executingPipeline, setExecutingPipeline] = useState<Record<string, boolean>>({});
   const pollingTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
+  const onProjectUpdateRef = useRef(onProjectUpdate);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Keep onProjectUpdate ref up to date to avoid stale closure in polling
+  useEffect(() => {
+    onProjectUpdateRef.current = onProjectUpdate;
+  }, [onProjectUpdate]);
   
   // Cleanup polling timeouts on unmount
   useEffect(() => {
@@ -2117,14 +2123,14 @@ function ScenePreview({
                     if (freshData.project) {
                       const updatedScene = freshData.project.scenes?.find((s: any) => s.id === sceneId);
                       console.log('[regenerateVideo] Updated scene video URL:', updatedScene?.background?.videoUrl);
-                      console.log('[regenerateVideo] onProjectUpdate available:', !!onProjectUpdate);
-                      // Use onProjectUpdate callback to update parent component's project state
-                      if (onProjectUpdate) {
-                        console.log('[regenerateVideo] Calling onProjectUpdate with fresh project...');
-                        onProjectUpdate(freshData.project);
-                        console.log('[regenerateVideo] onProjectUpdate called successfully');
+                      console.log('[regenerateVideo] onProjectUpdateRef.current available:', !!onProjectUpdateRef.current);
+                      // Use onProjectUpdate ref to avoid stale closure - update parent component's project state
+                      if (onProjectUpdateRef.current) {
+                        console.log('[regenerateVideo] Calling onProjectUpdateRef.current with fresh project...');
+                        onProjectUpdateRef.current(freshData.project);
+                        console.log('[regenerateVideo] onProjectUpdateRef.current called successfully');
                       } else {
-                        console.error('[regenerateVideo] ERROR: onProjectUpdate is not defined!');
+                        console.error('[regenerateVideo] ERROR: onProjectUpdateRef.current is not defined!');
                       }
                     } else {
                       console.error('[regenerateVideo] ERROR: freshData.project is falsy:', freshData);
@@ -2132,9 +2138,9 @@ function ScenePreview({
                   } catch (refreshErr) {
                     console.error('[regenerateVideo] Failed to fetch fresh project:', refreshErr);
                     // Fallback to statusData.project from job status response
-                    if (statusData.project && onProjectUpdate) {
+                    if (statusData.project && onProjectUpdateRef.current) {
                       console.log('[regenerateVideo] Using fallback statusData.project');
-                      onProjectUpdate(statusData.project);
+                      onProjectUpdateRef.current(statusData.project);
                     }
                   }
                   
@@ -5509,7 +5515,7 @@ export default function UniversalVideoProducer() {
                   if (videoUrl) {
                     return (
                       <video
-                        key={`preview-video-${scene.id}`}
+                        key={`preview-video-${scene.id}-${videoUrl}`}
                         src={videoUrl}
                         className="w-full h-full object-cover i2v-video-fade"
                         autoPlay
@@ -5521,7 +5527,7 @@ export default function UniversalVideoProducer() {
                   } else if (imageUrl) {
                     return (
                       <img
-                        key={`preview-img-${scene.id}`}
+                        key={`preview-img-${scene.id}-${imageUrl}`}
                         src={imageUrl}
                         alt={`Scene ${scene.order}`}
                         className="w-full h-full object-cover"
