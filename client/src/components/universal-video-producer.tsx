@@ -1420,7 +1420,6 @@ function ScenePreview({
   const [sceneMediaType, setSceneMediaType] = useState<Record<string, 'image' | 'video'>>({});
   const [rejectReason, setRejectReason] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'needs_review' | 'approved' | 'rejected'>('all');
-  const [activeJobPolling, setActiveJobPolling] = useState<Record<string, { jobId: string; progress: number }>>({});
   const [bulkRegeneratingVideos, setBulkRegeneratingVideos] = useState(false);
   const [bulkRegenerateProgress, setBulkRegenerateProgress] = useState({ current: 0, total: 0 });
   const [overlayPreviewMode, setOverlayPreviewMode] = useState<Record<string, boolean>>({});
@@ -2037,11 +2036,7 @@ function ScenePreview({
           description: 'This may take 3-5 minutes. Progress will update automatically.' 
         });
         
-        // Track active job
-        setActiveJobPolling(prev => ({ 
-          ...prev, 
-          [sceneId]: { jobId: data.jobId, progress: 0 } 
-        }));
+        // Job started - polling will track progress via console.log
         
         // Clear any existing polling for this scene
         if (pollingTimeoutRefs.current[sceneId]) {
@@ -2055,11 +2050,6 @@ function ScenePreview({
           
           const cleanupPolling = () => {
             delete pollingTimeoutRefs.current[sceneId];
-            setActiveJobPolling(prev => {
-              const next = { ...prev };
-              delete next[sceneId];
-              return next;
-            });
             setRegenerating(null);
           };
           
@@ -2099,11 +2089,8 @@ function ScenePreview({
                 const job = statusData.job;
                 console.log(`[regenerateVideo] Job ${data.jobId} status: ${job.status}, progress: ${job.progress}%`);
                 
-                // Update progress in state
-                setActiveJobPolling(prev => ({ 
-                  ...prev, 
-                  [sceneId]: { jobId: data.jobId, progress: job.progress } 
-                }));
+                // Progress update - no state change to avoid re-renders/flashing
+                // Just log progress, don't trigger re-renders
                 
                 if (job.status === 'succeeded') {
                   console.log('[regenerateVideo] SUCCESS - Job completed, fetching fresh data...');
