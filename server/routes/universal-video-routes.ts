@@ -3594,21 +3594,7 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    // Check if there's already an active job for this scene
-    const { videoGenerationWorker } = await import('../services/video-generation-worker');
-    const existingJob = await videoGenerationWorker.getActiveJobForScene(projectId, sceneId);
-    if (existingJob) {
-      console.log(`[Phase9B-Async] Scene ${sceneId} already has active job: ${existingJob.jobId}`);
-      return res.json({ 
-        success: true, 
-        jobId: existingJob.jobId,
-        status: existingJob.status,
-        progress: existingJob.progress,
-        message: 'Video generation already in progress'
-      });
-    }
-    
-    // Find the scene to get the visual direction/prompt
+    // Find the scene to get the visual direction/prompt FIRST (needed for job validation)
     const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
     if (!scene) {
       return res.status(404).json({ success: false, error: 'Scene not found' });
@@ -3616,6 +3602,34 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
     
     // Use provided query or scene's visual direction
     const prompt = query || scene.visualDirection || (scene as any).description || 'Professional wellness video';
+    console.log(`[Phase9B-Async] Current visual direction: ${scene.visualDirection?.substring(0, 100) || 'none'}`);
+    console.log(`[Phase9B-Async] Resolved prompt for generation: ${prompt.substring(0, 100)}...`);
+    
+    // Check if there's already an active job for this scene
+    const { videoGenerationWorker } = await import('../services/video-generation-worker');
+    const existingJob = await videoGenerationWorker.getActiveJobForScene(projectId, sceneId);
+    if (existingJob) {
+      // Check if the existing job's prompt matches the current visual direction
+      // If prompts differ, we need to create a new job with the updated prompt
+      const existingPrompt = existingJob.prompt || '';
+      const promptsMatch = existingPrompt.trim().toLowerCase() === prompt.trim().toLowerCase();
+      
+      if (promptsMatch) {
+        console.log(`[Phase9B-Async] Scene ${sceneId} already has active job with matching prompt: ${existingJob.jobId}`);
+        return res.json({ 
+          success: true, 
+          jobId: existingJob.jobId,
+          status: existingJob.status,
+          progress: existingJob.progress,
+          message: 'Video generation already in progress'
+        });
+      } else {
+        console.log(`[Phase9B-Async] Scene ${sceneId} has active job but prompt changed - creating new job`);
+        console.log(`[Phase9B-Async] Old prompt: ${existingPrompt.substring(0, 80)}...`);
+        console.log(`[Phase9B-Async] New prompt: ${prompt.substring(0, 80)}...`);
+        // Continue to create new job with updated prompt
+      }
+    }
     const fallbackPrompt = (scene as any).summary || 'professional video';
     
     // Check if visual direction requires AI-generated people/activities (not compatible with location assets)
