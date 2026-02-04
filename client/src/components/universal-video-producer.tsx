@@ -5069,11 +5069,44 @@ export default function UniversalVideoProducer() {
     queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
   };
 
-  const handleSelectProject = (selectedProject: ProjectWithMeta) => {
-    setProject(selectedProject);
-    setRenderId(selectedProject.renderId || null);
-    setBucketName(selectedProject.bucketName || null);
-    setOutputUrl(selectedProject.outputUrl || null);
+  const handleSelectProject = async (selectedProject: ProjectWithMeta) => {
+    // Always fetch fresh project data to ensure we have the latest video URLs
+    // This prevents stale cache issues when videos are regenerated
+    try {
+      console.log('[handleSelectProject] Fetching fresh project data for:', selectedProject.id);
+      const response = await fetch(`/api/universal-video/projects/${selectedProject.id}`, { credentials: 'include' });
+      const data = await response.json();
+      
+      if (data.project) {
+        console.log('[handleSelectProject] Fresh data received, scenes count:', data.project.scenes?.length);
+        // Log video URLs for debugging
+        data.project.scenes?.forEach((scene: any, idx: number) => {
+          const videoUrl = scene.background?.videoUrl || scene.assets?.videoUrl;
+          if (videoUrl) {
+            console.log(`[handleSelectProject] Scene ${idx} (${scene.id}) video:`, videoUrl.substring(0, 80));
+          }
+        });
+        setProject(data.project);
+        setRenderId(data.project.renderId || null);
+        setBucketName(data.project.bucketName || null);
+        setOutputUrl(data.project.outputUrl || null);
+      } else {
+        // Fallback to the passed project if fetch fails
+        console.warn('[handleSelectProject] No project in response, using cached data');
+        setProject(selectedProject);
+        setRenderId(selectedProject.renderId || null);
+        setBucketName(selectedProject.bucketName || null);
+        setOutputUrl(selectedProject.outputUrl || null);
+      }
+    } catch (err) {
+      console.error('[handleSelectProject] Failed to fetch fresh data:', err);
+      // Fallback to the passed project
+      setProject(selectedProject);
+      setRenderId(selectedProject.renderId || null);
+      setBucketName(selectedProject.bucketName || null);
+      setOutputUrl(selectedProject.outputUrl || null);
+    }
+    
     setViewMode('edit');
     
     if (selectedProject.status === 'rendering' && selectedProject.renderId && selectedProject.bucketName) {
