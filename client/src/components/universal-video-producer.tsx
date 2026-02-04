@@ -2644,6 +2644,11 @@ function ScenePreview({
             // Check for video URL in both background and assets for compatibility
             const sceneVideoUrl = scene.background?.videoUrl || scene.assets?.videoUrl;
             const hasBrollVideo = (scene.background?.type === 'video' && scene.background?.videoUrl) || !!scene.assets?.videoUrl;
+            
+            // Debug: Log video URL when scene renders (only log if video URL changes or on first render)
+            if (sceneVideoUrl) {
+              console.log(`[SceneRender] ${scene.id} videoUrl:`, sceneVideoUrl?.substring(0, 80));
+            }
             const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
             const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
             
@@ -2677,6 +2682,9 @@ function ScenePreview({
                       className="w-full h-full object-cover"
                       muted
                       playsInline
+                      onLoadStart={() => console.log('[VideoCard] Loading video:', sceneVideoUrl?.substring(0, 80))}
+                      onLoadedData={() => console.log('[VideoCard] Video loaded successfully:', scene.id)}
+                      onError={(e) => console.error('[VideoCard] Video load error:', scene.id, sceneVideoUrl, e)}
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                       <Video className="w-5 h-5 text-white drop-shadow" />
@@ -2924,6 +2932,9 @@ function ScenePreview({
                         muted
                         playsInline
                         data-testid={`video-broll-modal-${scene.id}`}
+                        onLoadStart={() => console.log('[VideoModal] Loading video:', sceneVideoUrl?.substring(0, 80))}
+                        onLoadedData={() => console.log('[VideoModal] Video loaded successfully:', scene.id)}
+                        onError={(e) => console.error('[VideoModal] Video load error:', scene.id, sceneVideoUrl, e)}
                       />
                     </div>
                   </div>
