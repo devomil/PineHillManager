@@ -2856,7 +2856,7 @@ function ScenePreview({
       }
       
       return (
-        <Dialog key={`scene-editor-${scene.id}-${scene.qualityScore || 0}-${scene.analysisResult?.overallScore || 0}`} open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
+        <Dialog key={`scene-editor-${scene.id}-${scene.qualityScore || 0}-${scene.analysisResult?.overallScore || 0}-${sceneVideoUrl?.split('/').pop() || 'no-video'}`} open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
           <DialogContent className="w-[calc(100vw-4rem)] h-[calc(100vh-4rem)] max-w-[1920px] max-h-[1080px] flex flex-col overflow-hidden">
             <DialogHeader className="flex-shrink-0">
               <DialogTitle className="flex items-center gap-2">
@@ -2886,16 +2886,32 @@ function ScenePreview({
                   variant="ghost"
                   size="sm"
                   className="ml-auto h-7 px-2"
+                  title="Refresh scene data from database"
                   onClick={async () => {
-                    console.log('[ScenePreview] Manual refresh triggered for', projectId);
+                    console.log('[ScenePreview] Manual refresh triggered for', projectId, 'scene:', sceneEditorOpen);
+                    console.log('[ScenePreview] Current videoUrl:', sceneVideoUrl);
                     try {
-                      const res = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+                      const res = await fetch(`/api/universal-video/projects/${projectId}`, { 
+                        credentials: 'include',
+                        cache: 'no-store',
+                        headers: { 'Cache-Control': 'no-cache' }
+                      });
                       const data = await res.json();
                       if (data.success && data.project) {
                         const freshScene = data.project.scenes?.find((s: any) => s.id === sceneEditorOpen);
-                        console.log('[ScenePreview] Refreshed - scene videoUrl:', freshScene?.background?.videoUrl || freshScene?.assets?.videoUrl);
-                        toast({ title: 'Refreshed', description: 'Loaded latest scene data' });
+                        const newVideoUrl = freshScene?.background?.videoUrl || freshScene?.assets?.videoUrl;
+                        console.log('[ScenePreview] Fresh videoUrl from DB:', newVideoUrl);
+                        const urlChanged = newVideoUrl !== sceneVideoUrl;
+                        toast({ 
+                          title: urlChanged ? 'Video Updated!' : 'Refreshed', 
+                          description: urlChanged 
+                            ? `New video loaded: ${newVideoUrl?.split('/').pop()?.substring(0, 30) || 'unknown'}` 
+                            : 'Scene data is already current'
+                        });
                         onProjectUpdate?.(data.project);
+                      } else {
+                        console.error('[ScenePreview] API returned error:', data);
+                        toast({ title: 'Refresh failed', description: data.error || 'Unknown error', variant: 'destructive' });
                       }
                     } catch (err) {
                       console.error('[ScenePreview] Refresh failed:', err);
