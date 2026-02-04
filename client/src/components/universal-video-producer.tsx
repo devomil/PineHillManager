@@ -2882,6 +2882,30 @@ function ScenePreview({
                     sceneQualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier}
                   />
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-7 px-2"
+                  onClick={async () => {
+                    console.log('[ScenePreview] Manual refresh triggered for', projectId);
+                    try {
+                      const res = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
+                      const data = await res.json();
+                      if (data.success && data.project) {
+                        const freshScene = data.project.scenes?.find((s: any) => s.id === sceneEditorOpen);
+                        console.log('[ScenePreview] Refreshed - scene videoUrl:', freshScene?.background?.videoUrl || freshScene?.assets?.videoUrl);
+                        toast({ title: 'Refreshed', description: 'Loaded latest scene data' });
+                        onProjectUpdate?.(data.project);
+                      }
+                    } catch (err) {
+                      console.error('[ScenePreview] Refresh failed:', err);
+                      toast({ title: 'Refresh failed', variant: 'destructive' });
+                    }
+                  }}
+                  data-testid="btn-refresh-scene"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
               </DialogTitle>
               <DialogDescription>
                 Edit scene content, media sources, and overlay settings
