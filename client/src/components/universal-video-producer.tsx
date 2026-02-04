@@ -2883,9 +2883,9 @@ function ScenePreview({
                   />
                 )}
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="ml-auto h-7 px-2"
+                  className="ml-2 mr-8 h-7 px-2"
                   title="Refresh scene data from database"
                   onClick={async () => {
                     console.log('[ScenePreview] Manual refresh triggered for', projectId, 'scene:', sceneEditorOpen);
