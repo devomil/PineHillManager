@@ -897,7 +897,21 @@ router.get('/projects/:projectId', isAuthenticated, async (req: Request, res: Re
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    res.json({ success: true, project: projectData });
+    // Debug: Log scene video URLs when fetching
+    const scenes = projectData.scenes || [];
+    const scene2 = scenes.find((s: any) => s.id === 'scene_002_problem');
+    if (scene2) {
+      console.log('[DEBUG] API returning scene_002_problem videoUrls:', {
+        background: scene2.background?.videoUrl?.substring(0, 80) || 'none',
+        assets: scene2.assets?.videoUrl?.substring(0, 80) || 'none',
+        mediaUrl: scene2.background?.mediaUrl?.substring(0, 80) || 'none'
+      });
+    }
+    
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.json({ success: true, project: projectData, fetchedAt: new Date().toISOString() });
   } catch (error: any) {
     console.error('[UniversalVideo] Error getting project:', error);
     res.status(500).json({ success: false, error: error.message });
