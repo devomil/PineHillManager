@@ -4403,6 +4403,7 @@ router.post('/:projectId/regenerate-all-videos', isAuthenticated, async (req: Re
               const updatedScene = projectData.scenes[sceneIndex];
               updatedScene.background = updatedScene.background || { type: 'video', source: '' };
               updatedScene.background.videoUrl = result.newVideoUrl;
+              updatedScene.background.mediaUrl = result.newVideoUrl; // Keep mediaUrl in sync
               updatedScene.background.type = 'video';
               updatedScene.background.videoSource = result.source || existingProvider;
               updatedScene.assets = updatedScene.assets || {};
@@ -6980,6 +6981,10 @@ router.post('/projects/:projectId/scenes/:sceneIndex/intelligent-regenerate', is
     if (result.success && result.newVideoUrl) {
       if (!scene.assets) scene.assets = {};
       scene.assets.videoUrl = result.newVideoUrl;
+      // Keep all video URL fields in sync
+      if (!(scene as any).background) (scene as any).background = { type: 'video', source: '' };
+      (scene as any).background.videoUrl = result.newVideoUrl;
+      (scene as any).background.mediaUrl = result.newVideoUrl;
       (scene as any).analysis = result.newAnalysis;
       (scene as any).compositionInstructions = result.newInstructions;
       
@@ -9281,6 +9286,10 @@ router.post('/projects/:projectId/scenes/:sceneId/pipeline-step', isAuthenticate
         if (stepName === 'Animate Image' && result.resultUrl) {
           projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
           projectData.scenes[sceneIndex].assets.videoUrl = result.resultUrl;
+          // Keep all video URL fields in sync
+          projectData.scenes[sceneIndex].background = projectData.scenes[sceneIndex].background || { type: 'video', source: '' };
+          projectData.scenes[sceneIndex].background.videoUrl = result.resultUrl;
+          projectData.scenes[sceneIndex].background.mediaUrl = result.resultUrl;
         } else if ((stepName === 'Generate Environment' || stepName === 'Compose Products') && result.resultUrl) {
           projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
           projectData.scenes[sceneIndex].assets.imageUrl = result.resultUrl;
@@ -9341,6 +9350,10 @@ router.post('/projects/:projectId/scenes/:sceneId/run-full-pipeline', isAuthenti
         projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
         if (result.videoUrl) {
           projectData.scenes[sceneIndex].assets.videoUrl = result.videoUrl;
+          // Keep all video URL fields in sync
+          projectData.scenes[sceneIndex].background = projectData.scenes[sceneIndex].background || { type: 'video', source: '' };
+          projectData.scenes[sceneIndex].background.videoUrl = result.videoUrl;
+          projectData.scenes[sceneIndex].background.mediaUrl = result.videoUrl;
         }
         if (result.intermediates.composedImage) {
           projectData.scenes[sceneIndex].assets.imageUrl = result.intermediates.composedImage;

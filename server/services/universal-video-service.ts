@@ -3287,6 +3287,7 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
             } else {
               updatedProject.scenes[sceneIndex].background.type = 'video';
               updatedProject.scenes[sceneIndex].background.videoUrl = videoResult.url;
+              updatedProject.scenes[sceneIndex].background.mediaUrl = videoResult.url; // Keep mediaUrl in sync
             }
             updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
             updatedProject.scenes[sceneIndex].assets!.videoSource = videoResult.source;
@@ -4473,6 +4474,7 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       scene.background = scene.background || { type: 'video', source: '' };
       scene.background.type = 'video';
       scene.background.videoUrl = scene.assets!.videoUrl;
+      scene.background.mediaUrl = scene.assets!.videoUrl; // Keep mediaUrl in sync
       scene.assets!.preferVideo = true;
       scene.assets!.preferImage = false;
     } else {
