@@ -1447,6 +1447,23 @@ function ScenePreview({
     onProjectUpdateRef.current = onProjectUpdate;
   }, [onProjectUpdate]);
   
+  // Refresh project data when scene editor modal opens to ensure fresh video URLs
+  useEffect(() => {
+    if (sceneEditorOpen && projectId) {
+      console.log('[ScenePreview] Modal opened - fetching fresh project data for', projectId);
+      fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.project) {
+            const scene = data.project.scenes?.find((s: any) => s.id === sceneEditorOpen);
+            console.log('[ScenePreview] Fresh data received, scene videoUrl:', scene?.background?.videoUrl || scene?.assets?.videoUrl);
+            onProjectUpdate?.(data.project);
+          }
+        })
+        .catch(err => console.error('[ScenePreview] Failed to refresh project data:', err));
+    }
+  }, [sceneEditorOpen, projectId]);
+  
   // Cleanup polling timeouts on unmount
   useEffect(() => {
     return () => {
