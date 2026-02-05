@@ -32,7 +32,8 @@ interface ModelConfig {
 
 class PiAPIVideoService {
   private s3Client: S3Client | null = null;
-  private bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
+  private bucket = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
+  private region = process.env.REMOTION_AWS_REGION || 'us-east-2';
   private apiKey = process.env.PIAPI_API_KEY || '';
   private baseUrl = 'https://api.piapi.ai/api/v1';
 
@@ -42,7 +43,7 @@ class PiAPIVideoService {
     
     if (accessKeyId && secretAccessKey) {
       this.s3Client = new S3Client({
-        region: 'us-east-1',
+        region: this.region,
         credentials: {
           accessKeyId,
           secretAccessKey,
@@ -597,7 +598,7 @@ class PiAPIVideoService {
         ACL: 'public-read',
       }));
 
-      const s3Url = `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;
+      const s3Url = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
       console.log(`[PiAPI:${model}] Uploaded to S3: ${key}`);
       
       return s3Url;

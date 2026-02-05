@@ -7,19 +7,19 @@ import {
 } from "@remotion/lambda";
 import path from "path";
 
-// Legacy fallback constants (for backwards compatibility with existing us-east-1 deployment)
-const LEGACY_REGION: AwsRegion = "us-east-1";
-const LEGACY_FUNCTION_NAME = "remotion-render-4-0-410-mem3008mb-disk10240mb-900sec";
-const LEGACY_SITE_NAME = "pine-hill-farm-videos";
-const LEGACY_BUCKET_NAME = "remotionlambda-useast1-refjo5giq5";
-const LEGACY_SERVE_URL = `https://${LEGACY_BUCKET_NAME}.s3.${LEGACY_REGION}.amazonaws.com/sites/${LEGACY_SITE_NAME}/index.html`;
+// Updated defaults for us-east-2 deployment (Phase 18I)
+const DEFAULT_REGION: AwsRegion = "us-east-2";
+const DEFAULT_FUNCTION_NAME = "remotion-render-4-0-410-mem3008mb-disk10240mb-900sec";
+const DEFAULT_SITE_NAME = "pinehillfarm-video";
+const DEFAULT_BUCKET_NAME = "remotionlambda-useast2-1vc2l6a56o";
+const DEFAULT_SERVE_URL = `https://${DEFAULT_BUCKET_NAME}.s3.${DEFAULT_REGION}.amazonaws.com/sites/${DEFAULT_SITE_NAME}/index.html`;
 
-// Phase 18I: Use environment variables with legacy fallback for backwards compatibility
-const getRegion = (): AwsRegion => (process.env.REMOTION_AWS_REGION as AwsRegion) || LEGACY_REGION;
-const getFunctionName = (): string => process.env.REMOTION_FUNCTION_NAME || LEGACY_FUNCTION_NAME;
-const getSiteName = (): string => process.env.REMOTION_SITE_NAME || LEGACY_SITE_NAME;
-const getBucketName = (): string => process.env.REMOTION_S3_BUCKET || LEGACY_BUCKET_NAME;
-const getServeUrl = (): string => process.env.REMOTION_SERVE_URL || LEGACY_SERVE_URL;
+// Phase 18I: Use environment variables with updated us-east-2 defaults
+const getRegion = (): AwsRegion => (process.env.REMOTION_AWS_REGION as AwsRegion) || DEFAULT_REGION;
+const getFunctionName = (): string => process.env.REMOTION_FUNCTION_NAME || DEFAULT_FUNCTION_NAME;
+const getSiteName = (): string => process.env.REMOTION_SITE_NAME || DEFAULT_SITE_NAME;
+const getBucketName = (): string => process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || DEFAULT_BUCKET_NAME;
+const getServeUrl = (): string => process.env.REMOTION_SERVE_URL || DEFAULT_SERVE_URL;
 
 interface DeploymentResult {
   functionName: string;

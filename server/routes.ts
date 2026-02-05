@@ -17399,15 +17399,16 @@ Respond in JSON format:
   }> {
     const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
     
+    const remotionRegion = process.env.REMOTION_AWS_REGION || 'us-east-2';
     const s3Client = new S3Client({
-      region: 'us-east-1',
+      region: remotionRegion,
       credentials: {
         accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY || '',
       },
     });
     
-    const bucketName = 'remotionlambda-useast1-refjo5giq5';
+    const bucketName = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
     
     const isExternalUrl = (url: string) => {
       if (!url) return false;
@@ -17425,7 +17426,7 @@ Respond in JSON format:
           ContentType: contentType,
           ACL: 'public-read',
         }));
-        return `https://${bucketName}.s3.us-east-1.amazonaws.com/cached-assets/${fileName}`;
+        return `https://${bucketName}.s3.${remotionRegion}.amazonaws.com/cached-assets/${fileName}`;
       } catch (error) {
         console.error('[S3Cache] Upload error:', error);
         return null;

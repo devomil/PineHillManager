@@ -69,10 +69,11 @@ import { overlayConfigurationService } from '../services/overlay-configuration-s
 const objectStorageService = new ObjectStorageService();
 
 // S3 client for caching assets to Remotion Lambda bucket
-const REMOTION_BUCKET_NAME = 'remotionlambda-useast1-refjo5giq5';
+const REMOTION_BUCKET_NAME = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
+const REMOTION_REGION = process.env.REMOTION_AWS_REGION || 'us-east-2';
 const s3Client = process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_AWS_SECRET_ACCESS_KEY
   ? new S3Client({
-      region: 'us-east-1',
+      region: REMOTION_REGION,
       credentials: {
         accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY,
@@ -1928,7 +1929,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
               Body: logoBuffer,
               ContentType: 'image/png',
             }));
-            cachedLogoUrl = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${logoKey}`;
+            cachedLogoUrl = `https://${REMOTION_BUCKET_NAME}.s3.${REMOTION_REGION}.amazonaws.com/${logoKey}`;
             console.log('[UniversalVideo] End card logo cached to S3:', cachedLogoUrl);
           } else {
             console.error('[UniversalVideo] Failed to fetch logo, status:', logoResponse.status);
@@ -2523,7 +2524,7 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
     
     const bucket = (typeof bucketName === 'string' ? bucketName : null) || 
                    renderBuckets.get(renderId) || 
-                   'remotionlambda-useast1-refjo5giq5';
+                   REMOTION_BUCKET_NAME;
     
     // Get render start time (persisted in DB to survive restarts)
     // Primary source: DB-persisted progress.renderStartedAt

@@ -54,13 +54,14 @@ const NEGATIVE_PROMPTS = {
 
 class ProductImageService {
   private s3Client: S3Client;
-  private bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
+  private bucket = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
+  private region = process.env.REMOTION_AWS_REGION || 'us-east-2';
   private apiKey = process.env.PIAPI_API_KEY || '';
   private baseUrl = 'https://api.piapi.ai/api/v1';
 
   constructor() {
     this.s3Client = new S3Client({
-      region: 'us-east-1',
+      region: this.region,
       credentials: {
         accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY || '',
@@ -368,7 +369,7 @@ class ProductImageService {
         ACL: 'public-read',
       }));
 
-      return `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;
+      return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
 
     } catch (error: any) {
       console.warn('[ProductImage] S3 upload failed:', error.message);

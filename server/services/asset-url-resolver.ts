@@ -6,10 +6,11 @@ import { objectStorageClient } from '../objectStorage';
 
 const urlCache = new Map<string, string>();
 
-const REMOTION_BUCKET_NAME = 'remotionlambda-useast1-refjo5giq5';
+const REMOTION_BUCKET_NAME = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
+const REMOTION_REGION = process.env.REMOTION_AWS_REGION || 'us-east-2';
 const s3Client = process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_AWS_SECRET_ACCESS_KEY
   ? new S3Client({
-      region: 'us-east-1',
+      region: REMOTION_REGION,
       credentials: {
         accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY,
@@ -199,7 +200,7 @@ class AssetUrlResolver {
         ACL: 'public-read',
       }));
       
-      const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${s3Key}`;
+      const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.${REMOTION_REGION}.amazonaws.com/${s3Key}`;
       console.log('[AssetURL] Cached asset to S3 with public-read ACL:', s3Url);
       
       return s3Url;
@@ -244,7 +245,7 @@ class AssetUrlResolver {
         ACL: 'public-read',
       }));
       
-      const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.us-east-1.amazonaws.com/${s3Key}`;
+      const s3Url = `https://${REMOTION_BUCKET_NAME}.s3.${REMOTION_REGION}.amazonaws.com/${s3Key}`;
       console.log('[AssetURL] Cached local file to S3 with public-read ACL:', s3Url);
       
       return s3Url;

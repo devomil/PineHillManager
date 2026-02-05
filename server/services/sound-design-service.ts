@@ -64,7 +64,8 @@ interface SoundGenerationOptions {
 
 class SoundDesignService {
   private s3Client: S3Client | null = null;
-  private bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
+  private bucket = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
+  private region = process.env.REMOTION_AWS_REGION || 'us-east-2';
   private apiKey = process.env.PIAPI_API_KEY || '';
   private baseUrl = 'https://api.piapi.ai/api/v1';
 
@@ -95,7 +96,7 @@ class SoundDesignService {
   constructor() {
     if (process.env.REMOTION_AWS_ACCESS_KEY_ID && process.env.REMOTION_AWS_SECRET_ACCESS_KEY) {
       this.s3Client = new S3Client({
-        region: 'us-east-1',
+        region: this.region,
         credentials: {
           accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID,
           secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY,
@@ -399,7 +400,7 @@ class SoundDesignService {
         ACL: 'public-read',
       }));
 
-      const s3Url = `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;
+      const s3Url = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
       console.log(`[SoundDesign] Uploaded to S3: ${key}`);
       return s3Url;
 
@@ -428,9 +429,7 @@ class SoundDesignService {
    * - mixkit.co/free-sound-effects (free for commercial use)
    */
   getStockTransitionSound(intensity: 'soft' | 'medium' | 'dramatic'): SoundEffect | undefined {
-    const stockSoundBaseUrl = process.env.REMOTION_AWS_BUCKET
-      ? `https://${process.env.REMOTION_AWS_BUCKET}.s3.us-east-1.amazonaws.com/stock-sounds`
-      : `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds`;
+    const stockSoundBaseUrl = `https://${this.bucket}.s3.${this.region}.amazonaws.com/stock-sounds`;
 
     const stockSounds: Record<string, { url: string; volume: number; duration: number }> = {
       'soft': { url: `${stockSoundBaseUrl}/whoosh-soft.mp3`, volume: 0.4, duration: 0.5 },
@@ -462,9 +461,7 @@ class SoundDesignService {
    * - stock-sounds/ambient-energy.mp3
    */
   getStockAmbientSound(type: 'nature' | 'wellness' | 'energy'): SoundEffect | undefined {
-    const stockSoundBaseUrl = process.env.REMOTION_AWS_BUCKET
-      ? `https://${process.env.REMOTION_AWS_BUCKET}.s3.us-east-1.amazonaws.com/stock-sounds`
-      : `https://${this.bucket}.s3.us-east-1.amazonaws.com/stock-sounds`;
+    const stockSoundBaseUrl = `https://${this.bucket}.s3.${this.region}.amazonaws.com/stock-sounds`;
 
     const stockSounds: Record<string, { url: string; volume: number }> = {
       'nature': { url: `${stockSoundBaseUrl}/ambient-nature.mp3`, volume: 0.1 },

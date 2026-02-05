@@ -43,8 +43,8 @@ import {
 } from "./health-script-context";
 import { optimizePrompt, logPromptOptimization } from "./video-prompt-optimizer";
 
-const AWS_REGION = "us-east-1";
-const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
+const AWS_REGION = process.env.REMOTION_AWS_REGION || "us-east-2";
+const REMOTION_BUCKET = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || "remotionlambda-useast2-1vc2l6a56o";
 
 interface ImageGenerationResult {
   url: string;

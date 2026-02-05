@@ -33,7 +33,8 @@ interface RunwayGenerationOptions {
 
 class RunwayVideoService {
   private s3Client: S3Client | null = null;
-  private bucket = process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast1-refjo5giq5';
+  private bucket = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
+  private region = process.env.REMOTION_AWS_REGION || 'us-east-2';
   private client: RunwayML | null = null;
 
   constructor() {
@@ -42,7 +43,7 @@ class RunwayVideoService {
     
     if (accessKeyId && secretAccessKey) {
       this.s3Client = new S3Client({
-        region: 'us-east-1',
+        region: this.region,
         credentials: {
           accessKeyId,
           secretAccessKey,
@@ -380,7 +381,7 @@ class RunwayVideoService {
         ACL: 'public-read',
       }));
 
-      const s3Url = `https://${this.bucket}.s3.us-east-1.amazonaws.com/${key}`;
+      const s3Url = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
       console.log(`[Runway] Uploaded to S3: ${key}`);
       
       return s3Url;

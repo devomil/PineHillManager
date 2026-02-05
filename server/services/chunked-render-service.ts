@@ -7,8 +7,8 @@ import * as path from "path";
 
 const execAsync = promisify(exec);
 
-const REGION = "us-east-1";
-const BUCKET_NAME = "remotionlambda-useast1-refjo5giq5";
+const REGION = process.env.REMOTION_AWS_REGION || "us-east-2";
+const BUCKET_NAME = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || "remotionlambda-useast2-1vc2l6a56o";
 const TEMP_DIR = "/tmp/video-chunks";
 const MAX_CHUNK_DURATION_SEC = 120;
 const CHUNK_THRESHOLD_SEC = 90;

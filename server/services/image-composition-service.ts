@@ -9,15 +9,16 @@ import { environmentGenerationService } from './environment-generation-service';
 import { brandAssetMatcher } from './brand-asset-matcher';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
+const REMOTION_REGION = process.env.REMOTION_AWS_REGION || 'us-east-2';
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: REMOTION_REGION,
   credentials: {
     accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '',
   },
 });
 
-const S3_BUCKET = process.env.S3_BUCKET || 'remotionlambda-useast1-refjo5giq5';
+const S3_BUCKET = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || 'remotionlambda-useast2-1vc2l6a56o';
 
 class ImageCompositionService {
   
