@@ -65,7 +65,7 @@ interface TaskResult {
     duration?: number;
     cost?: number;
   };
-  error?: string;
+  error?: string | { code?: string; raw_message?: string; message?: string; detail?: string };
   logs: string[];
 }
 
@@ -583,7 +583,11 @@ export default function ProviderTestingPlayground() {
 
             {taskResult?.error && (
               <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-                <p className="text-sm text-destructive">{taskResult.error}</p>
+                <p className="text-sm text-destructive">
+                  {typeof taskResult.error === 'string' 
+                    ? taskResult.error 
+                    : (taskResult.error as any)?.message || (taskResult.error as any)?.detail || JSON.stringify(taskResult.error)}
+                </p>
               </div>
             )}
 
