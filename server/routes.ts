@@ -26101,6 +26101,12 @@ Important:
   app.use('/api/marketplace', marketplaceRoutes.default);
 
   // ================================
+  // PROVIDER TESTING PLAYGROUND ROUTES
+  // ================================
+  const providerTestRoutes = await import('./routes/provider-test-routes');
+  app.use('/api/provider-test', providerTestRoutes.default);
+
+  // ================================
   // PRACTITIONER DASHBOARD ROUTES
   // ================================
   const { practitionerContacts, insertPractitionerContactSchema, updatePractitionerContactSchema } = await import('@shared/schema');

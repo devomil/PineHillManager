@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Image } from 'lucide-react';
+import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Image, FlaskConical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -15,6 +15,7 @@ import AdminLayout from '@/components/admin-layout';
 import QrCodeHistory from '@/components/qr-code-history';
 import UniversalVideoProducer from '@/components/universal-video-producer';
 import AssetLibrary from '@/components/asset-library';
+import ProviderTestingPlayground from '@/components/provider-testing-playground';
 import { useLocation } from 'wouter';
 import { Wand2 } from 'lucide-react';
 
@@ -196,6 +197,10 @@ export default function MarketingPage() {
               <Wand2 className="h-4 w-4" />
               Video Studio
             </TabsTrigger>
+            <TabsTrigger value="api-playground" className="flex items-center gap-2" data-testid="tab-api-playground">
+              <FlaskConical className="h-4 w-4" />
+              API Playground
+            </TabsTrigger>
             <TabsTrigger value="asset-library" className="flex items-center gap-2" data-testid="tab-asset-library">
               <Image className="h-4 w-4" />
               Assets
@@ -212,6 +217,10 @@ export default function MarketingPage() {
 
           <TabsContent value="universal-producer" className="space-y-6">
             <UniversalVideoProducer />
+          </TabsContent>
+
+          <TabsContent value="api-playground" className="space-y-6">
+            <ProviderTestingPlayground />
           </TabsContent>
 
           <TabsContent value="asset-library" className="space-y-6">
