@@ -1,0 +1,137 @@
+# Phase 19A: Quick Create Document-to-Video Pipeline
+
+## Objective
+Add a "Quick Create" tab to the Universal Video Producer that lets users upload a document 
+(Word, PDF, or text file) and generate a complete branded video with one click.
+
+## User Flow
+1. User uploads .docx, .pdf, or .txt file containing educational content
+2. User selects target duration (2, 4, 6, 8 minutes)
+3. User selects visual style (Educational, Lifestyle, Professional)
+4. User confirms brand settings (logo intro, watermark, end card)
+5. User clicks "Create Video"
+6. System automatically:
+   - Extracts text from document
+   - Parses into scenes using existing script-parser-service
+   - Generates T2V visuals for each scene (NO I2V needed)
+   - Generates voiceover using ElevenLabs
+   - Adds brand overlays (logo, watermark, badges)
+   - Renders via AWS Remotion Lambda
+   - Provides downloadable MP4
+
+## Files to Create
+
+### 1. Document Upload Service
+`server/services/document-upload-service.ts`
+```typescript
+import mammoth from 'mammoth';  // For .docx
+import pdf from 'pdf-parse';     // For .pdf
+
+interface DocumentContent {
+  text: string;
+  title: string;
+  sections: { heading: string; content: string }[];
+}
+
+class DocumentUploadService {
+  async extractContent(filePath: string, mimeType: string): Promise<DocumentContent> {
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      return this.extractDocx(filePath);
+    } else if (mimeType === 'application/pdf') {
+      return this.extractPdf(filePath);
+    } else {
+      return this.extractText(filePath);
+    }
+  }
+  
+  private async extractDocx(filePath: string): Promise<DocumentContent> {
+    const result = await mammoth.extractRawText({ path: filePath });
+    return this.parseContent(result.value);
+  }
+  
+  private parseContent(text: string): DocumentContent {
+    // Parse headings (lines in **bold**) and content
+    // Return structured sections
+  }
+}
+```
+
+### 2. Quick Create API Endpoint
+`server/routes/quick-create-routes.ts`
+```typescript
+router.post('/api/quick-create', upload.single('document'), async (req, res) => {
+  const { targetDuration, visualStyle, platform, brandSettings } = req.body;
+  const file = req.file;
+  
+  // 1. Extract document content
+  const content = await documentUploadService.extractContent(file.path, file.mimetype);
+  
+  // 2. Convert to script format for existing parser
+  const script = formatContentAsScript(content, targetDuration);
+  
+  // 3. Use existing script-based video creation
+  const project = await universalVideoService.createFromScript({
+    title: content.title,
+    script,
+    platform,
+    visualStyle,
+    brandSettings,
+    qualityTier: 'standard',  // T2V only, no I2V
+    autoGenerate: true,       // Skip manual editing
+  });
+  
+  // 4. Immediately start generation
+  await universalVideoService.generateProjectAssets(project.id, true);
+  
+  // 5. Queue for render
+  await remotionRenderService.queueRender(project.id, 'broadcast-1080p');
+  
+  res.json({ projectId: project.id, status: 'processing' });
+});
+```
+
+### 3. Quick Create UI Component
+`client/src/components/quick-create-tab.tsx`
+
+- File upload dropzone (accepts .docx, .pdf, .txt)
+- Duration selector (2, 4, 6, 8 minutes)
+- Visual style dropdown (use existing styles)
+- Platform selector (YouTube, TikTok, etc.)
+- Brand settings checkboxes (logo, watermark, end card)
+- "Create Video" button
+- Progress display while processing
+- Download link when complete
+
+### 4. Add Tab to Universal Video Producer
+Update `client/src/components/universal-video-producer.tsx`:
+```tsx
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="ai-generate">AI-Generated Script</TabsTrigger>
+  <TabsTrigger value="custom">Custom Script</TabsTrigger>
+  <TabsTrigger value="quick-create">Quick Create</TabsTrigger>  {/* NEW */}
+</TabsList>
+
+<TabsContent value="quick-create">
+  <QuickCreateTab />
+</TabsContent>
+```
+
+## Dependencies to Install
+```bash
+npm install mammoth pdf-parse multer
+```
+
+## Key Constraints
+- T2V only (no I2V) - simpler and faster
+- Use existing script parser - no new parsing logic
+- Use existing brand injection - logo, watermark, end card
+- Use existing Remotion pipeline - just trigger it automatically
+- No manual editing step - straight to render
+
+## Success Criteria
+- User can upload a .docx file
+- Video is generated without any manual scene editing
+- Pine Hill Farm logo appears in intro
+- Watermark visible throughout
+- End card with CTA renders
+- User receives downloadable MP4
