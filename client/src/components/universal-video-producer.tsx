@@ -562,14 +562,14 @@ function VideoCreatorForm({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-center p-1 bg-muted rounded-lg">
+      <div className="flex items-center justify-center gap-1 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
         <button
           type="button"
           onClick={() => handleModeChange("ai-generate")}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             scriptMode === "ai-generate"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-md border-2 border-emerald-500"
+              : "bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:border-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
           data-testid="mode-ai-generate"
         >
@@ -579,10 +579,10 @@ function VideoCreatorForm({
         <button
           type="button"
           onClick={() => handleModeChange("custom")}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             scriptMode === "custom"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-md border-2 border-emerald-500"
+              : "bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:border-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
           data-testid="mode-custom-script"
         >
@@ -592,10 +592,10 @@ function VideoCreatorForm({
         <button
           type="button"
           onClick={() => handleModeChange("quick-create")}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             scriptMode === "quick-create"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-md border-2 border-emerald-500"
+              : "bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:border-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
           data-testid="mode-quick-create"
         >
