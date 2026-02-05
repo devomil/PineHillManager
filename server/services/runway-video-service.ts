@@ -281,6 +281,7 @@ class RunwayVideoService {
       console.log(`[Runway] Task completed:`, JSON.stringify(task, null, 2));
 
       if (task.status === 'FAILED') {
+        console.error(`[Runway] Task failed:`, JSON.stringify(task, null, 2));
         return {
           success: false,
           error: task.failure || task.failureCode || 'Generation failed',

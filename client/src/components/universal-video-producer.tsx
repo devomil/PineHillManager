@@ -158,7 +158,7 @@ function convertToDisplayUrl(url: string, bustCache?: boolean): string {
   }
   
   // Add cache-busting for video URLs to prevent stale video content
-  if (bustCache && (url.endsWith('.mp4') || url.includes('.mp4'))) {
+  if (bustCache && (url.endsWith('.mp4') || url.includes('.mp4') || url.includes('video'))) {
     const separator = result.includes('?') ? '&' : '?';
     result = `${result}${separator}_t=${Date.now()}`;
   }

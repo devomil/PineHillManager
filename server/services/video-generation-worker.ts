@@ -321,6 +321,9 @@ class VideoGenerationWorker {
         log.debug(`[PromptSanitizer] Job ${job.jobId} using sanitized prompt: ${sanitizedResult.cleanPrompt.substring(0, 100)}...`);
         log.debug(`[PromptSanitizer] Job ${job.jobId} enhanced negative prompt: ${enhancedNegativePrompt.substring(0, 100)}...`);
 
+        // Log provider attempt
+        log.info(`[VideoWorker] Job ${job.jobId} attempting generation with provider: ${provider}`);
+
         const result = await aiVideoService.generateVideo({
           prompt: sanitizedResult.cleanPrompt,
           duration: job.duration || 6,
