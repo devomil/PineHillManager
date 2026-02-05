@@ -34,7 +34,8 @@ const documentRegistry = new Map<string, DocumentRegistryEntry>();
 setInterval(() => {
   const now = Date.now();
   const expiry = 24 * 60 * 60 * 1000; // 24 hours
-  for (const [id, entry] of documentRegistry.entries()) {
+  const entries = Array.from(documentRegistry.entries());
+  for (const [id, entry] of entries) {
     if (now - entry.uploadedAt.getTime() > expiry) {
       try { fs.unlinkSync(entry.filepath); } catch {}
       documentRegistry.delete(id);
