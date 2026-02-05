@@ -3282,21 +3282,6 @@ function ScenePreview({
                       <div className="flex gap-1">
                         <Button
                           size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
-                          onClick={() => askSuzzie(scene.id, scene.narration, scene.type)}
-                          disabled={!!askingSuzzie}
-                          data-testid={`button-ask-suzzie-modal-${scene.id}`}
-                        >
-                          {askingSuzzie === scene.id ? (
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-3 h-3 mr-1" />
-                          )}
-                          Ask Suzzie
-                        </Button>
-                        <Button
-                          size="sm"
                           variant="ghost"
                           className="h-7 px-2 text-xs"
                           onClick={() => {
@@ -3352,105 +3337,6 @@ function ScenePreview({
                     <p className="text-sm bg-muted/50 p-3 rounded">{scene.background.source}</p>
                   )}
                   
-                  {/* Suggested Improved Prompt from Claude Vision */}
-                  {scene.analysisResult?.improvedPrompt && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-amber-600" />
-                          <span className="text-sm font-medium text-amber-800">Suggested Improvement</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs bg-green-100 hover:bg-green-200 border-green-300 text-green-700"
-                            disabled={savingVisualDirection === scene.id}
-                            onClick={async () => {
-                              if (!projectId || !scene.analysisResult?.improvedPrompt) return;
-                              setSavingVisualDirection(scene.id);
-                              try {
-                                await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}/visual-direction`, {
-                                  visualDirection: scene.analysisResult.improvedPrompt,
-                                });
-                                setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.analysisResult?.improvedPrompt || '' }));
-                                onSceneUpdate?.();
-                                toast({ title: 'Applied!', description: 'Visual direction updated. Click regenerate when ready.' });
-                              } catch (err) {
-                                toast({ title: 'Error', description: 'Failed to apply suggestion.', variant: 'destructive' });
-                              } finally {
-                                setSavingVisualDirection(null);
-                              }
-                            }}
-                            data-testid={`button-apply-suggested-prompt-${scene.id}`}
-                          >
-                            {savingVisualDirection === scene.id ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            ) : (
-                              <Check className="w-3 h-3 mr-1" />
-                            )}
-                            Apply
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-700"
-                            disabled={savingVisualDirection === scene.id || !!regenerating}
-                            onClick={async () => {
-                              if (!projectId || !scene.analysisResult?.improvedPrompt) return;
-                              setSavingVisualDirection(scene.id);
-                              try {
-                                await apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}/visual-direction`, {
-                                  visualDirection: scene.analysisResult.improvedPrompt,
-                                });
-                                setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.analysisResult?.improvedPrompt || '' }));
-                                onSceneUpdate?.();
-                                toast({ title: 'Applied!', description: 'Now regenerating with improved direction...' });
-                                setSavingVisualDirection(null);
-                                const currentMediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
-                                const provider = selectedProviders[`${currentMediaType}-${scene.id}`] || getRecommendedProvider(currentMediaType as any, scene.type, scene.analysisResult.improvedPrompt);
-                                if (currentMediaType === 'video') {
-                                  // Include selected product/location asset or scene's brand asset for I2V workflows
-                                  const selectedProduct = selectedProductAsset[scene.id];
-                                  const selectedLocation = selectedLocationAsset[scene.id];
-                                  const userSelectedAssetUrl = selectedProduct?.url || selectedLocation?.url;
-                                  const sourceImageUrl = userSelectedAssetUrl || scene.brandAssetUrl || scene.assets?.imageUrl;
-                                  await regenerateVideo(scene.id, provider, sourceImageUrl);
-                                } else {
-                                  await regenerateImage(scene.id, provider);
-                                }
-                              } catch (err) {
-                                toast({ title: 'Error', description: 'Failed to apply and regenerate.', variant: 'destructive' });
-                                setSavingVisualDirection(null);
-                              }
-                            }}
-                            data-testid={`button-apply-and-regenerate-${scene.id}`}
-                          >
-                            {savingVisualDirection === scene.id ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            ) : (
-                              <RefreshCw className="w-3 h-3 mr-1" />
-                            )}
-                            Apply & Regen
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-700"
-                            onClick={() => {
-                              navigator.clipboard.writeText(scene.analysisResult?.improvedPrompt || '');
-                              toast({ title: 'Copied!', description: 'Suggested prompt copied to clipboard.' });
-                            }}
-                            data-testid={`button-copy-suggested-prompt-${scene.id}`}
-                          >
-                            <Copy className="w-3 h-3 mr-1" />
-                            Copy
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-amber-900">{scene.analysisResult.improvedPrompt}</p>
-                    </div>
-                  )}
                 </div>
                 
                 {/* Simplified Workflow Display - just shows workflow type badge */}
