@@ -3923,7 +3923,7 @@ function ScenePreview({
                                 formData.append('file', file);
                                 formData.append('category', 'scene-source');
                                 
-                                const res = await fetch('/api/brand-media/upload', {
+                                const res = await fetch('/api/brand-media-library/upload', {
                                   method: 'POST',
                                   credentials: 'include',
                                   body: formData,
