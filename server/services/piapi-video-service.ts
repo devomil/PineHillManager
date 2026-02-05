@@ -656,6 +656,7 @@ class PiAPIVideoService {
     aspectRatio: '16:9' | '9:16' | '1:1';
     model: string;
     negativePrompt?: string;
+    generateAudio?: boolean;
     i2vSettings?: {
       imageControlStrength?: number;
       animationStyle?: 'product-hero' | 'product-static' | 'subtle-motion' | 'dynamic';
@@ -865,9 +866,11 @@ class PiAPIVideoService {
       // Use helper to detect if prompt requires new content generation
       const requiresNewContent = promptRequiresNewContent(motionPrompt);
       
+      const shouldGenerateAudio = options.generateAudio ?? false;
+      
       console.log(`[PiAPI I2V] Veo ${veoModel}: ${requiresNewContent ? 'COMPOSITE MODE (product in new scene)' : 'ANIMATE MODE (motion only)'}`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
-      console.log(`[PiAPI I2V] resolution=720p, generate_audio=true`);
+      console.log(`[PiAPI I2V] resolution=720p, generate_audio=${shouldGenerateAudio}`);
       console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
       console.log(`[PiAPI I2V] Original Prompt: ${motionPrompt}`);
       
@@ -895,7 +898,7 @@ class PiAPIVideoService {
           aspect_ratio: options.aspectRatio || '16:9',
           duration: `${Math.min(options.duration, 8)}s`,
           resolution: '720p',
-          generate_audio: true,
+          generate_audio: shouldGenerateAudio,
         },
       };
     }

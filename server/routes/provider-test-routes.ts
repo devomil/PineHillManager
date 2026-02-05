@@ -313,6 +313,7 @@ async function processTask(taskId: string, options: {
             duration: options.duration,
             aspectRatio: options.aspectRatio as '16:9' | '9:16' | '1:1',
             model: options.provider,
+            generateAudio: options.generateAudio,
           });
         } else {
           result = await piapiVideoService.generateVideo({
