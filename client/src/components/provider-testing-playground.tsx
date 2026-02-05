@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,6 +71,7 @@ interface TaskResult {
 
 export default function ProviderTestingPlayground() {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedCategory, setSelectedCategory] = useState<'video' | 'image'>('video');
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [taskType, setTaskType] = useState<string>('t2v');
@@ -82,6 +83,63 @@ export default function ProviderTestingPlayground() {
   const [generateAudio, setGenerateAudio] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [taskResult, setTaskResult] = useState<TaskResult | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const uploadFileMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload-object', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload file');
+      }
+      
+      return response.json();
+    },
+  });
+
+  const handleFileUpload = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    
+    try {
+      const result = await uploadFileMutation.mutateAsync(file);
+      
+      if (result.url && typeof result.url === 'string' && (result.url.startsWith('http') || result.url.startsWith('/'))) {
+        setImageUrl(result.url);
+        toast({
+          title: "Image Uploaded",
+          description: "Image ready to use for generation",
+        });
+      } else {
+        toast({
+          title: "Upload Failed",
+          description: "Server did not return a valid image URL",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }, [uploadFileMutation, toast]);
 
   const { data: providers, isLoading: loadingProviders } = useQuery<{
     video: VideoProvider[];
@@ -347,10 +405,38 @@ export default function ProviderTestingPlayground() {
                         onChange={(e) => setImageUrl(e.target.value)}
                         className="flex-1"
                       />
-                      <Button variant="outline" size="icon">
-                        <Upload className="h-4 w-4" />
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
+                    {imageUrl && (
+                      <div className="mt-2 relative w-full h-32 rounded-lg overflow-hidden border border-gray-200">
+                        <img 
+                          src={imageUrl} 
+                          alt="Preview" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
