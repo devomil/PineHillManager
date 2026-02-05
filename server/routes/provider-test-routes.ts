@@ -279,10 +279,17 @@ async function processTask(taskId: string, options: {
       task.logs.push(`[${new Date().toISOString()}] Calling video provider: ${options.provider}`);
       
       if (options.provider === 'runway') {
+        const isRunwayI2V = options.taskType === 'i2v' && absoluteImageUrl;
+        
+        if (isRunwayI2V) {
+          task.logs.push(`[${new Date().toISOString()}] Runway I2V mode with image: ${absoluteImageUrl}`);
+        }
+        
         const result = await runwayVideoService.generateVideo({
           prompt: options.prompt,
           duration: options.duration,
           aspectRatio: options.aspectRatio as '16:9' | '9:16' | '1:1',
+          imageUrl: isRunwayI2V ? absoluteImageUrl : undefined,
         });
         
         if (result.success && result.videoUrl) {
