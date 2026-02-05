@@ -175,3 +175,36 @@ function adjustForProvider(prompt: string, provider: string, mode: 'i2v' | 't2v'
 
 **Design Principle:**
 For I2V COMPOSITE mode, the prompt should describe the complete scene including people, actions, and settings. The source image provides visual reference (product/brand assets) while the AI generates new content around it. Never strip I2V prompts to motion keywords.
+
+### Phase 19A: Quick Create Document-to-Video (February 2026)
+Fast-track video generation from document uploads:
+
+**Components:**
+- `server/services/document-upload-service.ts`: Document extraction service for .docx (mammoth), .pdf (pdf-parse), and .txt files
+- `server/routes/quick-create-routes.ts`: API endpoints for upload, generate, and status polling
+- `client/src/components/quick-create-tab.tsx`: React UI with file dropzone, settings, and progress tracking
+- `client/src/components/universal-video-producer.tsx`: Third tab "Quick Create" in Video Studio
+
+**Workflow:**
+1. User uploads document (.docx, .pdf, .txt) via drag-and-drop or file picker
+2. Document content extracted and parsed into sections
+3. Content converted to video script format with target duration
+4. Script parsed into scenes using existing parseScript() infrastructure
+5. Project created with T2V-only mode enforced (qualityTier: 'standard')
+6. Async asset generation triggered (voiceover, images, videos, music)
+
+**Security:**
+- Secure document registry with ownership validation
+- Client receives documentId (not filepath) to prevent path traversal
+- Documents auto-cleanup after 24 hours
+
+**API Endpoints:**
+- `POST /api/quick-create/upload`: Upload and preview document
+- `POST /api/quick-create/generate`: Start video generation from documentId
+- `GET /api/quick-create/status/:projectId`: Poll generation progress
+
+**Settings:**
+- Target duration: 1-10 minutes
+- Visual style: educational, professional, modern, corporate
+- Platform: YouTube, TikTok, Instagram, Facebook, Website
+- Brand options: intro logo, watermark, CTA outro

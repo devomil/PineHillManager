@@ -26107,6 +26107,12 @@ Important:
   app.use('/api/provider-test', providerTestRoutes.default);
 
   // ================================
+  // QUICK CREATE DOCUMENT-TO-VIDEO ROUTES
+  // ================================
+  const quickCreateRoutes = await import('./routes/quick-create-routes');
+  app.use('/api/quick-create', quickCreateRoutes.default);
+
+  // ================================
   // PRACTITIONER DASHBOARD ROUTES
   // ================================
   const { practitionerContacts, insertPractitionerContactSchema, updatePractitionerContactSchema } = await import('@shared/schema');

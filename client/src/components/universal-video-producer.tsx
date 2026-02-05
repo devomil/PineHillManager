@@ -40,6 +40,7 @@ import { WorkflowPathIndicator, WorkflowPathBadge } from "./workflow-path-indica
 import { BrandAssetPreviewPanel, BrandAssetSummary } from "./brand-asset-preview-panel";
 import { I2VSettingsPanel, I2VSettings, defaultI2VSettings } from "./i2v-settings-panel";
 import { MotionControlSelector, MotionControlSettings, defaultMotionSettings } from "./motion-control-selector";
+import { QuickCreateTab } from "./quick-create-tab";
 import type { WorkflowDecision, WorkflowStepExecution } from "@shared/types/brand-workflow-types";
 import type { AnimationSettings, ReferenceConfig, RegenerateOptions, PromptComplexityAnalysis } from "@shared/video-types";
 import { 
@@ -103,7 +104,7 @@ interface ScriptFormData {
   soundDesignSettings?: SoundDesignSettings;
 }
 
-type ScriptMode = "ai-generate" | "custom";
+type ScriptMode = "ai-generate" | "custom" | "quick-create";
 
 interface UnifiedFormData {
   mode: ScriptMode;
@@ -551,7 +552,9 @@ function VideoCreatorForm({
     }
   };
 
-  const isValidForSubmit = scriptMode === "ai-generate"
+  const isValidForSubmit = scriptMode === "quick-create" 
+    ? false // Quick Create has its own submit mechanism
+    : scriptMode === "ai-generate"
     ? formData.productName.trim() && 
       formData.productDescription.trim() && 
       formData.targetAudience.trim()
@@ -585,6 +588,19 @@ function VideoCreatorForm({
         >
           <FileText className="w-4 h-4" />
           Custom Script
+        </button>
+        <button
+          type="button"
+          onClick={() => handleModeChange("quick-create")}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+            scriptMode === "quick-create"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          data-testid="mode-quick-create"
+        >
+          <Upload className="w-4 h-4" />
+          Quick Create
         </button>
       </div>
 
@@ -658,10 +674,20 @@ function VideoCreatorForm({
         </div>
       )}
 
-      <Separator />
+      {scriptMode === "quick-create" && (
+        <QuickCreateTab
+          onProjectCreated={(projectId) => {
+            console.log('[QuickCreate] Project created:', projectId);
+          }}
+        />
+      )}
 
-      <div className="space-y-2">
-        <Label>Platform</Label>
+      {scriptMode !== "quick-create" && (
+        <>
+          <Separator />
+
+          <div className="space-y-2">
+            <Label>Platform</Label>
         <Select
           value={formData.platform}
           onValueChange={(val) => setFormData(prev => ({ ...prev, platform: val as any }))}
@@ -830,6 +856,8 @@ function VideoCreatorForm({
           </>
         )}
       </Button>
+        </>
+      )}
     </div>
   );
 }
