@@ -224,6 +224,9 @@ const MemoizedVideoPlayer = memo(function MemoizedVideoPlayer({
   convertToDisplayUrl: (url: string, addCacheBuster?: boolean) => string;
   generationMethod?: string;
 }) {
+  const displayUrl = convertToDisplayUrl(videoUrl, true);
+  console.log(`[MemoizedVideoPlayer] Rendering scene=${sceneId}, videoUrl=${videoUrl?.substring(0, 60)}..., displayUrl=${displayUrl?.substring(0, 80)}...`);
+  
   return (
     <div>
       <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
@@ -237,13 +240,13 @@ const MemoizedVideoPlayer = memo(function MemoizedVideoPlayer({
       <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
         <video 
           key={`video-modal-${sceneId}-${videoUrl}`}
-          src={convertToDisplayUrl(videoUrl, true)}
+          src={displayUrl}
           className="w-full h-full object-contain i2v-video-fade"
           controls
           muted
           playsInline
           data-testid={`video-broll-modal-${sceneId}`}
-          onLoadStart={() => console.log('[VideoModal] Loading video:', videoUrl?.substring(0, 80))}
+          onLoadStart={() => console.log(`[MemoizedVideoPlayer] onLoadStart scene=${sceneId}, loading: ${displayUrl?.substring(0, 80)}`)}
           onLoadedData={() => console.log('[VideoModal] Video loaded successfully:', sceneId)}
           onError={(e) => console.error('[VideoModal] Video load error:', sceneId, videoUrl, e)}
         />
@@ -2154,40 +2157,41 @@ function ScenePreview({
                 // Just log progress, don't trigger re-renders
                 
                 if (job.status === 'succeeded') {
-                  console.log('[regenerateVideo] SUCCESS - Job completed, fetching fresh data...');
+                  const successTimestamp = new Date().toISOString();
+                  console.log(`[regenerateVideo ${successTimestamp}] SUCCESS - Job ${data.jobId} completed`);
+                  console.log(`[regenerateVideo ${successTimestamp}] Job video URL from status: ${job.videoUrl}`);
                   toast({ title: 'Video generated successfully!' });
                   
-                  // Force invalidate React Query cache to ensure fresh data
+                  console.log(`[regenerateVideo ${successTimestamp}] Invalidating React Query caches...`);
                   queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
                   queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+                  console.log(`[regenerateVideo ${successTimestamp}] Cache invalidation complete`);
                   
-                  // Fetch fresh project data and update parent component state
                   try {
-                    console.log('[regenerateVideo] Fetching fresh project from:', `/api/universal-video/projects/${projectId}`);
+                    console.log(`[regenerateVideo ${successTimestamp}] Fetching fresh project from: /api/universal-video/projects/${projectId}`);
                     const freshRes = await fetch(`/api/universal-video/projects/${projectId}`, { credentials: 'include' });
-                    console.log('[regenerateVideo] Fresh response status:', freshRes.status);
+                    console.log(`[regenerateVideo ${successTimestamp}] Fresh response status: ${freshRes.status}`);
                     const freshData = await freshRes.json();
-                    console.log('[regenerateVideo] Fresh data received, has project:', !!freshData.project);
+                    console.log(`[regenerateVideo ${successTimestamp}] Fresh data received, has project: ${!!freshData.project}`);
                     if (freshData.project) {
                       const updatedScene = freshData.project.scenes?.find((s: any) => s.id === sceneId);
-                      console.log('[regenerateVideo] Updated scene video URL:', updatedScene?.background?.videoUrl);
-                      console.log('[regenerateVideo] onProjectUpdateRef.current available:', !!onProjectUpdateRef.current);
-                      // Use onProjectUpdate ref to avoid stale closure - update parent component's project state
+                      const newVideoUrl = updatedScene?.background?.videoUrl || updatedScene?.assets?.videoUrl;
+                      console.log(`[regenerateVideo ${successTimestamp}] Scene ${sceneId} video URL from fresh data: ${newVideoUrl}`);
+                      console.log(`[regenerateVideo ${successTimestamp}] onProjectUpdateRef available: ${!!onProjectUpdateRef.current}`);
                       if (onProjectUpdateRef.current) {
-                        console.log('[regenerateVideo] Calling onProjectUpdateRef.current with fresh project...');
+                        console.log(`[regenerateVideo ${successTimestamp}] Calling onProjectUpdateRef with fresh project...`);
                         onProjectUpdateRef.current(freshData.project);
-                        console.log('[regenerateVideo] onProjectUpdateRef.current called successfully');
+                        console.log(`[regenerateVideo ${successTimestamp}] Project state updated successfully`);
                       } else {
-                        console.error('[regenerateVideo] ERROR: onProjectUpdateRef.current is not defined!');
+                        console.error(`[regenerateVideo ${successTimestamp}] ERROR: onProjectUpdateRef.current is not defined!`);
                       }
                     } else {
-                      console.error('[regenerateVideo] ERROR: freshData.project is falsy:', freshData);
+                      console.error(`[regenerateVideo ${successTimestamp}] ERROR: freshData.project is falsy:`, freshData);
                     }
                   } catch (refreshErr) {
-                    console.error('[regenerateVideo] Failed to fetch fresh project:', refreshErr);
-                    // Fallback to statusData.project from job status response
+                    console.error(`[regenerateVideo ${successTimestamp}] Failed to fetch fresh project:`, refreshErr);
                     if (statusData.project && onProjectUpdateRef.current) {
-                      console.log('[regenerateVideo] Using fallback statusData.project');
+                      console.log(`[regenerateVideo ${successTimestamp}] Using fallback statusData.project`);
                       onProjectUpdateRef.current(statusData.project);
                     }
                   }

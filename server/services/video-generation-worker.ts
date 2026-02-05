@@ -12,13 +12,17 @@ import { preparePromptForProvider, type SanitizedPrompt } from "./prompt-sanitiz
 const log = createLogger("VideoWorker");
 
 async function updateSceneMedia(projectId: string, sceneId: string, videoUrl: string): Promise<boolean> {
+  const timestamp = new Date().toISOString();
+  log.info(`[SCENE_UPDATE ${timestamp}] Starting scene media update for project=${projectId}, scene=${sceneId}`);
+  log.info(`[SCENE_UPDATE ${timestamp}] New video URL: ${videoUrl}`);
+  
   try {
     const rows = await db.select().from(universalVideoProjects)
       .where(eq(universalVideoProjects.projectId, projectId))
       .limit(1);
     
     if (rows.length === 0) {
-      log.warn(`Project ${projectId} not found when updating scene media`);
+      log.warn(`[SCENE_UPDATE ${timestamp}] Project ${projectId} not found when updating scene media`);
       return false;
     }
     
@@ -27,16 +31,18 @@ async function updateSceneMedia(projectId: string, sceneId: string, videoUrl: st
     
     const sceneIndex = scenes.findIndex((s: any) => s.id === sceneId);
     if (sceneIndex === -1) {
-      log.warn(`Scene ${sceneId} not found in project ${projectId}`);
+      log.warn(`[SCENE_UPDATE ${timestamp}] Scene ${sceneId} not found in project ${projectId}`);
       return false;
     }
+    
+    const oldVideoUrl = scenes[sceneIndex].background?.videoUrl || scenes[sceneIndex].assets?.videoUrl || 'none';
+    log.info(`[SCENE_UPDATE ${timestamp}] Previous video URL: ${oldVideoUrl}`);
     
     scenes[sceneIndex].background = scenes[sceneIndex].background || {};
     scenes[sceneIndex].background.videoUrl = videoUrl;
     scenes[sceneIndex].background.mediaUrl = videoUrl;
     scenes[sceneIndex].background.type = 'video';
     
-    // Also update assets.videoUrl for compatibility
     scenes[sceneIndex].assets = scenes[sceneIndex].assets || {};
     scenes[sceneIndex].assets.videoUrl = videoUrl;
     
@@ -47,10 +53,10 @@ async function updateSceneMedia(projectId: string, sceneId: string, videoUrl: st
       })
       .where(eq(universalVideoProjects.projectId, projectId));
     
-    log.info(`Updated scene ${sceneId} media to: ${videoUrl.substring(0, 50)}...`);
+    log.info(`[SCENE_UPDATE ${timestamp}] SUCCESS - Scene ${sceneId} updated. Old: ${oldVideoUrl.substring(0, 40)}... -> New: ${videoUrl.substring(0, 40)}...`);
     return true;
   } catch (error: any) {
-    log.error(`Failed to update scene media for ${sceneId}:`, error.message);
+    log.error(`[SCENE_UPDATE ${timestamp}] FAILED - Error updating scene ${sceneId}:`, error.message);
     return false;
   }
 }
@@ -403,6 +409,9 @@ class VideoGenerationWorker {
       }
 
       if (videoUrl) {
+        const completionTimestamp = new Date().toISOString();
+        log.info(`[JOB_COMPLETE ${completionTimestamp}] Job ${job.jobId} completed with videoUrl: ${videoUrl}`);
+        
         const completedJob = await storage.updateVideoGenerationJob(job.jobId, {
           status: "succeeded",
           completedAt: new Date(),
@@ -410,14 +419,13 @@ class VideoGenerationWorker {
           videoUrl,
         });
         this.notifyJobUpdate(completedJob);
-        log.debug(` Job ${job.jobId} completed successfully: ${videoUrl}`);
+        log.info(`[JOB_COMPLETE ${completionTimestamp}] Job ${job.jobId} status updated to 'succeeded' in storage`);
 
-        // Update the scene's media URL with the generated video
         const sceneUpdated = await updateSceneMedia(job.projectId, job.sceneId, videoUrl);
         if (sceneUpdated) {
-          log.info(`Scene ${job.sceneId} updated with new video from job ${job.jobId}`);
+          log.info(`[JOB_COMPLETE ${completionTimestamp}] Scene ${job.sceneId} database record updated with new video from job ${job.jobId}`);
         } else {
-          log.warn(`Failed to update scene ${job.sceneId} media - video URL saved to job only`);
+          log.warn(`[JOB_COMPLETE ${completionTimestamp}] FAILED to update scene ${job.sceneId} media - video URL saved to job only`);
         }
 
         // Record regeneration history for successful video generation
