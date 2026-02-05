@@ -145,7 +145,18 @@ function applyStyleHints(prompt: string, style: string): string {
 
 function adjustForProvider(prompt: string, provider: string, mode: 'i2v' | 't2v'): string {
   if (mode === 'i2v') {
-    return convertToMotionPrompt(prompt);
+    // =============================================================
+    // CRITICAL FIX: Do NOT strip I2V prompts to motion keywords
+    // =============================================================
+    // Veo 3.1 and other modern I2V providers support COMPOSITE mode
+    // where the prompt describes NEW content to generate (people, scenes)
+    // while using the source image as reference/product placement.
+    // 
+    // Old behavior: "A woman holding the bottle" -> "holding, subtle motion"
+    // New behavior: Preserve full prompt for AI to understand the scene
+    // =============================================================
+    console.log('[PromptOptimizer] I2V: Preserving FULL prompt for composite generation');
+    return prompt;
   }
   
   switch (provider) {
