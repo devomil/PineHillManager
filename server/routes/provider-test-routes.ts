@@ -232,6 +232,27 @@ router.get('/task/:taskId', requireAdmin, async (req: Request, res: Response) =>
   }
 });
 
+function convertToAbsoluteUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+    : 'http://localhost:5000';
+  return `${baseUrl}${url.startsWith('/') ? url : '/' + url}`;
+}
+
+function stringifyError(error: any): string {
+  if (typeof error === 'string') return error;
+  if (error?.message) return error.message;
+  if (error?.error) return stringifyError(error.error);
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return 'Unknown error';
+  }
+}
+
 async function processTask(taskId: string, options: {
   provider: string;
   taskType: string;
@@ -248,6 +269,8 @@ async function processTask(taskId: string, options: {
 
   task.status = 'processing';
   task.logs.push(`[${new Date().toISOString()}] Starting ${options.taskType} with ${options.provider}`);
+
+  const absoluteImageUrl = convertToAbsoluteUrl(options.imageUrl);
 
   try {
     const isVideoProvider = VIDEO_PROVIDERS_CONFIG.some(p => p.id === options.provider);
@@ -272,17 +295,21 @@ async function processTask(taskId: string, options: {
           task.logs.push(`[${new Date().toISOString()}] Generation complete! Cost: $${result.cost?.toFixed(4)}`);
         } else {
           task.status = 'failed';
-          task.error = result.error || 'Unknown error';
+          task.error = stringifyError(result.error) || 'Unknown error';
           task.logs.push(`[${new Date().toISOString()}] Generation failed: ${task.error}`);
         }
       } else {
-        const isI2V = options.taskType === 'i2v' && options.imageUrl;
+        const isI2V = options.taskType === 'i2v' && absoluteImageUrl;
+        
+        if (isI2V) {
+          task.logs.push(`[${new Date().toISOString()}] Using absolute image URL: ${absoluteImageUrl}`);
+        }
         
         let result;
         if (isI2V) {
           result = await piapiVideoService.generateImageToVideo({
             prompt: options.prompt,
-            imageUrl: options.imageUrl!,
+            imageUrl: absoluteImageUrl!,
             duration: options.duration,
             aspectRatio: options.aspectRatio as '16:9' | '9:16' | '1:1',
             model: options.provider,
@@ -306,12 +333,12 @@ async function processTask(taskId: string, options: {
           task.logs.push(`[${new Date().toISOString()}] Generation complete! Time: ${(result.generationTimeMs! / 1000).toFixed(1)}s`);
         } else {
           task.status = 'failed';
-          task.error = result.error || 'Unknown error';
+          task.error = stringifyError(result.error) || 'Unknown error';
           task.logs.push(`[${new Date().toISOString()}] Generation failed: ${task.error}`);
         }
       }
     } else {
-      const isI2I = options.taskType === 'i2i' && options.imageUrl;
+      const isI2I = options.taskType === 'i2i' && absoluteImageUrl;
       task.logs.push(`[${new Date().toISOString()}] Calling image provider: ${options.provider} (${isI2I ? 'i2i' : 't2i'})`);
       
       try {
@@ -319,7 +346,7 @@ async function processTask(taskId: string, options: {
           prompt: options.prompt,
           aspectRatio: options.aspectRatio,
           provider: options.provider,
-          ...(isI2I ? { imageUrl: options.imageUrl } : {}),
+          ...(isI2I ? { imageUrl: absoluteImageUrl } : {}),
         });
         
         task.status = 'completed';
@@ -330,14 +357,14 @@ async function processTask(taskId: string, options: {
         task.logs.push(`[${new Date().toISOString()}] Generation complete! Cost: $${result.cost?.toFixed(4)}`);
       } catch (imageError: any) {
         task.status = 'failed';
-        task.error = imageError.message || 'Unknown error';
+        task.error = stringifyError(imageError);
         task.logs.push(`[${new Date().toISOString()}] Generation failed: ${task.error}`);
       }
     }
   } catch (error: any) {
     task.status = 'failed';
-    task.error = error.message;
-    task.logs.push(`[${new Date().toISOString()}] Error: ${error.message}`);
+    task.error = stringifyError(error);
+    task.logs.push(`[${new Date().toISOString()}] Error: ${task.error}`);
     console.error('[ProviderTest] Task processing error:', error);
   }
 }
