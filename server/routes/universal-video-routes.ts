@@ -158,15 +158,65 @@ async function uploadImageToPiAPIStorage(
  * PiAPI storage is REQUIRED - no GCS fallback (GCS URLs are not publicly accessible).
  */
 async function getPublicUrlForBrandAsset(relativeUrl: string): Promise<string | null> {
-  if (!relativeUrl || !relativeUrl.startsWith('/api/brand-assets/file/')) {
-    if (relativeUrl?.startsWith('http')) {
-      // If already a PiAPI URL, use it directly
-      if (relativeUrl.includes('theapi.app') || relativeUrl.includes('storage.theapi')) {
-        return relativeUrl;
-      }
-      console.log('[PublicURL] External URL not from PiAPI - may not be accessible:', relativeUrl);
+  if (!relativeUrl) {
+    return null;
+  }
+  
+  // Handle http URLs
+  if (relativeUrl.startsWith('http')) {
+    // If already a PiAPI URL, use it directly
+    if (relativeUrl.includes('theapi.app') || relativeUrl.includes('storage.theapi')) {
       return relativeUrl;
     }
+    console.log('[PublicURL] External HTTP URL - using directly:', relativeUrl.substring(0, 80));
+    return relativeUrl;
+  }
+  
+  // Handle object storage paths from brand-media-library uploads: /{bucketName}/public/brand-media/...
+  if (relativeUrl.match(/^\/[^/]+\/public\/brand-media\//)) {
+    try {
+      // Parse bucket name and object path from URL like: /repl-default-bucket-xxx/public/brand-media/12345_file.png
+      const parts = relativeUrl.slice(1).split('/'); // Remove leading slash and split
+      const bucketName = parts[0];
+      const objectPath = parts.slice(1).join('/'); // public/brand-media/12345_file.png
+      
+      console.log('[PublicURL] Object storage path detected - bucket:', bucketName, 'path:', objectPath);
+      
+      // Read file from Replit Object Storage
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectPath);
+      const [fileBuffer] = await file.download();
+      
+      console.log('[PublicURL] Downloaded from object storage, size:', fileBuffer.length, 'bytes');
+      
+      // Upload to PiAPI storage for public access
+      const ext = objectPath.split('.').pop() || 'png';
+      const filename = `scene_source_${Date.now()}.${ext}`;
+      
+      const piapiUrl = await uploadImageToPiAPIStorage(fileBuffer, filename);
+      
+      if (piapiUrl) {
+        console.log('[PublicURL] ✓ Uploaded to PiAPI storage:', piapiUrl);
+        return piapiUrl;
+      } else {
+        console.log('[PublicURL] ⚠ PiAPI upload failed, trying direct GCS URL');
+        // Fallback: try to generate a signed URL from GCS
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 3600 * 1000, // 1 hour
+        });
+        console.log('[PublicURL] Generated signed GCS URL');
+        return signedUrl;
+      }
+    } catch (error) {
+      console.error('[PublicURL] Error processing object storage path:', error);
+      return null;
+    }
+  }
+  
+  // Handle brand-assets API paths: /api/brand-assets/file/{id}
+  if (!relativeUrl.startsWith('/api/brand-assets/file/')) {
+    console.log('[PublicURL] Unsupported URL format:', relativeUrl.substring(0, 80));
     return null;
   }
   
