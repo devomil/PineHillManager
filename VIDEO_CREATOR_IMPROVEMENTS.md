@@ -424,3 +424,39 @@ After implementing these improvements, your Video Creator will produce:
 5. **CTA (50-60s):** Strong visual + clear action + music crescendo + sound effect
 
 This will transform your tool from basic video creator to professional marketing video production suite! 🎬
+
+---
+
+## 🔧 **CRITICAL FIXES IMPLEMENTED**
+
+### Phase 18K: I2V Prompt Preservation (February 2026)
+
+**Issue:** Image-to-Video (I2V) prompts were being incorrectly stripped to motion keywords, causing AI providers to miss scene context.
+
+**Example of the problem:**
+- Input: "A woman holding the Pine Hill supplement bottle, with a smile in a warm, cozy setting"
+- Was becoming: "holding, subtle motion, setting"
+- Result: Generic animations instead of people/scenes
+
+**Solution:** The `adjustForProvider()` function now preserves full prompts for I2V mode:
+
+```typescript
+if (mode === 'i2v') {
+  return prompt; // Don't strip to motion keywords
+}
+```
+
+**PiAPI I2V Provider Guidelines:**
+
+| Provider | Mode | Prompt Handling |
+|----------|------|-----------------|
+| **Veo 3.1** | COMPOSITE | Full prompt describes NEW scene; source image is reference only |
+| **Kling 2.0/2.1** | I2V | Full prompt with source_image_url parameter |
+| **Luma I2V** | I2V | Full prompt with motion_amount control |
+
+**Key Principle:** For COMPOSITE I2V, the prompt describes the complete scene (people, actions, settings). The source image provides brand/product reference. Never strip I2V prompts to motion keywords.
+
+**Files Modified:**
+- `server/services/video-prompt-optimizer.ts` - I2V check in `adjustForProvider()`
+- `server/services/video-generation-worker.ts` - Worker preserves original prompt for I2V
+- `server/services/ai-video-service.ts` - Mode detection logic

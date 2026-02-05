@@ -761,6 +761,26 @@ class PiAPIVideoService {
     }
   }
   
+  /**
+   * Build I2V Request Body for PiAPI Providers
+   * 
+   * IMPORTANT: I2V Prompt Handling (Phase 18K Fix - February 2026)
+   * ============================================================
+   * 
+   * For I2V (Image-to-Video) COMPOSITE mode:
+   * - The prompt describes the COMPLETE SCENE (people, actions, settings)
+   * - The source image provides BRAND/PRODUCT reference only
+   * - NEVER strip prompts to motion keywords like "holding, subtle motion"
+   * 
+   * Supported PiAPI I2V Providers:
+   * - Veo 3.1 (Google): Uses COMPOSITE mode with image_url parameter
+   * - Kling 2.0/2.1: Uses source_image_url parameter  
+   * - Luma I2V: Uses image_url with motion_amount control
+   * 
+   * The prompt passed here should be the FULL visual direction, NOT a
+   * simplified motion prompt. The upstream video-prompt-optimizer.ts
+   * has been fixed to preserve full prompts when mode === 'i2v'.
+   */
   private buildI2VRequestBody(options: {
     imageUrl: string;
     prompt: string;

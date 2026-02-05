@@ -131,3 +131,47 @@ Placeholder sound effects uploaded to S3 for video production:
 - `shared/config/sound-design.ts` exports `getSoundEffectUrl()` for URL resolution
 
 **Upload Script:** `scripts/upload-placeholder-sfx.ts` (use `--force` to re-upload)
+
+### Phase 18K: I2V Prompt Preservation Fix (February 2026)
+Critical fix for Image-to-Video (I2V) prompt handling across all PiAPI providers:
+
+**Problem Solved:**
+I2V prompts were incorrectly stripped to motion keywords (e.g., "A woman holding the Pine Hill supplement bottle" → "holding, subtle motion"), causing AI video providers to miss the full scene context.
+
+**Root Cause:**
+The `convertToMotionPrompt()` function in `video-prompt-optimizer.ts` was extracting action words for Text-to-Video (T2V) but was incorrectly applied to I2V generation.
+
+**Solution:**
+The `adjustForProvider()` function now checks `mode === 'i2v'` and preserves the full prompt unchanged:
+
+```typescript
+function adjustForProvider(prompt: string, provider: string, mode: 'i2v' | 't2v'): string {
+  if (mode === 'i2v') {
+    // Preserve full prompt for composite I2V generation
+    console.log('[PromptOptimizer] I2V: Preserving FULL prompt for composite generation');
+    return prompt;
+  }
+  // T2V optimization continues as before...
+}
+```
+
+**Technical Flow for I2V Generation:**
+1. `universal-video-routes.ts` → Creates video job with `imageUrl` and `prompt`
+2. `video-generation-worker.ts` → Detects I2V mode, preserves original prompt
+3. `ai-video-service.ts` → Sets `generationMode = options.imageUrl ? 'i2v' : 't2v'`
+4. `video-prompt-optimizer.ts` → `adjustForProvider()` returns prompt unchanged for I2V
+5. `piapi-video-service.ts` → Sends full prompt to provider (Veo 3.1, Kling, Luma)
+
+**PiAPI I2V Providers Supported:**
+- **Veo 3.1** (Google): COMPOSITE mode - prompt describes NEW content while using source image as reference
+- **Kling 2.0/2.1**: I2V mode with source_image_url parameter
+- **Luma I2V**: Image-to-video with motion control
+
+**Key Files:**
+- `server/services/video-prompt-optimizer.ts` (lines 146-160): I2V prompt preservation
+- `server/services/video-generation-worker.ts` (lines 340-346): Worker preserves original prompt
+- `server/services/piapi-video-service.ts` (lines 687-697): I2V generation entry point
+- `server/services/ai-video-service.ts` (line 141): Generation mode detection
+
+**Design Principle:**
+For I2V COMPOSITE mode, the prompt should describe the complete scene including people, actions, and settings. The source image provides visual reference (product/brand assets) while the AI generates new content around it. Never strip I2V prompts to motion keywords.
