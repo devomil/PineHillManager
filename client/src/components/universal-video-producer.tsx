@@ -3426,7 +3426,7 @@ function ScenePreview({
                             }}
                             data-testid={`button-apply-and-regenerate-${scene.id}`}
                           >
-                            {(savingVisualDirection === scene.id || regenerating === `image-${scene.id}` || regenerating === `video-${scene.id}`) ? (
+                            {savingVisualDirection === scene.id ? (
                               <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                             ) : (
                               <RefreshCw className="w-3 h-3 mr-1" />
