@@ -330,8 +330,24 @@ class VideoGenerationWorker {
         // Log provider attempt
         log.info(`[VideoWorker] Job ${job.jobId} attempting generation with provider: ${provider}`);
 
+        // =============================================================
+        // CRITICAL FIX: For I2V, use ORIGINAL prompt, NOT sanitized
+        // =============================================================
+        // The sanitizer strips visual direction to keywords for T2V (good)
+        // But for I2V, the visual direction IS the action to perform
+        // The image defines content; prompt defines animation/scene
+        // =============================================================
+        const promptForGeneration = hasSourceImage 
+          ? (job.prompt || "").trim()  // I2V: Use original visual direction
+          : sanitizedResult.cleanPrompt;  // T2V: Use sanitized prompt
+        
+        if (hasSourceImage) {
+          log.info(`[VideoWorker] Job ${job.jobId} I2V MODE: Using ORIGINAL prompt (not sanitized)`);
+          log.info(`[VideoWorker] Original prompt: ${promptForGeneration.substring(0, 150)}...`);
+        }
+
         const result = await aiVideoService.generateVideo({
-          prompt: sanitizedResult.cleanPrompt,
+          prompt: promptForGeneration,
           duration: job.duration || 6,
           aspectRatio,
           sceneType: job.sceneType || "hook",
