@@ -845,42 +845,39 @@ class PiAPIVideoService {
       // Use helper to detect if prompt requires new content generation
       const requiresNewContent = promptRequiresNewContent(motionPrompt);
       
-      console.log(`[PiAPI I2V] Veo ${veoModel}: ${requiresNewContent ? 'REFERENCE MODE (new content)' : 'ANIMATE MODE (motion only)'}`);
+      console.log(`[PiAPI I2V] Veo ${veoModel}: ${requiresNewContent ? 'COMPOSITE MODE (product in new scene)' : 'ANIMATE MODE (motion only)'}`);
       console.log(`[PiAPI I2V] Model: ${veoModel}, Task type: ${taskType}`);
       console.log(`[PiAPI I2V] resolution=720p, generate_audio=true`);
       console.log(`[PiAPI I2V] Image URL: ${options.imageUrl}`);
-      console.log(`[PiAPI I2V] Prompt (motion-enhanced): ${motionPrompt}`);
+      console.log(`[PiAPI I2V] Original Prompt: ${motionPrompt}`);
+      
+      // For Veo 3.1 I2V, always use image_url (per PiAPI documentation)
+      // When generating new content with people, enhance the prompt to describe 
+      // how the product from the reference image should appear in the scene
+      let finalPrompt = motionPrompt;
       
       if (requiresNewContent) {
-        // Use reference_images for style/context guidance while generating NEW content
-        console.log(`[PiAPI I2V] Using reference_images mode - AI will generate new people/activities in the style of the reference`);
-        return {
-          model: veoModel,
-          task_type: taskType,
-          input: {
-            prompt: motionPrompt,  // Motion-enhanced prompt for Veo
-            reference_images: [options.imageUrl],  // Use as style reference, not first frame
-            aspect_ratio: options.aspectRatio || '16:9',
-            duration: `${Math.min(options.duration, 8)}s`,
-            resolution: '720p',
-            generate_audio: true,
-          },
-        };
-      } else {
-        // Use image_url for simple animation of the source image
-        return {
-          model: veoModel,
-          task_type: taskType,
-          input: {
-            prompt: motionPrompt,  // Motion-enhanced prompt for Veo
-            image_url: options.imageUrl,
-            aspect_ratio: options.aspectRatio || '16:9',
-            duration: `${Math.min(options.duration, 8)}s`,
-            resolution: '720p',
-            generate_audio: true,
-          },
-        };
+        // Enhance prompt to instruct Veo to incorporate the product from the reference
+        // The image_url shows the product, and the prompt describes the scene with that product
+        finalPrompt = `Using the product shown in the reference image as inspiration, create a scene where: ${motionPrompt}. The product from the reference image should be visible and naturally integrated into the scene. Maintain the product's appearance, branding, and colors from the reference.`;
+        console.log(`[PiAPI I2V] COMPOSITE MODE - Enhanced prompt for product integration`);
+        console.log(`[PiAPI I2V] Final Prompt: ${finalPrompt}`);
       }
+      
+      // Veo 3.1 I2V always uses image_url parameter (not reference_images)
+      // The image serves as both style reference AND product reference
+      return {
+        model: veoModel,
+        task_type: taskType,
+        input: {
+          prompt: finalPrompt,
+          image_url: options.imageUrl,
+          aspect_ratio: options.aspectRatio || '16:9',
+          duration: `${Math.min(options.duration, 8)}s`,
+          resolution: '720p',
+          generate_audio: true,
+        },
+      };
     }
     
     // Runway Gen-3 - supports reference_images for new content generation
