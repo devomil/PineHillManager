@@ -1473,6 +1473,9 @@ function ScenePreview({
   const [overlaysExpanded, setOverlaysExpanded] = useState<Record<string, boolean>>({});
   const [selectedProductAsset, setSelectedProductAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
   const [selectedLocationAsset, setSelectedLocationAsset] = useState<Record<string, { id: number; url: string; name: string } | null>>({});
+  const [videoGenMode, setVideoGenMode] = useState<Record<string, 't2v' | 'i2v'>>({});
+  const [customSourceImage, setCustomSourceImage] = useState<Record<string, { url: string; name: string } | null>>({});
+  const [uploadingSourceImage, setUploadingSourceImage] = useState<string | null>(null);
   const [i2vSettings, setI2vSettings] = useState<Record<string, I2VSettings>>({});
   const [motionSettings, setMotionSettings] = useState<Record<string, MotionControlSettings>>({});
   const [localSceneQualityTier, setLocalSceneQualityTier] = useState<Record<string, 'ultra' | 'premium' | 'standard' | null>>({});
@@ -3826,82 +3829,145 @@ function ScenePreview({
                     Regenerate Scene
                   </Label>
                   
-                  {/* Selected Asset Indicator */}
-                  {(selectedProductAsset[scene.id] || selectedLocationAsset[scene.id]) ? (
-                    <div className={`flex items-center gap-2 p-2 rounded-lg border ${
-                      selectedProductAsset[scene.id] 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-amber-50 border-amber-200'
-                    }`}>
-                      {selectedProductAsset[scene.id] ? (
-                        <Package className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <MapPin className="w-4 h-4 text-amber-600" />
-                      )}
-                      <span className={`text-sm ${selectedProductAsset[scene.id] ? 'text-green-700' : 'text-amber-700'}`}>
-                        I2V: <strong>{selectedProductAsset[scene.id]?.name || selectedLocationAsset[scene.id]?.name}</strong>
-                      </span>
+                  {/* T2V / I2V Mode Toggle */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Video Generation Mode</Label>
+                    <div className="flex gap-2">
                       <Button
-                        variant="outline"
+                        variant={videoGenMode[scene.id] !== 'i2v' ? 'default' : 'outline'}
                         size="sm"
-                        className="h-6 px-2 ml-auto text-xs"
+                        className="flex-1"
                         onClick={() => {
+                          setVideoGenMode(prev => ({ ...prev, [scene.id]: 't2v' }));
                           setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }));
                           setSelectedLocationAsset(prev => ({ ...prev, [scene.id]: null }));
-                          toast({ title: 'Switched to T2V', description: 'Video will be generated from your visual direction text.' });
+                          setCustomSourceImage(prev => ({ ...prev, [scene.id]: null }));
                         }}
                       >
-                        Use T2V Instead
+                        <Video className="w-4 h-4 mr-2" />
+                        Text-to-Video
+                      </Button>
+                      <Button
+                        variant={videoGenMode[scene.id] === 'i2v' ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setVideoGenMode(prev => ({ ...prev, [scene.id]: 'i2v' }))}
+                      >
+                        <ImageIcon className="w-4 h-4 mr-2" />
+                        Image-to-Video
                       </Button>
                     </div>
-                  ) : (
-                    (() => {
-                      // Check if there are matched brand assets that will be auto-used
-                      const sceneWorkflow = workflowAnalysis[scene.id];
-                      const hasMatchedAssets = sceneWorkflow?.matchedAssets?.products?.length > 0 || 
-                                               sceneWorkflow?.matchedAssets?.locations?.length > 0;
-                      const autoSourceAsset = sceneWorkflow?.matchedAssets?.products?.[0]?.name || 
-                                              sceneWorkflow?.matchedAssets?.locations?.[0]?.name;
+                    <p className="text-xs text-muted-foreground">
+                      {videoGenMode[scene.id] === 'i2v' 
+                        ? 'Animate a source image using your visual direction as motion guidance' 
+                        : 'Generate video purely from your visual direction text'}
+                    </p>
+                  </div>
+                  
+                  {/* I2V Source Image Selection - Only shown in I2V mode */}
+                  {videoGenMode[scene.id] === 'i2v' && (
+                    <div className="space-y-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                      <Label className="text-xs font-medium text-purple-700">Source Image for Animation</Label>
                       
-                      // Also check for existing scene images that would trigger I2V
-                      const hasExistingImage = scene.brandAssetUrl || scene.assets?.imageUrl;
-                      
-                      if (hasMatchedAssets) {
-                        return (
-                          <div className="flex items-center gap-2 p-2 rounded-lg border bg-purple-50 border-purple-200">
-                            <ImageIcon className="w-4 h-4 text-purple-600" />
-                            <span className="text-sm text-purple-700">
-                              I2V Reference: <strong>{autoSourceAsset}</strong> (auto-matched)
-                            </span>
+                      {/* Current source image display */}
+                      {(customSourceImage[scene.id] || selectedProductAsset[scene.id] || selectedLocationAsset[scene.id]) ? (
+                        <div className="flex items-center gap-2 p-2 bg-white rounded border">
+                          <img 
+                            src={customSourceImage[scene.id]?.url || selectedProductAsset[scene.id]?.url || selectedLocationAsset[scene.id]?.url} 
+                            alt="Source" 
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">
+                              {customSourceImage[scene.id]?.name || selectedProductAsset[scene.id]?.name || selectedLocationAsset[scene.id]?.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {customSourceImage[scene.id] ? 'Custom upload' : 'Brand asset'}
+                            </p>
                           </div>
-                        );
-                      }
-                      
-                      if (hasExistingImage) {
-                        return (
-                          <div className="flex items-center gap-2 p-2 rounded-lg border bg-teal-50 border-teal-200">
-                            <ImageIcon className="w-4 h-4 text-teal-600" />
-                            <span className="text-sm text-teal-700">
-                              I2V Mode: Using scene image as source
-                            </span>
-                          </div>
-                        );
-                      }
-                      
-                      return (
-                        <div className="flex items-center gap-2 p-2 rounded-lg border bg-blue-50 border-blue-200">
-                          <Video className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm text-blue-700">
-                            T2V Mode: Generating from visual direction
-                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => {
+                              setCustomSourceImage(prev => ({ ...prev, [scene.id]: null }));
+                              setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }));
+                              setSelectedLocationAsset(prev => ({ ...prev, [scene.id]: null }));
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
-                      );
-                    })()
+                      ) : (
+                        <p className="text-xs text-purple-600">No source image selected. Upload or select from brand assets below.</p>
+                      )}
+                      
+                      {/* Upload custom image button */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          disabled={uploadingSourceImage === scene.id}
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = async (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (!file) return;
+                              
+                              setUploadingSourceImage(scene.id);
+                              try {
+                                const formData = new FormData();
+                                formData.append('file', file);
+                                formData.append('category', 'scene-source');
+                                
+                                const res = await fetch('/api/brand-media/upload', {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  body: formData,
+                                });
+                                
+                                if (res.ok) {
+                                  const data = await res.json();
+                                  setCustomSourceImage(prev => ({
+                                    ...prev,
+                                    [scene.id]: { url: data.url, name: file.name }
+                                  }));
+                                  setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }));
+                                  setSelectedLocationAsset(prev => ({ ...prev, [scene.id]: null }));
+                                  toast({ title: 'Image uploaded!', description: 'Ready for video generation.' });
+                                } else {
+                                  toast({ title: 'Upload failed', variant: 'destructive' });
+                                }
+                              } catch (err) {
+                                toast({ title: 'Upload error', variant: 'destructive' });
+                              } finally {
+                                setUploadingSourceImage(null);
+                              }
+                            };
+                            input.click();
+                          }}
+                        >
+                          {uploadingSourceImage === scene.id ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          Upload Image
+                        </Button>
+                      </div>
+                      
+                      <p className="text-xs text-purple-600">
+                        Or select from Matched Brand Assets above
+                      </p>
+                    </div>
                   )}
                   
-                  {/* Video Provider Selection (I2V) */}
+                  {/* Video Provider Selection */}
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Video Provider (I2V)</Label>
+                    <Label className="text-xs text-muted-foreground">Video Provider</Label>
                     <Select
                       value={selectedProviders[`video-${scene.id}`] || 'runway'}
                       onValueChange={(val) => setSelectedProviders(prev => ({ ...prev, [`video-${scene.id}`]: val }))}
@@ -3919,19 +3985,22 @@ function ScenePreview({
                     </Select>
                   </div>
                   
-                  {/* Generate Video Button - Direct I2V with product image + prompt */}
+                  {/* Generate Video Button */}
                   <Button
                     variant="destructive"
                     className="w-full"
-                    disabled={regenerating === `video-${scene.id}`}
+                    disabled={regenerating === `video-${scene.id}` || (videoGenMode[scene.id] === 'i2v' && !customSourceImage[scene.id] && !selectedProductAsset[scene.id] && !selectedLocationAsset[scene.id])}
                     onClick={() => {
-                      const selectedProduct = selectedProductAsset[scene.id];
-                      const selectedLocation = selectedLocationAsset[scene.id];
-                      const userSelectedAssetUrl = selectedProduct?.url || selectedLocation?.url;
                       const provider = selectedProviders[`video-${scene.id}`] || 'runway';
-                      // Use selected product/location asset or fall back to scene's brand asset for I2V
-                      const sourceImageUrl = userSelectedAssetUrl || scene.brandAssetUrl || scene.assets?.imageUrl;
-                      regenerateVideo(scene.id, provider, sourceImageUrl);
+                      
+                      if (videoGenMode[scene.id] === 'i2v') {
+                        const sourceImageUrl = customSourceImage[scene.id]?.url || 
+                                               selectedProductAsset[scene.id]?.url || 
+                                               selectedLocationAsset[scene.id]?.url;
+                        regenerateVideo(scene.id, provider, sourceImageUrl);
+                      } else {
+                        regenerateVideo(scene.id, provider, undefined);
+                      }
                     }}
                   >
                     {regenerating === `video-${scene.id}` ? (
@@ -3942,10 +4011,13 @@ function ScenePreview({
                     ) : (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        {selectedProductAsset[scene.id] || selectedLocationAsset[scene.id] ? 'Generate Video with Asset' : 'Generate Video'}
+                        {videoGenMode[scene.id] === 'i2v' ? 'Generate Video from Image' : 'Generate Video from Text'}
                       </>
                     )}
                   </Button>
+                  {videoGenMode[scene.id] === 'i2v' && !customSourceImage[scene.id] && !selectedProductAsset[scene.id] && !selectedLocationAsset[scene.id] && (
+                    <p className="text-xs text-amber-600">Please upload or select a source image first</p>
+                  )}
                   
                   {/* Image Provider Selection (I2I) */}
                   <div className="space-y-2 mt-3 pt-3 border-t border-dashed">
