@@ -311,13 +311,15 @@ async function processTask(taskId: string, options: {
         }
       }
     } else {
-      task.logs.push(`[${new Date().toISOString()}] Calling image provider: ${options.provider}`);
+      const isI2I = options.taskType === 'i2i' && options.imageUrl;
+      task.logs.push(`[${new Date().toISOString()}] Calling image provider: ${options.provider} (${isI2I ? 'i2i' : 't2i'})`);
       
       try {
         const result = await imageGenerationService.generateImage({
           prompt: options.prompt,
           aspectRatio: options.aspectRatio,
           provider: options.provider,
+          ...(isI2I ? { imageUrl: options.imageUrl } : {}),
         });
         
         task.status = 'completed';

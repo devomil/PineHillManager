@@ -172,11 +172,31 @@ export default function ProviderTestingPlayground() {
   useEffect(() => {
     if (!currentTaskId) return;
 
+    let pollErrorCount = 0;
+    const maxPollErrors = 3;
+
     const pollInterval = setInterval(async () => {
       try {
         const response = await fetch(`/api/provider-test/task/${currentTaskId}`, {
           credentials: 'include',
         });
+        
+        if (!response.ok) {
+          pollErrorCount++;
+          console.error(`Error polling task (${pollErrorCount}/${maxPollErrors}):`, response.status);
+          
+          if (pollErrorCount >= maxPollErrors) {
+            clearInterval(pollInterval);
+            setTaskResult(prev => prev ? {
+              ...prev,
+              status: 'failed',
+              error: `Failed to fetch task status (${response.status})`,
+            } : null);
+          }
+          return;
+        }
+        
+        pollErrorCount = 0;
         const task = await response.json();
         setTaskResult(task);
 
@@ -184,7 +204,17 @@ export default function ProviderTestingPlayground() {
           clearInterval(pollInterval);
         }
       } catch (error) {
-        console.error('Error polling task:', error);
+        pollErrorCount++;
+        console.error(`Error polling task (${pollErrorCount}/${maxPollErrors}):`, error);
+        
+        if (pollErrorCount >= maxPollErrors) {
+          clearInterval(pollInterval);
+          setTaskResult(prev => prev ? {
+            ...prev,
+            status: 'failed',
+            error: 'Network error while fetching task status',
+          } : null);
+        }
       }
     }, 2000);
 
@@ -210,10 +240,10 @@ export default function ProviderTestingPlayground() {
       return;
     }
 
-    if (taskType === 'i2v' && !imageUrl.trim()) {
+    if ((taskType === 'i2v' || taskType === 'i2i') && !imageUrl.trim()) {
       toast({
         title: 'Enter Image URL',
-        description: 'Image URL is required for Image-to-Video',
+        description: `Image URL is required for ${taskType === 'i2v' ? 'Image-to-Video' : 'Image-to-Image'}`,
         variant: 'destructive',
       });
       return;
@@ -223,7 +253,7 @@ export default function ProviderTestingPlayground() {
       provider: selectedProvider,
       taskType,
       prompt,
-      imageUrl: taskType === 'i2v' ? imageUrl : undefined,
+      imageUrl: (taskType === 'i2v' || taskType === 'i2i') ? imageUrl : undefined,
       aspectRatio,
       duration,
       resolution,
@@ -561,29 +591,43 @@ export default function ProviderTestingPlayground() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+            {taskResult?.status === 'processing' && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground py-8">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="text-sm">Processing your request...</p>
+                <p className="text-xs text-muted-foreground">This may take 1-3 minutes</p>
+              </div>
+            )}
+
             {taskResult?.result?.url && (
-              <div className="rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
+              <div className="rounded-lg overflow-hidden bg-slate-900 border border-slate-700">
                 {selectedCategory === 'video' ? (
                   <video
                     src={taskResult.result.url}
                     controls
-                    className="w-full h-full object-contain"
+                    className="w-full aspect-video object-contain bg-black"
                     autoPlay
-                    loop
+                    playsInline
                   />
                 ) : (
                   <img
                     src={taskResult.result.url}
                     alt="Generated"
-                    className="w-full h-full object-contain"
+                    className="w-full aspect-video object-contain bg-black"
                   />
+                )}
+                {taskResult.result.cost && (
+                  <div className="p-2 bg-slate-800 text-xs text-slate-400 flex justify-between">
+                    <span>Generation cost: ${taskResult.result.cost.toFixed(4)}</span>
+                    {taskResult.result.duration && <span>Duration: {taskResult.result.duration}s</span>}
+                  </div>
                 )}
               </div>
             )}
 
             {taskResult?.error && (
               <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-                <p className="text-sm text-destructive">
+                <p className="text-sm text-destructive font-medium">
                   {typeof taskResult.error === 'string' 
                     ? taskResult.error 
                     : (taskResult.error as any)?.message || (taskResult.error as any)?.detail || JSON.stringify(taskResult.error)}
@@ -594,6 +638,13 @@ export default function ProviderTestingPlayground() {
             {!taskResult && (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <p>No result yet...</p>
+              </div>
+            )}
+            
+            {taskResult?.status === 'pending' && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground py-8">
+                <Clock className="h-10 w-10 text-amber-500" />
+                <p className="text-sm">Task queued, starting soon...</p>
               </div>
             )}
 
