@@ -3931,9 +3931,12 @@ function ScenePreview({
                                 
                                 if (res.ok) {
                                   const data = await res.json();
+                                  console.log('[I2V Upload] Response data:', data);
+                                  const uploadedUrl = data.asset?.url || data.url;
+                                  console.log('[I2V Upload] Using URL:', uploadedUrl);
                                   setCustomSourceImage(prev => ({
                                     ...prev,
-                                    [scene.id]: { url: data.url, name: file.name }
+                                    [scene.id]: { url: uploadedUrl, name: file.name }
                                   }));
                                   setSelectedProductAsset(prev => ({ ...prev, [scene.id]: null }));
                                   setSelectedLocationAsset(prev => ({ ...prev, [scene.id]: null }));
@@ -3997,8 +4000,12 @@ function ScenePreview({
                         const sourceImageUrl = customSourceImage[scene.id]?.url || 
                                                selectedProductAsset[scene.id]?.url || 
                                                selectedLocationAsset[scene.id]?.url;
+                        console.log('[I2V Generate] Mode: i2v, sourceImageUrl:', sourceImageUrl);
+                        console.log('[I2V Generate] customSourceImage:', customSourceImage[scene.id]);
+                        console.log('[I2V Generate] selectedProductAsset:', selectedProductAsset[scene.id]);
                         regenerateVideo(scene.id, provider, sourceImageUrl);
                       } else {
+                        console.log('[T2V Generate] Mode: t2v, no source image');
                         regenerateVideo(scene.id, provider, undefined);
                       }
                     }}
