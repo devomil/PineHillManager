@@ -213,6 +213,49 @@ function getProviderBadgeStyle(provider: string | undefined): string {
   return providerStyles[provider.toLowerCase()] || 'bg-gray-100 text-gray-600';
 }
 
+const MemoizedVideoPlayer = memo(function MemoizedVideoPlayer({
+  videoUrl,
+  sceneId,
+  convertToDisplayUrl,
+  generationMethod,
+}: {
+  videoUrl: string;
+  sceneId: string;
+  convertToDisplayUrl: (url: string, addCacheBuster?: boolean) => string;
+  generationMethod?: string;
+}) {
+  return (
+    <div>
+      <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
+        <Video className="w-4 h-4" /> B-Roll Video
+        {generationMethod && (
+          <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
+            {generationMethod}
+          </span>
+        )}
+      </Label>
+      <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
+        <video 
+          key={`video-modal-${sceneId}-${videoUrl}`}
+          src={convertToDisplayUrl(videoUrl, true)}
+          className="w-full h-full object-contain i2v-video-fade"
+          controls
+          muted
+          playsInline
+          data-testid={`video-broll-modal-${sceneId}`}
+          onLoadStart={() => console.log('[VideoModal] Loading video:', videoUrl?.substring(0, 80))}
+          onLoadedData={() => console.log('[VideoModal] Video loaded successfully:', sceneId)}
+          onError={(e) => console.error('[VideoModal] Video load error:', sceneId, videoUrl, e)}
+        />
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.videoUrl === nextProps.videoUrl && 
+         prevProps.sceneId === nextProps.sceneId && 
+         prevProps.generationMethod === nextProps.generationMethod;
+});
+
 function ProductImageUpload({
   projectId,
   images,
@@ -2971,30 +3014,12 @@ function ScenePreview({
                     convertUrl={convertToDisplayUrl}
                   />
                 ) : hasBrollVideo && sceneVideoUrl ? (
-                  <div>
-                    <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
-                      <Video className="w-4 h-4" /> B-Roll Video
-                      {scene.generationMethod && (
-                        <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded">
-                          {scene.generationMethod}
-                        </span>
-                      )}
-                    </Label>
-                    <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
-                      <video 
-                        key={`video-modal-${scene.id}-${sceneVideoUrl}`}
-                        src={convertToDisplayUrl(sceneVideoUrl!, true)}
-                        className="w-full h-full object-contain i2v-video-fade"
-                        controls
-                        muted
-                        playsInline
-                        data-testid={`video-broll-modal-${scene.id}`}
-                        onLoadStart={() => console.log('[VideoModal] Loading video:', sceneVideoUrl?.substring(0, 80))}
-                        onLoadedData={() => console.log('[VideoModal] Video loaded successfully:', scene.id)}
-                        onError={(e) => console.error('[VideoModal] Video load error:', scene.id, sceneVideoUrl, e)}
-                      />
-                    </div>
-                  </div>
+                  <MemoizedVideoPlayer
+                    videoUrl={sceneVideoUrl!}
+                    sceneId={scene.id}
+                    convertToDisplayUrl={convertToDisplayUrl}
+                    generationMethod={scene.generationMethod}
+                  />
                 ) : hasAIBackground ? (
                   <div>
                     <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
