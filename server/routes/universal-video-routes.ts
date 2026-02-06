@@ -5,7 +5,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
-import { chunkedRenderService, ChunkedRenderProgress, MAX_CHUNK_DURATION_SEC } from '../services/chunked-render-service';
+import { chunkedRenderService, ChunkedRenderProgress, MAX_CHUNK_DURATION_SEC, CHUNK_THRESHOLD_SEC } from '../services/chunked-render-service';
 import { qualityEvaluationService, VideoQualityReport, QualityIssue } from '../services/quality-evaluation-service';
 import { sceneAnalysisService, SceneContext } from '../services/scene-analysis-service';
 import type { Phase8AnalysisResult } from '../../shared/video-types';
@@ -2254,7 +2254,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     
     // Calculate total duration to determine render method
     const totalDuration = preparedProject.scenes.reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
-    const useChunkedRendering = chunkedRenderService.shouldUseChunkedRendering(preparedProject.scenes, 90);
+    const useChunkedRendering = chunkedRenderService.shouldUseChunkedRendering(preparedProject.scenes, CHUNK_THRESHOLD_SEC);
     
     console.log(`[UniversalVideo] Total video duration: ${totalDuration}s, using ${useChunkedRendering ? 'chunked' : 'standard'} rendering`);
     
@@ -2741,7 +2741,7 @@ router.get('/test-chunked-render', isAuthenticated, async (req: Request, res: Re
     ];
     
     const totalDuration = testScenes.reduce((acc, s) => acc + s.duration, 0);
-    const shouldChunk = chunkedRenderService.shouldUseChunkedRendering(testScenes, 90);
+    const shouldChunk = chunkedRenderService.shouldUseChunkedRendering(testScenes, CHUNK_THRESHOLD_SEC);
     const chunks = chunkedRenderService.calculateChunks(testScenes, 30, 120);
     
     // Check FFmpeg
