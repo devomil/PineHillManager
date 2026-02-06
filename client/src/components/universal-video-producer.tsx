@@ -5148,6 +5148,27 @@ export default function UniversalVideoProducer() {
     queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
   };
 
+  useEffect(() => {
+    if (!project || project.status !== 'generating' || viewMode !== 'edit') return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/universal-video/projects/${project.id}`, { credentials: 'include' });
+        const data = await response.json();
+        if (data.project) {
+          setProject(data.project);
+          if (data.project.status !== 'generating') {
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {
+        console.error('[AutoRefresh] Failed to refresh project:', err);
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [project?.id, project?.status, viewMode]);
+
   const handleSelectProject = async (selectedProject: ProjectWithMeta) => {
     // Always fetch fresh project data to ensure we have the latest video URLs
     // This prevents stale cache issues when videos are regenerated

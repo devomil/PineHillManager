@@ -271,10 +271,27 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
     });
     
     // Step 6: Trigger asset generation (async - don't wait)
+    const ownerId = String(userId);
     setImmediate(async () => {
       try {
         console.log(`[QuickCreate] Starting asset generation for ${projectId}`);
-        await universalVideoService.generateProjectAssets(project, { skipMusic: false });
+        const onProgress = async (p: any) => {
+          try {
+            await db.update(universalVideoProjects)
+              .set({
+                progress: p.progress,
+                status: p.status,
+                scenes: p.scenes,
+                assets: p.assets,
+                totalDuration: p.totalDuration,
+                updatedAt: new Date(),
+              })
+              .where(eq(universalVideoProjects.projectId, p.id));
+          } catch (err: any) {
+            console.warn(`[QuickCreate] Progress save failed:`, err.message);
+          }
+        };
+        await universalVideoService.generateProjectAssets(project, { skipMusic: false, onProgress });
         console.log(`[QuickCreate] Asset generation complete for ${projectId}`);
       } catch (err) {
         console.error(`[QuickCreate] Asset generation failed for ${projectId}:`, err);
@@ -438,7 +455,23 @@ router.post('/retry/:projectId', isAuthenticated, async (req: Request, res: Resp
     setImmediate(async () => {
       try {
         console.log(`[QuickCreate] Retry: Starting asset generation for ${projectId}`);
-        await universalVideoService.generateProjectAssets(project, { skipMusic: false });
+        const onProgress = async (p: any) => {
+          try {
+            await db.update(universalVideoProjects)
+              .set({
+                progress: p.progress,
+                status: p.status,
+                scenes: p.scenes,
+                assets: p.assets,
+                totalDuration: p.totalDuration,
+                updatedAt: new Date(),
+              })
+              .where(eq(universalVideoProjects.projectId, p.id));
+          } catch (err: any) {
+            console.warn(`[QuickCreate] Retry progress save failed:`, err.message);
+          }
+        };
+        await universalVideoService.generateProjectAssets(project, { skipMusic: false, onProgress });
         console.log(`[QuickCreate] Retry: Asset generation complete for ${projectId}`);
       } catch (err) {
         console.error(`[QuickCreate] Retry: Asset generation failed for ${projectId}:`, err);

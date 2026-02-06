@@ -1423,7 +1423,10 @@ router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req:
     console.log('[UniversalVideo] Generating assets for project:', projectId, skipMusic ? '(music disabled)' : '');
     
     universalVideoService.clearNotifications();
-    const updatedProject = await universalVideoService.generateProjectAssets(projectData, { skipMusic: !!skipMusic });
+    const onProgress = async (p: any) => {
+      await saveProjectToDb(p, projectData.ownerId);
+    };
+    const updatedProject = await universalVideoService.generateProjectAssets(projectData, { skipMusic: !!skipMusic, onProgress });
     await saveProjectToDb(updatedProject, projectData.ownerId);
     
     const notifications = universalVideoService.getNotifications();

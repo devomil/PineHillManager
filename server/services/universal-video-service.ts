@@ -2557,9 +2557,20 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     return project;
   }
 
-  async generateProjectAssets(project: VideoProject, options?: { skipMusic?: boolean }): Promise<VideoProject> {
+  async generateProjectAssets(project: VideoProject, options?: { skipMusic?: boolean; onProgress?: (project: VideoProject) => Promise<void> }): Promise<VideoProject> {
     const updatedProject = { ...project };
     const skipMusic = options?.skipMusic ?? false;
+    const onProgress = options?.onProgress;
+    
+    const saveProgress = async () => {
+      if (onProgress) {
+        try {
+          await onProgress(updatedProject);
+        } catch (err: any) {
+          console.warn('[Assets] Progress save failed:', err.message);
+        }
+      }
+    };
     
     // Reset video tracking for new project
     this.resetUsedVideos();
@@ -2576,7 +2587,9 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     
     updatedProject.progress.currentStep = 'voiceover';
     updatedProject.progress.steps.voiceover.status = 'in-progress';
+    updatedProject.progress.overallPercent = 5;
     updatedProject.status = 'generating';
+    await saveProgress();
 
     const fullNarration = project.scenes.map(s => s.narration).join(' ... ');
     const voiceoverResult = await this.generateVoiceover(fullNarration, project.voiceId);
@@ -2649,6 +2662,8 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
 
     updatedProject.progress.currentStep = 'images';
     updatedProject.progress.steps.images.status = 'in-progress';
+    updatedProject.progress.overallPercent = 15;
+    await saveProgress();
 
     const productImages = project.assets.productImages || [];
     const primaryImage = productImages.find(img => img.isPrimary);
@@ -3049,13 +3064,18 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       }
 
       updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+      updatedProject.progress.overallPercent = 15 + Math.round(((i + 1) / project.scenes.length) * 25);
+      await saveProgress();
     }
 
     updatedProject.progress.steps.images.status = 'complete';
+    updatedProject.progress.overallPercent = 40;
+    await saveProgress();
 
     // VIDEOS STEP - Generate AI video for hero scenes, fetch B-roll for others
     updatedProject.progress.currentStep = 'videos';
     updatedProject.progress.steps.videos.status = 'in-progress';
+    await saveProgress();
     
     // Define scene types that should use AI video generation (hero scenes)
     const heroSceneTypes = ['hook', 'cta', 'testimonial', 'story'];
@@ -3373,6 +3393,8 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
 
     // MUSIC STEP - Generate background music with Udio (with ElevenLabs/Jamendo fallback)
     updatedProject.progress.currentStep = 'music';
+    updatedProject.progress.overallPercent = 60;
+    await saveProgress();
     
     if (skipMusic) {
       updatedProject.progress.steps.music.status = 'skipped';
@@ -3468,6 +3490,8 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     updatedProject.progress.currentStep = 'assembly';
     updatedProject.progress.steps.assembly.status = 'in-progress';
     updatedProject.progress.steps.assembly.message = 'Caching assets to cloud storage...';
+    updatedProject.progress.overallPercent = 70;
+    await saveProgress();
     
     console.log('[UniversalVideoService] Caching all external assets to S3...');
     const cacheResult = await this.cacheAllAssetsToS3(updatedProject);
