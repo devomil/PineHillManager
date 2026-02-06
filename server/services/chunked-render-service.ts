@@ -490,9 +490,16 @@ class ChunkedRenderService {
       });
 
       const chunkResults: ChunkResult[] = [];
+      const INTER_CHUNK_COOLDOWN_MS = 15000;
+      const MAX_CHUNK_RETRIES = 3;
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+
+        if (i > 0) {
+          console.log(`[ChunkedRender] Waiting ${INTER_CHUNK_COOLDOWN_MS / 1000}s between chunks to avoid rate limits...`);
+          await new Promise(resolve => setTimeout(resolve, INTER_CHUNK_COOLDOWN_MS));
+        }
         
         updateProgress({
           phase: 'rendering',
@@ -503,67 +510,102 @@ class ChunkedRenderService {
           message: `Rendering chunk ${i + 1} of ${totalChunks}...`,
         });
 
-        const chunkStartTime = Date.now();
+        let chunkSucceeded = false;
 
-        try {
-          const { renderId, bucketName } = await this.startChunkRender(chunk, inputProps, compositionId);
+        for (let chunkAttempt = 1; chunkAttempt <= MAX_CHUNK_RETRIES; chunkAttempt++) {
+          const chunkStartTime = Date.now();
 
-          if (onChunkLambdaStarted) {
-            await onChunkLambdaStarted({
-              chunkIndex: i,
+          try {
+            const { renderId, bucketName } = await this.startChunkRender(chunk, inputProps, compositionId);
+
+            if (onChunkLambdaStarted) {
+              await onChunkLambdaStarted({
+                chunkIndex: i,
+                renderId,
+                bucketName,
+                status: 'rendering',
+                startedAt: chunkStartTime,
+              });
+            }
+
+            const outputUrl = await this.pollChunkRender(
               renderId,
               bucketName,
-              status: 'rendering',
-              startedAt: chunkStartTime,
-            });
-          }
+              i,
+              (lambdaPct: number) => {
+                const chunkContribution = 50 / totalChunks;
+                const overallPct = 10 + Math.round((i / totalChunks) * 50) + Math.round((lambdaPct / 100) * chunkContribution);
+                updateProgress({
+                  phase: 'rendering',
+                  totalChunks,
+                  completedChunks: i,
+                  currentChunk: i,
+                  overallPercent: Math.min(overallPct, 59),
+                  message: `Rendering chunk ${i + 1} of ${totalChunks} (${lambdaPct}%)...`,
+                });
+              }
+            );
 
-          const outputUrl = await this.pollChunkRender(
-            renderId,
-            bucketName,
-            i,
-            (lambdaPct: number) => {
-              const chunkContribution = 50 / totalChunks;
-              const overallPct = 10 + Math.round((i / totalChunks) * 50) + Math.round((lambdaPct / 100) * chunkContribution);
+            const result: ChunkResult = {
+              chunkIndex: i,
+              s3Url: outputUrl,
+              localPath: "",
+              success: true,
+              renderTimeMs: Date.now() - chunkStartTime,
+            };
+
+            chunkResults.push(result);
+
+            if (onChunkComplete) {
+              await onChunkComplete(result);
+            }
+
+            chunkSucceeded = true;
+            break;
+          } catch (chunkError: any) {
+            const renderTimeMs = Date.now() - chunkStartTime;
+            const errorMessage = chunkError?.message || String(chunkError);
+
+            const isRateLimitError =
+              errorMessage.includes('Rate Exceeded') ||
+              errorMessage.includes('rate limit') ||
+              errorMessage.includes('Concurrency limit') ||
+              errorMessage.includes('TooManyRequestsException') ||
+              errorMessage.includes('ConcurrentInvocationLimitExceeded');
+
+            if (isRateLimitError && chunkAttempt < MAX_CHUNK_RETRIES) {
+              const cooldown = 60000 * chunkAttempt;
+              console.warn(`[ChunkedRender] Chunk ${i} hit rate limit (attempt ${chunkAttempt}/${MAX_CHUNK_RETRIES}), cooling down ${cooldown / 1000}s before retry...`);
               updateProgress({
                 phase: 'rendering',
                 totalChunks,
                 completedChunks: i,
                 currentChunk: i,
-                overallPercent: Math.min(overallPct, 59),
-                message: `Rendering chunk ${i + 1} of ${totalChunks} (${lambdaPct}%)...`,
+                overallPercent: 10 + Math.round((i / totalChunks) * 50),
+                message: `Chunk ${i + 1} rate limited, retrying in ${cooldown / 1000}s (attempt ${chunkAttempt + 1}/${MAX_CHUNK_RETRIES})...`,
               });
+              await new Promise(resolve => setTimeout(resolve, cooldown));
+              continue;
             }
-          );
 
-          const result: ChunkResult = {
-            chunkIndex: i,
-            s3Url: outputUrl,
-            localPath: "",
-            success: true,
-            renderTimeMs: Date.now() - chunkStartTime,
-          };
+            console.error(`[ChunkedRender] Chunk ${i} failed after ${(renderTimeMs / 1000).toFixed(1)}s (attempt ${chunkAttempt}/${MAX_CHUNK_RETRIES}): ${chunkError.message}`);
 
-          chunkResults.push(result);
+            updateProgress({
+              phase: 'error',
+              totalChunks,
+              completedChunks: chunkResults.length,
+              currentChunk: i,
+              overallPercent: 10 + Math.round((i / totalChunks) * 50),
+              message: `Chunk ${i + 1}/${totalChunks} failed: ${chunkError.message}`,
+              error: chunkError.message,
+            });
 
-          if (onChunkComplete) {
-            await onChunkComplete(result);
+            throw new Error(`Chunk ${i + 1}/${totalChunks} failed after ${chunkAttempt} attempts: ${chunkError.message}`);
           }
-        } catch (chunkError: any) {
-          const renderTimeMs = Date.now() - chunkStartTime;
-          console.error(`[ChunkedRender] Chunk ${i} failed after ${(renderTimeMs / 1000).toFixed(1)}s: ${chunkError.message}`);
+        }
 
-          updateProgress({
-            phase: 'error',
-            totalChunks,
-            completedChunks: chunkResults.length,
-            currentChunk: i,
-            overallPercent: 10 + Math.round((i / totalChunks) * 50),
-            message: `Chunk ${i + 1}/${totalChunks} failed: ${chunkError.message}`,
-            error: chunkError.message,
-          });
-
-          throw new Error(`Chunk ${i + 1}/${totalChunks} failed: ${chunkError.message}`);
+        if (!chunkSucceeded) {
+          throw new Error(`Chunk ${i + 1}/${totalChunks} failed after ${MAX_CHUNK_RETRIES} attempts`);
         }
       }
 

@@ -335,9 +335,9 @@ class RemotionLambdaService {
           inputProps: params.inputProps,
           codec: params.codec || "h264",
           imageFormat: params.imageFormat || "jpeg",
-          maxRetries: 2,
+          maxRetries: 3,
           privacy: "public",
-          framesPerLambda: 600,
+          framesPerLambda: 2400,
           concurrencyPerLambda: 1,
           timeoutInMilliseconds: 1800000,
           downloadBehavior: {
@@ -421,8 +421,8 @@ class RemotionLambdaService {
     console.log(`[Remotion Lambda] Polling render ${renderId} to completion...`);
 
     let consecutiveRateLimits = 0;
-    const maxConsecutiveRateLimits = 15;
-    let pollInterval = 3000;
+    const maxConsecutiveRateLimits = 20;
+    let pollInterval = 8000;
 
     while (true) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
@@ -431,7 +431,7 @@ class RemotionLambdaService {
       try {
         progress = await this.getRenderProgress(renderId, bucketName);
         consecutiveRateLimits = 0;
-        pollInterval = 3000;
+        pollInterval = 8000;
       } catch (pollError: any) {
         const errorMsg = pollError?.message || String(pollError);
         const isRateLimit = 
@@ -445,7 +445,7 @@ class RemotionLambdaService {
           if (consecutiveRateLimits >= maxConsecutiveRateLimits) {
             throw new Error(`Progress polling rate limited ${maxConsecutiveRateLimits} times consecutively for render ${renderId}. The render may still be running on Lambda.`);
           }
-          pollInterval = Math.min(5000 * Math.pow(1.5, consecutiveRateLimits - 1), 30000);
+          pollInterval = Math.min(10000 * Math.pow(1.5, consecutiveRateLimits - 1), 60000);
           console.log(`[Remotion Lambda] Progress poll rate limited (${consecutiveRateLimits}/${maxConsecutiveRateLimits}), backing off to ${(pollInterval/1000).toFixed(1)}s for render ${renderId}`);
           continue;
         }
@@ -460,7 +460,18 @@ class RemotionLambdaService {
       }
 
       if (progress.errors.length > 0) {
-        throw new Error(`Render failed: ${progress.errors.join(", ")}`);
+        const errorText = progress.errors.join(", ");
+        const isRateLimitInRender = 
+          errorText.includes('Rate Exceeded') ||
+          errorText.includes('Concurrency limit') ||
+          errorText.includes('TooManyRequestsException') ||
+          errorText.includes('ConcurrentInvocationLimitExceeded');
+        
+        if (isRateLimitInRender) {
+          console.warn(`[Remotion Lambda] Render ${renderId} failed due to AWS rate limiting inside Lambda: ${errorText}`);
+          throw new Error(`Rate Exceeded during Lambda render: ${errorText}`);
+        }
+        throw new Error(`Render failed: ${errorText}`);
       }
 
       if (progress.done && progress.outputFile) {
