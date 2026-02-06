@@ -9346,4 +9346,48 @@ router.post('/projects/:projectId/scenes/:sceneId/run-full-pipeline', isAuthenti
   }
 });
 
+export async function recoverStaleRenders() {
+  try {
+    const staleThresholdMs = 5 * 60 * 1000;
+    const staleThreshold = new Date(Date.now() - staleThresholdMs);
+    
+    const staleProjects = await db.select()
+      .from(universalVideoProjects)
+      .where(eq(universalVideoProjects.status, 'rendering'));
+    
+    let recoveredCount = 0;
+    for (const row of staleProjects) {
+      const updatedAt = row.updatedAt ? new Date(row.updatedAt) : new Date(0);
+      if (updatedAt < staleThreshold) {
+        const progress = (row.progress as any) || {};
+        progress.steps = progress.steps || {};
+        progress.steps.rendering = progress.steps.rendering || {};
+        progress.steps.rendering.status = 'error';
+        progress.steps.rendering.message = 'Render interrupted by server restart. Please retry.';
+        progress.errors = progress.errors || [];
+        progress.errors.push('Render interrupted by server restart at ' + new Date().toISOString());
+        
+        await db.update(universalVideoProjects)
+          .set({
+            status: 'error',
+            progress: progress,
+            updatedAt: new Date(),
+          })
+          .where(eq(universalVideoProjects.projectId, row.projectId));
+        
+        recoveredCount++;
+        console.log(`[UniversalVideo] Recovered stale rendering project: ${row.projectId} (last updated: ${updatedAt.toISOString()})`);
+      }
+    }
+    
+    if (recoveredCount > 0) {
+      console.log(`[UniversalVideo] Recovered ${recoveredCount} stale rendering project(s) on startup`);
+    }
+  } catch (error: any) {
+    console.error('[UniversalVideo] Failed to recover stale renders:', error.message);
+  }
+}
+
+recoverStaleRenders();
+
 export default router;
