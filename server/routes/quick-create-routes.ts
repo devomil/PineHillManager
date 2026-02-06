@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { documentUploadService } from '../services/document-upload-service';
 import { universalVideoService } from '../services/universal-video-service';
-import { isAuthenticated } from '../replitAuth';
+import { isAuthenticated } from '../auth';
 import { 
   VideoProject, 
   PINE_HILL_FARM_BRAND, 
@@ -230,7 +230,6 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
           assembly: { status: 'pending', progress: 0 },
           rendering: { status: 'pending', progress: 0 },
         },
-        overallProgress: 10,
       },
     };
     
