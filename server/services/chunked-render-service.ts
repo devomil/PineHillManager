@@ -151,7 +151,8 @@ class ChunkedRenderService {
   async renderChunk(
     chunk: ChunkConfig,
     inputProps: Record<string, any>,
-    compositionId: string
+    compositionId: string,
+    onLambdaProgress?: (lambdaPercent: number) => void
   ): Promise<ChunkResult> {
     const startTime = Date.now();
     const maxRetries = 5;
@@ -181,6 +182,7 @@ class ChunkedRenderService {
         const outputUrl = await remotionLambdaService.renderVideo({
           compositionId,
           inputProps: chunkInputProps,
+          onPollProgress: onLambdaProgress,
         });
 
         const renderTimeMs = Date.now() - startTime;
@@ -388,7 +390,18 @@ class ChunkedRenderService {
           message: `Rendering chunk ${i + 1} of ${totalChunks}...`,
         });
 
-        const result = await this.renderChunk(chunk, inputProps, compositionId);
+        const result = await this.renderChunk(chunk, inputProps, compositionId, (lambdaPct: number) => {
+          const chunkContribution = 50 / totalChunks;
+          const overallPct = 10 + Math.round((i / totalChunks) * 50) + Math.round((lambdaPct / 100) * chunkContribution);
+          updateProgress({
+            phase: 'rendering',
+            totalChunks,
+            completedChunks: i,
+            currentChunk: i,
+            overallPercent: Math.min(overallPct, 59),
+            message: `Rendering chunk ${i + 1} of ${totalChunks} (${lambdaPct}%)...`,
+          });
+        });
         
         if (!result.success) {
           throw new Error(`Chunk ${i} failed: ${result.error}`);

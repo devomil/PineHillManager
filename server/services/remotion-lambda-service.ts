@@ -329,6 +329,7 @@ class RemotionLambdaService {
     compositionId: string;
     inputProps: Record<string, any>;
     codec?: "h264" | "h265" | "vp8" | "vp9";
+    onPollProgress?: (percent: number) => void;
   }): Promise<string> {
     const { renderId, bucketName } = await this.startRender(params);
 
@@ -366,7 +367,12 @@ class RemotionLambdaService {
         throw pollError;
       }
 
-      console.log(`[Remotion Lambda] Progress: ${Math.round(progress.overallProgress * 100)}%`);
+      const pct = Math.round(progress.overallProgress * 100);
+      console.log(`[Remotion Lambda] Progress: ${pct}%`);
+
+      if (params.onPollProgress) {
+        try { params.onPollProgress(pct); } catch {}
+      }
 
       if (progress.errors.length > 0) {
         throw new Error(`Render failed: ${progress.errors.join(", ")}`);
