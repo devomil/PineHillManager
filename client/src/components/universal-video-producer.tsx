@@ -4896,7 +4896,7 @@ export default function UniversalVideoProducer() {
       
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.success) {
         if (data.renderMethod === 'chunked') {
           toast({
@@ -4904,6 +4904,13 @@ export default function UniversalVideoProducer() {
             description: data.message || "Your long video is queued for chunked rendering.",
           });
           queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project?.id] });
+          try {
+            const refreshRes = await fetch(`/api/universal-video/projects/${project?.id}`);
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              if (refreshData.project) setProject(refreshData.project);
+            }
+          } catch {}
         } else {
           setRenderId(data.renderId);
           setBucketName(data.bucketName);
