@@ -5597,54 +5597,66 @@ export default function UniversalVideoProducer() {
                 onRegenerateComplete={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
               />
               
-              {(project.status === 'rendering' || project.status === 'render_queued') && (() => {
+              {(project.status === 'rendering' || project.status === 'render_queued' || 
+                (project.status === 'error' && (project.progress as any)?.renderStatus)) && (() => {
                 const rs = (project.progress as any)?.renderStatus as {
                   phase: string; totalChunks: number; completedChunks: number;
                   currentChunk?: number; percent: number; message: string;
                   startedAt: number; lastUpdateAt: number; elapsedMs: number; error: string | null;
                 } | undefined;
                 const isChunked = (project.progress as any)?.renderMethod === 'chunked';
-                const renderPct = renderProgress?.progressPercent ?? rs?.percent ?? project.progress.steps.rendering?.progress ?? 0;
+                const isError = project.status === 'error' || rs?.phase === 'error';
+                const renderPct = isError ? (rs?.percent ?? project.progress.steps.rendering?.progress ?? 0) 
+                  : (renderProgress?.progressPercent ?? rs?.percent ?? project.progress.steps.rendering?.progress ?? 0);
                 const elapsedMs = rs?.elapsedMs ?? (rs?.startedAt ? Date.now() - rs.startedAt : 0);
                 const elapsedSec = Math.floor(elapsedMs / 1000);
                 const elapsedMin = Math.floor(elapsedSec / 60);
                 const elapsedSecRem = elapsedSec % 60;
                 const lastUpdateAge = rs?.lastUpdateAt ? Math.floor((Date.now() - rs.lastUpdateAt) / 1000) : 0;
-                const isStalled = lastUpdateAge > 300 && rs?.phase !== 'queued';
+                const isStalled = !isError && lastUpdateAge > 300 && rs?.phase !== 'queued';
                 const isWaiting = project.status === 'render_queued' || rs?.phase === 'queued';
 
-                const phaseLabel = rs?.phase === 'queued' ? 'Queued' 
+                const errorMessage = rs?.error || rs?.message || project.progress.steps.rendering?.message || 'Unknown error';
+                const friendlyError = errorMessage.includes('Concurrency limit') || errorMessage.includes('Rate Exceeded')
+                  ? 'The cloud rendering service is currently busy (too many simultaneous renders). This is a temporary issue.'
+                  : errorMessage.includes('timeout') || errorMessage.includes('Timeout')
+                  ? 'The rendering process timed out. This can happen with longer or more complex videos.'
+                  : errorMessage.includes('Missing render')
+                  ? 'The render configuration was lost. Please try rendering again.'
+                  : 'The rendering process encountered an error.';
+
+                const phaseLabel = isError ? 'Failed'
+                  : rs?.phase === 'queued' ? 'Queued' 
                   : rs?.phase === 'preparing' ? 'Preparing'
                   : rs?.phase === 'rendering' ? 'Rendering'
                   : rs?.phase === 'downloading' ? 'Downloading'
                   : rs?.phase === 'concatenating' ? 'Combining'
                   : rs?.phase === 'uploading' ? 'Uploading'
                   : rs?.phase === 'complete' ? 'Complete'
-                  : rs?.phase === 'error' ? 'Error'
                   : renderProgress?.renderPhase === 'initializing' ? 'Initializing'
                   : renderProgress?.renderPhase === 'rendering' ? 'Rendering'
                   : renderProgress?.renderPhase === 'encoding' ? 'Encoding'
                   : 'Processing';
 
-                const phaseIcon = isStalled ? <AlertTriangle className="h-4 w-4 text-amber-500" />
+                const phaseIcon = isError ? <AlertCircle className="h-4 w-4 text-red-500" />
+                  : isStalled ? <AlertTriangle className="h-4 w-4 text-amber-500" />
                   : isWaiting ? <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
-                  : rs?.phase === 'error' ? <AlertCircle className="h-4 w-4 text-red-500" />
                   : rs?.phase === 'complete' ? <CheckCircle className="h-4 w-4 text-green-500" />
                   : <Loader2 className="h-4 w-4 animate-spin text-blue-600" />;
 
                 return (
                   <div className={`rounded-lg border-2 p-4 space-y-4 ${
-                    isStalled ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700' 
-                    : rs?.phase === 'error' ? 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700'
+                    isError ? 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700' 
+                    : isStalled ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700' 
                     : 'border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800'
                   }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {phaseIcon}
                         <span className="font-semibold text-sm">
-                          {isStalled ? 'Render may be stalled' : isWaiting ? 'Waiting for render worker...' : `Video is rendering`}
+                          {isError ? 'Rendering failed' : isStalled ? 'Render may be stalled' : isWaiting ? 'Waiting for render worker...' : 'Video is rendering'}
                         </span>
-                        <Badge variant="outline" className="text-xs font-mono">
+                        <Badge variant={isError ? "destructive" : "outline"} className="text-xs font-mono">
                           {phaseLabel}
                         </Badge>
                         {isChunked && (
@@ -5672,41 +5684,66 @@ export default function UniversalVideoProducer() {
                         <span className="font-medium">{Math.round(renderPct)}%</span>
                         {isChunked && rs && rs.totalChunks > 0 && (
                           <span className="text-xs text-muted-foreground">
-                            Chunk {(rs.completedChunks || 0) + (rs.phase === 'rendering' ? 1 : 0)} of {rs.totalChunks}
+                            {isError 
+                              ? `Failed at chunk ${(rs.completedChunks || 0) + 1} of ${rs.totalChunks}`
+                              : `Chunk ${(rs.completedChunks || 0) + (rs.phase === 'rendering' ? 1 : 0)} of ${rs.totalChunks}`
+                            }
                           </span>
                         )}
                       </div>
-                      <Progress value={renderPct} className="h-2.5" />
+                      <Progress value={renderPct} className={`h-2.5 ${isError ? '[&>div]:bg-red-500' : ''}`} />
                     </div>
 
                     {isChunked && rs && rs.totalChunks > 1 && (
                       <div className="flex gap-1">
                         {Array.from({ length: rs.totalChunks }, (_, i) => {
                           const isDone = i < (rs.completedChunks || 0);
-                          const isCurrent = i === (rs.currentChunk ?? rs.completedChunks ?? 0) && rs.phase === 'rendering';
+                          const isFailed = isError && i === (rs.completedChunks || 0);
+                          const isCurrent = !isError && i === (rs.currentChunk ?? rs.completedChunks ?? 0) && rs.phase === 'rendering';
                           return (
                             <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${
-                              isDone ? 'bg-green-500' : isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-gray-200 dark:bg-gray-700'
-                            }`} title={`Chunk ${i + 1}${isDone ? ' (done)' : isCurrent ? ' (rendering)' : ''}`} />
+                              isDone ? 'bg-green-500' : isFailed ? 'bg-red-500' : isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-gray-200 dark:bg-gray-700'
+                            }`} title={`Chunk ${i + 1}${isDone ? ' (done)' : isFailed ? ' (failed)' : isCurrent ? ' (rendering)' : ''}`} />
                           );
                         })}
                       </div>
                     )}
 
-                    <div className="text-xs space-y-1">
-                      <p className="text-muted-foreground">
-                        {rs?.message || project.progress.steps.rendering?.message || 'Processing...'}
-                      </p>
-                      {isStalled && (
-                        <p className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          No progress update for {Math.floor(lastUpdateAge / 60)}m {lastUpdateAge % 60}s. 
-                          The worker may be processing a large chunk or may need a retry.
-                        </p>
+                    <div className="text-xs space-y-1.5">
+                      {isError ? (
+                        <>
+                          <p className="text-red-700 dark:text-red-300 font-medium">
+                            {friendlyError}
+                          </p>
+                          <p className="text-red-600/80 dark:text-red-400/80">
+                            You can try again by clicking the "Retry Render" button above. If the problem persists, try waiting a few minutes before retrying.
+                          </p>
+                          <details className="mt-1">
+                            <summary className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                              Technical details
+                            </summary>
+                            <p className="text-muted-foreground/70 mt-1 font-mono text-[10px] break-all bg-black/5 dark:bg-white/5 rounded p-2">
+                              {errorMessage}
+                            </p>
+                          </details>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-muted-foreground">
+                            {rs?.message || project.progress.steps.rendering?.message || 'Processing...'}
+                          </p>
+                          {isStalled && (
+                            <p className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              No progress update for {Math.floor(lastUpdateAge / 60)}m {lastUpdateAge % 60}s. 
+                              The worker may be processing a large chunk or may need a retry.
+                            </p>
+                          )}
+                          <p className="text-muted-foreground/70">
+                            You can navigate away - rendering continues in the background via an isolated worker process.
+                          </p>
+                        </>
                       )}
-                      <p className="text-muted-foreground/70">
-                        You can navigate away - rendering continues in the background via an isolated worker process.
-                      </p>
                     </div>
                   </div>
                 );
