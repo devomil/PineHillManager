@@ -3112,7 +3112,15 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       let videosGenerated = 0;
       let aiVideosGenerated = 0;
       
+      let videoSceneIndex = 0;
       for (const scene of scenesNeedingVideo) {
+        // Update per-scene progress (40% to 60% range)
+        updatedProject.progress.overallPercent = 40 + Math.round((videoSceneIndex / scenesNeedingVideo.length) * 20);
+        updatedProject.progress.steps.videos.progress = Math.round((videoSceneIndex / scenesNeedingVideo.length) * 100);
+        updatedProject.progress.steps.videos.message = `Processing video ${videoSceneIndex + 1} of ${scenesNeedingVideo.length}`;
+        await saveProgress();
+        videoSceneIndex++;
+        
         const isHeroScene = heroSceneTypes.includes(scene.type);
         let videoResult: { url: string; source: string; duration?: number } | null = null;
         
@@ -3507,10 +3515,10 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       );
     }
     
-    updatedProject.progress.steps.assembly.status = 'complete';
-    updatedProject.progress.steps.assembly.progress = 100;
-    updatedProject.progress.steps.assembly.message = 
-      `Cached ${cacheResult.cachedCount} assets to S3`;
+    updatedProject.progress.steps.assembly.progress = 30;
+    updatedProject.progress.steps.assembly.message = `Cached ${cacheResult.cachedCount} assets to S3`;
+    updatedProject.progress.overallPercent = 73;
+    await saveProgress();
     // ========== END S3 CACHING ==========
 
     // ========== SOUND DESIGN ==========
@@ -3541,11 +3549,14 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
 
       } catch (error: any) {
         console.error(`[UniversalVideoService] Sound design failed:`, error.message);
-        // Continue without sound design - it's an enhancement
       }
     } else {
       console.log(`[UniversalVideoService] Sound design skipped (PiAPI not configured)`);
     }
+    updatedProject.progress.steps.assembly.progress = 50;
+    updatedProject.progress.steps.assembly.message = 'Sound design complete, analyzing scenes...';
+    updatedProject.progress.overallPercent = 76;
+    await saveProgress();
     // ========== END SOUND DESIGN ==========
 
     // ========== PRODUCT IMAGES ==========
@@ -3650,6 +3661,10 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     } else {
       console.log(`[UniversalVideoService] Scene analysis skipped (Anthropic not configured)`);
     }
+    updatedProject.progress.steps.assembly.progress = 75;
+    updatedProject.progress.steps.assembly.message = 'Scene analysis complete, generating composition...';
+    updatedProject.progress.overallPercent = 80;
+    await saveProgress();
     // ========== END SCENE ANALYSIS ==========
 
     // ========== COMPOSITION INSTRUCTIONS ==========
@@ -3769,6 +3784,9 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     }
     // ========== END BRAND OVERLAY INSTRUCTIONS ==========
 
+    updatedProject.progress.steps.assembly.status = 'complete';
+    updatedProject.progress.steps.assembly.progress = 100;
+    updatedProject.progress.steps.assembly.message = 'Assembly complete';
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
     updatedProject.updatedAt = new Date().toISOString();

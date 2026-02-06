@@ -5349,7 +5349,7 @@ export default function UniversalVideoProducer() {
                   {project.status === 'generating' && (
                     (() => {
                       const stalledMs = project.updatedAt ? Date.now() - new Date(project.updatedAt).getTime() : 0;
-                      const isStalled = stalledMs > 180000;
+                      const isStalled = stalledMs > 600000;
                       if (!isStalled) return null;
                       return (
                         <Button
