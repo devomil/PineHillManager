@@ -266,37 +266,11 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
       scenes: project.scenes,
       assets: project.assets,
       progress: project.progress as any,
-      status: 'generating',
+      status: 'queued',
       qualityTier: 'standard',
     });
     
-    // Step 6: Trigger asset generation (async - don't wait)
-    const ownerId = String(userId);
-    setImmediate(async () => {
-      try {
-        console.log(`[QuickCreate] Starting asset generation for ${projectId}`);
-        const onProgress = async (p: any) => {
-          try {
-            await db.update(universalVideoProjects)
-              .set({
-                progress: p.progress,
-                status: p.status,
-                scenes: p.scenes,
-                assets: p.assets,
-                totalDuration: p.totalDuration,
-                updatedAt: new Date(),
-              })
-              .where(eq(universalVideoProjects.projectId, p.id));
-          } catch (err: any) {
-            console.warn(`[QuickCreate] Progress save failed:`, err.message);
-          }
-        };
-        await universalVideoService.generateProjectAssets(project, { skipMusic: false, onProgress });
-        console.log(`[QuickCreate] Asset generation complete for ${projectId}`);
-      } catch (err) {
-        console.error(`[QuickCreate] Asset generation failed for ${projectId}:`, err);
-      }
-    });
+    console.log(`[QuickCreate] Project ${projectId} queued for worker processing`);
     
     res.json({
       success: true,
@@ -305,9 +279,9 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
         title: project.title,
         sceneCount: project.scenes.length,
         estimatedDuration: project.totalDuration,
-        status: 'generating',
+        status: 'queued',
       },
-      message: 'Video generation started. You will be notified when ready.',
+      message: 'Video generation queued - the dedicated video worker will process this shortly.',
     });
     
   } catch (error: any) {
@@ -353,9 +327,11 @@ router.get('/status/:projectId', isAuthenticated, async (req: Request, res: Resp
     ).length;
     const progressPercent = Math.round((completedSteps / steps.length) * 100);
     
-    const currentStep = steps.find(step => 
-      (progress.steps as any)?.[step]?.status === 'in-progress'
-    ) || progress.currentStep || 'pending';
+    const currentStep = projectRow.status === 'queued' 
+      ? 'pending'
+      : steps.find(step => 
+          (progress.steps as any)?.[step]?.status === 'in-progress'
+        ) || progress.currentStep || 'pending';
     
     const isStalled = projectRow.status === 'generating' && 
       projectRow.updatedAt && 
@@ -444,43 +420,17 @@ router.post('/retry/:projectId', isAuthenticated, async (req: Request, res: Resp
     
     await db.update(universalVideoProjects)
       .set({
-        status: 'generating',
+        status: 'queued',
         progress: project.progress,
         updatedAt: new Date(),
       })
       .where(eq(universalVideoProjects.projectId, projectId));
     
-    console.log(`[QuickCreate] Retrying asset generation for ${projectId}`);
-    
-    setImmediate(async () => {
-      try {
-        console.log(`[QuickCreate] Retry: Starting asset generation for ${projectId}`);
-        const onProgress = async (p: any) => {
-          try {
-            await db.update(universalVideoProjects)
-              .set({
-                progress: p.progress,
-                status: p.status,
-                scenes: p.scenes,
-                assets: p.assets,
-                totalDuration: p.totalDuration,
-                updatedAt: new Date(),
-              })
-              .where(eq(universalVideoProjects.projectId, p.id));
-          } catch (err: any) {
-            console.warn(`[QuickCreate] Retry progress save failed:`, err.message);
-          }
-        };
-        await universalVideoService.generateProjectAssets(project, { skipMusic: false, onProgress });
-        console.log(`[QuickCreate] Retry: Asset generation complete for ${projectId}`);
-      } catch (err) {
-        console.error(`[QuickCreate] Retry: Asset generation failed for ${projectId}:`, err);
-      }
-    });
+    console.log(`[QuickCreate] Project ${projectId} requeued for worker processing`);
     
     res.json({
       success: true,
-      message: 'Generation restarted. Progress will update shortly.',
+      message: 'Generation requeued - the dedicated video worker will process this shortly.',
     });
     
   } catch (error: any) {

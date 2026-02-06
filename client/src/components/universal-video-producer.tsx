@@ -4588,6 +4588,8 @@ function ProjectsList({ onSelectProject, onCreateNew }: {
         return <Badge className="bg-yellow-500"><Play className="w-3 h-3 mr-1" /> Ready to Render</Badge>;
       case 'generating':
         return <Badge className="bg-purple-500"><Sparkles className="w-3 h-3 mr-1" /> Generating</Badge>;
+      case 'queued':
+        return <Badge className="bg-blue-400"><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Queued</Badge>;
       case 'error':
         return <Badge variant="destructive"><AlertTriangle className="w-3 h-3 mr-1" /> Error</Badge>;
       default:
@@ -5149,7 +5151,7 @@ export default function UniversalVideoProducer() {
   };
 
   useEffect(() => {
-    if (!project || project.status !== 'generating' || viewMode !== 'edit') return;
+    if (!project || (project.status !== 'generating' && project.status !== 'queued') || viewMode !== 'edit') return;
     
     const interval = setInterval(async () => {
       try {
@@ -5157,7 +5159,7 @@ export default function UniversalVideoProducer() {
         const data = await response.json();
         if (data.project) {
           setProject(data.project);
-          if (data.project.status !== 'generating') {
+          if (data.project.status !== 'generating' && data.project.status !== 'queued') {
             clearInterval(interval);
           }
         }
@@ -5346,8 +5348,16 @@ export default function UniversalVideoProducer() {
                 </div>
                 
                 <div className="flex gap-2 items-center">
-                  {project.status === 'generating' && (
+                  {(project.status === 'generating' || project.status === 'queued') && (
                     (() => {
+                      if (project.status === 'queued') {
+                        return (
+                          <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Queued for processing
+                          </Badge>
+                        );
+                      }
                       const stalledMs = project.updatedAt ? Date.now() - new Date(project.updatedAt).getTime() : 0;
                       const isStalled = stalledMs > 600000;
                       if (!isStalled) return null;

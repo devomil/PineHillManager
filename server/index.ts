@@ -152,10 +152,15 @@ app.use((req, res, next) => {
   bigcommerceInventorySyncService.startScheduledSync();
   log('📦 BigCommerce inventory sync scheduler initialized', 'bigcommerce-sync');
 
-  // Import and initialize the video generation worker
+  // Import and initialize the video generation worker (per-scene regeneration)
   const { videoGenerationWorker } = await import('./services/video-generation-worker');
-  videoGenerationWorker.startWorker(3000); // Check for jobs every 3 seconds
+  videoGenerationWorker.startWorker(3000);
   log('🎬 Video generation worker initialized (every 3 seconds)', 'video-worker');
+
+  // Import and initialize the video project worker (queue-based project generation)
+  const { startVideoProjectWorker } = await import('./services/video-project-worker');
+  startVideoProjectWorker();
+  log('🎬 Video project worker initialized (polls queued projects every 5 seconds)', 'video-project-worker');
 
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {
