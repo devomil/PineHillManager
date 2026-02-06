@@ -1415,7 +1415,7 @@ function VoiceoverControlsPanel({
 }
 
 function ServiceFailureAlert({ failures }: { failures: ServiceFailure[] }) {
-  if (failures.length === 0) return null;
+  if (!failures || failures.length === 0) return null;
   
   const paidServiceFailures = failures.filter(f => 
     f.service === 'fal.ai' || f.service === 'elevenlabs'
