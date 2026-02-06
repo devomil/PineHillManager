@@ -2275,12 +2275,15 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         const progressCallback = async (progress: ChunkedRenderProgress) => {
           console.log(`[UniversalVideo] Chunked progress update: ${progress.phase} - ${progress.overallPercent}% - ${progress.message}`);
           try {
-            // Reload fresh project state to avoid race conditions
             const currentProject = await getProjectFromDb(projectId);
             if (currentProject) {
               currentProject.progress.steps.rendering.progress = progress.overallPercent;
               currentProject.progress.steps.rendering.message = progress.message;
               currentProject.progress.overallPercent = 85 + Math.round(progress.overallPercent * 0.15);
+              if (progress.phase === 'error') {
+                currentProject.status = 'error';
+                currentProject.progress.steps.rendering.status = 'error';
+              }
               await saveProjectToDb(currentProject, projectData.ownerId);
             }
           } catch (e) {

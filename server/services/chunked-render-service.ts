@@ -168,17 +168,15 @@ class ChunkedRenderService {
           chunkIndex: chunk.chunkIndex,
         };
 
-        if (attempt > 1 && lastError?.message?.includes('Could not play audio')) {
-          console.log(`[ChunkedRender] Disabling ALL sound design for chunk ${chunk.chunkIndex} retry (audio playback error detected)`);
-          chunkInputProps.soundDesignConfig = {
-            ...(chunkInputProps.soundDesignConfig || {}),
-            enabled: false,
-            ambientLayer: false,
-            transitionSounds: false,
-            impactSounds: false,
-          };
-          chunkInputProps.soundEffectsBaseUrl = undefined;
-        }
+        console.log(`[ChunkedRender] Disabling sound design for chunk ${chunk.chunkIndex} (attempt ${attempt}/${maxRetries}) to prevent audio playback errors on Lambda`);
+        chunkInputProps.soundDesignConfig = {
+          ...(chunkInputProps.soundDesignConfig || {}),
+          enabled: false,
+          ambientLayer: false,
+          transitionSounds: false,
+          impactSounds: false,
+        };
+        chunkInputProps.soundEffectsBaseUrl = undefined;
 
         const outputUrl = await remotionLambdaService.renderVideo({
           compositionId,
@@ -457,7 +455,7 @@ class ChunkedRenderService {
 
       return finalUrl;
     } catch (error: any) {
-      updateProgress({
+      await updateProgress({
         phase: 'error',
         totalChunks: 0,
         completedChunks: 0,
