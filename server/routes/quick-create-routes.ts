@@ -199,11 +199,14 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
     
     // Step 4: Create project
     const projectId = `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
     const project: VideoProject = {
       id: projectId,
       type: 'script-based',
       title: extracted.title || filename.replace(/\.[^.]+$/, ''),
       description: `Quick Create from ${filename}`,
+      createdAt: now,
+      updatedAt: now,
       fps: 30,
       totalDuration: scenes.reduce((acc, s) => acc + s.duration, 0),
       outputFormat: OUTPUT_FORMATS[platform as keyof typeof OUTPUT_FORMATS] || OUTPUT_FORMATS.youtube,
@@ -221,6 +224,9 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
       status: 'draft',
       progress: {
         currentStep: 'script',
+        overallPercent: 10,
+        errors: [],
+        serviceFailures: [],
         steps: {
           script: { status: 'complete', progress: 100, message: `Parsed ${scenes.length} scenes` },
           voiceover: { status: 'pending', progress: 0 },
@@ -334,11 +340,16 @@ router.get('/status/:projectId', isAuthenticated, async (req: Request, res: Resp
       (progress.steps as any)?.[step]?.status === 'in-progress'
     ) || progress.currentStep || 'pending';
     
+    const isStalled = projectRow.status === 'generating' && 
+      projectRow.updatedAt && 
+      (Date.now() - new Date(projectRow.updatedAt).getTime()) > 180000;
+
     res.json({
       success: true,
       status: projectRow.status,
       progress: progressPercent,
       currentStep,
+      isStalled,
       downloadUrl: projectRow.status === 'complete' ? (project as any).finalVideoUrl : null,
       scenes: project.scenes?.map((s: any) => ({
         id: s.id,
@@ -350,6 +361,97 @@ router.get('/status/:projectId', isAuthenticated, async (req: Request, res: Resp
     
   } catch (error: any) {
     console.error('[QuickCreate] Status check error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/retry/:projectId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const results = await db.select()
+      .from(universalVideoProjects)
+      .where(eq(universalVideoProjects.projectId, projectId))
+      .limit(1);
+    
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const projectRow = results[0];
+    if (projectRow.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    if (projectRow.status !== 'generating' && projectRow.status !== 'error') {
+      return res.status(400).json({ success: false, error: 'Project is not in a retryable state' });
+    }
+    
+    const project = {
+      id: projectRow.projectId,
+      type: projectRow.type,
+      title: projectRow.title,
+      description: projectRow.description,
+      fps: projectRow.fps,
+      totalDuration: projectRow.totalDuration,
+      outputFormat: projectRow.outputFormat,
+      brand: projectRow.brand,
+      scenes: projectRow.scenes,
+      assets: projectRow.assets,
+      status: 'generating',
+      progress: {
+        currentStep: 'script',
+        overallPercent: 10,
+        errors: [],
+        serviceFailures: [],
+        steps: {
+          script: { status: 'complete', progress: 100, message: `Parsed ${(projectRow.scenes as any[])?.length || 0} scenes` },
+          voiceover: { status: 'pending', progress: 0 },
+          images: { status: 'pending', progress: 0 },
+          videos: { status: 'pending', progress: 0 },
+          music: { status: 'pending', progress: 0 },
+          assembly: { status: 'pending', progress: 0 },
+          rendering: { status: 'pending', progress: 0 },
+        },
+      },
+    } as any;
+
+    const raw = projectRow as any;
+    if (raw.qualityTier) project.qualityTier = raw.qualityTier;
+    if (raw.visualStyle) project.visualStyle = raw.visualStyle;
+    if (raw.generationMode) project.generationMode = raw.generationMode;
+    if (raw.voiceId) project.voiceId = raw.voiceId;
+    if (raw.voiceName) project.voiceName = raw.voiceName;
+    if (raw.brandSettings) project.brandSettings = raw.brandSettings;
+    
+    await db.update(universalVideoProjects)
+      .set({
+        status: 'generating',
+        progress: project.progress,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+    
+    console.log(`[QuickCreate] Retrying asset generation for ${projectId}`);
+    
+    setImmediate(async () => {
+      try {
+        console.log(`[QuickCreate] Retry: Starting asset generation for ${projectId}`);
+        await universalVideoService.generateProjectAssets(project, { skipMusic: false });
+        console.log(`[QuickCreate] Retry: Asset generation complete for ${projectId}`);
+      } catch (err) {
+        console.error(`[QuickCreate] Retry: Asset generation failed for ${projectId}:`, err);
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: 'Generation restarted. Progress will update shortly.',
+    });
+    
+  } catch (error: any) {
+    console.error('[QuickCreate] Retry error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

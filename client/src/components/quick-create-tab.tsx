@@ -1,6 +1,6 @@
 // client/src/components/quick-create-tab.tsx
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { 
@@ -30,6 +30,7 @@ interface GenerationStatus {
   status: string;
   progress: number;
   currentStep: string;
+  isStalled?: boolean;
   downloadUrl: string | null;
   scenes?: { id: string; type: string; hasVideo: boolean; hasVoiceover: boolean }[];
 }
@@ -417,6 +418,9 @@ function GenerationProgress({
   onReset: () => void;
   projectId: string;
 }) {
+  const { toast } = useToast();
+  const [isRetrying, setIsRetrying] = useState(false);
+  
   const stepLabels: Record<string, string> = {
     pending: 'Preparing...',
     script: 'Parsing script',
@@ -429,7 +433,35 @@ function GenerationProgress({
   };
   
   const isComplete = status.status === 'complete';
-  const isFailed = status.status === 'failed';
+  const isFailed = status.status === 'failed' || status.status === 'error';
+  const isStalled = status.isStalled && !isRetrying;
+  
+  useEffect(() => {
+    if (!status.isStalled && !isFailed && isRetrying) {
+      setIsRetrying(false);
+    }
+  }, [status.isStalled, isFailed, isRetrying]);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      const response = await fetch(`/api/quick-create/retry/${projectId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: 'Generation restarted', description: 'Progress will update shortly' });
+        setTimeout(() => setIsRetrying(false), 10000);
+      } else {
+        toast({ title: 'Retry failed', description: data.error, variant: 'destructive' });
+        setIsRetrying(false);
+      }
+    } catch {
+      toast({ title: 'Retry failed', description: 'Could not reach server', variant: 'destructive' });
+      setIsRetrying(false);
+    }
+  };
   
   return (
     <Card className="max-w-lg mx-auto">
@@ -445,6 +477,11 @@ function GenerationProgress({
               <AlertCircle className="w-6 h-6 text-red-500" />
               Generation Failed
             </>
+          ) : isStalled ? (
+            <>
+              <AlertCircle className="w-6 h-6 text-amber-500" />
+              Generation Stalled
+            </>
           ) : (
             <>
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -452,7 +489,11 @@ function GenerationProgress({
             </>
           )}
         </CardTitle>
-        {!isComplete && !isFailed && (
+        {isStalled ? (
+          <CardDescription>
+            Generation was interrupted. Click retry to resume.
+          </CardDescription>
+        ) : !isComplete && !isFailed && (
           <CardDescription>
             {stepLabels[status.currentStep] || status.currentStep}
           </CardDescription>
@@ -464,7 +505,26 @@ function GenerationProgress({
           {status.progress}% complete
         </p>
         
-        {/* Scene status */}
+        {(isStalled || isFailed) && (
+          <Button 
+            className="w-full" 
+            onClick={handleRetry} 
+            disabled={isRetrying}
+          >
+            {isRetrying ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Restarting...
+              </>
+            ) : (
+              <>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Retry Generation
+              </>
+            )}
+          </Button>
+        )}
+        
         {status.scenes && status.scenes.length > 0 && (
           <div className="text-xs text-muted-foreground space-y-1 max-h-32 overflow-y-auto">
             {status.scenes.map((scene, i) => (
