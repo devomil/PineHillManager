@@ -49,7 +49,7 @@ import {
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
   FolderOpen, Plus, Minus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
   Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy, Check,
-  Replace, ArrowLeftRight, MapPin
+  Replace, ArrowLeftRight, MapPin, Timer, AlertCircle, Server
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -5597,58 +5597,120 @@ export default function UniversalVideoProducer() {
                 onRegenerateComplete={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
               />
               
-              {(project.status === 'rendering' || project.status === 'render_queued') && (
-                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                  <AlertTitle className="text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                    Video is rendering
-                    {renderProgress && (
-                      <Badge variant="outline" className="ml-2 text-xs">
-                        {renderProgress.renderPhase === 'initializing' && 'Initializing...'}
-                        {renderProgress.renderPhase === 'rendering' && 'Rendering frames'}
-                        {renderProgress.renderPhase === 'encoding' && 'Encoding video'}
-                        {renderProgress.renderPhase === 'complete' && 'Finalizing'}
-                      </Badge>
-                    )}
-                  </AlertTitle>
-                  <AlertDescription className="text-blue-700 dark:text-blue-300">
-                    <div className="space-y-3 mt-2">
-                      {/* Progress bar with percentage */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium">
-                            {renderProgress ? `${renderProgress.progressPercent}%` : `${Math.round(project.progress.steps.rendering?.progress || 0)}%`}
-                          </span>
-                          {renderProgress && renderProgress.elapsedSeconds > 0 && (
-                            <span className="text-muted-foreground">
-                              Elapsed: {Math.floor(renderProgress.elapsedSeconds / 60)}:{String(renderProgress.elapsedSeconds % 60).padStart(2, '0')}
-                              {renderProgress.estimatedRemainingSeconds > 0 && (
-                                <> • ETA: ~{Math.ceil(renderProgress.estimatedRemainingSeconds / 60)} min</>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                        <Progress 
-                          value={renderProgress?.progressPercent || project.progress.steps.rendering?.progress || 0} 
-                          className="h-2" 
-                        />
+              {(project.status === 'rendering' || project.status === 'render_queued') && (() => {
+                const rs = (project.progress as any)?.renderStatus as {
+                  phase: string; totalChunks: number; completedChunks: number;
+                  currentChunk?: number; percent: number; message: string;
+                  startedAt: number; lastUpdateAt: number; elapsedMs: number; error: string | null;
+                } | undefined;
+                const isChunked = (project.progress as any)?.renderMethod === 'chunked';
+                const renderPct = renderProgress?.progressPercent ?? rs?.percent ?? project.progress.steps.rendering?.progress ?? 0;
+                const elapsedMs = rs?.elapsedMs ?? (rs?.startedAt ? Date.now() - rs.startedAt : 0);
+                const elapsedSec = Math.floor(elapsedMs / 1000);
+                const elapsedMin = Math.floor(elapsedSec / 60);
+                const elapsedSecRem = elapsedSec % 60;
+                const lastUpdateAge = rs?.lastUpdateAt ? Math.floor((Date.now() - rs.lastUpdateAt) / 1000) : 0;
+                const isStalled = lastUpdateAge > 300 && rs?.phase !== 'queued';
+                const isWaiting = project.status === 'render_queued' || rs?.phase === 'queued';
+
+                const phaseLabel = rs?.phase === 'queued' ? 'Queued' 
+                  : rs?.phase === 'preparing' ? 'Preparing'
+                  : rs?.phase === 'rendering' ? 'Rendering'
+                  : rs?.phase === 'downloading' ? 'Downloading'
+                  : rs?.phase === 'concatenating' ? 'Combining'
+                  : rs?.phase === 'uploading' ? 'Uploading'
+                  : rs?.phase === 'complete' ? 'Complete'
+                  : rs?.phase === 'error' ? 'Error'
+                  : renderProgress?.renderPhase === 'initializing' ? 'Initializing'
+                  : renderProgress?.renderPhase === 'rendering' ? 'Rendering'
+                  : renderProgress?.renderPhase === 'encoding' ? 'Encoding'
+                  : 'Processing';
+
+                const phaseIcon = isStalled ? <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  : isWaiting ? <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
+                  : rs?.phase === 'error' ? <AlertCircle className="h-4 w-4 text-red-500" />
+                  : rs?.phase === 'complete' ? <CheckCircle className="h-4 w-4 text-green-500" />
+                  : <Loader2 className="h-4 w-4 animate-spin text-blue-600" />;
+
+                return (
+                  <div className={`rounded-lg border-2 p-4 space-y-4 ${
+                    isStalled ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700' 
+                    : rs?.phase === 'error' ? 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700'
+                    : 'border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {phaseIcon}
+                        <span className="font-semibold text-sm">
+                          {isStalled ? 'Render may be stalled' : isWaiting ? 'Waiting for render worker...' : `Video is rendering`}
+                        </span>
+                        <Badge variant="outline" className="text-xs font-mono">
+                          {phaseLabel}
+                        </Badge>
+                        {isChunked && (
+                          <Badge variant="secondary" className="text-xs">
+                            Chunked
+                          </Badge>
+                        )}
                       </div>
-                      
-                      {/* Status message */}
-                      <p className="text-xs text-muted-foreground">
-                        You can navigate away - rendering continues in the background. 
-                        {renderProgress && renderProgress.progressPercent > 0 && renderProgress.progressPercent < 100 && (
-                          <span className="block mt-1">
-                            {renderProgress.renderPhase === 'initializing' && 'Starting up Lambda render environment...'}
-                            {renderProgress.renderPhase === 'rendering' && 'Processing video frames on AWS Lambda...'}
-                            {renderProgress.renderPhase === 'encoding' && 'Encoding final video file...'}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {elapsedSec > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Timer className="h-3 w-3" />
+                            {elapsedMin > 0 ? `${elapsedMin}m ${String(elapsedSecRem).padStart(2, '0')}s` : `${elapsedSec}s`}
                           </span>
                         )}
+                        <span className="flex items-center gap-1">
+                          <Server className="h-3 w-3" />
+                          Worker
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">{Math.round(renderPct)}%</span>
+                        {isChunked && rs && rs.totalChunks > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            Chunk {(rs.completedChunks || 0) + (rs.phase === 'rendering' ? 1 : 0)} of {rs.totalChunks}
+                          </span>
+                        )}
+                      </div>
+                      <Progress value={renderPct} className="h-2.5" />
+                    </div>
+
+                    {isChunked && rs && rs.totalChunks > 1 && (
+                      <div className="flex gap-1">
+                        {Array.from({ length: rs.totalChunks }, (_, i) => {
+                          const isDone = i < (rs.completedChunks || 0);
+                          const isCurrent = i === (rs.currentChunk ?? rs.completedChunks ?? 0) && rs.phase === 'rendering';
+                          return (
+                            <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${
+                              isDone ? 'bg-green-500' : isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-gray-200 dark:bg-gray-700'
+                            }`} title={`Chunk ${i + 1}${isDone ? ' (done)' : isCurrent ? ' (rendering)' : ''}`} />
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="text-xs space-y-1">
+                      <p className="text-muted-foreground">
+                        {rs?.message || project.progress.steps.rendering?.message || 'Processing...'}
+                      </p>
+                      {isStalled && (
+                        <p className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          No progress update for {Math.floor(lastUpdateAge / 60)}m {lastUpdateAge % 60}s. 
+                          The worker may be processing a large chunk or may need a retry.
+                        </p>
+                      )}
+                      <p className="text-muted-foreground/70">
+                        You can navigate away - rendering continues in the background via an isolated worker process.
                       </p>
                     </div>
-                  </AlertDescription>
-                </Alert>
-              )}
+                  </div>
+                );
+              })()}
               
               <Separator />
               

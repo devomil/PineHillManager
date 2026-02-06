@@ -5,7 +5,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
-import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked-render-service';
+import { chunkedRenderService, ChunkedRenderProgress, MAX_CHUNK_DURATION_SEC } from '../services/chunked-render-service';
 import { qualityEvaluationService, VideoQualityReport, QualityIssue } from '../services/quality-evaluation-service';
 import { sceneAnalysisService, SceneContext } from '../services/scene-analysis-service';
 import type { Phase8AnalysisResult } from '../../shared/video-types';
@@ -2263,10 +2263,22 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       console.log(`[UniversalVideo] Project: ${projectId}, Duration: ${totalDuration}s, Scenes: ${preparedProject.scenes.length}`);
       
       try {
+        const numChunks = Math.ceil(totalDuration / MAX_CHUNK_DURATION_SEC) || 1;
         (preparedProject.progress as any).renderStartedAt = Date.now();
         (preparedProject.progress as any).renderMethod = 'chunked';
         (preparedProject.progress as any).renderInputProps = inputProps;
         (preparedProject.progress as any).renderCompositionId = compositionId;
+        (preparedProject.progress as any).renderStatus = {
+          phase: 'queued',
+          totalChunks: numChunks,
+          completedChunks: 0,
+          percent: 0,
+          message: `Waiting for worker to start render (${numChunks} chunk${numChunks > 1 ? 's' : ''})...`,
+          startedAt: Date.now(),
+          lastUpdateAt: Date.now(),
+          elapsedMs: 0,
+          error: null,
+        };
         preparedProject.progress.steps.rendering.message = 'Queued for chunked render (worker process)...';
         preparedProject.status = 'render_queued';
         

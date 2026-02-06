@@ -180,6 +180,7 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
   const progress = projectData.progress as any;
   const inputProps = progress?.renderInputProps;
   const compositionId = progress?.renderCompositionId;
+  const startTime = Date.now();
 
   if (!inputProps || !compositionId) {
     logError(`Missing render input props or compositionId for ${projectId}`);
@@ -192,6 +193,17 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
         project.progress.steps.rendering.message = 'Missing render configuration. Please re-initiate render.';
         project.progress.errors = project.progress.errors || [];
         project.progress.errors.push('Worker: Missing renderInputProps or renderCompositionId');
+        (project.progress as any).renderStatus = {
+          phase: 'error',
+          totalChunks: (project.progress as any).renderStatus?.totalChunks || 0,
+          completedChunks: 0,
+          percent: 0,
+          message: 'Missing render configuration. Please re-initiate render.',
+          startedAt: startTime,
+          lastUpdateAt: Date.now(),
+          elapsedMs: 0,
+          error: 'Missing renderInputProps or renderCompositionId',
+        };
         await saveProjectToDb(project, projectData.ownerId);
       }
     } catch (e: any) {
@@ -201,6 +213,8 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
     return;
   }
 
+  let lastKnownTotalChunks = (progress?.renderStatus?.totalChunks as number) || 0;
+
   try {
     await db.update(universalVideoProjects)
       .set({
@@ -209,9 +223,10 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
       })
       .where(eq(universalVideoProjects.projectId, projectId));
 
-    const startTime = Date.now();
-
     const progressCallback = async (renderProgress: ChunkedRenderProgress) => {
+      if (renderProgress.totalChunks > 0) {
+        lastKnownTotalChunks = renderProgress.totalChunks;
+      }
       log(`Chunked progress: ${renderProgress.phase} - ${renderProgress.overallPercent}% - ${renderProgress.message}`);
       try {
         const currentProject = await getProjectFromDb(projectId);
@@ -219,6 +234,21 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
           currentProject.progress.steps.rendering.progress = renderProgress.overallPercent;
           currentProject.progress.steps.rendering.message = renderProgress.message;
           currentProject.progress.overallPercent = 85 + Math.round(renderProgress.overallPercent * 0.15);
+
+          const elapsedMs = Date.now() - startTime;
+          (currentProject.progress as any).renderStatus = {
+            phase: renderProgress.phase,
+            totalChunks: renderProgress.totalChunks,
+            completedChunks: renderProgress.completedChunks,
+            currentChunk: renderProgress.currentChunk,
+            percent: renderProgress.overallPercent,
+            message: renderProgress.message,
+            startedAt: startTime,
+            lastUpdateAt: Date.now(),
+            elapsedMs,
+            error: renderProgress.error || null,
+          };
+
           if (renderProgress.phase === 'error') {
             currentProject.status = 'error';
             currentProject.progress.steps.rendering.status = 'error';
@@ -250,6 +280,18 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
       latestProject.progress.overallPercent = 100;
       latestProject.outputUrl = outputUrl;
 
+      (latestProject.progress as any).renderStatus = {
+        phase: 'complete',
+        totalChunks: lastKnownTotalChunks,
+        completedChunks: lastKnownTotalChunks,
+        percent: 100,
+        message: 'Video rendering complete!',
+        startedAt: startTime,
+        lastUpdateAt: Date.now(),
+        elapsedMs: elapsedMs,
+        error: null,
+      };
+
       delete (latestProject.progress as any).renderInputProps;
 
       await saveProjectToDb(latestProject, projectData.ownerId, 'chunked', 'chunked', outputUrl);
@@ -278,6 +320,19 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
           timestamp: new Date().toISOString(),
           error: error.message || 'Unknown error',
         });
+
+        const prevRenderStatus = (latestProject.progress as any).renderStatus;
+        (latestProject.progress as any).renderStatus = {
+          phase: 'error',
+          totalChunks: lastKnownTotalChunks || prevRenderStatus?.totalChunks || 0,
+          completedChunks: prevRenderStatus?.completedChunks || 0,
+          percent: prevRenderStatus?.percent || 0,
+          message: error.message || 'Chunked render failed',
+          startedAt: prevRenderStatus?.startedAt || startTime,
+          lastUpdateAt: Date.now(),
+          elapsedMs: Date.now() - startTime,
+          error: error.message || 'Unknown error',
+        };
 
         delete (latestProject.progress as any).renderInputProps;
 
