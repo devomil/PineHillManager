@@ -5325,6 +5325,42 @@ export default function UniversalVideoProducer() {
                 </div>
                 
                 <div className="flex gap-2 items-center">
+                  {project.status === 'generating' && (
+                    (() => {
+                      const stalledMs = project.updatedAt ? Date.now() - new Date(project.updatedAt).getTime() : 0;
+                      const isStalled = stalledMs > 180000;
+                      if (!isStalled) return null;
+                      return (
+                        <Button
+                          variant="outline"
+                          className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const btn = e.currentTarget;
+                            btn.disabled = true;
+                            try {
+                              const res = await fetch(`/api/quick-create/retry/${project.id}`, {
+                                method: 'POST',
+                                credentials: 'include',
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                toast({ title: 'Generation restarted', description: 'Asset generation has been resumed. Progress will update shortly.' });
+                              } else {
+                                toast({ title: 'Retry failed', description: data.error, variant: 'destructive' });
+                              }
+                            } catch {
+                              toast({ title: 'Retry failed', description: 'Could not reach server', variant: 'destructive' });
+                            }
+                            setTimeout(() => { btn.disabled = false; }, 10000);
+                          }}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Retry Generation
+                        </Button>
+                      );
+                    })()
+                  )}
                   {project.status === 'draft' && !showGenerationPreview && (
                     <>
                       <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
