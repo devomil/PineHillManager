@@ -41,6 +41,26 @@ export interface ChunkedRenderProgress {
   error?: string;
 }
 
+export interface LambdaChunkState {
+  chunkIndex: number;
+  renderId: string;
+  bucketName: string;
+  status: 'pending' | 'rendering' | 'complete' | 'failed';
+  outputUrl?: string;
+  startedAt: number;
+}
+
+export interface ChunkedRenderState {
+  projectId: string;
+  compositionId: string;
+  totalChunks: number;
+  chunks: ChunkConfig[];
+  activeChunk: LambdaChunkState | null;
+  completedChunks: ChunkResult[];
+  inputProps: Record<string, any>;
+  startedAt: number;
+}
+
 class ChunkedRenderService {
   private s3Client: S3Client | null = null;
 
@@ -81,7 +101,7 @@ class ChunkedRenderService {
   }
 
   shouldUseChunkedRendering(scenes: any[], thresholdSeconds: number = CHUNK_THRESHOLD_SEC): boolean {
-    const totalDuration = scenes.reduce((acc, scene) => acc + (scene.duration || 0), 0);
+    const totalDuration = scenes.reduce((acc: number, scene: any) => acc + (scene.duration || 0), 0);
     const shouldChunk = totalDuration > thresholdSeconds;
     console.log(`[ChunkedRender] Total duration: ${totalDuration}s, threshold: ${thresholdSeconds}s, use chunked: ${shouldChunk}`);
     return shouldChunk;
@@ -148,6 +168,112 @@ class ChunkedRenderService {
     return chunks;
   }
 
+  buildChunkInputProps(chunk: ChunkConfig, inputProps: Record<string, any>): Record<string, any> {
+    const chunkInputProps: any = {
+      ...inputProps,
+      scenes: chunk.scenes,
+      isChunk: true,
+      chunkIndex: chunk.chunkIndex,
+    };
+
+    chunkInputProps.soundDesignConfig = {
+      ...(chunkInputProps.soundDesignConfig || {}),
+      enabled: false,
+      ambientLayer: false,
+      transitionSounds: false,
+      impactSounds: false,
+    };
+    chunkInputProps.soundEffectsBaseUrl = undefined;
+
+    return chunkInputProps;
+  }
+
+  async startChunkRender(
+    chunk: ChunkConfig,
+    inputProps: Record<string, any>,
+    compositionId: string
+  ): Promise<{ renderId: string; bucketName: string }> {
+    console.log(`[ChunkedRender] Starting Lambda render for chunk ${chunk.chunkIndex} with ${chunk.scenes.length} scenes...`);
+
+    const chunkInputProps = this.buildChunkInputProps(chunk, inputProps);
+
+    const result = await remotionLambdaService.startRender({
+      compositionId,
+      inputProps: chunkInputProps,
+    });
+
+    console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} render started: renderId=${result.renderId}`);
+    return result;
+  }
+
+  async pollChunkRender(
+    renderId: string,
+    bucketName: string,
+    chunkIndex: number,
+    onLambdaProgress?: (lambdaPercent: number) => void
+  ): Promise<string> {
+    console.log(`[ChunkedRender] Polling chunk ${chunkIndex} render ${renderId} to completion...`);
+
+    const outputUrl = await remotionLambdaService.pollRenderToCompletion(
+      renderId,
+      bucketName,
+      onLambdaProgress
+    );
+
+    console.log(`[ChunkedRender] Chunk ${chunkIndex} render complete: ${outputUrl}`);
+    return outputUrl;
+  }
+
+  async checkChunkRenderStatus(renderId: string, bucketName: string): Promise<{
+    status: 'in_progress' | 'complete' | 'failed' | 'not_found';
+    progress: number;
+    outputUrl?: string;
+    error?: string;
+  }> {
+    try {
+      const progress = await remotionLambdaService.getRenderProgress(renderId, bucketName);
+
+      if (progress.errors.length > 0) {
+        return {
+          status: 'failed',
+          progress: Math.round(progress.overallProgress * 100),
+          error: progress.errors.join(', '),
+        };
+      }
+
+      if (progress.done && progress.outputFile) {
+        return {
+          status: 'complete',
+          progress: 100,
+          outputUrl: progress.outputFile,
+        };
+      }
+
+      if (progress.done && !progress.outputFile) {
+        return {
+          status: 'failed',
+          progress: Math.round(progress.overallProgress * 100),
+          error: 'Render completed but no output file generated',
+        };
+      }
+
+      return {
+        status: 'in_progress',
+        progress: Math.round(progress.overallProgress * 100),
+      };
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      if (errorMsg.includes('not found') || errorMsg.includes('NoSuchKey') || errorMsg.includes('does not exist')) {
+        return {
+          status: 'not_found',
+          progress: 0,
+          error: 'Render not found on Lambda',
+        };
+      }
+      throw error;
+    }
+  }
+
   async renderChunk(
     chunk: ChunkConfig,
     inputProps: Record<string, any>,
@@ -162,22 +288,7 @@ class ChunkedRenderService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const chunkInputProps: any = {
-          ...inputProps,
-          scenes: chunk.scenes,
-          isChunk: true,
-          chunkIndex: chunk.chunkIndex,
-        };
-
-        console.log(`[ChunkedRender] Disabling sound design for chunk ${chunk.chunkIndex} (attempt ${attempt}/${maxRetries}) to prevent audio playback errors on Lambda`);
-        chunkInputProps.soundDesignConfig = {
-          ...(chunkInputProps.soundDesignConfig || {}),
-          enabled: false,
-          ambientLayer: false,
-          transitionSounds: false,
-          impactSounds: false,
-        };
-        chunkInputProps.soundEffectsBaseUrl = undefined;
+        const chunkInputProps = this.buildChunkInputProps(chunk, inputProps);
 
         const outputUrl = await remotionLambdaService.renderVideo({
           compositionId,
@@ -204,10 +315,11 @@ class ChunkedRenderService {
           errorMessage.includes('rate limit') ||
           errorMessage.includes('Concurrency limit') ||
           errorMessage.includes('TooManyRequestsException') ||
-          errorMessage.includes('Lambda is currently busy');
+          errorMessage.includes('Lambda is currently busy') ||
+          errorMessage.includes('ConcurrentInvocationLimitExceeded');
 
         if (isRateLimitError && attempt < maxRetries) {
-          const delay = Math.min(30000 * Math.pow(1.5, attempt - 1), 120000);
+          const delay = Math.min(30000 * Math.pow(2, attempt - 1), 120000);
           console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} hit rate limit, waiting ${delay/1000}s before retry ${attempt + 1}/${maxRetries}...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
@@ -299,7 +411,6 @@ class ChunkedRenderService {
       try {
         fs.unlinkSync(listFile);
       } catch (e) {
-        // Ignore cleanup errors
       }
     }
   }
@@ -343,7 +454,9 @@ class ChunkedRenderService {
     projectId: string,
     inputProps: Record<string, any>,
     compositionId: string,
-    onProgress?: (progress: ChunkedRenderProgress) => void
+    onProgress?: (progress: ChunkedRenderProgress) => void,
+    onChunkLambdaStarted?: (state: LambdaChunkState) => Promise<void>,
+    onChunkComplete?: (chunkResult: ChunkResult) => Promise<void>
   ): Promise<string> {
     const scenes = inputProps.scenes || [];
     const fps = inputProps.fps || 30;
@@ -390,24 +503,57 @@ class ChunkedRenderService {
           message: `Rendering chunk ${i + 1} of ${totalChunks}...`,
         });
 
-        const result = await this.renderChunk(chunk, inputProps, compositionId, (lambdaPct: number) => {
-          const chunkContribution = 50 / totalChunks;
-          const overallPct = 10 + Math.round((i / totalChunks) * 50) + Math.round((lambdaPct / 100) * chunkContribution);
-          updateProgress({
-            phase: 'rendering',
-            totalChunks,
-            completedChunks: i,
-            currentChunk: i,
-            overallPercent: Math.min(overallPct, 59),
-            message: `Rendering chunk ${i + 1} of ${totalChunks} (${lambdaPct}%)...`,
-          });
-        });
-        
-        if (!result.success) {
-          throw new Error(`Chunk ${i} failed: ${result.error}`);
-        }
+        const chunkStartTime = Date.now();
 
-        chunkResults.push(result);
+        try {
+          const { renderId, bucketName } = await this.startChunkRender(chunk, inputProps, compositionId);
+
+          if (onChunkLambdaStarted) {
+            await onChunkLambdaStarted({
+              chunkIndex: i,
+              renderId,
+              bucketName,
+              status: 'rendering',
+              startedAt: chunkStartTime,
+            });
+          }
+
+          const outputUrl = await this.pollChunkRender(
+            renderId,
+            bucketName,
+            i,
+            (lambdaPct: number) => {
+              const chunkContribution = 50 / totalChunks;
+              const overallPct = 10 + Math.round((i / totalChunks) * 50) + Math.round((lambdaPct / 100) * chunkContribution);
+              updateProgress({
+                phase: 'rendering',
+                totalChunks,
+                completedChunks: i,
+                currentChunk: i,
+                overallPercent: Math.min(overallPct, 59),
+                message: `Rendering chunk ${i + 1} of ${totalChunks} (${lambdaPct}%)...`,
+              });
+            }
+          );
+
+          const result: ChunkResult = {
+            chunkIndex: i,
+            s3Url: outputUrl,
+            localPath: "",
+            success: true,
+            renderTimeMs: Date.now() - chunkStartTime,
+          };
+
+          chunkResults.push(result);
+
+          if (onChunkComplete) {
+            await onChunkComplete(result);
+          }
+        } catch (chunkError: any) {
+          const renderTimeMs = Date.now() - chunkStartTime;
+          console.error(`[ChunkedRender] Chunk ${i} failed after ${(renderTimeMs / 1000).toFixed(1)}s: ${chunkError.message}`);
+          throw new Error(`Chunk ${i + 1}/${totalChunks} failed: ${chunkError.message}`);
+        }
       }
 
       updateProgress({
@@ -474,6 +620,95 @@ class ChunkedRenderService {
         completedChunks: 0,
         overallPercent: 0,
         message: 'Render failed',
+        error: error.message,
+      });
+      throw error;
+    } finally {
+      this.cleanupTempFiles(tempFiles);
+    }
+  }
+
+  async resumeFromCompletedChunks(
+    projectId: string,
+    completedChunkResults: ChunkResult[],
+    totalChunks: number,
+    onProgress?: (progress: ChunkedRenderProgress) => void
+  ): Promise<string> {
+    const tempFiles: string[] = [];
+
+    const updateProgress = (progress: ChunkedRenderProgress) => {
+      console.log(`[ChunkedRender] Resume progress: ${progress.phase} - ${progress.overallPercent}% - ${progress.message}`);
+      if (onProgress) {
+        onProgress(progress);
+      }
+    };
+
+    try {
+      updateProgress({
+        phase: 'downloading',
+        totalChunks,
+        completedChunks: totalChunks,
+        overallPercent: 60,
+        message: 'Downloading rendered chunks...',
+      });
+
+      const chunkPaths: string[] = [];
+      const sorted = [...completedChunkResults].sort((a, b) => a.chunkIndex - b.chunkIndex);
+      
+      for (let i = 0; i < sorted.length; i++) {
+        const result = sorted[i];
+        updateProgress({
+          phase: 'downloading',
+          totalChunks,
+          completedChunks: totalChunks,
+          currentChunk: i,
+          overallPercent: 60 + Math.round((i / totalChunks) * 15),
+          message: `Downloading chunk ${i + 1} of ${totalChunks}...`,
+        });
+
+        const localPath = await this.downloadChunk(result.s3Url, result.chunkIndex);
+        chunkPaths.push(localPath);
+        tempFiles.push(localPath);
+      }
+
+      updateProgress({
+        phase: 'concatenating',
+        totalChunks,
+        completedChunks: totalChunks,
+        overallPercent: 80,
+        message: 'Concatenating video chunks...',
+      });
+
+      const outputPath = path.join(TEMP_DIR, `final_${projectId}_${Date.now()}.mp4`);
+      tempFiles.push(outputPath);
+      await this.concatenateChunks(chunkPaths, outputPath);
+
+      updateProgress({
+        phase: 'uploading',
+        totalChunks,
+        completedChunks: totalChunks,
+        overallPercent: 90,
+        message: 'Uploading final video...',
+      });
+
+      const finalUrl = await this.uploadFinalVideo(outputPath, projectId);
+
+      updateProgress({
+        phase: 'complete',
+        totalChunks,
+        completedChunks: totalChunks,
+        overallPercent: 100,
+        message: 'Video rendering complete!',
+      });
+
+      return finalUrl;
+    } catch (error: any) {
+      updateProgress({
+        phase: 'error',
+        totalChunks: 0,
+        completedChunks: 0,
+        overallPercent: 0,
+        message: 'Resume render failed',
         error: error.message,
       });
       throw error;

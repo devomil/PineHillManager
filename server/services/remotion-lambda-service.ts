@@ -5,16 +5,19 @@ import {
   getRenderProgress,
   AwsRegion,
 } from "@remotion/lambda";
+import {
+  LambdaClient,
+  GetFunctionConcurrencyCommand,
+  PutFunctionConcurrencyCommand,
+} from "@aws-sdk/client-lambda";
 import path from "path";
 
-// Updated defaults for us-east-2 deployment (Phase 18I)
 const DEFAULT_REGION: AwsRegion = "us-east-2";
 const DEFAULT_FUNCTION_NAME = "remotion-render-4-0-410-mem3008mb-disk10240mb-900sec";
 const DEFAULT_SITE_NAME = "pinehillfarm-video";
 const DEFAULT_BUCKET_NAME = "remotionlambda-useast2-1vc2l6a56o";
 const DEFAULT_SERVE_URL = `https://${DEFAULT_BUCKET_NAME}.s3.${DEFAULT_REGION}.amazonaws.com/sites/${DEFAULT_SITE_NAME}/index.html`;
 
-// Phase 18I: Use environment variables with updated us-east-2 defaults
 const getRegion = (): AwsRegion => (process.env.REMOTION_AWS_REGION as AwsRegion) || DEFAULT_REGION;
 const getFunctionName = (): string => process.env.REMOTION_FUNCTION_NAME || DEFAULT_FUNCTION_NAME;
 const getSiteName = (): string => process.env.REMOTION_SITE_NAME || DEFAULT_SITE_NAME;
@@ -57,6 +60,12 @@ interface HealthCheckResult {
   available?: string[];
 }
 
+interface ConcurrencyInfo {
+  functionName: string;
+  reservedConcurrency: number | null;
+  region: string;
+}
+
 class RemotionLambdaService {
   private get functionName(): string {
     return getFunctionName();
@@ -85,12 +94,82 @@ class RemotionLambdaService {
     return { accessKeyId, secretAccessKey };
   }
 
+  private getLambdaClient(): LambdaClient {
+    const creds = this.getAwsCredentials();
+    return new LambdaClient({
+      region: this.region,
+      credentials: {
+        accessKeyId: creds.accessKeyId,
+        secretAccessKey: creds.secretAccessKey,
+      },
+    });
+  }
+
   async isConfigured(): Promise<boolean> {
     try {
       this.getAwsCredentials();
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async getConcurrency(): Promise<ConcurrencyInfo> {
+    const client = this.getLambdaClient();
+    const command = new GetFunctionConcurrencyCommand({
+      FunctionName: this.functionName,
+    });
+
+    try {
+      const response = await client.send(command);
+      const result = {
+        functionName: this.functionName,
+        reservedConcurrency: response.ReservedConcurrentExecutions ?? null,
+        region: this.region,
+      };
+      console.log(`[Remotion Lambda] Concurrency for ${this.functionName}: ${result.reservedConcurrency ?? 'unreserved (uses account default)'}`);
+      return result;
+    } catch (error: any) {
+      if (error.name === 'AccessDeniedException' || error.message?.includes('not authorized') || error.message?.includes('AccessDenied')) {
+        console.warn(`[Remotion Lambda] IAM user lacks permission for GetFunctionConcurrency. Add lambda:GetFunctionConcurrency to the IAM policy.`);
+        return {
+          functionName: this.functionName,
+          reservedConcurrency: null,
+          region: this.region,
+        };
+      }
+      console.error(`[Remotion Lambda] Failed to get concurrency:`, error.message);
+      throw error;
+    }
+  }
+
+  async setConcurrency(reservedConcurrentExecutions: number): Promise<ConcurrencyInfo> {
+    const client = this.getLambdaClient();
+    const command = new PutFunctionConcurrencyCommand({
+      FunctionName: this.functionName,
+      ReservedConcurrentExecutions: reservedConcurrentExecutions,
+    });
+
+    try {
+      const response = await client.send(command);
+      const result = {
+        functionName: this.functionName,
+        reservedConcurrency: response.ReservedConcurrentExecutions ?? null,
+        region: this.region,
+      };
+      console.log(`[Remotion Lambda] Set concurrency for ${this.functionName} to ${result.reservedConcurrency}`);
+      return result;
+    } catch (error: any) {
+      if (error.name === 'AccessDeniedException' || error.message?.includes('not authorized') || error.message?.includes('AccessDenied')) {
+        console.warn(`[Remotion Lambda] IAM user lacks permission for PutFunctionConcurrency. Add lambda:PutFunctionConcurrency to the IAM policy.`);
+        return {
+          functionName: this.functionName,
+          reservedConcurrency: null,
+          region: this.region,
+        };
+      }
+      console.error(`[Remotion Lambda] Failed to set concurrency:`, error.message);
+      throw error;
     }
   }
 
@@ -123,7 +202,7 @@ class RemotionLambdaService {
         status: 'healthy',
         function: {
           name: ourFunction.functionName,
-          version: ourFunction.version,
+          version: ourFunction.version ?? undefined,
           memory: ourFunction.memorySizeInMb,
           timeout: ourFunction.timeoutInSeconds,
           disk: ourFunction.diskSizeInMb,
@@ -235,7 +314,6 @@ class RemotionLambdaService {
     console.log(`[Remotion Lambda] ServeUrl: ${this.serveUrl}`);
     console.log(`[Remotion Lambda] Input props:`, JSON.stringify(params.inputProps).substring(0, 500));
     
-    // Debug logging for scene details
     console.log('[DEBUG] Scenes being rendered:', JSON.stringify(params.inputProps.scenes?.map((s: any) => ({
       id: s.id,
       type: s.type,
@@ -244,7 +322,7 @@ class RemotionLambdaService {
       hasImage: !!s.assets?.imageUrl
     })), null, 2));
 
-    const maxRetries = 3;
+    const maxRetries = 5;
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -278,16 +356,16 @@ class RemotionLambdaService {
         lastError = error;
         const errorMessage = error?.message || String(error);
         
-        // Check for concurrency/rate limit errors
         const isConcurrencyError = 
           errorMessage.includes('Concurrency limit') ||
           errorMessage.includes('Rate Exceeded') ||
           errorMessage.includes('TooManyRequestsException') ||
-          errorMessage.includes('rate limit');
+          errorMessage.includes('rate limit') ||
+          errorMessage.includes('ConcurrentInvocationLimitExceeded');
 
         if (isConcurrencyError && attempt < maxRetries) {
-          const delay = Math.min(15000 * Math.pow(2, attempt - 1), 60000); // 15s, 30s, 60s max
-          console.log(`[Remotion Lambda] Concurrency limit hit, waiting ${delay/1000}s before retry ${attempt + 1}/${maxRetries}...`);
+          const delay = Math.min(30000 * Math.pow(2, attempt - 1), 120000);
+          console.log(`[Remotion Lambda] Rate limit hit (attempt ${attempt}/${maxRetries}), waiting ${delay/1000}s before retry...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -295,7 +373,7 @@ class RemotionLambdaService {
         console.error(`[Remotion Lambda] Render failed to start (attempt ${attempt}/${maxRetries}):`, error);
         
         if (isConcurrencyError) {
-          throw new Error(`AWS Lambda is currently busy. Please wait a minute and try again. If this persists, there may be other renders in progress.`);
+          throw new Error(`AWS Lambda rate limited after ${maxRetries} attempts. Please wait and try again. Consider increasing reserved concurrency.`);
         }
         throw error;
       }
@@ -319,24 +397,31 @@ class RemotionLambdaService {
         errors: progress.errors.map((e) => e.message),
         done: progress.done,
       };
-    } catch (error) {
-      console.error("[Remotion Lambda] Error getting render progress:", error);
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      const isRateLimit = 
+        errorMsg.includes('Rate Exceeded') ||
+        errorMsg.includes('TooManyRequestsException') ||
+        errorMsg.includes('ConcurrentInvocationLimitExceeded');
+
+      if (isRateLimit) {
+        console.warn(`[Remotion Lambda] Progress poll rate limited for render ${renderId}, will retry`);
+      } else {
+        console.error("[Remotion Lambda] Error getting render progress:", error);
+      }
       throw error;
     }
   }
 
-  async renderVideo(params: {
-    compositionId: string;
-    inputProps: Record<string, any>;
-    codec?: "h264" | "h265" | "vp8" | "vp9";
-    onPollProgress?: (percent: number) => void;
-  }): Promise<string> {
-    const { renderId, bucketName } = await this.startRender(params);
-
-    console.log(`[Remotion Lambda] Waiting for render to complete...`);
+  async pollRenderToCompletion(
+    renderId: string,
+    bucketName: string,
+    onPollProgress?: (percent: number) => void
+  ): Promise<string> {
+    console.log(`[Remotion Lambda] Polling render ${renderId} to completion...`);
 
     let consecutiveRateLimits = 0;
-    const maxConsecutiveRateLimits = 10;
+    const maxConsecutiveRateLimits = 15;
     let pollInterval = 3000;
 
     while (true) {
@@ -370,8 +455,8 @@ class RemotionLambdaService {
       const pct = Math.round(progress.overallProgress * 100);
       console.log(`[Remotion Lambda] Progress: ${pct}%`);
 
-      if (params.onPollProgress) {
-        try { params.onPollProgress(pct); } catch {}
+      if (onPollProgress) {
+        try { onPollProgress(pct); } catch {}
       }
 
       if (progress.errors.length > 0) {
@@ -387,6 +472,20 @@ class RemotionLambdaService {
         throw new Error("Render completed but no output file was generated");
       }
     }
+  }
+
+  async renderVideo(params: {
+    compositionId: string;
+    inputProps: Record<string, any>;
+    codec?: "h264" | "h265" | "vp8" | "vp9";
+    onPollProgress?: (percent: number) => void;
+  }): Promise<string> {
+    const { renderId, bucketName } = await this.startRender(params);
+    return this.pollRenderToCompletion(renderId, bucketName, params.onPollProgress);
+  }
+
+  getDefaultBucketName(): string {
+    return this.bucketName;
   }
 }
 

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
@@ -2436,7 +2436,7 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
     
     console.log(`[UniversalVideo] Render status check for ${renderId}: elapsed ${Math.round(elapsedTime/1000)}s (started: ${new Date(renderStartTime).toISOString()})`);
     
-    if (elapsedTime > RENDER_TIMEOUT_MS && projectData.status === 'rendering') {
+    if (elapsedTime > RENDER_TIMEOUT_MS && (projectData.status === 'rendering' || projectData.status === 'lambda_pending')) {
       console.log(`[UniversalVideo] Render timeout detected for ${projectId} after ${Math.round(elapsedTime/1000)}s`);
       
       projectData.status = 'error';
@@ -9273,7 +9273,7 @@ export async function recoverStaleRenders() {
     
     const staleProjects = await db.select()
       .from(universalVideoProjects)
-      .where(eq(universalVideoProjects.status, 'rendering'));
+      .where(inArray(universalVideoProjects.status, ['rendering', 'lambda_pending']));
     
     let recoveredCount = 0;
     for (const row of staleProjects) {

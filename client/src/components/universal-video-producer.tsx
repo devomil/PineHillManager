@@ -4583,6 +4583,7 @@ function ProjectsList({ onSelectProject, onCreateNew }: {
       case 'complete':
         return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> Complete</Badge>;
       case 'rendering':
+      case 'lambda_pending':
         return <Badge className="bg-blue-500"><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Rendering</Badge>;
       case 'ready':
         return <Badge className="bg-yellow-500"><Play className="w-3 h-3 mr-1" /> Ready to Render</Badge>;
@@ -4727,7 +4728,7 @@ function ProjectsList({ onSelectProject, onCreateNew }: {
                   </div>
                 )}
 
-                {project.status === 'rendering' && project.renderId && (
+                {(project.status === 'rendering' || project.status === 'lambda_pending') && project.renderId && (
                   <div className="mt-3">
                     <div className="flex items-center gap-2 text-sm">
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -4973,7 +4974,7 @@ export default function UniversalVideoProducer() {
   useEffect(() => {
     if (!project) return;
     const isChunkedInProgress = 
-      (project.status === 'render_queued' || project.status === 'rendering') &&
+      (project.status === 'render_queued' || project.status === 'rendering' || project.status === 'lambda_pending') &&
       (project.progress as any)?.renderMethod === 'chunked';
     
     if (!isChunkedInProgress) return;
@@ -5241,7 +5242,7 @@ export default function UniversalVideoProducer() {
     
     setViewMode('edit');
     
-    if (selectedProject.status === 'rendering' && selectedProject.renderId && selectedProject.bucketName) {
+    if ((selectedProject.status === 'rendering' || selectedProject.status === 'lambda_pending') && selectedProject.renderId && selectedProject.bucketName) {
       pollRenderStatus(selectedProject.renderId, selectedProject.bucketName);
     }
   };
@@ -5522,7 +5523,7 @@ export default function UniversalVideoProducer() {
                     </div>
                   )}
                   
-                  {(project.status === 'rendering' || project.status === 'render_queued') && (
+                  {(project.status === 'rendering' || project.status === 'lambda_pending' || project.status === 'render_queued') && (
                     <Button
                       variant="outline"
                       onClick={() => resetStatusMutation.mutate()}
@@ -5604,7 +5605,7 @@ export default function UniversalVideoProducer() {
                 onRegenerateComplete={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
               />
               
-              {(project.status === 'rendering' || project.status === 'render_queued' || 
+              {(project.status === 'rendering' || project.status === 'lambda_pending' || project.status === 'render_queued' || 
                 (project.status === 'error' && (project.progress as any)?.renderStatus)) && (() => {
                 const rs = (project.progress as any)?.renderStatus as {
                   phase: string; totalChunks: number; completedChunks: number;
