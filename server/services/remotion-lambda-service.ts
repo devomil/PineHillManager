@@ -334,10 +334,37 @@ class RemotionLambdaService {
 
     console.log(`[Remotion Lambda] Waiting for render to complete...`);
 
-    while (true) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    let consecutiveRateLimits = 0;
+    const maxConsecutiveRateLimits = 10;
+    let pollInterval = 3000;
 
-      const progress = await this.getRenderProgress(renderId, bucketName);
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+      let progress: RenderProgress;
+      try {
+        progress = await this.getRenderProgress(renderId, bucketName);
+        consecutiveRateLimits = 0;
+        pollInterval = 3000;
+      } catch (pollError: any) {
+        const errorMsg = pollError?.message || String(pollError);
+        const isRateLimit = 
+          errorMsg.includes('Rate Exceeded') ||
+          errorMsg.includes('TooManyRequestsException') ||
+          errorMsg.includes('ConcurrentInvocationLimitExceeded') ||
+          errorMsg.includes('rate limit');
+
+        if (isRateLimit) {
+          consecutiveRateLimits++;
+          if (consecutiveRateLimits >= maxConsecutiveRateLimits) {
+            throw new Error(`Progress polling rate limited ${maxConsecutiveRateLimits} times consecutively for render ${renderId}. The render may still be running on Lambda.`);
+          }
+          pollInterval = Math.min(5000 * Math.pow(1.5, consecutiveRateLimits - 1), 30000);
+          console.log(`[Remotion Lambda] Progress poll rate limited (${consecutiveRateLimits}/${maxConsecutiveRateLimits}), backing off to ${(pollInterval/1000).toFixed(1)}s for render ${renderId}`);
+          continue;
+        }
+        throw pollError;
+      }
 
       console.log(`[Remotion Lambda] Progress: ${Math.round(progress.overallProgress * 100)}%`);
 
