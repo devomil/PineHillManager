@@ -430,6 +430,7 @@ function GenerationProgress({
     music: 'Adding music',
     assembly: 'Assembling scenes',
     rendering: 'Final rendering',
+    render_queued: 'Queued for rendering',
   };
   
   const isComplete = status.status === 'complete';

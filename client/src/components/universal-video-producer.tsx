@@ -4898,13 +4898,21 @@ export default function UniversalVideoProducer() {
     },
     onSuccess: (data) => {
       if (data.success) {
-        setRenderId(data.renderId);
-        setBucketName(data.bucketName);
-        toast({
-          title: "Render Started",
-          description: "Your video is being rendered on AWS Lambda.",
-        });
-        pollRenderStatus(data.renderId, data.bucketName);
+        if (data.renderMethod === 'chunked') {
+          toast({
+            title: "Chunked Render Queued",
+            description: data.message || "Your long video is queued for chunked rendering.",
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project?.id] });
+        } else {
+          setRenderId(data.renderId);
+          setBucketName(data.bucketName);
+          toast({
+            title: "Render Started",
+            description: "Your video is being rendered on AWS Lambda.",
+          });
+          pollRenderStatus(data.renderId, data.bucketName);
+        }
       }
     },
     onError: (error: Error) => {
@@ -4954,6 +4962,21 @@ export default function UniversalVideoProducer() {
       });
     },
   });
+
+  useEffect(() => {
+    if (!project) return;
+    const isChunkedInProgress = 
+      (project.status === 'render_queued' || project.status === 'rendering') &&
+      (project.progress as any)?.renderMethod === 'chunked';
+    
+    if (!isChunkedInProgress) return;
+
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [project?.id, project?.status, (project?.progress as any)?.renderMethod]);
 
   // Preview playback effect - auto-advance scenes
   useEffect(() => {
@@ -5492,7 +5515,7 @@ export default function UniversalVideoProducer() {
                     </div>
                   )}
                   
-                  {project.status === 'rendering' && (
+                  {(project.status === 'rendering' || project.status === 'render_queued') && (
                     <Button
                       variant="outline"
                       onClick={() => resetStatusMutation.mutate()}
@@ -5574,7 +5597,7 @@ export default function UniversalVideoProducer() {
                 onRegenerateComplete={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
               />
               
-              {project.status === 'rendering' && (
+              {(project.status === 'rendering' || project.status === 'render_queued') && (
                 <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                   <AlertTitle className="text-blue-800 dark:text-blue-200 flex items-center gap-2">

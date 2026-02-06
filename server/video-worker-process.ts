@@ -1,8 +1,10 @@
 import { db } from './db';
 import { universalVideoProjects } from '../shared/schema';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, inArray } from 'drizzle-orm';
 import { universalVideoService } from './services/universal-video-service';
 import { sceneAnalysisService } from './services/scene-analysis-service';
+import { chunkedRenderService } from './services/chunked-render-service';
+import type { ChunkedRenderProgress } from './services/chunked-render-service';
 import {
   saveProjectToDb,
   dbRowToVideoProject,
@@ -12,6 +14,7 @@ import {
 
 const POLL_INTERVAL_MS = 5000;
 const STALL_THRESHOLD_MS = 5 * 60 * 1000;
+const RENDER_STALL_THRESHOLD_MS = 10 * 60 * 1000;
 const WORKER_ID = `worker_${process.pid}_${Date.now()}`;
 
 let isProcessing = false;
@@ -52,6 +55,33 @@ async function recoverStalledProjects() {
           })
           .where(eq(universalVideoProjects.projectId, project.projectId));
         log(`Requeued stalled project: ${project.projectId} (last update: ${project.updatedAt})`);
+      }
+    }
+
+    const renderStallCutoff = new Date(Date.now() - RENDER_STALL_THRESHOLD_MS);
+    const stalledRenders = await db.select({
+      projectId: universalVideoProjects.projectId,
+      status: universalVideoProjects.status,
+      updatedAt: universalVideoProjects.updatedAt,
+    })
+    .from(universalVideoProjects)
+    .where(
+      and(
+        eq(universalVideoProjects.status, 'rendering'),
+        lt(universalVideoProjects.updatedAt, renderStallCutoff)
+      )
+    );
+
+    if (stalledRenders.length > 0) {
+      log(`Found ${stalledRenders.length} stalled render(s), resetting to render_queued for retry...`);
+      for (const project of stalledRenders) {
+        await db.update(universalVideoProjects)
+          .set({
+            status: 'render_queued',
+            updatedAt: new Date(),
+          })
+          .where(eq(universalVideoProjects.projectId, project.projectId));
+        log(`Re-queued stalled render: ${project.projectId} (last update: ${project.updatedAt})`);
       }
     }
   } catch (err: any) {
@@ -140,21 +170,156 @@ async function processProject(projectData: VideoProjectWithMeta) {
   }
 }
 
+async function processChunkedRender(projectData: VideoProjectWithMeta) {
+  const projectId = projectData.id;
+  currentProjectId = projectId;
+
+  log(`=== CHUNKED RENDER STARTED (worker process) ===`);
+  log(`Project: ${projectId} (${projectData.title})`);
+
+  const progress = projectData.progress as any;
+  const inputProps = progress?.renderInputProps;
+  const compositionId = progress?.renderCompositionId;
+
+  if (!inputProps || !compositionId) {
+    logError(`Missing render input props or compositionId for ${projectId}`);
+    try {
+      const project = await getProjectFromDb(projectId);
+      if (project) {
+        project.status = 'error';
+        project.progress.steps.rendering = project.progress.steps.rendering || {};
+        project.progress.steps.rendering.status = 'error';
+        project.progress.steps.rendering.message = 'Missing render configuration. Please re-initiate render.';
+        project.progress.errors = project.progress.errors || [];
+        project.progress.errors.push('Worker: Missing renderInputProps or renderCompositionId');
+        await saveProjectToDb(project, projectData.ownerId);
+      }
+    } catch (e: any) {
+      logError(`Failed to save error for missing props: ${e.message}`);
+    }
+    currentProjectId = null;
+    return;
+  }
+
+  try {
+    await db.update(universalVideoProjects)
+      .set({
+        status: 'rendering',
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+
+    const startTime = Date.now();
+
+    const progressCallback = async (renderProgress: ChunkedRenderProgress) => {
+      log(`Chunked progress: ${renderProgress.phase} - ${renderProgress.overallPercent}% - ${renderProgress.message}`);
+      try {
+        const currentProject = await getProjectFromDb(projectId);
+        if (currentProject) {
+          currentProject.progress.steps.rendering.progress = renderProgress.overallPercent;
+          currentProject.progress.steps.rendering.message = renderProgress.message;
+          currentProject.progress.overallPercent = 85 + Math.round(renderProgress.overallPercent * 0.15);
+          if (renderProgress.phase === 'error') {
+            currentProject.status = 'error';
+            currentProject.progress.steps.rendering.status = 'error';
+          }
+          await saveProjectToDb(currentProject, projectData.ownerId);
+        }
+      } catch (e) {
+        log(`Failed to save render progress update: ${e}`);
+      }
+    };
+
+    const outputUrl = await chunkedRenderService.renderLongVideo(
+      projectId,
+      inputProps,
+      compositionId,
+      progressCallback
+    );
+
+    const elapsedMs = Date.now() - startTime;
+    log(`=== CHUNKED RENDER COMPLETE ===`);
+    log(`Project: ${projectId}, Time: ${(elapsedMs / 1000).toFixed(1)}s, Output: ${outputUrl}`);
+
+    const latestProject = await getProjectFromDb(projectId);
+    if (latestProject) {
+      latestProject.status = 'complete';
+      latestProject.progress.steps.rendering.status = 'complete';
+      latestProject.progress.steps.rendering.progress = 100;
+      latestProject.progress.steps.rendering.message = 'Video rendering complete!';
+      latestProject.progress.overallPercent = 100;
+      latestProject.outputUrl = outputUrl;
+
+      delete (latestProject.progress as any).renderInputProps;
+
+      await saveProjectToDb(latestProject, projectData.ownerId, 'chunked', 'chunked', outputUrl);
+      log(`Final state saved to DB with output URL`);
+    } else {
+      logError(`CRITICAL: Could not reload project ${projectId} from DB after render`);
+    }
+  } catch (error: any) {
+    const elapsedMs = Date.now() - (progress?.renderStartedAt || Date.now());
+    logError(`=== CHUNKED RENDER FAILED ===`);
+    logError(`Project: ${projectId}, Time: ${(elapsedMs / 1000).toFixed(1)}s`);
+    logError(`Error: ${error.message}`);
+
+    try {
+      const latestProject = await getProjectFromDb(projectId);
+      if (latestProject) {
+        latestProject.status = 'error';
+        latestProject.progress.steps.rendering = latestProject.progress.steps.rendering || {};
+        latestProject.progress.steps.rendering.status = 'error';
+        latestProject.progress.steps.rendering.message = error.message || 'Chunked render failed';
+        latestProject.progress.errors = latestProject.progress.errors || [];
+        latestProject.progress.errors.push(`Chunked render failed: ${error.message}`);
+        latestProject.progress.serviceFailures = latestProject.progress.serviceFailures || [];
+        latestProject.progress.serviceFailures.push({
+          service: 'chunked-render',
+          timestamp: new Date().toISOString(),
+          error: error.message || 'Unknown error',
+        });
+
+        delete (latestProject.progress as any).renderInputProps;
+
+        await saveProjectToDb(latestProject, projectData.ownerId);
+        log(`Error state persisted to DB`);
+      }
+    } catch (dbError: any) {
+      logError(`CRITICAL: Failed to persist render error status: ${dbError.message}`);
+    }
+  } finally {
+    currentProjectId = null;
+  }
+}
+
 async function pollForJobs() {
   if (isProcessing) return;
 
   try {
     isProcessing = true;
 
-    const jobs = await db.select()
+    const renderJobs = await db.select()
+      .from(universalVideoProjects)
+      .where(eq(universalVideoProjects.status, 'render_queued'))
+      .orderBy(universalVideoProjects.createdAt)
+      .limit(1);
+
+    if (renderJobs.length > 0) {
+      const job = renderJobs[0];
+      const projectData = dbRowToVideoProject(job);
+      await processChunkedRender(projectData);
+      return;
+    }
+
+    const generateJobs = await db.select()
       .from(universalVideoProjects)
       .where(eq(universalVideoProjects.status, 'queued'))
       .orderBy(universalVideoProjects.createdAt)
       .limit(1);
 
-    if (jobs.length === 0) return;
+    if (generateJobs.length === 0) return;
 
-    const job = jobs[0];
+    const job = generateJobs[0];
     const projectData = dbRowToVideoProject(job);
     await processProject(projectData);
   } catch (error: any) {
@@ -167,11 +332,12 @@ async function pollForJobs() {
 async function startWorker() {
   log('Starting dedicated video worker process...');
   log(`Poll interval: ${POLL_INTERVAL_MS}ms, Stall threshold: ${STALL_THRESHOLD_MS}ms`);
+  log('Chunked render support: ENABLED (render_queued jobs)');
 
   await recoverStalledProjects();
 
   setInterval(pollForJobs, POLL_INTERVAL_MS);
-  log('Job polling started - waiting for queued projects...');
+  log('Job polling started - waiting for queued/render_queued projects...');
 
   setInterval(recoverStalledProjects, 60000);
   log('Stall recovery check scheduled (every 60s)');

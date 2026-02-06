@@ -21,7 +21,7 @@ export interface VideoProject {
   qualityTier?: 'ultra' | 'premium' | 'standard';
 }
 
-export type VideoProjectStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'rendering' | 'complete' | 'error';
+export type VideoProjectStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'render_queued' | 'rendering' | 'complete' | 'error';
 
 export interface OutputFormat {
   aspectRatio: '16:9' | '9:16' | '1:1';

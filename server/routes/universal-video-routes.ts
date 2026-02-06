@@ -2259,119 +2259,27 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     console.log(`[UniversalVideo] Total video duration: ${totalDuration}s, using ${useChunkedRendering ? 'chunked' : 'standard'} rendering`);
     
     if (useChunkedRendering) {
-      // Use chunked rendering for long videos (>90 seconds)
       console.log(`[UniversalVideo] === CHUNKED RENDERING TRIGGERED ===`);
       console.log(`[UniversalVideo] Project: ${projectId}, Duration: ${totalDuration}s, Scenes: ${preparedProject.scenes.length}`);
       
       try {
         (preparedProject.progress as any).renderStartedAt = Date.now();
         (preparedProject.progress as any).renderMethod = 'chunked';
-        preparedProject.progress.steps.rendering.message = 'Starting chunked render...';
+        (preparedProject.progress as any).renderInputProps = inputProps;
+        (preparedProject.progress as any).renderCompositionId = compositionId;
+        preparedProject.progress.steps.rendering.message = 'Queued for chunked render (worker process)...';
+        preparedProject.status = 'render_queued';
         
         await saveProjectToDb(preparedProject, projectData.ownerId);
-        console.log(`[UniversalVideo] Saved initial chunked render state to DB`);
+        console.log(`[UniversalVideo] Saved render_queued state to DB - worker will pick up`);
         
-        // Start chunked rendering in background - reload fresh state on each progress update
-        const progressCallback = async (progress: ChunkedRenderProgress) => {
-          console.log(`[UniversalVideo] Chunked progress update: ${progress.phase} - ${progress.overallPercent}% - ${progress.message}`);
-          try {
-            const currentProject = await getProjectFromDb(projectId);
-            if (currentProject) {
-              currentProject.progress.steps.rendering.progress = progress.overallPercent;
-              currentProject.progress.steps.rendering.message = progress.message;
-              currentProject.progress.overallPercent = 85 + Math.round(progress.overallPercent * 0.15);
-              if (progress.phase === 'error') {
-                currentProject.status = 'error';
-                currentProject.progress.steps.rendering.status = 'error';
-              }
-              await saveProjectToDb(currentProject, projectData.ownerId);
-            }
-          } catch (e) {
-            console.warn('[UniversalVideo] Failed to save progress update:', e);
-          }
-        };
-        
-        // Respond immediately that chunked render has started
         res.json({
           success: true,
           renderMethod: 'chunked',
           totalDuration,
-          message: `Chunked rendering started for ${totalDuration.toFixed(0)}s video`,
+          message: `Chunked rendering queued for ${totalDuration.toFixed(0)}s video (worker process)`,
         });
         
-        // Continue rendering in background (fire-and-forget)
-        // Use projectId and ownerId as closure variables to reload fresh state
-        const ownerId = projectData.ownerId;
-        (async () => {
-          console.log(`[UniversalVideo] Starting background chunked render for ${projectId}...`);
-          const startTime = Date.now();
-          
-          try {
-            const outputUrl = await chunkedRenderService.renderLongVideo(
-              projectId,
-              inputProps,
-              compositionId,
-              progressCallback
-            );
-            
-            const elapsedMs = Date.now() - startTime;
-            console.log(`[UniversalVideo] === CHUNKED RENDER COMPLETE ===`);
-            console.log(`[UniversalVideo] Project: ${projectId}, Time: ${(elapsedMs/1000).toFixed(1)}s, Output: ${outputUrl}`);
-            
-            // Reload fresh project state from DB to avoid overwriting progress updates
-            const latestProject = await getProjectFromDb(projectId);
-            if (latestProject) {
-              latestProject.status = 'complete';
-              latestProject.progress.steps.rendering.status = 'complete';
-              latestProject.progress.steps.rendering.progress = 100;
-              latestProject.progress.steps.rendering.message = 'Video rendering complete!';
-              latestProject.progress.overallPercent = 100;
-              latestProject.outputUrl = outputUrl;
-              
-              await saveProjectToDb(latestProject, ownerId, 'chunked', 'chunked', outputUrl);
-              console.log(`[UniversalVideo] Final state saved to DB with output URL`);
-              
-              // Run quality evaluation in background (non-blocking)
-              if (qualityEvaluationService.isAvailable()) {
-                runQualityEvaluation(latestProject, outputUrl, ownerId).catch(err => {
-                  console.warn(`[UniversalVideo] Quality evaluation failed:`, err.message);
-                });
-              }
-            } else {
-              console.error(`[UniversalVideo] CRITICAL: Could not reload project ${projectId} from DB`);
-            }
-          } catch (error: any) {
-            const elapsedMs = Date.now() - startTime;
-            console.error(`[UniversalVideo] === CHUNKED RENDER FAILED ===`);
-            console.error(`[UniversalVideo] Project: ${projectId}, Time: ${(elapsedMs/1000).toFixed(1)}s`);
-            console.error(`[UniversalVideo] Error:`, error.message);
-            console.error(`[UniversalVideo] Stack:`, error.stack);
-            
-            // Reload fresh project state from DB to preserve progress updates
-            const latestProject = await getProjectFromDb(projectId);
-            if (latestProject) {
-              latestProject.status = 'error';
-              latestProject.progress.steps.rendering.status = 'error';
-              latestProject.progress.steps.rendering.message = error.message || 'Chunked render failed';
-              latestProject.progress.errors.push(`Chunked render failed: ${error.message}`);
-              latestProject.progress.serviceFailures.push({
-                service: 'chunked-render',
-                timestamp: new Date().toISOString(),
-                error: error.message || 'Unknown error',
-              });
-              try {
-                await saveProjectToDb(latestProject, ownerId);
-                console.log(`[UniversalVideo] Error state persisted to DB`);
-              } catch (dbError) {
-                console.error('[UniversalVideo] CRITICAL: Failed to persist error status:', dbError);
-              }
-            } else {
-              console.error(`[UniversalVideo] CRITICAL: Could not reload project ${projectId} from DB for error state`);
-            }
-          }
-        })();
-        
-        // Return immediately - background work continues in IIFE above
         return;
       } catch (renderError: any) {
         preparedProject.status = 'error';
