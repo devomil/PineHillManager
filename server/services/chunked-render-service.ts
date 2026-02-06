@@ -169,13 +169,15 @@ class ChunkedRenderService {
         };
 
         if (attempt > 1 && lastError?.message?.includes('Could not play audio')) {
-          console.log(`[ChunkedRender] Disabling ambient audio for chunk ${chunk.chunkIndex} retry (audio playback error detected)`);
-          if (chunkInputProps.soundDesignConfig) {
-            chunkInputProps.soundDesignConfig = {
-              ...chunkInputProps.soundDesignConfig,
-              ambientLayer: false,
-            };
-          }
+          console.log(`[ChunkedRender] Disabling ALL sound design for chunk ${chunk.chunkIndex} retry (audio playback error detected)`);
+          chunkInputProps.soundDesignConfig = {
+            ...(chunkInputProps.soundDesignConfig || {}),
+            enabled: false,
+            ambientLayer: false,
+            transitionSounds: false,
+            impactSounds: false,
+          };
+          chunkInputProps.soundEffectsBaseUrl = undefined;
         }
 
         const outputUrl = await remotionLambdaService.renderVideo({
