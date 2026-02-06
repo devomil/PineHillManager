@@ -117,7 +117,7 @@ async function startupRecovery() {
 
       if (!lambdaState || !lambdaState.renderId || !lambdaState.bucketName) {
         const completedChunks = (progress?.completedChunkResults || []) as ChunkResult[];
-        const totalChunks = progress?.renderStatus?.totalChunks || 0;
+        const totalChunks = progress?.renderStatus?.totalChunks || progress?.chunkedRenderTotalChunks || 0;
 
         if (completedChunks.length > 0 && completedChunks.length >= totalChunks && totalChunks > 0) {
           log(`Project ${projectId}: No active Lambda render but all ${totalChunks} chunks completed. Finishing render...`);

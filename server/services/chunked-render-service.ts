@@ -552,6 +552,17 @@ class ChunkedRenderService {
         } catch (chunkError: any) {
           const renderTimeMs = Date.now() - chunkStartTime;
           console.error(`[ChunkedRender] Chunk ${i} failed after ${(renderTimeMs / 1000).toFixed(1)}s: ${chunkError.message}`);
+
+          updateProgress({
+            phase: 'error',
+            totalChunks,
+            completedChunks: chunkResults.length,
+            currentChunk: i,
+            overallPercent: 10 + Math.round((i / totalChunks) * 50),
+            message: `Chunk ${i + 1}/${totalChunks} failed: ${chunkError.message}`,
+            error: chunkError.message,
+          });
+
           throw new Error(`Chunk ${i + 1}/${totalChunks} failed: ${chunkError.message}`);
         }
       }
