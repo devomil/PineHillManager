@@ -2755,7 +2755,7 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
             },
             ambient: {
               enabled: effectiveSoundConfig.ambientLayer,
-              sound: effectiveSoundConfig.ambientType === 'nature' ? 'room-tone-warm' : 'room-tone-warm',
+              sound: effectiveSoundConfig.ambientType === 'nature' ? 'room-tone-nature' : 'room-tone-warm',
               volume: 0.05,
             },
           }}

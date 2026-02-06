@@ -161,12 +161,22 @@ class ChunkedRenderService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const chunkInputProps = {
+        const chunkInputProps: any = {
           ...inputProps,
           scenes: chunk.scenes,
           isChunk: true,
           chunkIndex: chunk.chunkIndex,
         };
+
+        if (attempt > 1 && lastError?.message?.includes('Could not play audio')) {
+          console.log(`[ChunkedRender] Disabling ambient audio for chunk ${chunk.chunkIndex} retry (audio playback error detected)`);
+          if (chunkInputProps.soundDesignConfig) {
+            chunkInputProps.soundDesignConfig = {
+              ...chunkInputProps.soundDesignConfig,
+              ambientLayer: false,
+            };
+          }
+        }
 
         const outputUrl = await remotionLambdaService.renderVideo({
           compositionId,
