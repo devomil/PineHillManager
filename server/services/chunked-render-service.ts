@@ -205,6 +205,13 @@ class ChunkedRenderService {
     };
     chunkInputProps.soundEffectsBaseUrl = undefined;
 
+    if (chunkInputProps.scenes && Array.isArray(chunkInputProps.scenes)) {
+      chunkInputProps.scenes = chunkInputProps.scenes.map((scene: any) => {
+        const { soundDesign, ...sceneWithoutSound } = scene;
+        return sceneWithoutSound;
+      });
+    }
+
     // Log chunk payload size for debugging
     const chunkPayloadSize = JSON.stringify(chunkInputProps).length;
     console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} payload size: ${Math.round(chunkPayloadSize / 1024)} KB`);
