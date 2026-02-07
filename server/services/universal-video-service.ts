@@ -501,6 +501,18 @@ Return a JSON object with this exact structure (no markdown, just pure JSON):
 }
 
 Guidelines for ${input.duration}-second video:
+${input.duration === 15 ? `
+- Hook scene: 5 seconds, instant attention grab with bold statement or question
+- Benefit/Solution scene: 5 seconds, show the product solving the problem
+- CTA scene: 5 seconds, strong call to action with urgency
+Total: 15 seconds (ONLY 2-3 scenes - keep it punchy and fast-paced)
+IMPORTANT: This is a short-form video for TikTok/Reels. Every second counts. Use short, impactful narration (2-3 sentences max per scene). Visual text overlays should be bold and readable.` : ''}
+${input.duration === 20 ? `
+- Hook scene: 5 seconds, grab attention immediately with a bold claim or relatable problem
+- Product/Solution scene: 8 seconds, showcase the product with key benefit
+- CTA scene: 7 seconds, compelling call to action
+Total: 20 seconds (ONLY 3 scenes - concise and impactful)
+IMPORTANT: This is a short-form social media video. Keep narration tight (2-4 sentences per scene). Make visual text overlays bold and eye-catching.` : ''}
 ${input.duration === 30 ? `
 - Hook scene: 5 seconds, grab attention with relatable problem or aspiration
 - Problem/Solution: 8 seconds combined

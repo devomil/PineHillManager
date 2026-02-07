@@ -85,8 +85,8 @@ interface ProductFormData {
   productDescription: string;
   targetAudience: string;
   benefits: string[];
-  duration: 30 | 60 | 90;
-  platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
+  duration: 15 | 20 | 30 | 60 | 90;
+  platform: "youtube" | "tiktok" | "instagram" | "instagram-reels" | "facebook" | "website";
   style: VisualStyleId;
   callToAction: string;
   voiceId?: string;
@@ -97,7 +97,7 @@ interface ProductFormData {
 interface ScriptFormData {
   title: string;
   script: string;
-  platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
+  platform: "youtube" | "tiktok" | "instagram" | "instagram-reels" | "facebook" | "website";
   style: VisualStyleId;
   brandSettings?: UIBrandSettings;
   endCardSettings?: EndCardSettings;
@@ -114,8 +114,8 @@ interface UnifiedFormData {
   targetAudience: string;
   benefits: string[];
   customScript: string;
-  duration: 30 | 60 | 90;
-  platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
+  duration: 15 | 20 | 30 | 60 | 90;
+  platform: "youtube" | "tiktok" | "instagram" | "instagram-reels" | "facebook" | "website";
   style: string;
   callToAction: string;
   voiceId: string;
@@ -686,24 +686,54 @@ function VideoCreatorForm({
         <>
           <Separator />
 
-          <div className="space-y-2">
-            <Label>Platform</Label>
-        <Select
-          value={formData.platform}
-          onValueChange={(val) => setFormData(prev => ({ ...prev, platform: val as any }))}
-        >
-          <SelectTrigger data-testid="select-platform">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="youtube">YouTube</SelectItem>
-            <SelectItem value="tiktok">TikTok</SelectItem>
-            <SelectItem value="instagram">Instagram</SelectItem>
-            <SelectItem value="facebook">Facebook</SelectItem>
-            <SelectItem value="website">Website</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Platform</Label>
+              <Select
+                value={formData.platform}
+                onValueChange={(val) => {
+                  const platform = val as any;
+                  const shortFormPlatforms = ['tiktok', 'instagram-reels'];
+                  const suggestedDuration = shortFormPlatforms.includes(platform) ? 15 : formData.duration;
+                  setFormData(prev => ({ ...prev, platform, duration: suggestedDuration as any }));
+                }}
+              >
+                <SelectTrigger data-testid="select-platform">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="youtube">YouTube (16:9)</SelectItem>
+                  <SelectItem value="tiktok">TikTok (9:16)</SelectItem>
+                  <SelectItem value="instagram">Instagram Post (1:1)</SelectItem>
+                  <SelectItem value="instagram-reels">Instagram Reels (9:16)</SelectItem>
+                  <SelectItem value="facebook">Facebook (16:9)</SelectItem>
+                  <SelectItem value="website">Website (16:9)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Video Length</Label>
+              <Select
+                value={String(formData.duration)}
+                onValueChange={(val) => setFormData(prev => ({ ...prev, duration: Number(val) as any }))}
+              >
+                <SelectTrigger data-testid="select-duration">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15s - Short (2-3 scenes)</SelectItem>
+                  <SelectItem value="20">20s - Quick (3 scenes)</SelectItem>
+                  <SelectItem value="30">30s - Standard Short</SelectItem>
+                  <SelectItem value="60">60s - Standard</SelectItem>
+                  <SelectItem value="90">90s - Extended</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {formData.duration <= 20 ? 'Great for TikTok & Reels' : formData.duration === 30 ? 'Perfect for social media ads' : formData.duration === 60 ? 'Ideal for product showcases' : 'Best for detailed storytelling'}
+              </p>
+            </div>
+          </div>
 
       <div className="space-y-2">
         <Label>Quality Tier</Label>

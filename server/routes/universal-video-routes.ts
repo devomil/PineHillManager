@@ -290,8 +290,8 @@ const productVideoInputSchema = z.object({
   productDescription: z.string().min(1),
   targetAudience: z.string().min(1),
   benefits: z.array(z.string()).optional().default([]),
-  duration: z.union([z.literal(30), z.literal(60), z.literal(90)]),
-  platform: z.enum(['youtube', 'tiktok', 'instagram', 'facebook', 'website']),
+  duration: z.union([z.literal(15), z.literal(20), z.literal(30), z.literal(60), z.literal(90)]),
+  platform: z.enum(['youtube', 'tiktok', 'instagram', 'instagram-reels', 'facebook', 'website']),
   style: z.enum(['professional', 'casual', 'energetic', 'calm', 'cinematic', 'documentary', 'luxury', 'minimal', 'instructional', 'educational', 'training', 'hero', 'lifestyle', 'product', 'social', 'premium']),
   callToAction: z.string().min(1),
   productImages: z.array(productImageSchema).optional(),
@@ -399,7 +399,7 @@ const referenceConfigSchema = z.object({
 const scriptVideoInputSchema = z.object({
   title: z.string().min(1),
   script: z.string().min(10),
-  platform: z.enum(['youtube', 'tiktok', 'instagram', 'facebook', 'website']),
+  platform: z.enum(['youtube', 'tiktok', 'instagram', 'instagram-reels', 'facebook', 'website']),
   style: z.enum(['professional', 'casual', 'energetic', 'calm', 'cinematic', 'documentary', 'luxury', 'minimal', 'instructional', 'educational', 'training', 'hero', 'lifestyle', 'product', 'social', 'premium']),
   targetDuration: z.number().optional(),
   brandSettings: z.object({

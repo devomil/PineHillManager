@@ -26,7 +26,7 @@ export type VideoProjectStatus = 'draft' | 'queued' | 'generating' | 'ready' | '
 export interface OutputFormat {
   aspectRatio: '16:9' | '9:16' | '1:1';
   resolution: { width: number; height: number };
-  platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'website';
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'instagram-reels' | 'facebook' | 'website';
 }
 
 export interface BrandSettings {
@@ -468,8 +468,8 @@ export interface ProductVideoInput {
   productDescription: string;
   targetAudience: string;
   benefits?: string[];
-  duration: 30 | 60 | 90;
-  platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'website';
+  duration: 15 | 20 | 30 | 60 | 90;
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'instagram-reels' | 'facebook' | 'website';
   style: 'professional' | 'friendly' | 'energetic' | 'calm';
   callToAction: string;
   productImages?: ProductImage[];
@@ -481,7 +481,7 @@ export interface ProductVideoInput {
 export interface ScriptVideoInput {
   title: string;
   script: string;
-  platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'website';
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'instagram-reels' | 'facebook' | 'website';
   style: 'professional' | 'casual' | 'energetic' | 'calm' | 'cinematic' | 'documentary' | 'luxury' | 'minimal' | 'instructional' | 'educational' | 'training';
   targetDuration?: number;
   brandSettings?: {
@@ -538,6 +538,11 @@ export const OUTPUT_FORMATS: Record<string, OutputFormat> = {
     aspectRatio: '1:1',
     resolution: { width: 1080, height: 1080 },
     platform: 'instagram',
+  },
+  'instagram-reels': {
+    aspectRatio: '9:16',
+    resolution: { width: 1080, height: 1920 },
+    platform: 'instagram-reels',
   },
   facebook: {
     aspectRatio: '16:9',
