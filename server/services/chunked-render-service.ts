@@ -169,11 +169,31 @@ class ChunkedRenderService {
   }
 
   buildChunkInputProps(chunk: ChunkConfig, inputProps: Record<string, any>): Record<string, any> {
+    // Only include scene overlay configs for scenes in this chunk to reduce payload size
+    const chunkSceneIds = new Set(chunk.scenes.map((s: any) => s.id));
+    let filteredOverlayConfigs: Record<string, any> | undefined;
+    if (inputProps.sceneOverlayConfigs) {
+      filteredOverlayConfigs = {};
+      for (const [sceneId, config] of Object.entries(inputProps.sceneOverlayConfigs)) {
+        if (chunkSceneIds.has(sceneId)) {
+          filteredOverlayConfigs[sceneId] = config;
+        }
+      }
+    }
+
     const chunkInputProps: any = {
       ...inputProps,
       scenes: chunk.scenes,
       isChunk: true,
       chunkIndex: chunk.chunkIndex,
+      // Only include overlays relevant to this chunk
+      sceneOverlayConfigs: filteredOverlayConfigs,
+      // Chunks don't need voiceover ranges (audio ducking is per-chunk)
+      voiceoverRanges: undefined,
+      // Chunks don't need brand injection (applied to full video only)
+      brandInjectionPlan: undefined,
+      // Chunks don't need end card (only final chunk gets it, handled separately)
+      endCardConfig: chunk.chunkIndex === (inputProps._totalChunks || 999) - 1 ? inputProps.endCardConfig : undefined,
     };
 
     chunkInputProps.soundDesignConfig = {
@@ -184,6 +204,10 @@ class ChunkedRenderService {
       impactSounds: false,
     };
     chunkInputProps.soundEffectsBaseUrl = undefined;
+
+    // Log chunk payload size for debugging
+    const chunkPayloadSize = JSON.stringify(chunkInputProps).length;
+    console.log(`[ChunkedRender] Chunk ${chunk.chunkIndex} payload size: ${Math.round(chunkPayloadSize / 1024)} KB`);
 
     return chunkInputProps;
   }
@@ -480,6 +504,9 @@ class ChunkedRenderService {
 
       const chunks = this.calculateChunks(scenes, fps);
       const totalChunks = chunks.length;
+
+      // Pass total chunks count so buildChunkInputProps knows which is the last chunk
+      inputProps._totalChunks = totalChunks;
 
       updateProgress({
         phase: 'rendering',
