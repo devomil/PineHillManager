@@ -3,7 +3,7 @@ import {
   AbsoluteFill,
   Audio,
   Img,
-  Video,
+  OffthreadVideo,
   Sequence,
   useCurrentFrame,
   useVideoConfig,
@@ -12,6 +12,7 @@ import {
   staticFile,
   continueRender,
   delayRender,
+  prefetch,
 } from "remotion";
 import type {
   Scene,
@@ -849,10 +850,10 @@ const KenBurnsBackground: React.FC<{
   if (!instruction.enabled) {
     if (isVideo) {
       return (
-        <Video
+        <OffthreadVideo
           src={src}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          volume={0}
+          muted
           startFrom={0}
         />
       );
@@ -906,10 +907,10 @@ const KenBurnsBackground: React.FC<{
   
   if (isVideo) {
     return (
-      <Video
+      <OffthreadVideo
         src={src}
         style={style}
-        volume={0}
+        muted
         startFrom={0}
       />
     );
@@ -1398,10 +1399,10 @@ const SceneRenderer: React.FC<{
             backgroundColor="transparent"
           />
         ) : hasValidBrandAsset && brandAssetType === 'video' ? (
-          <Video
+          <OffthreadVideo
             src={brandAssetUrl}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            volume={0}
+            muted
             startFrom={0}
           />
         ) : hasValidBrandAsset && brandAssetType === 'image' ? (
@@ -2419,6 +2420,36 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
   
   const showDebugInfo = false;
   
+  const [handle] = React.useState(() => delayRender('Loading video assets'));
+
+  React.useEffect(() => {
+    const loadAssets = async () => {
+      try {
+        const videoUrls = scenes
+          .filter(s => s.assets?.videoUrl && s.background?.type === 'video')
+          .map(s => s.assets!.videoUrl!);
+        
+        console.log(`[Asset Loader] Prefetching ${videoUrls.length} videos`);
+        
+        await Promise.all(
+          videoUrls.map(url => 
+            prefetch(url, { method: 'blob-url' })
+              .then(() => console.log(`[Asset Loader] Prefetched: ${url.substring(0, 60)}`))
+              .catch(e => console.warn(`[Asset Loader] Failed to prefetch: ${url.substring(0, 60)}`, e))
+          )
+        );
+        
+        console.log('[Asset Loader] All assets loaded, continuing render');
+        continueRender(handle);
+      } catch (e) {
+        console.error('[Asset Loader] Asset loading failed:', e);
+        continueRender(handle);
+      }
+    };
+    
+    loadAssets();
+  }, [handle]);
+
   // Phase 16: Always use Pine Hill Farm defaults if no config provided
   // endCardConfig being undefined or explicitly set means we use defaults
   const effectiveEndCardConfig = endCardConfig ?? PINE_HILL_FARM_END_CARD;

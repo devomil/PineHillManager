@@ -402,9 +402,12 @@ class RemotionLambdaService {
           imageFormat: params.imageFormat || "jpeg",
           maxRetries: 3,
           privacy: "public",
-          framesPerLambda: 200,
+          framesPerLambda: 120,
           concurrencyPerLambda: 1,
-          timeoutInMilliseconds: 900000, // 15 minutes - must match Lambda function timeout (900sec)
+          timeoutInMilliseconds: 840000, // 14 min - leave buffer before 15min Lambda timeout
+          chromiumOptions: {
+            gl: 'angle',
+          },
           downloadBehavior: {
             type: "download",
             fileName: `${params.compositionId}-${Date.now()}.mp4`,

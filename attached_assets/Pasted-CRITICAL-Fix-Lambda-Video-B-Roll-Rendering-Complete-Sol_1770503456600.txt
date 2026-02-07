@@ -1,0 +1,180 @@
+CRITICAL: Fix Lambda Video B-Roll Rendering - Complete Solution
+
+## Problem
+Lambda renders hang for 14+ minutes then timeout. CloudWatch shows video downloads complete but frame rendering never starts. The <Video> component hangs in Lambda's headless Chromium.
+
+## Solution Overview
+1. Switch to OffthreadVideo (FFmpeg-based, not browser-based)
+2. Add robust fallback chain
+3. Add timeout protection
+4. Add progress logging for debugging
+
+## Implementation
+
+### Step 1: Update video rendering in UniversalVideoComposition.tsx
+
+Find where video backgrounds are rendered and replace with this pattern:
+```tsx
+import { OffthreadVideo, Img, useCurrentFrame, staticFile } from 'remotion';
+import { useState, useEffect } from 'react';
+
+// Video background component with fallback
+const VideoBackground: React.FC<{
+  videoUrl: string;
+  imageUrl: string;
+  sceneId: string;
+  style?: React.CSSProperties;
+}> = ({ videoUrl, imageUrl, sceneId, style }) => {
+  const frame = useCurrentFrame();
+  const [videoFailed, setVideoFailed] = useState(false);
+  
+  // Log first frame to confirm rendering starts
+  useEffect(() => {
+    if (frame === 0) {
+      console.log(`[VideoBackground] Scene ${sceneId}: Starting video render`);
+      console.log(`[VideoBackground] Video URL: ${videoUrl}`);
+    }
+    if (frame % 30 === 0) {
+      console.log(`[VideoBackground] Scene ${sceneId}: Rendered frame ${frame}`);
+    }
+  }, [frame, sceneId, videoUrl]);
+
+  // If video failed or no valid URL, use image
+  if (videoFailed || !videoUrl || !videoUrl.startsWith('http')) {
+    console.log(`[VideoBackground] Scene ${sceneId}: Using image fallback`);
+    return (
+      <Img
+        src={imageUrl}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          ...style,
+        }}
+      />
+    );
+  }
+
+  return (
+    <OffthreadVideo
+      src={videoUrl}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        ...style,
+      }}
+      onError={(e) => {
+        console.error(`[VideoBackground] Scene ${sceneId}: Video error:`, e);
+        setVideoFailed(true);
+      }}
+      // Mute video - we use separate audio tracks
+      muted
+      // Start from beginning
+      startFrom={0}
+    />
+  );
+};
+```
+
+### Step 2: Update SceneRenderer to use VideoBackground
+
+In the scene rendering logic, use the new component:
+```tsx
+// When rendering a scene with video background
+{scene.background?.type === 'video' && scene.assets?.videoUrl ? (
+  <VideoBackground
+    videoUrl={scene.assets.videoUrl}
+    imageUrl={scene.assets.imageUrl}
+    sceneId={scene.id}
+  />
+) : (
+  // Image background with Ken Burns
+  <Img src={scene.assets?.imageUrl} ... />
+)}
+```
+
+### Step 3: Add delayRender/continueRender for asset loading
+
+At the top of UniversalVideoComposition, add asset preloading:
+```tsx
+import { delayRender, continueRender, prefetch } from 'remotion';
+
+// Inside the component
+const [handle] = useState(() => delayRender('Loading video assets'));
+
+useEffect(() => {
+  const loadAssets = async () => {
+    try {
+      // Prefetch all video URLs
+      const videoUrls = scenes
+        .filter(s => s.assets?.videoUrl)
+        .map(s => s.assets.videoUrl);
+      
+      console.log(`[Asset Loader] Prefetching ${videoUrls.length} videos`);
+      
+      await Promise.all(
+        videoUrls.map(url => 
+          prefetch(url, { method: 'blob-url' })
+            .then(() => console.log(`[Asset Loader] Prefetched: ${url}`))
+            .catch(e => console.warn(`[Asset Loader] Failed to prefetch: ${url}`, e))
+        )
+      );
+      
+      console.log('[Asset Loader] All assets loaded, continuing render');
+      continueRender(handle);
+    } catch (e) {
+      console.error('[Asset Loader] Asset loading failed:', e);
+      // Continue anyway - fallbacks will handle it
+      continueRender(handle);
+    }
+  };
+  
+  loadAssets();
+}, [handle, scenes]);
+```
+
+### Step 4: Update remotion.config.ts for better Lambda compatibility
+```ts
+// In remotion.config.ts or where Config is set
+import { Config } from '@remotion/cli/config';
+
+Config.setChromiumOpenGlRenderer('angle'); // Better for Lambda
+Config.setDelayRenderTimeoutInMilliseconds(120000); // 2 min timeout per asset
+```
+
+### Step 5: Update Lambda render call with better settings
+
+In remotion-lambda-service.ts, update the renderMediaOnLambda call:
+```ts
+const renderResponse = await renderMediaOnLambda({
+  // ... existing params ...
+  
+  // Add these for video reliability:
+  timeoutInMilliseconds: 840000, // 14 minutes (leave buffer before 15min Lambda timeout)
+  delayRenderTimeoutInMilliseconds: 120000, // 2 min per asset
+  chromiumOptions: {
+    gl: 'angle', // More reliable video decoding
+  },
+  // Reduce concurrent frames to prevent memory issues
+  concurrencyPerLambda: 1,
+  // Increase frames per lambda to reduce chunk coordination overhead
+  framesPerLambda: 120, // 4 seconds of video per chunk at 30fps
+});
+```
+
+## Verification
+
+After implementing, CloudWatch logs should show:
+1. "[Asset Loader] Prefetching X videos"
+2. "[Asset Loader] Prefetched: <url>" for each video
+3. "[VideoBackground] Scene X: Starting video render"
+4. "[VideoBackground] Scene X: Rendered frame 0, 30, 60..." (progress)
+
+If you see these logs but still timeout, the issue is elsewhere.
+If logs stop after "Prefetching", the prefetch is hanging.
+If logs stop after "Starting video render", OffthreadVideo isn't working.
+
+## Test
+
+After deployment, try rendering a SHORT video first (just 1-2 scenes with video) to verify it works before attempting the full 8-scene video.
