@@ -402,7 +402,7 @@ class RemotionLambdaService {
           imageFormat: params.imageFormat || "jpeg",
           maxRetries: 3,
           privacy: "public",
-          framesPerLambda: 300,
+          framesPerLambda: 200,
           concurrencyPerLambda: 1,
           timeoutInMilliseconds: 900000, // 15 minutes - must match Lambda function timeout (900sec)
           downloadBehavior: {
