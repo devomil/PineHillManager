@@ -40,6 +40,10 @@ interface RenderProgress {
   outputFile: string | null;
   errors: string[];
   done: boolean;
+  fatalErrorEncountered: boolean;
+  framesRendered: number;
+  lambdasInvoked: number;
+  chunks: number;
 }
 
 interface HealthCheckResult {
@@ -176,23 +180,54 @@ class RemotionLambdaService {
   async healthCheck(): Promise<HealthCheckResult> {
     const region = this.region;
     const functionName = this.functionName;
-    
+
     try {
       this.getAwsCredentials();
-      
-      const functions = await getFunctions({
+
+      // First try with compatibleOnly to find version-matched functions
+      const compatibleFunctions = await getFunctions({
         region,
         compatibleOnly: true,
       });
 
-      const ourFunction = functions.find(f => f.functionName === functionName);
+      let ourFunction = compatibleFunctions.find(f => f.functionName === functionName);
 
+      // If not found with compatibleOnly, try without - helps diagnose version mismatches
       if (!ourFunction) {
+        console.warn(`[Health] Function ${functionName} not found with compatibleOnly=true, trying without filter...`);
+        const allFunctions = await getFunctions({
+          region,
+          compatibleOnly: false,
+        });
+
+        ourFunction = allFunctions.find(f => f.functionName === functionName);
+
+        if (ourFunction) {
+          // Function exists but SDK version doesn't match
+          console.error(`[Health] Function ${functionName} found but NOT compatible with installed SDK version 4.0.410`);
+          console.error(`[Health] Function version: ${ourFunction.version}, SDK expects compatible version`);
+          return {
+            status: 'unhealthy',
+            error: `Lambda function exists but is not compatible with SDK version 4.0.410. Function version: ${ourFunction.version}. Redeploy the function with matching version.`,
+            expected: functionName,
+            available: allFunctions.map(f => `${f.functionName} (v${f.version})`),
+            function: {
+              name: ourFunction.functionName,
+              version: ourFunction.version ?? undefined,
+              memory: ourFunction.memorySizeInMb,
+              timeout: ourFunction.timeoutInSeconds,
+              disk: ourFunction.diskSizeInMb,
+            },
+            region,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
         return {
           status: 'unhealthy',
-          error: 'Lambda function not found',
+          error: 'Lambda function not found in any version',
           expected: functionName,
-          available: functions.map(f => f.functionName),
+          available: allFunctions.map(f => `${f.functionName} (v${f.version})`),
           region,
           timestamp: new Date().toISOString(),
         };
@@ -228,6 +263,7 @@ class RemotionLambdaService {
     functionName: string | null;
     bucketName: string | null;
     serveUrl: string | null;
+    versionMismatch?: boolean;
   }> {
     try {
       this.getAwsCredentials();
@@ -247,6 +283,27 @@ class RemotionLambdaService {
           functionName: this.functionName,
           bucketName: this.bucketName,
           serveUrl: this.serveUrl,
+        };
+      }
+
+      // Check if function exists but with incompatible version
+      const allFunctions = await getFunctions({
+        region: this.region,
+        compatibleOnly: false,
+      });
+
+      const incompatibleFunction = allFunctions.find(
+        (f) => f.functionName === this.functionName
+      );
+
+      if (incompatibleFunction) {
+        console.warn(`[Remotion Lambda] Function ${this.functionName} found but version ${incompatibleFunction.version} is not compatible with SDK 4.0.410`);
+        return {
+          deployed: true,
+          functionName: this.functionName,
+          bucketName: this.bucketName,
+          serveUrl: this.serveUrl,
+          versionMismatch: true,
         };
       }
 
@@ -327,6 +384,14 @@ class RemotionLambdaService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        // Validate inputProps size before sending to Lambda (6MB async payload limit)
+        const inputPropsJson = JSON.stringify(params.inputProps);
+        const inputPropsSizeKB = Math.round(inputPropsJson.length / 1024);
+        console.log(`[Remotion Lambda] Input props size: ${inputPropsSizeKB} KB`);
+        if (inputPropsSizeKB > 5000) {
+          console.warn(`[Remotion Lambda] WARNING: Input props are ${inputPropsSizeKB} KB - near Lambda 6MB payload limit!`);
+        }
+
         const result = await renderMediaOnLambda({
           region: this.region,
           functionName: this.functionName,
@@ -339,7 +404,7 @@ class RemotionLambdaService {
           privacy: "public",
           framesPerLambda: 300,
           concurrencyPerLambda: 1,
-          timeoutInMilliseconds: 1800000,
+          timeoutInMilliseconds: 900000, // 15 minutes - must match Lambda function timeout (900sec)
           downloadBehavior: {
             type: "download",
             fileName: `${params.compositionId}-${Date.now()}.mp4`,
@@ -391,11 +456,21 @@ class RemotionLambdaService {
         region: this.region,
       });
 
+      // Log detailed progress for debugging
+      if (progress.fatalErrorEncountered) {
+        console.error(`[Remotion Lambda] FATAL ERROR in render ${renderId}:`,
+          JSON.stringify(progress.errors.map(e => ({ message: e.message, name: e.name, chunk: e.chunk })), null, 2));
+      }
+
       return {
         overallProgress: progress.overallProgress,
         outputFile: progress.outputFile,
         errors: progress.errors.map((e) => e.message),
         done: progress.done,
+        fatalErrorEncountered: progress.fatalErrorEncountered,
+        framesRendered: progress.framesRendered,
+        lambdasInvoked: progress.lambdasInvoked,
+        chunks: progress.chunks,
       };
     } catch (error: any) {
       const errorMsg = error?.message || String(error);
@@ -453,20 +528,27 @@ class RemotionLambdaService {
       }
 
       const pct = Math.round(progress.overallProgress * 100);
-      console.log(`[Remotion Lambda] Progress: ${pct}%`);
+      console.log(`[Remotion Lambda] Progress: ${pct}% (frames: ${progress.framesRendered}, lambdas: ${progress.lambdasInvoked}, chunks: ${progress.chunks})`);
 
       if (onPollProgress) {
         try { onPollProgress(pct); } catch {}
       }
 
+      // Check for fatal error flag (can be true even if errors array is empty)
+      if (progress.fatalErrorEncountered) {
+        const errorText = progress.errors.length > 0 ? progress.errors.join(", ") : "Fatal error encountered in Lambda render";
+        console.error(`[Remotion Lambda] FATAL: Render ${renderId} encountered fatal error: ${errorText}`);
+        throw new Error(`Render fatal error: ${errorText}`);
+      }
+
       if (progress.errors.length > 0) {
         const errorText = progress.errors.join(", ");
-        const isRateLimitInRender = 
+        const isRateLimitInRender =
           errorText.includes('Rate Exceeded') ||
           errorText.includes('Concurrency limit') ||
           errorText.includes('TooManyRequestsException') ||
           errorText.includes('ConcurrentInvocationLimitExceeded');
-        
+
         if (isRateLimitInRender) {
           console.warn(`[Remotion Lambda] Render ${renderId} failed due to AWS rate limiting inside Lambda: ${errorText}`);
           throw new Error(`Rate Exceeded during Lambda render: ${errorText}`);

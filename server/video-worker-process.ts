@@ -15,7 +15,7 @@ import {
 
 const POLL_INTERVAL_MS = 5000;
 const STALL_THRESHOLD_MS = 2 * 60 * 1000;
-const RENDER_STALL_THRESHOLD_MS = 2 * 60 * 1000;
+const RENDER_STALL_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes - long videos (3-10 min) need time for Lambda cold starts + chunk rendering
 const WORKER_ID = `worker_${process.pid}_${Date.now()}`;
 
 let isProcessing = false;
@@ -74,8 +74,13 @@ async function recoverStalledProjects() {
     );
 
     if (stalledRenders.length > 0) {
-      log(`Found ${stalledRenders.length} stalled render/lambda_pending project(s) (>2min no update), resetting to render_queued...`);
+      log(`Found ${stalledRenders.length} stalled render/lambda_pending project(s) (>${RENDER_STALL_THRESHOLD_MS / 60000}min no update), checking...`);
       for (const project of stalledRenders) {
+        // Skip the project we're actively processing to prevent race condition
+        if (project.projectId === currentProjectId) {
+          log(`Skipping stall recovery for ${project.projectId} - currently being processed by this worker`);
+          continue;
+        }
         await db.update(universalVideoProjects)
           .set({
             status: 'render_queued',

@@ -2356,9 +2356,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
   }
 });
 
-const LAMBDA_TIMEOUT_MS = 300000; // 5 minutes - increased for complex videos
-const RENDER_TIMEOUT_MS = 900000; // 15 minutes - matches new Lambda timeout (900 seconds)
-const STALL_DETECTION_MS = 180000; // 3 minutes - if no progress change, consider stalled
+const LAMBDA_TIMEOUT_MS = 900000; // 15 minutes - matches Lambda function timeout (900 seconds)
+const RENDER_TIMEOUT_MS = 1200000; // 20 minutes - allows buffer beyond Lambda timeout for chunked renders
+const STALL_DETECTION_MS = 300000; // 5 minutes - Lambda cold starts + complex scene init can take time
 
 router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
