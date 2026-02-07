@@ -1,0 +1,46 @@
+Root Cause Analysis & Fixes
+1. CRITICAL: Worker stall recovery killed active renders (2min threshold)
+File: server/video-worker-process.ts:18
+
+The RENDER_STALL_THRESHOLD_MS was only 2 minutes. The worker's recoverStalledProjects() runs every 30 seconds and resets any rendering/lambda_pending project not updated in 2 minutes back to render_queued. For 3-10 minute videos, Lambda cold starts + rendering easily exceed 2 minutes, creating a destructive loop: render starts → no update for 2 min → reset → restart → repeat.
+
+Fix: Increased to 10 minutes.
+
+2. CRITICAL: Stall recovery raced with active worker processing
+File: server/video-worker-process.ts:76-86
+
+recoverStalledProjects() could reset the exact project the worker was actively rendering since it ran on its own interval without checking currentProjectId.
+
+Fix: Added currentProjectId check to skip the actively-processing project.
+
+3. Lambda timeout mismatch (30min client vs 15min function)
+File: server/services/remotion-lambda-service.ts:342
+
+timeoutInMilliseconds: 1800000 (30 min) was passed to renderMediaOnLambda, but the Lambda function has a 900-second (15 min) hard limit. The orchestrator Lambda would be killed at 15 min while the client still waited.
+
+Fix: Changed to 900000 (15 min) to match.
+
+4. Frontend stall detection too aggressive
+File: server/routes/universal-video-routes.ts:2359-2361
+
+LAMBDA_TIMEOUT_MS was 5 min → increased to 15 min
+RENDER_TIMEOUT_MS was 15 min → increased to 20 min (buffer for chunked renders)
+STALL_DETECTION_MS was 3 min → increased to 5 min
+5. Chunk payloads bloated with full project data
+File: server/services/chunked-render-service.ts:171-208
+
+buildChunkInputProps spread ALL inputProps (all scene overlays, brand injection, voiceover ranges) into each chunk, making payloads unnecessarily large and risk hitting Lambda's 6MB limit.
+
+Fix: Now filters sceneOverlayConfigs to only the chunk's scenes, and removes voiceoverRanges/brandInjectionPlan from chunks.
+
+6. Health check missed version mismatch diagnosis
+File: server/services/remotion-lambda-service.ts:180-258
+
+Using compatibleOnly: true in getFunctions() silently hid functions with SDK version mismatches. The health check would report "function not found" when the real issue was a version mismatch.
+
+Fix: Falls back to compatibleOnly: false and reports version mismatch clearly.
+
+7. Added fatalErrorEncountered handling
+File: server/services/remotion-lambda-service.ts:456-528
+
+Remotion's fatalErrorEncountered flag can be true even when the errors array is empty. The poll loop now checks this flag explicitly and logs detailed Lambda progress (frames, lambdas invoked, chunks).
