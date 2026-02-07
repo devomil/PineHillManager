@@ -4880,6 +4880,33 @@ export default function UniversalVideoProducer() {
     },
   });
 
+  const generateStepMutation = useMutation({
+    mutationFn: async (step: string) => {
+      if (!project) throw new Error("No project");
+      const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/generate-step`, {
+        step,
+        skipMusic: !musicEnabled
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        setProject(data.project);
+        toast({
+          title: `${data.completedStep.charAt(0).toUpperCase() + data.completedStep.slice(1)} Complete`,
+          description: `Review the results, then continue to the next step.`,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Step Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const renderMutation = useMutation({
     mutationFn: async () => {
       if (!project) throw new Error("No project");
@@ -5350,10 +5377,10 @@ export default function UniversalVideoProducer() {
                     projectId={project.id}
                     onGenerate={() => {
                       setShowGenerationPreview(false);
-                      generateAssetsMutation.mutate();
+                      generateStepMutation.mutate('assembly');
                     }}
                     onCancel={() => setShowGenerationPreview(false)}
-                    isGenerating={generateAssetsMutation.isPending}
+                    isGenerating={generateStepMutation.isPending}
                     qaStats={qaReport ? {
                       approved: qaReport.approvedCount,
                       needsReview: qaReport.needsReviewCount,
@@ -5449,32 +5476,95 @@ export default function UniversalVideoProducer() {
                       );
                     })()
                   )}
-                  {project.status === 'draft' && !showGenerationPreview && (
-                    <>
-                      <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
-                        <Music className="w-4 h-4 text-muted-foreground" />
-                        <Label htmlFor="music-toggle" className="text-sm cursor-pointer">Music</Label>
-                        <Switch
-                          id="music-toggle"
-                          checked={musicEnabled}
-                          onCheckedChange={setMusicEnabled}
-                          data-testid="switch-music-enabled"
-                        />
-                      </div>
-                      <Button 
-                        onClick={() => setShowGenerationPreview(true)}
-                        disabled={generateAssetsMutation.isPending}
-                        data-testid="button-generate-assets"
-                      >
-                        {generateAssetsMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4 mr-2" />
+                  {project.status === 'draft' && !showGenerationPreview && (() => {
+                    const steps = ['voiceover', 'images', 'videos', 'music', 'assembly'] as const;
+                    const stepLabels: Record<string, string> = {
+                      voiceover: 'Voiceover', images: 'Images', videos: 'Videos', music: 'Music', assembly: 'Final Assembly'
+                    };
+                    const nextStep = steps.find(s => {
+                      const stepData = project.progress.steps[s as keyof typeof project.progress.steps];
+                      return !stepData || stepData.status === 'pending' || stepData.status === 'error';
+                    });
+                    const allStepsComplete = !nextStep;
+
+                    const stepIcons: Record<string, any> = {
+                      voiceover: Volume2, images: ImageIcon, videos: Clapperboard, music: Music, assembly: Sparkles
+                    };
+                    const hasAnyStepStarted = steps.some(s => {
+                      const d = project.progress.steps[s as keyof typeof project.progress.steps];
+                      return d && (d.status === 'complete' || d.status === 'skipped');
+                    });
+
+                    return (
+                      <>
+                        {hasAnyStepStarted && (
+                          <div className="flex items-center gap-1">
+                            {steps.map((s, i) => {
+                              const d = project.progress.steps[s as keyof typeof project.progress.steps];
+                              const isDone = d && (d.status === 'complete' || d.status === 'skipped');
+                              const isNext = s === nextStep;
+                              const Icon = stepIcons[s];
+                              return (
+                                <div key={s} className="flex items-center">
+                                  {i > 0 && <div className={`w-4 h-px mx-0.5 ${isDone ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />}
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs ${
+                                          isDone ? 'bg-green-500/20 text-green-600' : isNext ? 'bg-blue-500/20 text-blue-600 ring-1 ring-blue-400' : 'bg-muted text-muted-foreground'
+                                        }`}>
+                                          {isDone ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="bottom" className="text-xs">
+                                        {stepLabels[s]}: {isDone ? 'Complete' : isNext ? 'Next' : 'Pending'}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
-                        Generate Assets
-                      </Button>
-                    </>
-                  )}
+                        <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
+                          <Music className="w-4 h-4 text-muted-foreground" />
+                          <Label htmlFor="music-toggle" className="text-sm cursor-pointer">Music</Label>
+                          <Switch
+                            id="music-toggle"
+                            checked={musicEnabled}
+                            onCheckedChange={setMusicEnabled}
+                            data-testid="switch-music-enabled"
+                          />
+                        </div>
+                        {allStepsComplete ? (
+                          <Button
+                            onClick={() => setShowGenerationPreview(true)}
+                            disabled={generateAssetsMutation.isPending}
+                            data-testid="button-generate-assets"
+                          >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Finalize & Render
+                          </Button>
+                        ) : nextStep && (
+                          <Button
+                            onClick={() => generateStepMutation.mutate(nextStep)}
+                            disabled={generateStepMutation.isPending}
+                            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                            data-testid={`button-generate-step-${nextStep}`}
+                          >
+                            {generateStepMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-4 h-4 mr-2" />
+                            )}
+                            {generateStepMutation.isPending
+                              ? `Generating ${stepLabels[nextStep]}...`
+                              : `Generate ${stepLabels[nextStep]}`}
+                          </Button>
+                        )}
+                      </>
+                    );
+                  })()}
                   
                   {(project.status === 'ready' || project.status === 'error' || project.status === 'complete') && (
                     <Button

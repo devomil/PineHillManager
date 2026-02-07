@@ -2557,10 +2557,11 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     return project;
   }
 
-  async generateProjectAssets(project: VideoProject, options?: { skipMusic?: boolean; onProgress?: (project: VideoProject) => Promise<void> }): Promise<VideoProject> {
+  async generateProjectAssets(project: VideoProject, options?: { skipMusic?: boolean; onProgress?: (project: VideoProject) => Promise<void>; targetStep?: 'voiceover' | 'images' | 'videos' | 'music' | 'assembly' }): Promise<VideoProject> {
     const updatedProject = { ...project };
     const skipMusic = options?.skipMusic ?? false;
     const onProgress = options?.onProgress;
+    const targetStep = options?.targetStep;
     
     const saveProgress = async () => {
       if (onProgress) {
@@ -2585,10 +2586,25 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       console.warn(`[Assets] Brand bible load failed: ${error.message} - continuing without brand context`);
     }
     
+    const shouldSkipStep = (stepName: string): boolean => {
+      if (!targetStep) return false;
+      const stepData = (updatedProject.progress.steps as any)[stepName];
+      const isAlreadyDone = stepData?.status === 'complete' || stepData?.status === 'skipped';
+      if (isAlreadyDone) {
+        console.log(`[Assets] Step-by-step: Skipping already-completed step "${stepName}"`);
+        return true;
+      }
+      return false;
+    };
+
     updatedProject.progress.currentStep = 'voiceover';
-    updatedProject.progress.steps.voiceover.status = 'in-progress';
     updatedProject.progress.overallPercent = 5;
     updatedProject.status = 'generating';
+
+    if (shouldSkipStep('voiceover')) {
+      console.log('[Assets] Voiceover already complete, skipping');
+    } else {
+    updatedProject.progress.steps.voiceover.status = 'in-progress';
     await saveProgress();
 
     const fullNarration = project.scenes.map(s => s.narration).join(' ... ');
@@ -2659,10 +2675,22 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
         error: voiceoverResult.error || 'Unknown error',
       });
     }
+    } // end else (voiceover not skipped)
+
+    if (targetStep === 'voiceover') {
+      updatedProject.progress.currentStep = 'voiceover';
+      updatedProject.status = 'draft';
+      updatedProject.updatedAt = new Date().toISOString();
+      return updatedProject;
+    }
 
     updatedProject.progress.currentStep = 'images';
-    updatedProject.progress.steps.images.status = 'in-progress';
     updatedProject.progress.overallPercent = 15;
+
+    if (shouldSkipStep('images')) {
+      console.log('[Assets] Images already complete, skipping');
+    } else {
+    updatedProject.progress.steps.images.status = 'in-progress';
     await saveProgress();
 
     const productImages = project.assets.productImages || [];
@@ -3071,9 +3099,21 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     updatedProject.progress.steps.images.status = 'complete';
     updatedProject.progress.overallPercent = 40;
     await saveProgress();
+    } // end else (images not skipped)
+
+    if (targetStep === 'images') {
+      updatedProject.progress.currentStep = 'images';
+      updatedProject.status = 'draft';
+      updatedProject.updatedAt = new Date().toISOString();
+      return updatedProject;
+    }
 
     // VIDEOS STEP - Generate AI video for hero scenes, fetch B-roll for others
     updatedProject.progress.currentStep = 'videos';
+
+    if (shouldSkipStep('videos')) {
+      console.log('[Assets] Videos already complete, skipping');
+    } else {
     updatedProject.progress.steps.videos.status = 'in-progress';
     await saveProgress();
     
@@ -3398,10 +3438,22 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       updatedProject.progress.steps.videos.message = 'No scenes require video';
       console.log('[UniversalVideoService] Videos step skipped - no video scenes');
     }
+    } // end else (videos not skipped)
+
+    if (targetStep === 'videos') {
+      updatedProject.progress.currentStep = 'videos';
+      updatedProject.status = 'draft';
+      updatedProject.updatedAt = new Date().toISOString();
+      return updatedProject;
+    }
 
     // MUSIC STEP - Generate background music with Udio (with ElevenLabs/Jamendo fallback)
     updatedProject.progress.currentStep = 'music';
     updatedProject.progress.overallPercent = 60;
+
+    if (shouldSkipStep('music')) {
+      console.log('[Assets] Music already complete, skipping');
+    } else {
     await saveProgress();
     
     if (skipMusic) {
@@ -3491,6 +3543,14 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
         updatedProject.progress.steps.music.message = 'Music generation unavailable - video will have voiceover only';
         console.log('[UniversalVideoService] Music step skipped - no suitable music found');
       }
+    }
+    } // end else (music not skipped)
+
+    if (targetStep === 'music') {
+      updatedProject.progress.currentStep = 'music';
+      updatedProject.status = 'draft';
+      updatedProject.updatedAt = new Date().toISOString();
+      return updatedProject;
     }
 
     // ========== S3 ASSET CACHING ==========

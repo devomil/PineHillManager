@@ -1367,6 +1367,75 @@ router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req:
   }
 });
 
+router.post('/projects/:projectId/generate-step', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { step, skipMusic } = req.body || {};
+
+    const validSteps = ['voiceover', 'images', 'videos', 'music', 'assembly'];
+    if (!step || !validSteps.includes(step)) {
+      return res.status(400).json({ success: false, error: `Invalid step. Must be one of: ${validSteps.join(', ')}` });
+    }
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    console.log(`[UniversalVideo] Step-by-step generation: running step "${step}" for project ${projectId}`);
+
+    projectData.status = 'generating';
+    projectData.progress.errors = [];
+    projectData.progress.serviceFailures = [];
+    await saveProjectToDb(projectData, projectData.ownerId);
+
+    const onProgress = async (p: any) => {
+      try {
+        await saveProjectToDb(p, projectData.ownerId);
+      } catch (err: any) {
+        console.log(`[UniversalVideo] Step progress save warning: ${err.message}`);
+      }
+    };
+
+    const updatedProject = await universalVideoService.generateProjectAssets(
+      projectData,
+      { skipMusic: skipMusic ?? false, onProgress, targetStep: step as any }
+    );
+
+    await saveProjectToDb(updatedProject, projectData.ownerId);
+
+    console.log(`[UniversalVideo] Step "${step}" completed for project ${projectId}`);
+
+    res.json({
+      success: true,
+      project: updatedProject,
+      completedStep: step,
+      message: `Step "${step}" completed successfully.`,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error in step-by-step generation:', error);
+
+    try {
+      const failedProject = await getProjectFromDb(req.params.projectId);
+      if (failedProject) {
+        failedProject.status = 'draft';
+        failedProject.progress.errors = failedProject.progress.errors || [];
+        failedProject.progress.errors.push(`Step generation error: ${error.message}`);
+        await saveProjectToDb(failedProject, failedProject.ownerId);
+      }
+    } catch (dbErr: any) {
+      console.error('[UniversalVideo] Failed to save error status:', dbErr.message);
+    }
+
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/projects/:projectId/reset-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
