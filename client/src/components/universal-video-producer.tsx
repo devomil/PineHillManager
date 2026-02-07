@@ -4979,11 +4979,37 @@ export default function UniversalVideoProducer() {
     
     if (!isChunkedInProgress) return;
 
-    const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] });
+    let active = true;
+    const interval = setInterval(async () => {
+      if (!active) return;
+      try {
+        const response = await apiRequest('GET', `/api/universal-video/projects/${project.id}`);
+        const data = await response.json();
+        if (active && data.project) {
+          setProject(data.project);
+          const rs = (data.project.progress as any)?.renderStatus;
+          if (rs?.percent !== undefined) {
+            setRenderProgress({
+              progressPercent: rs.percent || 0,
+              elapsedSeconds: 0,
+              estimatedRemainingSeconds: 0,
+              renderPhase: rs.phase || 'rendering',
+            });
+          }
+          if (data.project.status === 'completed' && data.project.outputUrl) {
+            setOutputUrl(data.project.outputUrl);
+            setRenderProgress(null);
+          }
+          if (data.project.status === 'error') {
+            setRenderProgress(null);
+          }
+        }
+      } catch (err) {
+        console.error('[ChunkedPoll] Error fetching project:', err);
+      }
     }, 5000);
 
-    return () => clearInterval(interval);
+    return () => { active = false; clearInterval(interval); };
   }, [project?.id, project?.status, (project?.progress as any)?.renderMethod]);
 
   // Preview playback effect - auto-advance scenes
