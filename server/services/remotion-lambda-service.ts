@@ -337,7 +337,7 @@ class RemotionLambdaService {
           imageFormat: params.imageFormat || "jpeg",
           maxRetries: 3,
           privacy: "public",
-          framesPerLambda: undefined, // TEMPORARY: Single-Lambda rendering until AWS quota increase to 1000 is approved (requested Feb 6, 2026). Remove this and set back to 2400 (or let Remotion auto-distribute) once approved.
+          framesPerLambda: 2400,
           concurrencyPerLambda: 1,
           timeoutInMilliseconds: 1800000,
           downloadBehavior: {

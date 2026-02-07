@@ -11,7 +11,7 @@ const REGION = process.env.REMOTION_AWS_REGION || "us-east-2";
 const BUCKET_NAME = process.env.REMOTION_S3_BUCKET || process.env.REMOTION_AWS_BUCKET || "remotionlambda-useast2-1vc2l6a56o";
 const TEMP_DIR = "/tmp/video-chunks";
 export const MAX_CHUNK_DURATION_SEC = 120;
-export const CHUNK_THRESHOLD_SEC = 9999; // TEMPORARY: Disable chunked rendering until AWS quota increase to 1000 is approved (requested Feb 6, 2026). Revert to 90 once approved.
+export const CHUNK_THRESHOLD_SEC = 90;
 
 export interface ChunkConfig {
   chunkIndex: number;
