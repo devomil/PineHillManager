@@ -2136,15 +2136,13 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     const soundDesignSettings = (preparedProject as any).soundDesignSettings;
     let soundDesignConfig: any = undefined;
     if (soundDesignSettings?.enabled !== false) {
-      // Default to enabled if not explicitly disabled
       soundDesignConfig = {
         enabled: true,
         transitionSounds: soundDesignSettings?.transitionSounds !== false,
         impactSounds: soundDesignSettings?.impactSounds !== false,
-        ambientLayer: soundDesignSettings?.ambientLayer !== false,
+        ambientLayer: false,
         ambientType: soundDesignSettings?.ambientType || 'nature',
         masterVolume: soundDesignSettings?.masterVolume ?? 1.0,
-        // Phase 18D: Audio ducking configuration
         audioDucking: {
           enabled: true,
           baseVolume: soundDesignSettings?.audioDucking?.baseVolume ?? 0.35,
