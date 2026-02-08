@@ -514,8 +514,7 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
   isGenerating = false,
   qualityTier,
 }: ProviderSelectorPanelProps) {
-  const forceVideo = qualityTier === 'premium' || qualityTier === 'ultra';
-  const effectiveMediaType = forceVideo ? 'video' : activeMediaType;
+  const effectiveMediaType = activeMediaType;
   const [imageExpanded, setImageExpanded] = useState(false);
   const [videoExpanded, setVideoExpanded] = useState(false);
   
@@ -664,11 +663,9 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
         <Button
           variant={effectiveMediaType === 'image' ? 'default' : 'outline'}
           size="sm"
-          onClick={() => !forceVideo && onMediaTypeChange('image')}
-          className={`flex items-center gap-2 ${forceVideo ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={forceVideo}
+          onClick={() => onMediaTypeChange('image')}
+          className="flex items-center gap-2"
           data-testid="media-type-image"
-          title={forceVideo ? `${qualityTier === 'ultra' ? 'Ultra' : 'Premium'} tier requires video` : undefined}
         >
           <Image className="h-4 w-4" />
           Image
@@ -683,11 +680,6 @@ export const ProviderSelectorPanel = memo(function ProviderSelectorPanel({
           <Video className="h-4 w-4" />
           Video
         </Button>
-        {forceVideo && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 ml-2">
-            {qualityTier === 'ultra' ? 'Ultra' : 'Premium'} requires video
-          </span>
-        )}
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

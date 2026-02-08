@@ -1436,6 +1436,61 @@ router.post('/projects/:projectId/generate-step', isAuthenticated, async (req: R
   }
 });
 
+router.post('/projects/:projectId/skip-to-step', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { targetStep } = req.body || {};
+
+    const validTargets = ['music', 'assembly', 'render'];
+    if (!targetStep || !validTargets.includes(targetStep)) {
+      return res.status(400).json({ success: false, error: `Invalid target step. Must be one of: ${validTargets.join(', ')}` });
+    }
+
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    if (!projectData.progress) {
+      projectData.progress = { currentStep: '', overallPercent: 0, steps: {} as any, errors: [], serviceFailures: [] };
+    }
+    if (!projectData.progress.steps) {
+      projectData.progress.steps = {} as any;
+    }
+
+    const stepOrder = ['voiceover', 'images', 'videos', 'music', 'assembly'];
+    const targetIndex = targetStep === 'render' ? stepOrder.length : stepOrder.indexOf(targetStep);
+
+    for (let i = 0; i < targetIndex; i++) {
+      const stepName = stepOrder[i] as keyof typeof projectData.progress.steps;
+      if (!projectData.progress.steps[stepName]) {
+        (projectData.progress.steps as any)[stepName] = { status: 'skipped', progress: 0 };
+      } else if (projectData.progress.steps[stepName].status !== 'complete') {
+        projectData.progress.steps[stepName].status = 'skipped';
+      }
+    }
+
+    projectData.status = 'draft';
+    await saveProjectToDb(projectData, projectData.ownerId);
+
+    console.log(`[UniversalVideo] Skipped to step "${targetStep}" for project ${projectId}`);
+
+    res.json({
+      success: true,
+      project: projectData,
+      message: `Skipped ahead to ${targetStep}. Previous steps marked as skipped.`,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error in skip-to-step:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/projects/:projectId/reset-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
@@ -3424,26 +3479,6 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
     
     if (projectData.ownerId !== userId) {
       return res.status(403).json({ success: false, error: 'Access denied' });
-    }
-    
-    // Phase 15G: Premium/Ultra tiers FORCE video generation - redirect to video endpoint
-    const qualityTier = projectData.qualityTier || 'standard';
-    if (qualityTier === 'premium' || qualityTier === 'ultra') {
-      console.log(`[Phase15G] ${qualityTier} tier: Redirecting image regeneration to VIDEO generation`);
-      console.log(`[Phase15G] Premium/Ultra must use T2V or I2V, NOT image+Ken Burns`);
-      
-      // Check if scene has a brand asset for I2V, otherwise use T2V
-      const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
-      const scene = sceneIndex >= 0 ? projectData.scenes[sceneIndex] : null;
-      const hasBrandAsset = scene?.brandAssetUrl || scene?.assets?.backgroundUrl;
-      
-      return res.status(400).json({ 
-        success: false, 
-        error: `${qualityTier.charAt(0).toUpperCase() + qualityTier.slice(1)} tier requires video generation, not images. Please use "Regenerate Video" button instead.`,
-        forceVideo: true,
-        hint: hasBrandAsset ? 'Use I2V with brand asset' : 'Use T2V for AI-generated video',
-        qualityTier
-      });
     }
     
     const result = await universalVideoService.regenerateSceneImage(projectData, sceneId, prompt, provider);

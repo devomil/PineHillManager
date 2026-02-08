@@ -49,7 +49,7 @@ import {
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
   FolderOpen, Plus, Minus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
   Undo2, Redo2, GripVertical, ThumbsUp, ThumbsDown, XCircle, ShieldCheck, Copy, Check,
-  Replace, ArrowLeftRight, MapPin, Timer, AlertCircle, Server
+  Replace, ArrowLeftRight, MapPin, Timer, AlertCircle, Server, SkipForward
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -3204,8 +3204,7 @@ function ScenePreview({
                       qualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier || projectQualityTier}
                       onGenerate={() => {
                         const sceneQuality = localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier || projectQualityTier;
-                        const forceVideo = sceneQuality === 'premium' || sceneQuality === 'ultra';
-                        const mediaType = forceVideo ? 'video' : (sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image'));
+                        const mediaType = sceneMediaType[scene.id] || (scene.background?.type === 'video' ? 'video' : 'image');
                         const provider = selectedProviders[`${mediaType}-${scene.id}`] || getRecommendedProvider(mediaType, scene.type, scene.visualDirection);
                         // Get user-selected asset (product or location)
                         const selectedProduct = selectedProductAsset[scene.id];
@@ -3478,11 +3477,16 @@ function ScenePreview({
                           ...prev,
                           [scene.id]: { id: asset.id, url: asset.url, name: asset.name }
                         }));
-                        // Clear location selection when product is selected
                         setSelectedLocationAsset(prev => ({
                           ...prev,
                           [scene.id]: null
                         }));
+                        if (projectId) {
+                          apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, {
+                            brandAssetUrl: asset.url,
+                            brandAssetId: asset.id,
+                          }).catch((err: any) => console.warn('[ProductAsset] Failed to persist selection:', err.message));
+                        }
                         toast({ title: 'Product selected', description: `${asset.name} selected as I2V source.` });
                       }}
                       selectedProductAssetId={selectedProductAsset[scene.id]?.id}
@@ -3491,12 +3495,16 @@ function ScenePreview({
                           ...prev,
                           [scene.id]: { id: asset.id, url: asset.url, name: asset.name }
                         }));
-                        // Clear product selection when location is selected
                         setSelectedProductAsset(prev => ({
                           ...prev,
                           [scene.id]: null
                         }));
-                        
+                        if (projectId) {
+                          apiRequest('PATCH', `/api/universal-video/projects/${projectId}/scenes/${scene.id}`, {
+                            brandAssetUrl: asset.url,
+                            brandAssetId: asset.id,
+                          }).catch((err: any) => console.warn('[LocationAsset] Failed to persist selection:', err.message));
+                        }
                         // Check if visual direction requires people/activity content
                         const visualDir = scene.visualDirection?.toLowerCase() || '';
                         const requiresPeopleContent = visualDir.includes('montage') || 
@@ -4937,6 +4945,32 @@ export default function UniversalVideoProducer() {
     },
   });
 
+  const skipToStepMutation = useMutation({
+    mutationFn: async (targetStep: string) => {
+      if (!project) throw new Error("No project");
+      const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/skip-to-step`, {
+        targetStep,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        setProject(data.project);
+        toast({
+          title: "Skipped ahead",
+          description: data.message,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Skip failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const renderMutation = useMutation({
     mutationFn: async () => {
       if (!project) throw new Error("No project");
@@ -5576,21 +5610,50 @@ export default function UniversalVideoProducer() {
                             Finalize & Render
                           </Button>
                         ) : nextStep && (
-                          <Button
-                            onClick={() => generateStepMutation.mutate(nextStep)}
-                            disabled={generateStepMutation.isPending}
-                            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-                            data-testid={`button-generate-step-${nextStep}`}
-                          >
-                            {generateStepMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                              <Sparkles className="w-4 h-4 mr-2" />
-                            )}
-                            {generateStepMutation.isPending
-                              ? `Generating ${stepLabels[nextStep]}...`
-                              : `Generate ${stepLabels[nextStep]}`}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              onClick={() => generateStepMutation.mutate(nextStep)}
+                              disabled={generateStepMutation.isPending || skipToStepMutation.isPending}
+                              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                              data-testid={`button-generate-step-${nextStep}`}
+                            >
+                              {generateStepMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4 mr-2" />
+                              )}
+                              {generateStepMutation.isPending
+                                ? `Generating ${stepLabels[nextStep]}...`
+                                : `Generate ${stepLabels[nextStep]}`}
+                            </Button>
+                            {(() => {
+                              const skipTargets: { key: string; label: string }[] = [];
+                              const currentIdx = steps.indexOf(nextStep);
+                              if (currentIdx < steps.indexOf('music')) skipTargets.push({ key: 'music', label: 'Music' });
+                              if (currentIdx < steps.indexOf('assembly')) skipTargets.push({ key: 'assembly', label: 'Assembly' });
+                              skipTargets.push({ key: 'render', label: 'Render' });
+                              if (skipTargets.length === 0) return null;
+                              return (
+                                <Select
+                                  value=""
+                                  onValueChange={(val) => {
+                                    if (val) skipToStepMutation.mutate(val);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-auto h-9 px-2 border-dashed" data-testid="skip-to-step-trigger">
+                                    <SkipForward className="w-4 h-4" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {skipTargets.map(t => (
+                                      <SelectItem key={t.key} value={t.key}>
+                                        Skip to {t.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              );
+                            })()}
+                          </div>
                         )}
                       </>
                     );
