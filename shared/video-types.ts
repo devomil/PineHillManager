@@ -19,6 +19,7 @@ export interface VideoProject {
   regenerationHistory?: RegenerationRecord[];
   history?: ProjectHistory;
   qualityTier?: 'ultra' | 'premium' | 'standard';
+  mediaMode?: 'image' | 'video';
 }
 
 export type VideoProjectStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'render_queued' | 'rendering' | 'lambda_pending' | 'complete' | 'error';

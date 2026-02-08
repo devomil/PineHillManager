@@ -1224,6 +1224,44 @@ router.patch('/projects/:projectId/quality-tier', isAuthenticated, async (req: R
   }
 });
 
+router.patch('/projects/:projectId/media-mode', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { mediaMode } = req.body;
+    
+    const validModes = ['image', 'video'];
+    
+    if (!validModes.includes(mediaMode)) {
+      return res.status(400).json({ success: false, error: 'Invalid media mode' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    (projectData as any).mediaMode = mediaMode;
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[MediaMode] Updated media mode for project ${projectId}: ${mediaMode}`);
+    
+    res.json({ 
+      success: true, 
+      mediaMode,
+      message: `Media mode set to ${mediaMode}`
+    });
+  } catch (error: any) {
+    console.error('[MediaMode] Error updating media mode:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 8A: Background scene analysis helper (runs async without blocking response)
 // Updated to handle video scenes by extracting a thumbnail frame for analysis
 async function runBackgroundSceneAnalysis(projectId: string, userId: number | string) {
