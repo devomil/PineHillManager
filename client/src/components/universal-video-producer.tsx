@@ -5514,36 +5514,75 @@ export default function UniversalVideoProducer() {
                         );
                       }
                       const stalledMs = project.updatedAt ? Date.now() - new Date(project.updatedAt).getTime() : 0;
-                      const isStalled = stalledMs > 600000;
-                      if (!isStalled) return null;
+                      const isStalled = stalledMs > 180000;
+                      if (!isStalled) return (
+                        <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Generating assets...
+                        </Badge>
+                      );
                       return (
-                        <Button
-                          variant="outline"
-                          className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const btn = e.currentTarget;
-                            btn.disabled = true;
-                            try {
-                              const res = await fetch(`/api/quick-create/retry/${project.id}`, {
-                                method: 'POST',
-                                credentials: 'include',
-                              });
-                              const data = await res.json();
-                              if (data.success) {
-                                toast({ title: 'Generation restarted', description: 'Asset generation has been resumed. Progress will update shortly.' });
-                              } else {
-                                toast({ title: 'Retry failed', description: data.error, variant: 'destructive' });
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const btn = e.currentTarget;
+                              btn.disabled = true;
+                              try {
+                                const res = await fetch(`/api/universal-video/projects/${project.id}/reset-status`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                  setProject(data.project);
+                                  toast({ title: 'Project ready', description: 'You can now preview and render your video.' });
+                                } else {
+                                  toast({ title: 'Reset failed', description: data.error, variant: 'destructive' });
+                                }
+                              } catch {
+                                toast({ title: 'Reset failed', description: 'Could not reach server', variant: 'destructive' });
                               }
-                            } catch {
-                              toast({ title: 'Retry failed', description: 'Could not reach server', variant: 'destructive' });
-                            }
-                            setTimeout(() => { btn.disabled = false; }, 10000);
-                          }}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Retry Generation
-                        </Button>
+                              setTimeout(() => { btn.disabled = false; }, 5000);
+                            }}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Mark Ready
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const btn = e.currentTarget;
+                              btn.disabled = true;
+                              try {
+                                const res = await fetch(`/api/universal-video/projects/${project.id}/generate-assets`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({}),
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                  toast({ title: 'Generation restarted', description: 'Asset generation has been re-queued.' });
+                                } else {
+                                  toast({ title: 'Retry failed', description: data.error, variant: 'destructive' });
+                                }
+                              } catch {
+                                toast({ title: 'Retry failed', description: 'Could not reach server', variant: 'destructive' });
+                              }
+                              setTimeout(() => { btn.disabled = false; }, 10000);
+                            }}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                            Retry
+                          </Button>
+                        </div>
                       );
                     })()
                   )}
