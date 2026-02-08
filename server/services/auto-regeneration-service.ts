@@ -42,6 +42,7 @@ export interface SceneForRegeneration {
   aspectRatio?: '16:9' | '9:16' | '1:1';
   totalScenes: number;
   qualityTier?: 'ultra' | 'premium' | 'standard';
+  mediaMode?: 'image' | 'video';
   hasBrandAssets?: boolean;
   brandAssetTypes?: string[];
   generationType?: 'T2I' | 'T2V' | 'I2I' | 'I2V';
@@ -182,25 +183,16 @@ class AutoRegenerationService {
   ): { approach: string; provider: string } {
     const isVideo = this.isVideoScene(scene);
     
-    // Phase 15G: For premium/ultra tiers, ALWAYS use video providers - never image providers
-    const isPremiumOrUltra = scene.qualityTier === 'premium' || scene.qualityTier === 'ultra';
     let providerOrder: string[];
     
-    if (isPremiumOrUltra) {
-      // Force video providers for premium/ultra - ignore current provider if it's an image provider
+    if (isVideo) {
       providerOrder = CONFIG.providerFallbackOrder.video;
-      console.log(`[AutoRegen] ${scene.qualityTier} tier: FORCING video providers (ignoring current: ${scene.currentProvider})`);
     } else {
-      providerOrder = isVideo 
-        ? CONFIG.providerFallbackOrder.video 
-        : CONFIG.providerFallbackOrder.image;
+      providerOrder = CONFIG.providerFallbackOrder.image;
     }
     
     if (attempt === 1) {
-      // For premium/ultra, always start with first video provider, not current provider
-      const provider = isPremiumOrUltra 
-        ? providerOrder[0] 
-        : (scene.currentProvider || providerOrder[0]);
+      const provider = scene.currentProvider || providerOrder[0];
       return {
         approach: 'improved_prompt_same_provider',
         provider,
@@ -208,11 +200,7 @@ class AutoRegenerationService {
     }
     
     if (attempt === 2) {
-      // For premium/ultra, cycle through video providers starting from index 1
-      // For standard, use regular alternation from current provider
-      const newProvider = isPremiumOrUltra
-        ? (providerOrder[1] || providerOrder[0])  // Second video provider
-        : this.selectAlternateProvider(scene.currentProvider, providerOrder);
+      const newProvider = this.selectAlternateProvider(scene.currentProvider, providerOrder);
       return {
         approach: 'alternate_provider',
         provider: newProvider,
@@ -220,22 +208,10 @@ class AutoRegenerationService {
     }
     
     if (attempt === 3) {
-      // For premium/ultra, try third video provider before content-based selection
-      const bestProvider = isPremiumOrUltra
-        ? (providerOrder[2] || this.selectBestProviderForContent(scene.contentType, providerOrder))
-        : this.selectBestProviderForContent(scene.contentType, providerOrder);
+      const bestProvider = this.selectBestProviderForContent(scene.contentType, providerOrder);
       return {
         approach: 'best_provider_modified_prompt',
         provider: bestProvider,
-      };
-    }
-    
-    // For attempt 4+, cycle through remaining providers
-    if (isPremiumOrUltra && attempt >= 4) {
-      const providerIndex = (attempt - 1) % providerOrder.length;
-      return {
-        approach: 'extended_fallback',
-        provider: providerOrder[providerIndex],
       };
     }
     
@@ -246,14 +222,15 @@ class AutoRegenerationService {
   }
 
   private isVideoScene(scene: SceneForRegeneration): boolean {
-    // Phase 15G: Premium/Ultra tiers FORCE video generation (T2V or I2V)
-    // This is the core enforcement to prevent image+Ken Burns for premium tier
-    if (scene.qualityTier === 'premium' || scene.qualityTier === 'ultra') {
-      console.log(`[AutoRegen] ${scene.qualityTier} tier: FORCING video generation for scene ${scene.sceneIndex + 1}`);
+    if (scene.mediaMode === 'image') {
+      console.log(`[AutoRegen] User selected IMAGE mode for scene ${scene.sceneIndex + 1} - using image`);
+      return false;
+    }
+    if (scene.mediaMode === 'video') {
+      console.log(`[AutoRegen] User selected VIDEO mode for scene ${scene.sceneIndex + 1} - using video`);
       return true;
     }
     
-    // For standard tier, check if current provider is image-only
     const imageProviders = ['flux', 'falai', 'flux-schnell', 'fal-ai'];
     return scene.duration > 0 && !imageProviders.includes(scene.currentProvider?.toLowerCase() || '');
   }

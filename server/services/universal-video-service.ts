@@ -1918,22 +1918,26 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
   /**
    * FIX 2: Determine whether to use video or image for a scene
    * Returns false (use image) for scenes where AI image quality is better than random B-roll
-   * Phase 15G: Premium/Ultra tiers FORCE video for ALL scenes
+   * Respects project-level mediaMode setting from user's Image/Video selection
    */
   private shouldUseVideoBackground(
     scene: Scene,
     videoResult: { url: string; tags?: string; description?: string } | null,
     targetAudience?: string,
-    qualityTier?: 'ultra' | 'premium' | 'standard'
+    qualityTier?: 'ultra' | 'premium' | 'standard',
+    mediaMode?: 'image' | 'video'
   ): boolean {
-    // Phase 15G: Premium/Ultra tiers FORCE video generation - no fallback to images
-    if (qualityTier === 'premium' || qualityTier === 'ultra') {
+    if (mediaMode === 'image') {
+      console.log(`[Background] Scene ${scene.id}: User selected IMAGE mode - using image`);
+      return false;
+    }
+    
+    if (mediaMode === 'video') {
       if (!videoResult || !videoResult.url) {
-        console.log(`[Background] Scene ${scene.id}: ${qualityTier} tier requires video but none available - WILL GENERATE ONE`);
-        // Return true to signal that we NEED video - caller should generate one
+        console.log(`[Background] Scene ${scene.id}: User selected VIDEO mode but no video yet - will generate`);
         return true;
       }
-      console.log(`[Background] Scene ${scene.id}: ${qualityTier} tier FORCES video usage`);
+      console.log(`[Background] Scene ${scene.id}: User selected VIDEO mode - using video`);
       return true;
     }
     
@@ -3133,28 +3137,24 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     const heroSceneTypes = ['hook', 'cta', 'testimonial', 'story'];
     const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial', 'cta'];
     
-    // Phase 15G: Get quality tier FIRST - premium/ultra requires video for ALL scenes
     const projectQualityTier = (project as any).qualityTier || 'standard';
-    const isPremiumOrUltraProject = projectQualityTier === 'premium' || projectQualityTier === 'ultra';
+    const projectMediaMode = (project as any).mediaMode as 'image' | 'video' | undefined;
     
-    // Helper to get effective quality tier for a scene (scene override takes precedence)
     const getSceneQualityTier = (scene: any): 'ultra' | 'premium' | 'standard' => {
       return scene.qualityTier || projectQualityTier;
     };
     
-    // For premium/ultra, include ALL scenes in video generation loop
-    // For standard, only include specific scene types
-    // Also include any scene with premium/ultra override
-    const scenesNeedingVideo = isPremiumOrUltraProject 
-      ? project.scenes 
-      : project.scenes.filter(s => 
-          videoSceneTypes.includes(s.type) || 
-          s.qualityTier === 'premium' || 
-          s.qualityTier === 'ultra'
-        );
-    
-    if (isPremiumOrUltraProject) {
-      console.log(`[UniversalVideoService] ${projectQualityTier.toUpperCase()} tier: Forcing video for ALL ${scenesNeedingVideo.length} scenes`);
+    // If user explicitly selected IMAGE mode, skip video generation entirely
+    // Otherwise, determine which scenes need video based on scene types
+    let scenesNeedingVideo: typeof project.scenes;
+    if (projectMediaMode === 'image') {
+      scenesNeedingVideo = [];
+      console.log(`[UniversalVideoService] User selected IMAGE mode - skipping all video generation`);
+    } else if (projectMediaMode === 'video') {
+      scenesNeedingVideo = project.scenes;
+      console.log(`[UniversalVideoService] User selected VIDEO mode - generating video for all ${scenesNeedingVideo.length} scenes`);
+    } else {
+      scenesNeedingVideo = project.scenes.filter(s => videoSceneTypes.includes(s.type));
     }
     
     if (scenesNeedingVideo.length > 0) {
@@ -3226,13 +3226,9 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
         }
         // ===== END PHASE 12A MOTION GRAPHICS ROUTING =====
         
-        // Phase 15G: Premium/Ultra tiers require video for ALL scenes, not just hero scenes
-        // Use scene-level quality tier override if set, otherwise fall back to project tier
         const sceneQualityTier = getSceneQualityTier(scene);
-        const isScenePremiumOrUltra = sceneQualityTier === 'premium' || sceneQualityTier === 'ultra';
-        const shouldGenerateVideo = isHeroScene || isScenePremiumOrUltra;
+        const shouldGenerateVideo = true; // All scenes in scenesNeedingVideo list need video
         
-        // Try AI video generation for hero scenes OR for premium/ultra tiers (all scenes)
         if (shouldGenerateVideo && aiVideoService.isAvailable()) {
           console.log(`[Assets] Using AI video for ${scene.type} scene ${scene.id} (isHero=${isHeroScene}, sceneQualityTier=${sceneQualityTier})...`);
           console.log(`[Assets] Using quality tier: ${sceneQualityTier} (scene override: ${scene.qualityTier || 'none'})`);
@@ -3279,12 +3275,12 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
           const productPosition = this.getProductOverlayPosition(scene.type);
           updatedProject.scenes[sceneIndex].assets!.productOverlayPosition = productPosition;
           
-          // Apply video result if we have one
-          // Phase 15G: Pass qualityTier to enforce video for premium/ultra (use scene-level if set)
-          const useVideo = this.shouldUseVideoBackground(scene, videoResult, project.targetAudience, sceneQualityTier);
+          // Apply video result if we have one - respects project mediaMode setting
+          const projectMediaMode = (project as any).mediaMode as 'image' | 'video' | undefined;
+          const useVideo = this.shouldUseVideoBackground(scene, videoResult, project.targetAudience, sceneQualityTier, projectMediaMode);
           
-          // Phase 15G: For premium/ultra, if we need video but don't have one, check for I2V or T2V
-          if (useVideo && !videoResult && isScenePremiumOrUltra) {
+          // If video mode and we need video but don't have one, check for I2V or T2V
+          if (useVideo && !videoResult && projectMediaMode !== 'image') {
             // Check for REAL brand asset or user-uploaded reference image for I2V routing
             // Important: Do NOT use backgroundUrl (AI-generated image) - only genuine brand assets
             
@@ -3373,36 +3369,8 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
             updatedProject.scenes[sceneIndex].assets!.videoSource = videoResult.source;
             videosGenerated++;
             console.log(`[UniversalVideoService] Video APPLIED for scene ${scene.id} (${videoResult.source}): ${videoResult.url.substring(0, 80)}...`);
-          } else if (isScenePremiumOrUltra) {
-            // Phase 15G: Premium/Ultra NEVER falls back to image
-            // Mark scene as requiring video - this is an ERROR state that must be resolved
-            console.error(`[UniversalVideoService] ${sceneQualityTier} tier: VIDEO REQUIRED but ALL generation attempts failed for scene ${scene.id}`);
-            console.error(`[UniversalVideoService] Scene ${scene.id} will be queued for video regeneration - Image+Ken Burns NOT allowed for ${sceneQualityTier}`);
-            
-            updatedProject.scenes[sceneIndex].assets!.needsVideoGeneration = true;
-            updatedProject.scenes[sceneIndex].assets!.videoGenerationFailed = true;
-            updatedProject.scenes[sceneIndex].assets!.videoGenerationError = `${sceneQualityTier} tier requires video - generation failed, needs retry`;
-            
-            // Set background type to 'pending' to prevent image fallback
-            if (!updatedProject.scenes[sceneIndex].background) {
-              updatedProject.scenes[sceneIndex].background = {
-                type: 'pending' as any,
-                source: '',
-              };
-            } else {
-              (updatedProject.scenes[sceneIndex].background as any).type = 'pending';
-            }
-            
-            // Add to failed scenes list for later retry
-            if (!updatedProject.failedScenes) (updatedProject as any).failedScenes = [];
-            (updatedProject as any).failedScenes.push({
-              sceneId: scene.id,
-              reason: 'video_generation_failed',
-              qualityTier: sceneQualityTier,
-              timestamp: new Date().toISOString(),
-            });
           } else {
-            // Standard tier: Fall back to AI image - ensure background type is 'image'
+            // Fall back to AI image when video generation fails
             if (updatedProject.scenes[sceneIndex].background) {
               updatedProject.scenes[sceneIndex].background.type = 'image';
             }
@@ -3413,38 +3381,9 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       
       updatedProject.progress.steps.videos.progress = 100;
       updatedProject.progress.steps.videos.status = 'complete';
-      
-      // Phase 15G: Check for failed premium/ultra scenes that couldn't get video
-      const failedScenes = (updatedProject as any).failedScenes || [];
-      const failedPremiumScenes = failedScenes.filter(
-        (fs: any) => fs.qualityTier === 'premium' || fs.qualityTier === 'ultra'
-      );
-      
-      if (failedPremiumScenes.length > 0) {
-        // Phase 15G: Premium/Ultra scenes MUST have video - throw hard error
-        const failedSceneIds = failedPremiumScenes.map((fs: any) => fs.sceneId);
-        console.error(`[UniversalVideoService] CRITICAL: ${failedPremiumScenes.length} ${projectQualityTier} scenes failed video generation`);
-        console.error(`[UniversalVideoService] Failed scene IDs: ${failedSceneIds.join(', ')}`);
-        
-        // Set error status on project
-        updatedProject.progress.steps.videos.status = 'error';
-        updatedProject.progress.steps.videos.message = `${projectQualityTier} tier requires video for all scenes - ${failedPremiumScenes.length} scene(s) failed generation`;
-        
-        // Mark project as having video generation errors
-        (updatedProject as any).videoGenerationError = {
-          type: 'premium_video_required',
-          message: `${projectQualityTier} tier requires video for all scenes. ${failedPremiumScenes.length} scene(s) failed video generation and cannot use image fallback.`,
-          failedSceneIds,
-          action: 'retry_video_generation',
-        };
-        
-        // Throw error to prevent project from completing with missing video
-        throw new Error(`${projectQualityTier} tier video generation failed for ${failedPremiumScenes.length} scene(s): ${failedSceneIds.join(', ')}. Premium/Ultra requires video - image fallback not allowed.`);
-      } else {
-        updatedProject.progress.steps.videos.message = videosGenerated > 0 
-          ? `Generated ${aiVideosGenerated} AI videos, ${videosGenerated - aiVideosGenerated} stock clips`
-          : 'No suitable video found - using AI images';
-      }
+      updatedProject.progress.steps.videos.message = videosGenerated > 0 
+        ? `Generated ${aiVideosGenerated} AI videos, ${videosGenerated - aiVideosGenerated} stock clips`
+        : 'No suitable video found - using AI images';
     } else {
       updatedProject.progress.steps.videos.status = 'skipped';
       updatedProject.progress.steps.videos.message = 'No scenes require video';

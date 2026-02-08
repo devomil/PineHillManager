@@ -3200,6 +3200,13 @@ function ScenePreview({
                       onMediaTypeChange={(type) => {
                         setSceneMediaType(prev => ({ ...prev, [scene.id]: type }));
                         switchBackground(scene.id, type === 'video');
+                        fetch(`/api/universal-video/projects/${projectId}/media-mode`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ mediaMode: type }),
+                        }).then(() => {
+                          queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', projectId] });
+                        }).catch(err => console.warn('[MediaMode] Failed to save:', err));
                       }}
                       qualityTier={localSceneQualityTier[scene.id] !== undefined ? localSceneQualityTier[scene.id] : scene.qualityTier || projectQualityTier}
                       onGenerate={() => {

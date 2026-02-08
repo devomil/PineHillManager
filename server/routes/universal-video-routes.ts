@@ -6605,6 +6605,7 @@ router.post('/projects/:projectId/scenes/:sceneIndex/auto-regenerate', isAuthent
       aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
       totalScenes: projectData.scenes.length,
       qualityTier: projectData.qualityTier || 'standard',
+      mediaMode: (projectData as any).mediaMode,
     };
     
     const result = await autoRegenerationService.regenerateScene(sceneForRegen);
@@ -6690,6 +6691,7 @@ router.post('/projects/:projectId/auto-regenerate-failed', isAuthenticated, asyn
           projectId,
           aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
           totalScenes: projectData.scenes.length,
+          mediaMode: (projectData as any).mediaMode,
         });
       }
     }
@@ -6819,6 +6821,7 @@ router.post('/projects/:projectId/review-queue/:sceneId/resolve', isAuthenticate
         aspectRatio: projectData.outputFormat?.aspectRatio || '16:9',
         totalScenes: projectData.scenes.length,
         qualityTier: projectData.qualityTier || 'standard',
+        mediaMode: (projectData as any).mediaMode,
       };
       
       const result = await autoRegenerationService.regenerateScene(sceneForRegen);
