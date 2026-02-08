@@ -46,6 +46,7 @@ export function dbRowToVideoProject(row: any): VideoProjectWithMeta {
     history: row.history || undefined,
     qualityReport: row.qualityReport || undefined,
     qualityTier: row.qualityTier || 'premium',
+    mediaMode: row.mediaMode || undefined,
   };
 }
 
@@ -77,6 +78,7 @@ export async function saveProjectToDb(
         status: project.status,
         history: project.history || null,
         qualityReport: project.qualityReport ?? existingProject[0].qualityReport,
+        mediaMode: (project as any).mediaMode ?? existingProject[0].mediaMode ?? null,
         renderId: renderId ?? existingProject[0].renderId,
         bucketName: bucketName ?? existingProject[0].bucketName,
         outputUrl: outputUrl ?? existingProject[0].outputUrl,
@@ -101,6 +103,7 @@ export async function saveProjectToDb(
       status: project.status,
       history: project.history || null,
       qualityReport: project.qualityReport || null,
+      mediaMode: (project as any).mediaMode || null,
       renderId,
       bucketName,
       outputUrl,

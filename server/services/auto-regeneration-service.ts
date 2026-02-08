@@ -222,17 +222,13 @@ class AutoRegenerationService {
   }
 
   private isVideoScene(scene: SceneForRegeneration): boolean {
-    if (scene.mediaMode === 'image') {
-      console.log(`[AutoRegen] User selected IMAGE mode for scene ${scene.sceneIndex + 1} - using image`);
-      return false;
-    }
     if (scene.mediaMode === 'video') {
       console.log(`[AutoRegen] User selected VIDEO mode for scene ${scene.sceneIndex + 1} - using video`);
       return true;
     }
-    
-    const imageProviders = ['flux', 'falai', 'flux-schnell', 'fal-ai'];
-    return scene.duration > 0 && !imageProviders.includes(scene.currentProvider?.toLowerCase() || '');
+    // Default to image mode when mediaMode is not explicitly 'video'
+    console.log(`[AutoRegen] IMAGE mode (${scene.mediaMode || 'default'}) for scene ${scene.sceneIndex + 1} - using image`);
+    return false;
   }
 
   private selectAlternateProvider(

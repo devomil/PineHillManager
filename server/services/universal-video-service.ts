@@ -1927,47 +1927,33 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
     qualityTier?: 'ultra' | 'premium' | 'standard',
     mediaMode?: 'image' | 'video'
   ): boolean {
-    if (mediaMode === 'image') {
-      console.log(`[Background] Scene ${scene.id}: User selected IMAGE mode - using image`);
-      return false;
-    }
-    
+    // Only use video when user explicitly selected VIDEO mode
     if (mediaMode === 'video') {
       if (!videoResult || !videoResult.url) {
         console.log(`[Background] Scene ${scene.id}: User selected VIDEO mode but no video yet - will generate`);
         return true;
       }
+      
+      if (targetAudience) {
+        const isWomensProduct = targetAudience.toLowerCase().includes('women') || 
+                                targetAudience.toLowerCase().includes('female');
+        
+        if (isWomensProduct && videoResult.tags) {
+          const tags = videoResult.tags.toLowerCase();
+          if (tags.includes('man') || tags.includes('male') || tags.includes('boy')) {
+            console.log(`[Background] Scene ${scene.id}: Rejected video - wrong gender for women's product`);
+            return false;
+          }
+        }
+      }
+      
       console.log(`[Background] Scene ${scene.id}: User selected VIDEO mode - using video`);
       return true;
     }
     
-    if (!videoResult || !videoResult.url) {
-      console.log(`[Background] Scene ${scene.id}: No video available, using image`);
-      return false;
-    }
-    
-    if (targetAudience) {
-      const isWomensProduct = targetAudience.toLowerCase().includes('women') || 
-                              targetAudience.toLowerCase().includes('female');
-      
-      if (isWomensProduct && videoResult.tags) {
-        const tags = videoResult.tags.toLowerCase();
-        if (tags.includes('man') || tags.includes('male') || tags.includes('boy')) {
-          console.log(`[Background] Scene ${scene.id}: Rejected video - wrong gender for women's product`);
-          return false;
-        }
-      }
-    }
-    
-    // Only prefer images over video for Standard tier
-    const preferImageSceneTypes = ['intro', 'cta'];
-    if (preferImageSceneTypes.includes(scene.type)) {
-      console.log(`[Background] Scene ${scene.id}: Prefer image for ${scene.type} scene (standard tier)`);
-      return false;
-    }
-    
-    console.log(`[Background] Scene ${scene.id}: Using validated video`);
-    return true;
+    // Default to image mode for all other cases (undefined mediaMode or explicit 'image')
+    console.log(`[Background] Scene ${scene.id}: IMAGE mode (${mediaMode || 'default'}) - using image`);
+    return false;
   }
 
   /**
@@ -3144,17 +3130,14 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
       return scene.qualityTier || projectQualityTier;
     };
     
-    // If user explicitly selected IMAGE mode, skip video generation entirely
-    // Otherwise, determine which scenes need video based on scene types
+    // Default to IMAGE mode when mediaMode is not set - only generate videos when user explicitly requests it
     let scenesNeedingVideo: typeof project.scenes;
-    if (projectMediaMode === 'image') {
-      scenesNeedingVideo = [];
-      console.log(`[UniversalVideoService] User selected IMAGE mode - skipping all video generation`);
-    } else if (projectMediaMode === 'video') {
+    if (projectMediaMode === 'video') {
       scenesNeedingVideo = project.scenes;
       console.log(`[UniversalVideoService] User selected VIDEO mode - generating video for all ${scenesNeedingVideo.length} scenes`);
     } else {
-      scenesNeedingVideo = project.scenes.filter(s => videoSceneTypes.includes(s.type));
+      scenesNeedingVideo = [];
+      console.log(`[UniversalVideoService] IMAGE mode (${projectMediaMode || 'default'}) - skipping all video generation`);
     }
     
     if (scenesNeedingVideo.length > 0) {

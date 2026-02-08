@@ -5110,6 +5110,9 @@ export const universalVideoProjects = pgTable("universal_video_projects", {
   // Quality tier (Phase 14C)
   qualityTier: varchar("quality_tier", { length: 20 }).notNull().default("premium"), // 'ultra' | 'premium' | 'standard'
   
+  // Media mode - user's choice of image vs video backgrounds
+  mediaMode: varchar("media_mode", { length: 10 }), // 'image' | 'video' | null (default: image)
+  
   // Render metadata
   renderId: varchar("render_id", { length: 100 }),
   bucketName: varchar("bucket_name", { length: 255 }),
