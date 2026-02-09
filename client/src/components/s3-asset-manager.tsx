@@ -599,20 +599,21 @@ export default function S3AssetManager() {
     for (let i = 0; i < uploads.length; i++) {
       const { file, saveName } = uploads[i];
       try {
-        const urlRes = await apiRequest('POST', '/api/admin/s3-assets/upload-url', {
-          category: activeCategory,
-          fileName: saveName,
-          contentType: file.type || 'application/octet-stream',
-        });
-        const { uploadUrl } = await urlRes.json();
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', activeCategory);
+        formData.append('fileName', saveName);
 
-        const uploadRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        const res = await fetch('/api/admin/s3-assets/upload', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
         });
 
-        if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Upload failed' }));
+          throw new Error(errData.error || `Upload failed: ${res.status}`);
+        }
         successCount++;
       } catch (err: any) {
         console.error(`[S3Upload] Failed: ${saveName}`, err);

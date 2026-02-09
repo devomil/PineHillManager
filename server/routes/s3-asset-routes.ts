@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { isAuthenticated, requireRole } from '../auth';
+import multer from 'multer';
 
 const router = Router();
 
@@ -27,6 +28,11 @@ const ASSET_CATEGORIES = {
 } as const;
 
 type CategoryKey = keyof typeof ASSET_CATEGORIES;
+
+const memUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
 
 router.use(isAuthenticated, requireRole(['admin']));
 
@@ -78,15 +84,18 @@ router.get('/list', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/upload-url', async (req: Request, res: Response) => {
+router.post('/upload', memUpload.single('file'), async (req: Request, res: Response) => {
   try {
-    const { category, fileName, contentType } = req.body;
+    const { category, fileName } = req.body;
 
     if (!category || !(category in ASSET_CATEGORIES)) {
       return res.status(400).json({ error: 'Invalid or missing category' });
     }
-    if (!fileName || !contentType) {
-      return res.status(400).json({ error: 'fileName and contentType are required' });
+    if (!fileName) {
+      return res.status(400).json({ error: 'fileName is required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file provided' });
     }
 
     const { prefix } = ASSET_CATEGORIES[category as CategoryKey];
@@ -95,15 +104,17 @@ router.post('/upload-url', async (req: Request, res: Response) => {
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
-      ContentType: contentType,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype || 'application/octet-stream',
     });
 
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
+    await s3.send(command);
     const publicUrl = `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`;
 
-    res.json({ uploadUrl, key, publicUrl });
+    console.log(`[S3Assets] Uploaded: ${key} (${req.file.size} bytes)`);
+    res.json({ success: true, key, publicUrl });
   } catch (error: any) {
-    console.error('[S3Assets] Upload URL error:', error.message);
+    console.error('[S3Assets] Upload error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
