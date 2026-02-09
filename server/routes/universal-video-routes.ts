@@ -2136,11 +2136,45 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     const soundDesignSettings = (preparedProject as any).soundDesignSettings;
     let soundDesignConfig: any = undefined;
     if (soundDesignSettings?.enabled !== false) {
+      const sfxBaseUrl = process.env.SOUND_EFFECTS_URL || `https://${process.env.REMOTION_S3_BUCKET || 'remotionlambda-useast2-1vc2l6a56o'}.s3.${process.env.REMOTION_AWS_REGION || 'us-east-2'}.amazonaws.com/audio/sfx`;
+
+      const validateSfxFile = async (filename: string): Promise<boolean> => {
+        try {
+          const resp = await fetch(`${sfxBaseUrl}/${filename}`, {
+            headers: { 'Range': 'bytes=0-511' }
+          });
+          if (!resp.ok && resp.status !== 206) return false;
+          const buffer = await resp.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          if (bytes.length < 100) return false;
+          let zeroCount = 0;
+          for (let i = 4; i < Math.min(bytes.length, 200); i++) {
+            if (bytes[i] === 0) zeroCount++;
+          }
+          const zeroRatio = zeroCount / Math.min(bytes.length - 4, 196);
+          return zeroRatio < 0.9;
+        } catch { return false; }
+      };
+
+      const [whooshValid, riseSwellValid, logoImpactValid, ambientValid] = await Promise.all([
+        validateSfxFile('whoosh-soft.mp3'),
+        validateSfxFile('rise-swell.mp3'),
+        validateSfxFile('logo-impact.mp3'),
+        validateSfxFile(soundDesignSettings?.ambientType === 'warm' ? 'room-tone-warm.mp3' : 'room-tone-nature.mp3'),
+      ]);
+
+      const transitionsEnabled = whooshValid && (soundDesignSettings?.transitionSounds !== false);
+      const impactsEnabled = (logoImpactValid || riseSwellValid) && (soundDesignSettings?.impactSounds !== false);
+      const ambientEnabled = ambientValid && (soundDesignSettings?.ambientLayer !== false);
+      const anyEnabled = transitionsEnabled || impactsEnabled || ambientEnabled;
+
+      console.log(`[UniversalVideo] SFX validation: whoosh=${whooshValid}, riseSwell=${riseSwellValid}, logoImpact=${logoImpactValid}, ambient=${ambientValid}`);
+
       soundDesignConfig = {
-        enabled: true,
-        transitionSounds: soundDesignSettings?.transitionSounds !== false,
-        impactSounds: soundDesignSettings?.impactSounds !== false,
-        ambientLayer: false,
+        enabled: anyEnabled,
+        transitionSounds: transitionsEnabled,
+        impactSounds: impactsEnabled,
+        ambientLayer: ambientEnabled,
         ambientType: soundDesignSettings?.ambientType || 'nature',
         masterVolume: soundDesignSettings?.masterVolume ?? 1.0,
         audioDucking: {

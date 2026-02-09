@@ -26113,6 +26113,12 @@ Important:
   app.use('/api/quick-create', quickCreateRoutes.default);
 
   // ================================
+  // S3 ASSET MANAGEMENT ROUTES
+  // ================================
+  const s3AssetRoutes = await import('./routes/s3-asset-routes');
+  app.use('/api/admin/s3-assets', s3AssetRoutes.default);
+
+  // ================================
   // PRACTITIONER DASHBOARD ROUTES
   // ================================
   const { practitionerContacts, insertPractitionerContactSchema, updatePractitionerContactSchema } = await import('@shared/schema');

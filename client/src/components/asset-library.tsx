@@ -31,12 +31,14 @@ import {
   Building2,
   MapPin,
   X,
-  AlertCircle
+  AlertCircle,
+  HardDrive,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { AssetUploadModal, type AssetMetadata } from './AssetUploadModal';
 import { ASSET_CATEGORIES as TAXONOMY_CATEGORIES, getAssetType, getTypesByCategory } from '@shared/brand-asset-types';
+import S3AssetManager from './s3-asset-manager';
 
 type AssetType = 'image' | 'video' | 'music' | 'all';
 type ViewMode = 'grid' | 'list';
@@ -150,7 +152,7 @@ export default function AssetLibrary() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const [activeTab, setActiveTab] = useState<'library' | 'uploads' | 'brand'>('brand');
+  const [activeTab, setActiveTab] = useState<'library' | 'uploads' | 'brand' | 's3-assets'>('brand');
   const [assetType, setAssetType] = useState<AssetType>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -571,8 +573,8 @@ export default function AssetLibrary() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'library' | 'uploads' | 'brand')}>
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'library' | 'uploads' | 'brand' | 's3-assets')}>
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="brand" className="flex items-center gap-2" data-testid="tab-brand-media">
                 <Building2 className="h-4 w-4" />
                 Brand Media
@@ -584,6 +586,10 @@ export default function AssetLibrary() {
               <TabsTrigger value="uploads" className="flex items-center gap-2" data-testid="tab-my-uploads">
                 <Upload className="h-4 w-4" />
                 My Uploads
+              </TabsTrigger>
+              <TabsTrigger value="s3-assets" className="flex items-center gap-2" data-testid="tab-s3-assets">
+                <HardDrive className="h-4 w-4" />
+                S3 Render Assets
               </TabsTrigger>
             </TabsList>
 
@@ -1080,6 +1086,10 @@ export default function AssetLibrary() {
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="s3-assets" className="space-y-4">
+              <S3AssetManager />
             </TabsContent>
           </Tabs>
         </CardContent>
