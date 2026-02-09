@@ -1549,6 +1549,10 @@ router.post('/projects/:projectId/reset-status', isAuthenticated, async (req: Re
     projectData.progress.steps.rendering.progress = 0;
     projectData.progress.steps.rendering.message = '';
     delete (projectData.progress as any).renderStartedAt;
+    delete (projectData.progress as any).renderStatus;
+    delete (projectData.progress as any).renderMethod;
+    delete (projectData.progress as any).lastProgressValue;
+    delete (projectData.progress as any).lastProgressUpdateAt;
     projectData.progress.errors = [];
     projectData.progress.overallPercent = 85;
     projectData.updatedAt = new Date().toISOString();
@@ -1837,13 +1841,14 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     preparedProject.progress.steps.rendering.status = 'in-progress';
     preparedProject.progress.steps.rendering.progress = 0;
     preparedProject.progress.steps.rendering.message = 'Starting render...';
-    // Reset stall detection state for retry renders
+    // Reset stall detection state and worker renderStatus for retry renders
     (preparedProject.progress as any).lastProgressValue = 0;
     (preparedProject.progress as any).lastProgressUpdateAt = Date.now();
+    delete (preparedProject.progress as any).renderStatus;
     preparedProject.progress.errors = []; // Clear any previous errors
     preparedProject.updatedAt = new Date().toISOString();
     
-    console.log('[UniversalVideo] Render state reset - cleared stall detection and errors');
+    console.log('[UniversalVideo] Render state reset - cleared stall detection, renderStatus, and errors');
     
     const compositionId = getCompositionId(preparedProject.outputFormat.aspectRatio);
     
