@@ -193,17 +193,25 @@ router.post('/validate', async (req: Request, res: Response) => {
     const files = await Promise.all(objects.map(async (obj) => {
       const name = obj.Key!.split('/').pop() || obj.Key!;
       const size = obj.Size || 0;
-      const url = `https://${BUCKET}.s3.${REGION}.amazonaws.com/${obj.Key!}`;
 
       if (size < 100) return { name, size, valid: false, reason: 'Too small' };
 
       const ext = name.split('.').pop()?.toLowerCase();
       if (ext === 'mp3' || ext === 'wav' || ext === 'ogg') {
         try {
-          const resp = await fetch(url, { headers: { 'Range': 'bytes=0-511' } });
-          if (!resp.ok && resp.status !== 206) return { name, size, valid: false, reason: 'Not accessible' };
-          const buffer = await resp.arrayBuffer();
-          const bytes = new Uint8Array(buffer);
+          const getCmd = new GetObjectCommand({
+            Bucket: BUCKET,
+            Key: obj.Key!,
+            Range: 'bytes=0-511',
+          });
+          const getResult = await s3.send(getCmd);
+          const stream = getResult.Body;
+          if (!stream) return { name, size, valid: false, reason: 'Not accessible' };
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of stream as any) {
+            chunks.push(chunk);
+          }
+          const bytes = Buffer.concat(chunks);
           let zeroCount = 0;
           for (let i = 4; i < Math.min(bytes.length, 200); i++) {
             if (bytes[i] === 0) zeroCount++;
