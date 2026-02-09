@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,14 +76,14 @@ const EXPECTED_SFX_FILES: { name: string; description: string; required: boolean
   { name: 'ambient-energy.mp3', description: 'Energetic ambient layer', required: false },
 ];
 
-const CATEGORY_FILE_HINTS: Record<CategoryKey, { examples: string[]; hint: string }> = {
-  'sfx': { examples: [], hint: 'Select a required filename from the list above, or type a custom name' },
-  'music': { examples: ['background-upbeat.mp3', 'intro-theme.mp3', 'outro-calm.mp3'], hint: 'Name your music file descriptively (e.g., "background-upbeat")' },
-  'logos': { examples: ['primary.png', 'dark.png', 'light.png', 'icon.png', 'wordmark.svg'], hint: 'Use a descriptive variant name (e.g., "dark", "light", "primary")' },
-  'badges': { examples: ['organic-certified.png', 'award-2024.png', 'best-seller.png'], hint: 'Name after the award or certification' },
-  'overlays': { examples: ['watermark.png', 'lower-third.png', 'frame-border.png'], hint: 'Describe the overlay type (e.g., "watermark", "lower-third")' },
-  'end-cards': { examples: ['background-default.png', 'background-seasonal.jpg', 'cta-subscribe.png'], hint: 'Describe the end card element (e.g., "background-default")' },
-  'fonts': { examples: ['heading.ttf', 'body.otf', 'accent.woff2'], hint: 'Name by usage (e.g., "heading", "body", "accent")' },
+const CATEGORY_FILE_HINTS: Record<CategoryKey, { examples: string[]; hint: string; formatTip: string }> = {
+  'sfx': { examples: [], hint: 'Select a required filename from the list above, or type a custom name', formatTip: 'MP3 is recommended for smaller file sizes. WAV for highest quality.' },
+  'music': { examples: ['background-upbeat.mp3', 'intro-theme.mp3', 'outro-calm.mp3'], hint: 'Name your music file descriptively (e.g., "background-upbeat")', formatTip: 'MP3 (128-320kbps) recommended. Keep files under 10MB for faster rendering.' },
+  'logos': { examples: ['primary.png', 'dark.png', 'light.png', 'icon.png', 'wordmark.svg'], hint: 'Use a descriptive variant name (e.g., "dark", "light", "primary")', formatTip: 'PNG with transparent background is best for video overlays. SVG is ideal for perfect scaling at any resolution. Minimum 800px wide recommended.' },
+  'badges': { examples: ['organic-certified.png', 'award-2024.png', 'best-seller.png'], hint: 'Name after the award or certification', formatTip: 'PNG with transparent background recommended so badges layer cleanly over video. Minimum 400px wide.' },
+  'overlays': { examples: ['watermark.png', 'lower-third.png', 'frame-border.png'], hint: 'Describe the overlay type (e.g., "watermark", "lower-third")', formatTip: 'PNG with transparency required for overlays. Match your video resolution (1920x1080 for HD) for best results.' },
+  'end-cards': { examples: ['background-default.png', 'background-seasonal.jpg', 'cta-subscribe.png'], hint: 'Describe the end card element (e.g., "background-default")', formatTip: 'PNG or JPG at 1920x1080 recommended. Use PNG for elements with transparency.' },
+  'fonts': { examples: ['heading.ttf', 'body.otf', 'accent.woff2'], hint: 'Name by usage (e.g., "heading", "body", "accent")', formatTip: 'TTF or OTF formats work best for video rendering. WOFF/WOFF2 are web-only and may not render in videos.' },
 };
 
 function formatFileSize(bytes: number): string {
@@ -168,6 +168,38 @@ function AudioPreview({ fileKey, name }: { fileKey: string; name: string }) {
   );
 }
 
+function ImagePreview({ fileKey, name }: { fileKey: string; name: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/s3-assets/preview-url?key=${encodeURIComponent(fileKey)}`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+        if (!cancelled) setSrc(data.url);
+      } catch {
+        if (!cancelled) setError(true);
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [fileKey]);
+
+  return (
+    <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+      {loading && <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />}
+      {error && <XCircle className="h-4 w-4 text-red-400" />}
+      {src && !error && (
+        <img src={src} alt={name} className="w-full h-full object-contain" onError={() => setError(true)} />
+      )}
+    </div>
+  );
+}
+
 interface ValidationResult {
   name: string;
   size: number;
@@ -183,17 +215,12 @@ function FileRow({ file, category, onDelete, validation }: { file: S3File; categ
   return (
     <div className={`flex items-center justify-between p-3 rounded-lg border ${isInvalid ? 'border-red-300 bg-red-50 dark:bg-red-950/20' : 'border-gray-200 dark:border-gray-700'}`}>
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {isImage && (
-          <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gray-100">
-            <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
-          </div>
-        )}
+        {isImage && <ImagePreview fileKey={file.key} name={file.name} />}
         {isAudio ? (
           <AudioPreview fileKey={file.key} name={file.name} />
         ) : (
-          !isImage && <span className="text-sm truncate">{file.name}</span>
+          <span className="text-sm truncate">{file.name}</span>
         )}
-        {!isAudio && isImage && <span className="text-sm truncate">{file.name}</span>}
       </div>
 
       <div className="flex items-center gap-3 flex-shrink-0">
@@ -365,6 +392,16 @@ function UploadDialog({
                 </div>
               </div>
 
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-amber-700 dark:text-amber-300">
+                    <p className="font-medium mb-0.5">Recommended Format</p>
+                    <p>{hints.formatTip}</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid gap-1.5">
                 {EXPECTED_SFX_FILES.map(sfx => {
                   const isUploaded = existingNames.has(sfx.name);
@@ -441,6 +478,16 @@ function UploadDialog({
                   <div className="text-xs text-blue-700 dark:text-blue-300">
                     <p className="font-medium mb-1">{hints.hint}</p>
                     <p>Examples: {hints.examples.join(', ')}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-amber-700 dark:text-amber-300">
+                    <p className="font-medium mb-0.5">Recommended Format</p>
+                    <p>{hints.formatTip}</p>
                   </div>
                 </div>
               </div>
