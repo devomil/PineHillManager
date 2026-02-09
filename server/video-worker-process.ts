@@ -525,6 +525,11 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
   let lastKnownTotalChunks = (progress?.renderStatus?.totalChunks as number) || 0;
 
   try {
+    const currentProjForMethod = await getProjectFromDb(projectId);
+    if (currentProjForMethod) {
+      (currentProjForMethod.progress as any).renderMethod = 'chunked';
+      await saveProjectToDb(currentProjForMethod, projectData.ownerId);
+    }
     await db.update(universalVideoProjects)
       .set({
         status: 'lambda_pending',

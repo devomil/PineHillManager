@@ -5073,7 +5073,7 @@ export default function UniversalVideoProducer() {
     if (!project) return;
     const isChunkedInProgress = 
       (project.status === 'render_queued' || project.status === 'rendering' || project.status === 'lambda_pending') &&
-      (project.progress as any)?.renderMethod === 'chunked';
+      ((project.progress as any)?.renderMethod === 'chunked' || project.status === 'lambda_pending');
     
     if (!isChunkedInProgress) return;
 
