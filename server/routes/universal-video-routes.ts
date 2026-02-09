@@ -2510,9 +2510,12 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         
         renderBuckets.set(renderResult.renderId, renderResult.bucketName);
         
-        // Store render start time in progress object (persists to DB for timeout detection)
         (preparedProject.progress as any).renderStartedAt = Date.now();
         (preparedProject.progress as any).renderMethod = 'standard';
+        (preparedProject.progress as any).renderInputProps = inputProps;
+        (preparedProject.progress as any).renderCompositionId = compositionId;
+        (preparedProject.progress as any).standardRenderId = renderResult.renderId;
+        (preparedProject.progress as any).standardBucketName = renderResult.bucketName;
         preparedProject.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
         
         await saveProjectToDb(preparedProject, projectData.ownerId, renderResult.renderId, renderResult.bucketName);

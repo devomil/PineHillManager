@@ -76,9 +76,14 @@ async function recoverStalledProjects() {
     if (stalledRenders.length > 0) {
       log(`Found ${stalledRenders.length} stalled render/lambda_pending project(s) (>${RENDER_STALL_THRESHOLD_MS / 60000}min no update), checking...`);
       for (const project of stalledRenders) {
-        // Skip the project we're actively processing to prevent race condition
         if (project.projectId === currentProjectId) {
           log(`Skipping stall recovery for ${project.projectId} - currently being processed by this worker`);
+          continue;
+        }
+        const projectData = await getProjectFromDb(project.projectId);
+        const renderMethod = (projectData?.progress as any)?.renderMethod;
+        if (renderMethod === 'standard') {
+          log(`Skipping stall recovery for ${project.projectId} - standard Lambda render (frontend handles status)`);
           continue;
         }
         await db.update(universalVideoProjects)
@@ -118,7 +123,12 @@ async function startupRecovery() {
       const progress = projectData.progress as any;
       const lambdaState = progress?.lambdaChunkState as LambdaChunkState | null;
 
-      log(`Recovering project ${projectId} (status: ${row.status})`);
+      log(`Recovering project ${projectId} (status: ${row.status}, renderMethod: ${progress?.renderMethod || 'unknown'})`);
+
+      if (progress?.renderMethod === 'standard') {
+        log(`Project ${projectId}: Standard Lambda render - leaving as-is (frontend polls Lambda directly)`);
+        continue;
+      }
 
       if (!lambdaState || !lambdaState.renderId || !lambdaState.bucketName) {
         const completedChunks = (progress?.completedChunkResults || []) as ChunkResult[];
@@ -142,10 +152,15 @@ async function startupRecovery() {
           continue;
         }
 
-        log(`Project ${projectId}: No Lambda render context and no completed chunks, requeueing to render_queued`);
-        await db.update(universalVideoProjects)
-          .set({ status: 'render_queued', updatedAt: new Date() })
-          .where(eq(universalVideoProjects.projectId, projectId));
+        if (progress?.renderMethod === 'chunked' && progress?.renderInputProps) {
+          log(`Project ${projectId}: Chunked render with input props, requeueing to render_queued`);
+          await db.update(universalVideoProjects)
+            .set({ status: 'render_queued', updatedAt: new Date() })
+            .where(eq(universalVideoProjects.projectId, projectId));
+          continue;
+        }
+
+        log(`Project ${projectId}: No Lambda render context and no completed chunks, leaving as-is`);
         continue;
       }
 
