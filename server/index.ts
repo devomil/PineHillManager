@@ -152,15 +152,29 @@ app.use((req, res, next) => {
   bigcommerceInventorySyncService.startScheduledSync();
   log('📦 BigCommerce inventory sync scheduler initialized', 'bigcommerce-sync');
 
-  // Import and initialize the video generation worker (per-scene regeneration)
-  const { videoGenerationWorker } = await import('./services/video-generation-worker');
-  videoGenerationWorker.startWorker(3000);
-  log('🎬 Video generation worker initialized (every 3 seconds)', 'video-worker');
+  // Spawn dedicated video service as detached process (survives main server restarts)
+  const net = await import('net');
+  const isVideoServiceRunning = await new Promise<boolean>((resolve) => {
+    const sock = new net.Socket();
+    sock.setTimeout(1000);
+    sock.on('connect', () => { sock.destroy(); resolve(true); });
+    sock.on('error', () => { sock.destroy(); resolve(false); });
+    sock.on('timeout', () => { sock.destroy(); resolve(false); });
+    sock.connect(5001, '127.0.0.1');
+  });
 
-  // Import and initialize the video project worker (queue-based project generation)
-  const { startVideoProjectWorker } = await import('./services/video-project-worker');
-  startVideoProjectWorker();
-  log('🎬 Video project worker initialized (polls queued projects every 5 seconds)', 'video-project-worker');
+  if (isVideoServiceRunning) {
+    log('📹 Video service already running on port 5001 (reusing)', 'video-service');
+  } else {
+    const { spawn } = await import('child_process');
+    const videoProc = spawn('npx', ['tsx', 'server/video-service.ts'], {
+      detached: true,
+      stdio: 'inherit',
+      env: { ...process.env },
+    });
+    videoProc.unref();
+    log(`📹 Video service spawned as detached process (PID: ${videoProc.pid})`, 'video-service');
+  }
 
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {

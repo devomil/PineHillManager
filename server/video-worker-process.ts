@@ -741,8 +741,8 @@ async function pollForJobs() {
   }
 }
 
-async function startWorker() {
-  log('Starting dedicated video worker process...');
+export async function startVideoWorkerLoop() {
+  log('Starting video worker loop...');
   log(`Poll interval: ${POLL_INTERVAL_MS}ms, Stall threshold: ${STALL_THRESHOLD_MS / 1000}s, Render stall: ${RENDER_STALL_THRESHOLD_MS / 1000}s`);
   log('Chunked render support: ENABLED (render_queued + lambda_pending jobs)');
 
@@ -761,23 +761,36 @@ async function startWorker() {
   }
 }
 
-process.on('SIGINT', () => {
-  log('Received SIGINT, shutting down...');
-  if (currentProjectId) {
-    log(`Warning: Project ${currentProjectId} was in progress (Lambda renders will continue on AWS)`);
+const isForkedProcess = !!process.send;
+const isDirectRun = (() => {
+  try {
+    const mainModule = process.argv[1];
+    const thisFile = new URL(import.meta.url).pathname;
+    return mainModule && thisFile.endsWith(mainModule.replace(/.*\//, '')) && !isForkedProcess;
+  } catch {
+    return false;
   }
-  process.exit(0);
-});
+})();
 
-process.on('SIGTERM', () => {
-  log('Received SIGTERM, shutting down...');
-  if (currentProjectId) {
-    log(`Warning: Project ${currentProjectId} was in progress (Lambda renders will continue on AWS)`);
-  }
-  process.exit(0);
-});
+if (isForkedProcess || isDirectRun) {
+  process.on('SIGINT', () => {
+    log('Received SIGINT, shutting down...');
+    if (currentProjectId) {
+      log(`Warning: Project ${currentProjectId} was in progress (Lambda renders will continue on AWS)`);
+    }
+    process.exit(0);
+  });
 
-startWorker().catch((err) => {
-  logError('Failed to start worker:', err);
-  process.exit(1);
-});
+  process.on('SIGTERM', () => {
+    log('Received SIGTERM, shutting down...');
+    if (currentProjectId) {
+      log(`Warning: Project ${currentProjectId} was in progress (Lambda renders will continue on AWS)`);
+    }
+    process.exit(0);
+  });
+
+  startVideoWorkerLoop().catch((err) => {
+    logError('Failed to start worker:', err);
+    process.exit(1);
+  });
+}
