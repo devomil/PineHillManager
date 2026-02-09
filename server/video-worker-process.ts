@@ -331,18 +331,17 @@ function resumeLambdaMonitoring(projectData: VideoProjectWithMeta, lambdaState: 
             const currentProject = await getProjectFromDb(projectId);
             if (currentProject) {
               const totalChunks = (currentProject.progress as any).renderStatus?.totalChunks || 1;
-              const completedChunks = ((currentProject.progress as any).completedChunkResults || []).length;
-              const chunkContribution = 50 / totalChunks;
-              const overallPct = 10 + Math.round((completedChunks / totalChunks) * 50) + Math.round((pct / 100) * chunkContribution);
+              const prevPercent = (currentProject.progress as any).renderStatus?.percent || 0;
+              const newPercent = Math.max(pct, prevPercent);
               
-              currentProject.progress.steps.rendering.progress = Math.min(overallPct, 59);
-              currentProject.progress.steps.rendering.message = `Rendering chunk ${lambdaState.chunkIndex + 1} of ${totalChunks} (${pct}%)...`;
-              currentProject.progress.overallPercent = 85 + Math.round(Math.min(overallPct, 59) * 0.15);
+              currentProject.progress.steps.rendering.progress = newPercent;
+              currentProject.progress.steps.rendering.message = `Rendering chunk ${lambdaState.chunkIndex + 1} of ${totalChunks} (${newPercent}%)...`;
+              currentProject.progress.overallPercent = 85 + Math.round(newPercent * 0.15);
               (currentProject.progress as any).renderStatus = {
                 ...(currentProject.progress as any).renderStatus,
-                percent: pct,
+                percent: newPercent,
                 lastUpdateAt: Date.now(),
-                message: `Rendering chunk ${lambdaState.chunkIndex + 1} of ${totalChunks} (${pct}%)...`,
+                message: `Rendering chunk ${lambdaState.chunkIndex + 1} of ${totalChunks} (${newPercent}%)...`,
               };
               await saveProjectToDb(currentProject, projectData.ownerId);
             }
@@ -545,9 +544,11 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
       try {
         const currentProject = await getProjectFromDb(projectId);
         if (currentProject) {
-          currentProject.progress.steps.rendering.progress = renderProgress.overallPercent;
+          const prevPercent = (currentProject.progress as any).renderStatus?.percent || 0;
+          const newPercent = Math.max(renderProgress.overallPercent, prevPercent);
+          currentProject.progress.steps.rendering.progress = newPercent;
           currentProject.progress.steps.rendering.message = renderProgress.message;
-          currentProject.progress.overallPercent = 85 + Math.round(renderProgress.overallPercent * 0.15);
+          currentProject.progress.overallPercent = 85 + Math.round(newPercent * 0.15);
 
           const elapsedMs = Date.now() - startTime;
           (currentProject.progress as any).renderStatus = {
@@ -555,7 +556,7 @@ async function processChunkedRender(projectData: VideoProjectWithMeta) {
             totalChunks: renderProgress.totalChunks,
             completedChunks: renderProgress.completedChunks,
             currentChunk: renderProgress.currentChunk,
-            percent: renderProgress.overallPercent,
+            percent: newPercent,
             message: renderProgress.message,
             startedAt: startTime,
             lastUpdateAt: Date.now(),
