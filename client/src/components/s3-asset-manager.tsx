@@ -69,32 +69,71 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
-function AudioPreview({ url, name }: { url: string; name: string }) {
+function AudioPreview({ fileKey, name }: { fileKey: string; name: string }) {
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const toggle = useCallback(() => {
+  const toggle = useCallback(async () => {
     if (!audioRef.current) return;
     if (playing) {
       audioRef.current.pause();
-    } else {
-      audioRef.current.play();
+      setPlaying(false);
+      return;
     }
-    setPlaying(!playing);
-  }, [playing]);
+
+    if (!audioRef.current.src || audioRef.current.src === window.location.href) {
+      setLoading(true);
+      setError(false);
+      try {
+        const res = await fetch(`/api/admin/s3-assets/preview-url?key=${encodeURIComponent(fileKey)}`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to get preview URL');
+        const data = await res.json();
+        audioRef.current.src = data.url;
+        audioRef.current.load();
+      } catch {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      await audioRef.current.play();
+      setPlaying(true);
+    } catch {
+      setError(true);
+    }
+    setLoading(false);
+  }, [playing, fileKey]);
 
   return (
     <div className="flex items-center gap-2">
       <audio
         ref={audioRef}
-        src={url}
         onEnded={() => setPlaying(false)}
-        onError={() => setPlaying(false)}
+        onError={() => { setPlaying(false); setError(true); setLoading(false); }}
+        onCanPlayThrough={() => setLoading(false)}
       />
-      <Button variant="ghost" size="sm" onClick={toggle} className="h-8 w-8 p-0">
-        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={toggle}
+        disabled={loading}
+        className={`h-8 w-8 p-0 ${error ? 'text-red-400' : ''}`}
+        title={error ? 'Could not play - file may be a silent placeholder' : 'Play audio'}
+      >
+        {loading ? (
+          <RefreshCw className="h-4 w-4 animate-spin" />
+        ) : playing ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
       </Button>
       <span className="text-sm truncate max-w-[200px]">{name}</span>
+      {error && <span className="text-xs text-red-400">(silent/placeholder)</span>}
     </div>
   );
 }
@@ -120,7 +159,7 @@ function FileRow({ file, category, onDelete, validation }: { file: S3File; categ
           </div>
         )}
         {isAudio ? (
-          <AudioPreview url={file.url} name={file.name} />
+          <AudioPreview fileKey={file.key} name={file.name} />
         ) : (
           !isImage && <span className="text-sm truncate">{file.name}</span>
         )}
@@ -183,7 +222,7 @@ export default function S3AssetManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (key: string) => {
-      const res = await apiRequest('DELETE', '/api/admin/s3-assets/delete', { key });
+      const res = await apiRequest('POST', '/api/admin/s3-assets/delete', { key });
       return res.json();
     },
     onSuccess: (_, key) => {

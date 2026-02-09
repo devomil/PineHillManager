@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, DeleteObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { isAuthenticated, requireRole } from '../auth';
 
@@ -108,7 +108,33 @@ router.post('/upload-url', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/delete', async (req: Request, res: Response) => {
+router.get('/preview-url', async (req: Request, res: Response) => {
+  try {
+    const key = req.query.key as string;
+    if (!key) {
+      return res.status(400).json({ error: 'key is required' });
+    }
+
+    const allowedPrefixes = Object.values(ASSET_CATEGORIES).map(c => c.prefix);
+    const isAllowed = allowedPrefixes.some(p => key.startsWith(p));
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Key is not within an allowed prefix' });
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+    });
+
+    const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    res.json({ url });
+  } catch (error: any) {
+    console.error('[S3Assets] Preview URL error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/delete', async (req: Request, res: Response) => {
   try {
     const { key } = req.body;
 
