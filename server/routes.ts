@@ -8102,36 +8102,6 @@ Output the script with section markers in brackets.`;
     }
   });
 
-  // One-time sync for September 2025 data (TEMPORARY FOR DEVELOPMENT)
-  const syncSeptemberData = async () => {
-    try {
-      console.log('🔄 DEVELOPMENT: Auto-syncing September 2025 sales data...');
-      const allCloverConfigs = await storage.getAllCloverConfigs();
-      const activeConfigs = allCloverConfigs.filter(config => config.isActive);
-      
-      for (const config of activeConfigs) {
-        try {
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(config);
-          
-          console.log(`🔄 Syncing September 2025 sales for ${config.merchantName || 'Unknown Merchant'}...`);
-          await cloverIntegration.syncOrdersComprehensive({ 
-            startDate: '2025-09-01',
-            endDate: '2025-09-30'
-          });
-          console.log(`✅ Successfully synced ${config.merchantName || 'Unknown Merchant'}`);
-        } catch (error) {
-          console.error(`❌ Error syncing sales for ${config.merchantName || 'Unknown Merchant'}:`, error);
-        }
-      }
-      console.log('🔄 September 2025 data sync complete!');
-    } catch (error) {
-      console.error('❌ Error in September sync:', error);
-    }
-  };
-
-  // Trigger sync immediately
-  setTimeout(syncSeptemberData, 2000);
 
   // Sync inventory costs from Clover using enhanced inventory endpoints
   app.post('/api/accounting/sync-inventory', isAuthenticated, async (req, res) => {
