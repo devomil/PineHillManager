@@ -3,6 +3,10 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = "development";
+}
+
 function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -177,7 +181,7 @@ app.use((req, res, next) => {
   }
 
   // Setup Vite integration for React app
-  if (process.env.NODE_ENV === "development") {
+  if (process.env.NODE_ENV !== "production") {
     // Temporarily set NODE_ENV to production to prevent cartographer plugin from loading and breaking HMR
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
