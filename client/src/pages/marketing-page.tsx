@@ -192,28 +192,34 @@ export default function MarketingPage() {
         </div>
 
         <Tabs defaultValue="universal-producer" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="universal-producer" className="flex items-center gap-2" data-testid="tab-universal-producer">
-              <Wand2 className="h-4 w-4" />
-              Video Studio
-            </TabsTrigger>
-            <TabsTrigger value="api-playground" className="flex items-center gap-2" data-testid="tab-api-playground">
-              <FlaskConical className="h-4 w-4" />
-              API Playground
-            </TabsTrigger>
-            <TabsTrigger value="asset-library" className="flex items-center gap-2" data-testid="tab-asset-library">
-              <Image className="h-4 w-4" />
-              Assets
-            </TabsTrigger>
-            <TabsTrigger value="generator" className="flex items-center gap-2" data-testid="tab-qr-generator">
-              <Plus className="h-4 w-4" />
-              QR Codes
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2" data-testid="tab-qr-history">
-              <History className="h-4 w-4" />
-              QR History
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-5">
+              <TabsTrigger value="universal-producer" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-universal-producer">
+                <Wand2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Video Studio</span>
+                <span className="sm:hidden">Studio</span>
+              </TabsTrigger>
+              <TabsTrigger value="api-playground" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-api-playground">
+                <FlaskConical className="h-4 w-4" />
+                <span className="hidden sm:inline">API Playground</span>
+                <span className="sm:hidden">API</span>
+              </TabsTrigger>
+              <TabsTrigger value="asset-library" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-asset-library">
+                <Image className="h-4 w-4" />
+                Assets
+              </TabsTrigger>
+              <TabsTrigger value="generator" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-qr-generator">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">QR Codes</span>
+                <span className="sm:hidden">QR</span>
+              </TabsTrigger>
+              <TabsTrigger value="history" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-qr-history">
+                <History className="h-4 w-4" />
+                <span className="hidden sm:inline">QR History</span>
+                <span className="sm:hidden">History</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="universal-producer" className="space-y-6">
             <UniversalVideoProducer />

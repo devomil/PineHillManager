@@ -289,7 +289,7 @@ export default function ProviderTestingPlayground() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-200px)] gap-4">
+    <div className="flex h-[calc(100vh-320px)] min-h-[500px] gap-4">
       <div className="w-64 flex-shrink-0 border rounded-lg overflow-hidden bg-slate-950">
         <div className="p-3 border-b border-slate-800">
           <h3 className="font-medium text-white">Providers</h3>
