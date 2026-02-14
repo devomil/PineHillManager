@@ -4209,10 +4209,8 @@ Make sure durations add up exactly to ${input.duration} seconds.`;
         const sceneDuration = scene.duration || 5;
         const textOverlays = generateTextOverlays(textRequirement, sceneDuration, fps);
         
-        // Convert to the format expected by Remotion composition
-        if (!preparedProject.scenes[i].textOverlays) {
-          preparedProject.scenes[i].textOverlays = [];
-        }
+        // Reset text overlays to prevent accumulation on retries
+        preparedProject.scenes[i].textOverlays = [];
         
         // Add generated text overlays to scene
         textOverlays.forEach((overlay) => {
