@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,9 @@ import {
   XCircle,
   Clock,
   ChevronRight,
-  Settings2
+  Settings2,
+  Download,
+  Save
 } from 'lucide-react';
 
 interface VideoProvider {
@@ -71,6 +73,7 @@ interface TaskResult {
 
 export default function ProviderTestingPlayground() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedCategory, setSelectedCategory] = useState<'video' | 'image'>('video');
   const [selectedProvider, setSelectedProvider] = useState<string>('');
@@ -266,6 +269,69 @@ export default function ProviderTestingPlayground() {
     setImageUrl('');
     setCurrentTaskId(null);
     setTaskResult(null);
+  };
+
+  const saveAssetMutation = useMutation({
+    mutationFn: async (data: { url: string; name: string; type: string; provider: string; prompt: string; duration?: number; cost?: number }) => {
+      const response = await apiRequest('POST', '/api/provider-test/save-asset', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/media-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/videos/assets'] });
+      toast({
+        title: 'Saved to Assets',
+        description: 'Media has been saved to your asset library.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Save Failed',
+        description: error.message || 'Failed to save asset.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleSaveToAssets = () => {
+    if (!taskResult?.result?.url) return;
+    const assetName = `${selectedProviderInfo?.name || selectedProvider} - ${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}`;
+    saveAssetMutation.mutate({
+      url: taskResult.result.url,
+      name: assetName,
+      type: selectedCategory,
+      provider: selectedProvider,
+      prompt,
+      duration: taskResult.result.duration,
+      cost: taskResult.result.cost,
+    });
+  };
+
+  const handleDownload = async () => {
+    if (!taskResult?.result?.url) return;
+    try {
+      const response = await fetch(taskResult.result.url);
+      const blob = await response.blob();
+      const ext = selectedCategory === 'video' ? 'mp4' : 'png';
+      const filename = `${selectedProvider}_${Date.now()}.${ext}`;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast({
+        title: 'Download Started',
+        description: `Downloading ${filename}`,
+      });
+    } catch {
+      toast({
+        title: 'Download Failed',
+        description: 'Could not download the file.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const selectedProviderInfo = selectedCategory === 'video'
@@ -600,28 +666,54 @@ export default function ProviderTestingPlayground() {
             )}
 
             {taskResult?.result?.url && (
-              <div className="rounded-lg overflow-hidden bg-slate-900 border border-slate-700">
-                {selectedCategory === 'video' ? (
-                  <video
-                    src={taskResult.result.url}
-                    controls
-                    className="w-full aspect-video object-contain bg-black"
-                    autoPlay
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    src={taskResult.result.url}
-                    alt="Generated"
-                    className="w-full aspect-video object-contain bg-black"
-                  />
-                )}
-                {taskResult.result.cost && (
-                  <div className="p-2 bg-slate-800 text-xs text-slate-400 flex justify-between">
-                    <span>Generation cost: ${taskResult.result.cost.toFixed(4)}</span>
-                    {taskResult.result.duration && <span>Duration: {taskResult.result.duration}s</span>}
-                  </div>
-                )}
+              <div className="space-y-3">
+                <div className="rounded-lg overflow-hidden bg-slate-900 border border-slate-700">
+                  {selectedCategory === 'video' ? (
+                    <video
+                      src={taskResult.result.url}
+                      controls
+                      className="w-full aspect-video object-contain bg-black"
+                      autoPlay
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={taskResult.result.url}
+                      alt="Generated"
+                      className="w-full aspect-video object-contain bg-black"
+                    />
+                  )}
+                  {taskResult.result.cost && (
+                    <div className="p-2 bg-slate-800 text-xs text-slate-400 flex justify-between">
+                      <span>Generation cost: ${taskResult.result.cost.toFixed(4)}</span>
+                      {taskResult.result.duration && <span>Duration: {taskResult.result.duration}s</span>}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSaveToAssets}
+                    disabled={saveAssetMutation.isPending}
+                    className="flex-1"
+                    size="sm"
+                  >
+                    {saveAssetMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Save to Assets
+                  </Button>
+                  <Button
+                    onClick={handleDownload}
+                    variant="outline"
+                    className="flex-1"
+                    size="sm"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
               </div>
             )}
 

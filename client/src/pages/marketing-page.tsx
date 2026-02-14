@@ -201,8 +201,8 @@ export default function MarketingPage() {
               </TabsTrigger>
               <TabsTrigger value="api-playground" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-api-playground">
                 <FlaskConical className="h-4 w-4" />
-                <span className="hidden sm:inline">API Playground</span>
-                <span className="sm:hidden">API</span>
+                <span className="hidden sm:inline">Asset Generation</span>
+                <span className="sm:hidden">Generate</span>
               </TabsTrigger>
               <TabsTrigger value="asset-library" className="flex items-center gap-2 whitespace-nowrap" data-testid="tab-asset-library">
                 <Image className="h-4 w-4" />
