@@ -540,8 +540,10 @@ class PiAPIVideoService {
         }
 
         if (status === 'failed' || status === 'error' || status === 'FAILED') {
-          const errorMsg = data.data?.error || data.error || 'Generation failed';
-          return { success: false, error: errorMsg };
+          const errorMsg = data.data?.error || data.data?.message || data.data?.error_message || data.error || data.message || 'Generation failed';
+          const errorDetail = data.data?.error_detail || data.data?.raw_message || '';
+          console.error(`[PiAPI:${model}] Generation failed:`, JSON.stringify({ error: errorMsg, detail: errorDetail, rawData: data.data }, null, 2));
+          return { success: false, error: errorDetail ? `${errorMsg} - ${errorDetail}` : errorMsg };
         }
 
       } catch (error: any) {
