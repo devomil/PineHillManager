@@ -156,30 +156,6 @@ app.use((req, res, next) => {
   bigcommerceInventorySyncService.startScheduledSync();
   log('📦 BigCommerce inventory sync scheduler initialized', 'bigcommerce-sync');
 
-  // Spawn dedicated video service as detached process (survives main server restarts)
-  const net = await import('net');
-  const isVideoServiceRunning = await new Promise<boolean>((resolve) => {
-    const sock = new net.Socket();
-    sock.setTimeout(1000);
-    sock.on('connect', () => { sock.destroy(); resolve(true); });
-    sock.on('error', () => { sock.destroy(); resolve(false); });
-    sock.on('timeout', () => { sock.destroy(); resolve(false); });
-    sock.connect(5001, '127.0.0.1');
-  });
-
-  if (isVideoServiceRunning) {
-    log('📹 Video service already running on port 5001 (reusing)', 'video-service');
-  } else {
-    const { spawn } = await import('child_process');
-    const videoProc = spawn('npx', ['tsx', 'server/video-service.ts'], {
-      detached: true,
-      stdio: 'inherit',
-      env: { ...process.env },
-    });
-    videoProc.unref();
-    log(`📹 Video service spawned as detached process (PID: ${videoProc.pid})`, 'video-service');
-  }
-
   // Setup Vite integration for React app
   if (process.env.NODE_ENV !== "production") {
     const { setupVite } = await import("./vite");

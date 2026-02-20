@@ -25578,41 +25578,6 @@ Important:
   const homerRoutes = await import('./routes/homer-routes');
   app.use('/api/homer', homerRoutes.default);
 
-  // ================================
-  // UNIVERSAL VIDEO PRODUCTION ROUTES (proxied to dedicated video service on port 5001)
-  // ================================
-  const http = await import('http');
-  app.use('/api/universal-video', (req: any, res: any) => {
-    const VIDEO_SERVICE_URL = 'http://127.0.0.1:5001';
-    const targetUrl = `${VIDEO_SERVICE_URL}${req.originalUrl}`;
-
-    const proxyReq = http.request(targetUrl, {
-      method: req.method,
-      headers: {
-        ...req.headers,
-        host: '127.0.0.1:5001',
-      },
-    }, (proxyRes: any) => {
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res);
-    });
-
-    proxyReq.on('error', (err: any) => {
-      console.error(`[video-proxy] Error proxying to video service: ${err.message}`);
-      if (!res.headersSent) {
-        res.status(502).json({ error: 'Video service unavailable. It may still be starting up.' });
-      }
-    });
-
-    if (req.body && ['POST', 'PUT', 'PATCH'].includes(req.method)) {
-      const bodyStr = JSON.stringify(req.body);
-      proxyReq.setHeader('content-type', 'application/json');
-      proxyReq.setHeader('content-length', Buffer.byteLength(bodyStr));
-      proxyReq.write(bodyStr);
-    }
-
-    proxyReq.end();
-  });
 
   // ================================
   // SUPPORT CENTER ROUTES
