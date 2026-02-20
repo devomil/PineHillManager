@@ -35,7 +35,6 @@ import EmployeeSupport from "@/pages/employee-support";
 import UserManagement from "@/pages/user-management";
 import AccountingDashboard from "@/pages/accounting-dashboard";
 import IntegrationsPage from "@/pages/integrations-page";
-import MarketingPage from "@/pages/marketing-page";
 import InventoryPage from "@/pages/inventory";
 import OrdersPage from "@/pages/orders";
 import NotFound from "@/pages/not-found";
@@ -117,11 +116,6 @@ function AuthenticatedApp() {
       <Route path="/admin/integrations">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <IntegrationsPage />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/admin/marketing">
-        <ProtectedRoute allowedRoles={['admin', 'manager']}>
-          <MarketingPage />
         </ProtectedRoute>
       </Route>
       <Route path="/shift-scheduling">
