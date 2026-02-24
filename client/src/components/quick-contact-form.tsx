@@ -187,7 +187,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
         <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
 
           {/* Service Needed */}
-          <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 p-5 rounded-lg">
+          <div className="bg-gradient-to-br from-blue-50 via-sky-100 to-indigo-100 dark:from-blue-950/40 dark:via-sky-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-900 dark:text-blue-100">
               <Stethoscope className="h-5 w-5" />
               Service Needed
@@ -234,7 +234,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Status */}
-          <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 p-5 rounded-lg">
+          <div className="bg-gradient-to-br from-amber-50 via-yellow-100 to-orange-100 dark:from-amber-950/40 dark:via-yellow-900/30 dark:to-orange-900/30 border border-yellow-200 dark:border-yellow-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100">
               <ClipboardCheck className="h-5 w-5" />
               Status
@@ -263,7 +263,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Client Information */}
-          <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 p-5 rounded-lg">
+          <div className="bg-gradient-to-br from-emerald-50 via-green-100 to-teal-100 dark:from-emerald-950/40 dark:via-green-900/30 dark:to-teal-900/30 border border-green-200 dark:border-green-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 dark:text-green-100">
               <User className="h-5 w-5" />
               Client Information
@@ -365,7 +365,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Practitioner Claim */}
-          <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 p-5 rounded-lg">
+          <div className="bg-gradient-to-br from-violet-50 via-purple-100 to-fuchsia-100 dark:from-violet-950/40 dark:via-purple-900/30 dark:to-fuchsia-900/30 border border-purple-200 dark:border-purple-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100">
               <Users className="h-5 w-5" />
               Practitioner Claim
