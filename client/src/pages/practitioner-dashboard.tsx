@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil } from "lucide-react";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search } from "lucide-react";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
 
@@ -32,6 +32,7 @@ export default function PractitionerDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [practitionerFilter, setPractitionerFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedContact, setSelectedContact] = useState<PractitionerContact | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -47,9 +48,17 @@ export default function PractitionerDashboard() {
     queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, assignedTo: practitionerFilter }],
   });
 
-  // Filter contacts into active and archived
-  const activeContacts = contacts.filter(c => c.status !== 'completed' && c.status !== 'cancelled');
-  const archivedContacts = contacts.filter(c => c.status === 'completed' || c.status === 'cancelled');
+  const matchesSearch = (c: PractitionerContact) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const fullName = `${c.clientFirstName || ''} ${c.clientLastName || ''}`.toLowerCase();
+    const phone = (c.clientPhone || '').toLowerCase();
+    const email = (c.clientEmail || '').toLowerCase();
+    return fullName.includes(q) || phone.includes(q) || email.includes(q);
+  };
+
+  const activeContacts = contacts.filter(c => c.status !== 'completed' && c.status !== 'cancelled').filter(matchesSearch);
+  const archivedContacts = contacts.filter(c => c.status === 'completed' || c.status === 'cancelled').filter(matchesSearch);
 
   const { data: stats } = useQuery<{
     total: number;
@@ -170,7 +179,27 @@ export default function PractitionerDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="w-64">
+                <label className="text-sm font-medium mb-1 block">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Name, phone, or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="w-48">
                 <label className="text-sm font-medium mb-1 block">Status</label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
