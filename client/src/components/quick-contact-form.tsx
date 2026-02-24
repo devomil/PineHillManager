@@ -326,15 +326,41 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
               </div>
             </div>
             <div className="mt-4 space-y-1.5">
-              <Label htmlFor="clientComment" className={labelClass}>Comment / Quick Call Customer Concern</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="clientComment" className={labelClass}>Comment / Quick Call Customer Concern</Label>
+                <span className={`text-xs font-medium tabular-nums ${
+                  formData.clientComment.length === 0
+                    ? "text-gray-400"
+                    : formData.clientComment.length <= 300
+                    ? "text-green-600 dark:text-green-400"
+                    : formData.clientComment.length <= 450
+                    ? "text-yellow-600 dark:text-yellow-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}>
+                  {formData.clientComment.length} / 500
+                </span>
+              </div>
               <Textarea
                 id="clientComment"
                 placeholder="Enter any comments or customer concerns..."
                 value={formData.clientComment}
-                onChange={(e) => setFormData(prev => ({ ...prev, clientComment: e.target.value }))}
+                onChange={(e) => {
+                  if (e.target.value.length <= 500) {
+                    setFormData(prev => ({ ...prev, clientComment: e.target.value }));
+                  }
+                }}
                 rows={3}
                 className={textareaClass}
               />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {formData.clientComment.length === 0
+                  ? "Aim for 300 characters or less for a concise summary."
+                  : formData.clientComment.length <= 300
+                  ? "Good length — clear and concise."
+                  : formData.clientComment.length <= 450
+                  ? "Getting long — consider trimming if possible."
+                  : "Approaching the 500 character limit."}
+              </p>
             </div>
           </div>
 
