@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import UserAvatar from "@/components/user-avatar";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check, FileText, Download } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check, FileText, Download, Archive } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -826,6 +826,8 @@ function CommunicationsContent() {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("announcements");
+  const [showArchivedAnnouncements, setShowArchivedAnnouncements] = useState(false);
+  const [showArchivedMessages, setShowArchivedMessages] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -963,6 +965,15 @@ function CommunicationsContent() {
     gcTime: 0,
   });
   console.log("📊 React Query data - communicationMessages:", communicationMessages.length, "items, loading:", messagesLoading);
+
+  const { data: archivedIds = { announcementIds: [], messageIds: [] } } = useQuery<{ announcementIds: number[], messageIds: number[] }>({
+    queryKey: ["/api/communications/archived-ids"],
+    queryFn: async () => {
+      const response = await fetch("/api/communications/archived-ids", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch archived IDs");
+      return response.json();
+    },
+  });
 
   // Combine legacy announcements with new announcement-type messages and group messages
   const announcements = [
@@ -1116,6 +1127,17 @@ function CommunicationsContent() {
     }
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: async ({ type, id, action }: { type: 'announcements' | 'messages', id: number, action: 'archive' | 'unarchive' }) => {
+      const method = action === 'archive' ? 'POST' : 'DELETE';
+      return apiRequest(method, `/api/communications/${type}/${id}/archive`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/communications/archived-ids"] });
+      toast({ title: "Success", description: "Updated successfully" });
+    },
+  });
+
   // Phase 6: Create scheduled message mutation
   const createScheduledMessageMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1204,14 +1226,21 @@ function CommunicationsContent() {
 
   // Filter announcements
   const getFilteredAnnouncements = () => {
-    const activeAnnouncements = announcements.filter(announcement => !isExpired(announcement.expiresAt || undefined));
+    let filtered = announcements.filter(announcement => !isExpired(announcement.expiresAt || undefined));
     
-    if (selectedFilter === "all") return activeAnnouncements;
-    if (selectedFilter === "important") return activeAnnouncements.filter(a => a.priority === "urgent" || a.priority === "high");
-    if (selectedFilter === "general") return activeAnnouncements.filter(a => a.priority === "normal" || a.priority === "low");
-    if (selectedFilter === "policy") return activeAnnouncements.filter(a => a.title.toLowerCase().includes("policy"));
+    if (selectedFilter === "important") filtered = filtered.filter(a => a.priority === "urgent" || a.priority === "high");
+    else if (selectedFilter === "general") filtered = filtered.filter(a => a.priority === "normal" || a.priority === "low");
+    else if (selectedFilter === "policy") filtered = filtered.filter(a => a.title.toLowerCase().includes("policy"));
     
-    return activeAnnouncements;
+    filtered = filtered.filter(a => {
+      const isMsg = typeof a.id === 'string' && String(a.id).startsWith('msg_');
+      const numId = isMsg ? parseInt(String(a.id).replace('msg_', '')) : Number(a.id);
+      const archivedList = isMsg ? archivedIds.messageIds : archivedIds.announcementIds;
+      const isArchived = archivedList.includes(numId);
+      return showArchivedAnnouncements ? isArchived : !isArchived;
+    });
+    
+    return filtered;
   };
 
   const filteredAnnouncements = getFilteredAnnouncements();
@@ -1836,25 +1865,37 @@ function CommunicationsContent() {
         {/* Announcements Tab */}
         <TabsContent value="announcements" className="space-y-6">
           {/* Header with Mark All as Read */}
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Current Announcements</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  await apiRequest('POST', '/api/communications/mark-all-announcements-read');
-                  // Refresh unread counts
-                  queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
-                } catch (error) {
-                  console.error('Failed to mark all announcements as read:', error);
-                }
-              }}
-              className="flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              <span>Mark All Read</span>
-            </Button>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold">{showArchivedAnnouncements ? "Archived Announcements" : "Current Announcements"}</h3>
+              <Button
+                variant={showArchivedAnnouncements ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowArchivedAnnouncements(!showArchivedAnnouncements)}
+                className="flex items-center gap-1.5"
+              >
+                <Archive className="w-4 h-4" />
+                <span>{showArchivedAnnouncements ? "Show Active" : "Show Archived"}</span>
+              </Button>
+            </div>
+            {!showArchivedAnnouncements && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await apiRequest('POST', '/api/communications/mark-all-announcements-read');
+                    queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
+                  } catch (error) {
+                    console.error('Failed to mark all announcements as read:', error);
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                <span>Mark All Read</span>
+              </Button>
+            )}
           </div>
           
           {/* Mobile-First Filter Buttons */}
@@ -1941,9 +1982,9 @@ function CommunicationsContent() {
             <Card>
               <CardContent className="text-center py-12">
                 <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No matching announcements</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{showArchivedAnnouncements ? "No archived announcements yet" : "No matching announcements"}</h3>
                 <p className="text-gray-500">
-                  There are no announcements matching your current filter.
+                  {showArchivedAnnouncements ? "Archived announcements will appear here." : "There are no announcements matching your current filter."}
                 </p>
               </CardContent>
             </Card>
@@ -2088,6 +2129,27 @@ function CommunicationsContent() {
                               {format(parseISO(announcement.expiresAt), "MMM d")}
                             </span>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const isMsg = typeof announcement.id === 'string' && String(announcement.id).startsWith('msg_');
+                              const numId = isMsg ? parseInt(String(announcement.id).replace('msg_', '')) : Number(announcement.id);
+                              const type = isMsg ? 'messages' : 'announcements';
+                              const archivedList = isMsg ? archivedIds.messageIds : archivedIds.announcementIds;
+                              const isArchived = archivedList.includes(numId);
+                              archiveMutation.mutate({ type: type as 'announcements' | 'messages', id: numId, action: isArchived ? 'unarchive' : 'archive' });
+                            }}
+                            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
+                          >
+                            <Archive className="w-4 h-4" />
+                            <span className="text-xs">{(() => {
+                              const isMsg = typeof announcement.id === 'string' && String(announcement.id).startsWith('msg_');
+                              const numId = isMsg ? parseInt(String(announcement.id).replace('msg_', '')) : Number(announcement.id);
+                              const archivedList = isMsg ? archivedIds.messageIds : archivedIds.announcementIds;
+                              return archivedList.includes(numId) ? 'Unarchive' : 'Archive';
+                            })()}</span>
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
@@ -2174,25 +2236,37 @@ function CommunicationsContent() {
         {/* Messages Tab */}
         <TabsContent value="messages">
           {/* Header with Mark All as Read */}
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Direct Messages</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  await apiRequest('POST', '/api/communications/mark-all-messages-read');
-                  // Refresh unread counts
-                  queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
-                } catch (error) {
-                  console.error('Failed to mark all messages as read:', error);
-                }
-              }}
-              className="flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              <span>Mark All Read</span>
-            </Button>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold">{showArchivedMessages ? "Archived Messages" : "Direct Messages"}</h3>
+              <Button
+                variant={showArchivedMessages ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowArchivedMessages(!showArchivedMessages)}
+                className="flex items-center gap-1.5"
+              >
+                <Archive className="w-4 h-4" />
+                <span>{showArchivedMessages ? "Show Active" : "Show Archived"}</span>
+              </Button>
+            </div>
+            {!showArchivedMessages && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await apiRequest('POST', '/api/communications/mark-all-messages-read');
+                    queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
+                  } catch (error) {
+                    console.error('Failed to mark all messages as read:', error);
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                <span>Mark All Read</span>
+              </Button>
+            )}
           </div>
           
           {messagesLoading ? (
@@ -2204,6 +2278,10 @@ function CommunicationsContent() {
             <div className="space-y-4">
               {communicationMessages
                 .filter(msg => msg.messageType === 'direct_message')
+                .filter(msg => {
+                  const isArchived = archivedIds.messageIds.includes(msg.id);
+                  return showArchivedMessages ? isArchived : !isArchived;
+                })
                 .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
                 .map((message) => (
                   <Card key={message.id} className="shadow-sm hover:shadow-md transition-shadow">
@@ -2319,21 +2397,40 @@ function CommunicationsContent() {
                           <Calendar className="h-4 w-4 mr-1" />
                           Sent {format(parseISO(message.sentAt), "MMM d, yyyy 'at' h:mm a")}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          To: {formatMessageAudience(message, employees)}
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500">
+                            To: {formatMessageAudience(message, employees)}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const isArchived = archivedIds.messageIds.includes(message.id);
+                              archiveMutation.mutate({ type: 'messages', id: message.id, action: isArchived ? 'unarchive' : 'archive' });
+                            }}
+                            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
+                          >
+                            <Archive className="w-4 h-4" />
+                            <span className="text-xs">{archivedIds.messageIds.includes(message.id) ? 'Unarchive' : 'Archive'}</span>
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               
-              {communicationMessages.filter(msg => msg.messageType === 'direct_message').length === 0 && (
+              {communicationMessages
+                .filter(msg => msg.messageType === 'direct_message')
+                .filter(msg => {
+                  const isArchived = archivedIds.messageIds.includes(msg.id);
+                  return showArchivedMessages ? isArchived : !isArchived;
+                }).length === 0 && (
                 <Card>
                   <CardContent className="text-center py-12">
                     <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Messages Yet</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">{showArchivedMessages ? "No archived messages yet" : "No Messages Yet"}</h3>
                     <p className="text-gray-500">
-                      Direct messages will appear here once you start sending them.
+                      {showArchivedMessages ? "Archived messages will appear here." : "Direct messages will appear here once you start sending them."}
                     </p>
                   </CardContent>
                 </Card>

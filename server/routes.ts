@@ -57,7 +57,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -6949,6 +6949,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error marking all announcements as read:', error);
       res.status(500).json({ error: 'Failed to mark all announcements as read' });
+    }
+  });
+
+  // ================================
+  // ARCHIVE ROUTES (per-user archive for announcements and messages)
+  // ================================
+
+  app.post('/api/communications/announcements/:id/archive', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const announcementId = parseInt(req.params.id);
+      await db.insert(announcementArchives).values({ announcementId, userId }).onConflictDoNothing();
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error archiving announcement:', error);
+      res.status(500).json({ error: 'Failed to archive announcement' });
+    }
+  });
+
+  app.delete('/api/communications/announcements/:id/archive', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const announcementId = parseInt(req.params.id);
+      await db.delete(announcementArchives).where(and(eq(announcementArchives.announcementId, announcementId), eq(announcementArchives.userId, userId)));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error unarchiving announcement:', error);
+      res.status(500).json({ error: 'Failed to unarchive announcement' });
+    }
+  });
+
+  app.post('/api/communications/messages/:id/archive', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const messageId = parseInt(req.params.id);
+      await db.insert(messageArchives).values({ messageId, userId }).onConflictDoNothing();
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error archiving message:', error);
+      res.status(500).json({ error: 'Failed to archive message' });
+    }
+  });
+
+  app.delete('/api/communications/messages/:id/archive', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const messageId = parseInt(req.params.id);
+      await db.delete(messageArchives).where(and(eq(messageArchives.messageId, messageId), eq(messageArchives.userId, userId)));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error unarchiving message:', error);
+      res.status(500).json({ error: 'Failed to unarchive message' });
+    }
+  });
+
+  app.get('/api/communications/archived-ids', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const archivedAnnouncements = await db.select({ announcementId: announcementArchives.announcementId }).from(announcementArchives).where(eq(announcementArchives.userId, userId));
+      const archivedMessages = await db.select({ messageId: messageArchives.messageId }).from(messageArchives).where(eq(messageArchives.userId, userId));
+      res.json({
+        announcementIds: archivedAnnouncements.map(a => a.announcementId),
+        messageIds: archivedMessages.map(m => m.messageId),
+      });
+    } catch (error) {
+      console.error('Error fetching archived IDs:', error);
+      res.status(500).json({ error: 'Failed to fetch archived IDs' });
     }
   });
 

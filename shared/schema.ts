@@ -622,6 +622,30 @@ export const readReceipts = pgTable("read_receipts", {
   uniqueReceiptPerUser: unique("unique_receipt_per_user").on(table.messageId, table.userId),
 }));
 
+// Per-user archive tracking for announcements
+export const announcementArchives = pgTable("announcement_archives", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  archivedAt: timestamp("archived_at").defaultNow(),
+}, (table) => ({
+  announcementUserIdx: index("idx_announcement_archives_announcement_user").on(table.announcementId, table.userId),
+  userIdx: index("idx_announcement_archives_user").on(table.userId),
+  uniqueArchivePerUser: unique("unique_announcement_archive_per_user").on(table.announcementId, table.userId),
+}));
+
+// Per-user archive tracking for direct messages
+export const messageArchives = pgTable("message_archives", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  archivedAt: timestamp("archived_at").defaultNow(),
+}, (table) => ({
+  messageUserIdx: index("idx_message_archives_message_user").on(table.messageId, table.userId),
+  userIdx: index("idx_message_archives_user").on(table.userId),
+  uniqueArchivePerUser: unique("unique_message_archive_per_user").on(table.messageId, table.userId),
+}));
+
 // Phase 3: Voice Messages
 export const voiceMessages = pgTable("voice_messages", {
   id: serial("id").primaryKey(),
@@ -1780,6 +1804,10 @@ export type CommunicationAttachment = typeof communicationAttachments.$inferSele
 export type InsertCommunicationAttachment = z.infer<typeof insertCommunicationAttachmentSchema>;
 export type MessageTemplate = typeof messageTemplates.$inferSelect;
 export type InsertMessageTemplate = typeof messageTemplates.$inferInsert;
+export type AnnouncementArchive = typeof announcementArchives.$inferSelect;
+export type InsertAnnouncementArchive = typeof announcementArchives.$inferInsert;
+export type MessageArchive = typeof messageArchives.$inferSelect;
+export type InsertMessageArchive = typeof messageArchives.$inferInsert;
 
 
 
