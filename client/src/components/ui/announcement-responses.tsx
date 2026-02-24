@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import UserAvatar from '@/components/user-avatar';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +19,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { apiRequest } from '@/lib/queryClient';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { MentionInput, renderMentionText } from '@/components/ui/mention-input';
 
 interface Response {
   id: number;
@@ -234,12 +234,11 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
               </div>
 
               {/* Content Input */}
-              <Textarea
+              <MentionInput
                 value={responseContent}
-                onChange={(e) => setResponseContent(e.target.value)}
-                placeholder="Share your thoughts, ask a question, or provide feedback..."
+                onChange={(val) => setResponseContent(val)}
+                placeholder="Share your thoughts or type @ to mention someone..."
                 rows={3}
-                className="resize-none"
               />
 
               {/* Actions */}
@@ -318,7 +317,7 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                             hasLongContent && !isExpanded && "line-clamp-3"
                           )}
                         >
-                          {response.content}
+                          {renderMentionText(response.content)}
                         </div>
                         
                         {hasLongContent && (

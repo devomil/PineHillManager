@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import UserAvatar from "@/components/user-avatar";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Edit2, Trash2, Search, X, Check, FileText, Download, Archive } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Edit2, Trash2, Search, X, Check, FileText, Download, Archive, AtSign } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
@@ -833,6 +833,15 @@ function CommunicationsContent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // Unread mentions query
+  const { data: unreadMentions = [] } = useQuery<any[]>({
+    queryKey: ['/api/mentions/unread'],
+  });
+  const markAllMentionsRead = useMutation({
+    mutationFn: () => apiRequest('PATCH', '/api/mentions/read-all'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/mentions/unread'] }),
+  });
+
   // WebSocket integration for real-time updates
   const { isConnected } = useWebSocket();
   
@@ -1795,6 +1804,40 @@ function CommunicationsContent() {
           </div>
         </div>
       </div>
+
+      {/* Mentions Notification Banner */}
+      {unreadMentions.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 rounded-full p-2">
+              <AtSign className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                You have {unreadMentions.length} unread {unreadMentions.length === 1 ? 'mention' : 'mentions'}
+              </p>
+              <p className="text-xs text-blue-700">
+                {unreadMentions.slice(0, 2).map((m: any, i: number) => (
+                  <span key={m.id}>
+                    {i > 0 && ', '}
+                    {m.mentionedBy?.firstName} {m.mentionedBy?.lastName} mentioned you
+                  </span>
+                ))}
+                {unreadMentions.length > 2 && ` and ${unreadMentions.length - 2} more`}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => markAllMentionsRead.mutate()}
+            className="text-blue-700 border-blue-300 hover:bg-blue-100"
+          >
+            <Check className="w-3 h-3 mr-1" />
+            Mark all read
+          </Button>
+        </div>
+      )}
 
       {/* Mobile-First Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">

@@ -742,6 +742,27 @@ export const responses: PgTableWithColumns<any> = pgTable("responses", {
   readIdx: index("idx_responses_read").on(table.isRead),
 }));
 
+// @mentions in responses/comments
+export const mentions = pgTable("mentions", {
+  id: serial("id").primaryKey(),
+  responseId: integer("response_id").notNull().references(() => responses.id, { onDelete: 'cascade' }),
+  mentionedUserId: varchar("mentioned_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentionedByUserId: varchar("mentioned_by_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  announcementId: integer("announcement_id").references(() => announcements.id, { onDelete: 'cascade' }),
+  messageId: integer("message_id").references(() => messages.id, { onDelete: 'cascade' }),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  responseIdx: index("idx_mentions_response").on(table.responseId),
+  mentionedUserIdx: index("idx_mentions_mentioned_user").on(table.mentionedUserId),
+  mentionedByIdx: index("idx_mentions_mentioned_by").on(table.mentionedByUserId),
+  readIdx: index("idx_mentions_read").on(table.isRead),
+}));
+
+export const insertMentionSchema = createInsertSchema(mentions).omit({ id: true, createdAt: true });
+export type InsertMention = z.infer<typeof insertMentionSchema>;
+export type Mention = typeof mentions.$inferSelect;
+
 // SMS delivery tracking for compliance and monitoring
 export const smsDeliveries = pgTable("sms_deliveries", {
   id: serial("id").primaryKey(),

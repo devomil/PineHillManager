@@ -21,7 +21,7 @@ The frontend uses React 18 with TypeScript and Vite, styled with Tailwind CSS an
 
 ### Feature Specifications
 -   **Time Management**: Includes clock in/out, break tracking, multi-location scheduling, time off requests, manual entry, "Scheduled vs Actual Hours" reporting, a drag-and-drop scheduling interface, PDF schedule generation, and a shift swap system with SMS notifications.
--   **Communication & Support**: Mobile-first SMS-integrated team messaging with interactive responses and real-time integration via WebSockets. Support ticket system with SMS notifications.
+-   **Communication & Support**: Mobile-first SMS-integrated team messaging with interactive responses and real-time integration via WebSockets. Support ticket system with SMS notifications. Per-user archive, edit/delete for admin/manager, and @mention system for tagging employees in response comments with in-app notification banner.
 -   **Document Management**: Role-based access, upload, categorization, permissions, and audit trails.
 -   **Inventory Management**: Integrates Clover POS and Thrive for a unified dashboard, real-time sync, profitability analytics, and enhanced CSV import.
 -   **Order Management**: Comprehensive order processing with real-time analytics, payment tracking, and performance insights. Includes automated marketplace order sync from BigCommerce and Amazon Seller Central using SP-API.

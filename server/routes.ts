@@ -57,7 +57,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages, mentions, responses } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -7132,6 +7132,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Created announcement response: ${response.id} for announcement ${announcementId} by user ${authorId}`);
 
+      // Process @mentions from response content
+      try {
+        const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+        let mentionMatch;
+        while ((mentionMatch = mentionRegex.exec(content)) !== null) {
+          const mentionedUserId = mentionMatch[2];
+          if (mentionedUserId !== authorId) {
+            await db.insert(mentions).values({
+              responseId: response.id,
+              mentionedUserId,
+              mentionedByUserId: authorId,
+              announcementId,
+              isRead: false,
+            });
+            console.log(`📌 Created mention for user ${mentionedUserId} in announcement response ${response.id}`);
+          }
+        }
+      } catch (mentionError) {
+        console.error('Error processing mentions:', mentionError);
+      }
+
       // Send SMS notifications for announcement responses
       try {
         // Get the original announcement for context
@@ -7337,6 +7358,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Created direct message response: ${response.id} for message ${messageId} by user ${authorId}`);
 
+      // Process @mentions from response content
+      try {
+        const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+        let mentionMatch;
+        while ((mentionMatch = mentionRegex.exec(content)) !== null) {
+          const mentionedUserId = mentionMatch[2];
+          if (mentionedUserId !== authorId) {
+            await db.insert(mentions).values({
+              responseId: response.id,
+              mentionedUserId,
+              mentionedByUserId: authorId,
+              messageId,
+              isRead: false,
+            });
+            console.log(`📌 Created mention for user ${mentionedUserId} in message response ${response.id}`);
+          }
+        }
+      } catch (mentionError) {
+        console.error('Error processing mentions:', mentionError);
+      }
+
       // Send SMS notifications to other participants in the direct message conversation
       try {
         // Get the original message to check if this is a direct message
@@ -7432,6 +7474,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking response as read:", error);
       res.status(500).json({ error: "Failed to mark response as read" });
+    }
+  });
+
+  // ================================
+  // @MENTION ROUTES
+  // ================================
+
+  app.get("/api/mentions/unread", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const unreadMentions = await db.select({
+        id: mentions.id,
+        responseId: mentions.responseId,
+        mentionedByUserId: mentions.mentionedByUserId,
+        announcementId: mentions.announcementId,
+        messageId: mentions.messageId,
+        isRead: mentions.isRead,
+        createdAt: mentions.createdAt,
+      }).from(mentions)
+        .where(and(eq(mentions.mentionedUserId, userId), eq(mentions.isRead, false)))
+        .orderBy(desc(mentions.createdAt));
+
+      const mentionsWithDetails = await Promise.all(unreadMentions.map(async (m) => {
+        const mentioner = await storage.getUser(m.mentionedByUserId);
+        const response = await storage.getResponseById(m.responseId);
+        return {
+          ...m,
+          mentionedBy: mentioner ? { firstName: mentioner.firstName, lastName: mentioner.lastName, profileImageUrl: mentioner.profileImageUrl } : null,
+          responseContent: response?.content || '',
+        };
+      }));
+
+      res.json(mentionsWithDetails);
+    } catch (error) {
+      console.error("Error fetching unread mentions:", error);
+      res.status(500).json({ error: "Failed to fetch unread mentions" });
+    }
+  });
+
+  app.patch("/api/mentions/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const [updated] = await db.update(mentions)
+        .set({ isRead: true })
+        .where(and(eq(mentions.id, parseInt(id)), eq(mentions.mentionedUserId, userId)))
+        .returning();
+      if (!updated) {
+        return res.status(404).json({ error: "Mention not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error marking mention as read:", error);
+      res.status(500).json({ error: "Failed to mark mention as read" });
+    }
+  });
+
+  app.patch("/api/mentions/read-all", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      await db.update(mentions)
+        .set({ isRead: true })
+        .where(and(eq(mentions.mentionedUserId, userId), eq(mentions.isRead, false)));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking all mentions as read:", error);
+      res.status(500).json({ error: "Failed to mark mentions as read" });
     }
   });
 
