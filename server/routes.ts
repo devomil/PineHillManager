@@ -57,7 +57,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -7016,6 +7016,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching archived IDs:', error);
       res.status(500).json({ error: 'Failed to fetch archived IDs' });
+    }
+  });
+
+  // ================================
+  // EDIT & DELETE ROUTES (Admin/Manager only)
+  // ================================
+
+  app.patch('/api/communications/announcements/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only admins and managers can edit announcements' });
+      }
+      const announcementId = parseInt(req.params.id);
+      if (isNaN(announcementId)) return res.status(400).json({ error: 'Invalid announcement ID' });
+
+      const { title, content } = req.body;
+      const updates: any = { editedAt: new Date(), editedBy: user.id };
+      if (title !== undefined) updates.title = title;
+      if (content !== undefined) updates.content = content;
+
+      const [updated] = await db.update(announcements).set(updates).where(eq(announcements.id, announcementId)).returning();
+      if (!updated) return res.status(404).json({ error: 'Announcement not found' });
+      res.json(updated);
+    } catch (error) {
+      console.error('Error editing announcement:', error);
+      res.status(500).json({ error: 'Failed to edit announcement' });
+    }
+  });
+
+  app.patch('/api/communications/messages/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only admins and managers can edit messages' });
+      }
+      const messageId = parseInt(req.params.id);
+      if (isNaN(messageId)) return res.status(400).json({ error: 'Invalid message ID' });
+
+      const { subject, content } = req.body;
+      const updates: any = { editedAt: new Date(), editedBy: user.id };
+      if (subject !== undefined) updates.subject = subject;
+      if (content !== undefined) updates.content = content;
+
+      const [updated] = await db.update(messages).set(updates).where(eq(messages.id, messageId)).returning();
+      if (!updated) return res.status(404).json({ error: 'Message not found' });
+      res.json(updated);
+    } catch (error) {
+      console.error('Error editing message:', error);
+      res.status(500).json({ error: 'Failed to edit message' });
+    }
+  });
+
+  app.delete('/api/communications/messages/:id/recall', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only admins and managers can delete messages' });
+      }
+      const messageId = parseInt(req.params.id);
+      if (isNaN(messageId)) return res.status(400).json({ error: 'Invalid message ID' });
+
+      await db.delete(messageArchives).where(eq(messageArchives.messageId, messageId));
+      await db.delete(messages).where(eq(messages.id, messageId));
+      res.json({ success: true, message: 'Message recalled successfully' });
+    } catch (error) {
+      console.error('Error recalling message:', error);
+      res.status(500).json({ error: 'Failed to recall message' });
     }
   });
 

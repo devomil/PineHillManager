@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import UserAvatar from "@/components/user-avatar";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check, FileText, Download, Archive } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Edit2, Trash2, Search, X, Check, FileText, Download, Archive } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -899,6 +900,13 @@ function CommunicationsContent() {
   const [scheduledEmployeeSearchQuery, setScheduledEmployeeSearchQuery] = useState('');
   const [showScheduledEmployeeSelector, setShowScheduledEmployeeSelector] = useState(false);
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ type: 'announcement' | 'message'; id: number; title: string; content: string } | null>(null);
+  const [deletingItem, setDeletingItem] = useState<{ type: 'announcement' | 'message'; id: number; title: string } | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+
   // 🧪 DIAGNOSTIC: Test backend IMMEDIATELY when component renders
   console.log("🧪 DIAGNOSTIC: Component is rendering - about to fetch /api/messages");
   const [diagnosticRan, setDiagnosticRan] = useState(false);
@@ -990,6 +998,7 @@ function CommunicationsContent() {
         expiresAt: null, // New messages don't have expiration
         targetAudience: msg.targetAudience || 'all',
         messageType: msg.messageType,
+        editedAt: msg.editedAt || null,
         isNewMessage: true // Flag to identify new messages
       }))
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1135,6 +1144,43 @@ function CommunicationsContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/communications/archived-ids"] });
       toast({ title: "Success", description: "Updated successfully" });
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ type, id, data }: { type: 'announcements' | 'messages'; id: number; data: any }) => {
+      return apiRequest('PATCH', `/api/communications/${type}/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements/published'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
+      setEditDialogOpen(false);
+      setEditingItem(null);
+      toast({ title: "Updated", description: "Successfully updated" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ type, id }: { type: 'announcement' | 'message'; id: number }) => {
+      if (type === 'announcement') {
+        return apiRequest('DELETE', `/api/announcements/${id}`);
+      } else {
+        return apiRequest('DELETE', `/api/communications/messages/${id}/recall`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements/published'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/communications/archived-ids'] });
+      setDeleteDialogOpen(false);
+      setDeletingItem(null);
+      toast({ title: "Deleted", description: "Successfully recalled/deleted" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
     },
   });
 
@@ -2116,6 +2162,9 @@ function CommunicationsContent() {
                               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                               Published {format(parseISO(announcement.createdAt), "MMM d")}
                               <span className="hidden sm:inline">, {format(parseISO(announcement.createdAt), "yyyy")}</span>
+                              {(announcement as any).editedAt && (
+                                <span className="text-xs text-gray-400 italic ml-2">(edited)</span>
+                              )}
                             </span>
                             <span className="flex items-center">
                               {getTargetAudienceIcon(announcement.targetAudience)}
@@ -2150,6 +2199,49 @@ function CommunicationsContent() {
                               return archivedList.includes(numId) ? 'Unarchive' : 'Archive';
                             })()}</span>
                           </Button>
+                          {(user?.role === 'admin' || user?.role === 'manager') && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const isMsg = typeof announcement.id === 'string' && String(announcement.id).startsWith('msg_');
+                                  const numId = isMsg ? parseInt(String(announcement.id).replace('msg_', '')) : Number(announcement.id);
+                                  setEditingItem({
+                                    type: isMsg ? 'message' : 'announcement',
+                                    id: numId,
+                                    title: announcement.title || '',
+                                    content: announcement.content || '',
+                                  });
+                                  setEditTitle(announcement.title || '');
+                                  setEditContent(announcement.content || '');
+                                  setEditDialogOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 text-blue-500 hover:text-blue-700"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                <span className="text-xs">Edit</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const isMsg = typeof announcement.id === 'string' && String(announcement.id).startsWith('msg_');
+                                  const numId = isMsg ? parseInt(String(announcement.id).replace('msg_', '')) : Number(announcement.id);
+                                  setDeletingItem({
+                                    type: isMsg ? 'message' : 'announcement',
+                                    id: numId,
+                                    title: announcement.title || 'Untitled',
+                                  });
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 text-red-500 hover:text-red-700"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="text-xs">Delete</span>
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -2396,6 +2488,9 @@ function CommunicationsContent() {
                         <div className="flex items-center text-sm text-gray-500">
                           <Calendar className="h-4 w-4 mr-1" />
                           Sent {format(parseISO(message.sentAt), "MMM d, yyyy 'at' h:mm a")}
+                          {message.editedAt && (
+                            <span className="text-xs text-gray-400 italic ml-2">(edited)</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-sm text-gray-500">
@@ -2413,6 +2508,45 @@ function CommunicationsContent() {
                             <Archive className="w-4 h-4" />
                             <span className="text-xs">{archivedIds.messageIds.includes(message.id) ? 'Unarchive' : 'Archive'}</span>
                           </Button>
+                          {(user?.role === 'admin' || user?.role === 'manager') && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingItem({
+                                    type: 'message',
+                                    id: message.id,
+                                    title: message.subject || '',
+                                    content: message.content || '',
+                                  });
+                                  setEditTitle(message.subject || '');
+                                  setEditContent(message.content || '');
+                                  setEditDialogOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 text-blue-500 hover:text-blue-700"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                <span className="text-xs">Edit</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setDeletingItem({
+                                    type: 'message',
+                                    id: message.id,
+                                    title: message.subject || 'Direct Message',
+                                  });
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 text-red-500 hover:text-red-700"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="text-xs">Delete</span>
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -2712,6 +2846,73 @@ function CommunicationsContent() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit {editingItem?.type === 'announcement' ? 'Announcement' : 'Message'}</DialogTitle>
+            <DialogDescription>Update the content below. Changes will be visible to everyone.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>{editingItem?.type === 'announcement' ? 'Title' : 'Subject'}</Label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder={editingItem?.type === 'announcement' ? 'Announcement title' : 'Message subject'}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Content</Label>
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Content..."
+                rows={6}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!editingItem) return;
+                const type = editingItem.type === 'announcement' ? 'announcements' : 'messages';
+                const data = editingItem.type === 'announcement'
+                  ? { title: editTitle, content: editContent }
+                  : { subject: editTitle, content: editContent };
+                editMutation.mutate({ type, id: editingItem.id, data });
+              }}
+              disabled={editMutation.isPending}
+            >
+              {editMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deletingItem?.type === 'announcement' ? 'Announcement' : 'Message'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove "{deletingItem?.title}" for all users. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!deletingItem) return;
+                deleteMutation.mutate({ type: deletingItem.type, id: deletingItem.id });
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

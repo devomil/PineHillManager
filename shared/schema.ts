@@ -274,6 +274,8 @@ export const announcements = pgTable("announcements", {
   isPublished: boolean("is_published").default(false),
   publishedAt: timestamp("published_at"),
   expiresAt: timestamp("expires_at"),
+  editedAt: timestamp("edited_at"),
+  editedBy: varchar("edited_by"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   publishedCreatedIdx: index("idx_announcements_published_created").on(table.isPublished, table.createdAt),
@@ -569,6 +571,8 @@ export const messages = pgTable("messages", {
   targetAudience: varchar("target_audience"), // 'all', 'store:lake_geneva', 'store:watertown', 'role:admin', 'role:manager', 'role:employee'
   smsEnabled: boolean("sms_enabled").default(false), // Whether to send via SMS
   smsDelivered: boolean("sms_delivered").default(false), // Whether SMS was successfully delivered
+  editedAt: timestamp("edited_at"),
+  editedBy: varchar("edited_by"),
 }, (table) => ({
   recipientReadIdx: index("idx_messages_recipient_read").on(table.recipientId, table.isRead),
   channelIdx: index("idx_messages_channel").on(table.channelId),
