@@ -37,7 +37,10 @@ import {
   FileText,
   Zap,
   HelpCircle,
-  X
+  X,
+  Paperclip,
+  ImageIcon,
+  Upload
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -76,6 +79,7 @@ type Ticket = {
   status: string;
   submittedById: string;
   assignedToId: string | null;
+  attachmentUrls: string[] | null;
   resolutionNotes: string | null;
   resolvedAt: string | null;
   createdAt: string | null;
@@ -135,6 +139,8 @@ export default function EmployeeSupport() {
   const [ticketDescription, setTicketDescription] = useState("");
   const [ticketCategory, setTicketCategory] = useState("question");
   const [ticketPriority, setTicketPriority] = useState("normal");
+  const [ticketAttachments, setTicketAttachments] = useState<{ file: File; preview: string }[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
   
   // Floating action button state
   const [fabOpen, setFabOpen] = useState(false);
@@ -272,6 +278,66 @@ export default function EmployeeSupport() {
     setTicketDescription("");
     setTicketCategory("question");
     setTicketPriority("normal");
+    setTicketAttachments([]);
+    setUploadingAttachments(false);
+  };
+
+  const handleAttachmentFiles = (files: FileList | File[]) => {
+    const fileArr = Array.from(files);
+    const imageFiles = fileArr.filter(f => f.type.startsWith('image/'));
+    const newAttachments = imageFiles.slice(0, 5 - ticketAttachments.length).map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setTicketAttachments(prev => [...prev, ...newAttachments].slice(0, 5));
+  };
+
+  const removeAttachment = (index: number) => {
+    setTicketAttachments(prev => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleAttachmentPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'));
+    const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[];
+    if (files.length > 0) {
+      e.preventDefault();
+      handleAttachmentFiles(files);
+    }
+  };
+
+  const submitTicketWithAttachments = async () => {
+    if (!ticketTitle.trim() || !ticketDescription.trim()) return;
+    setUploadingAttachments(true);
+    try {
+      let attachmentUrls: string[] = [];
+      if (ticketAttachments.length > 0) {
+        const formData = new FormData();
+        ticketAttachments.forEach(({ file }) => formData.append('images', file));
+        const res = await fetch('/api/support/tickets/upload', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          attachmentUrls = data.imageUrls || [];
+        }
+      }
+      createTicketMutation.mutate({
+        title: ticketTitle,
+        description: ticketDescription,
+        category: ticketCategory,
+        priority: ticketPriority,
+        attachmentUrls,
+      });
+    } finally {
+      setUploadingAttachments(false);
+    }
   };
   
   // Quick ticket submission helpers
@@ -775,7 +841,7 @@ export default function EmployeeSupport() {
 
       {/* Create Ticket Modal */}
       <Dialog open={showTicketModal} onOpenChange={setShowTicketModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Submit Support Ticket</DialogTitle>
             <DialogDescription>
@@ -830,10 +896,67 @@ export default function EmployeeSupport() {
               <Textarea 
                 value={ticketDescription} 
                 onChange={(e) => setTicketDescription(e.target.value)}
-                placeholder="Please provide detailed information..."
+                onPaste={handleAttachmentPaste}
+                placeholder="Please provide detailed information... (you can also paste a screenshot here)"
                 rows={5}
                 data-testid="textarea-ticket-description"
               />
+            </div>
+
+            {/* Attachment Upload */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5" />
+                Attachments
+                <span className="text-xs text-gray-400 font-normal ml-1">(optional — up to 5 images)</span>
+              </label>
+
+              {/* Drop zone / browse button */}
+              {ticketAttachments.length < 5 && (
+                <label
+                  className="flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleAttachmentFiles(e.dataTransfer.files);
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => e.target.files && handleAttachmentFiles(e.target.files)}
+                  />
+                  <Upload className="h-5 w-5 text-gray-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                    Click to browse, drag & drop, or paste a screenshot
+                  </span>
+                  <span className="text-xs text-gray-400">PNG, JPG, GIF, WebP</span>
+                </label>
+              )}
+
+              {/* Thumbnail previews */}
+              {ticketAttachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {ticketAttachments.map((att, i) => (
+                    <div key={i} className="relative group">
+                      <img
+                        src={att.preview}
+                        alt={`Attachment ${i + 1}`}
+                        className="h-20 w-20 object-cover rounded-md border border-gray-200 dark:border-gray-700"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(i)}
+                        className="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           
@@ -842,17 +965,12 @@ export default function EmployeeSupport() {
               Cancel
             </Button>
             <Button 
-              onClick={() => createTicketMutation.mutate({
-                title: ticketTitle,
-                description: ticketDescription,
-                category: ticketCategory,
-                priority: ticketPriority,
-              })}
-              disabled={!ticketTitle.trim() || !ticketDescription.trim() || createTicketMutation.isPending}
+              onClick={submitTicketWithAttachments}
+              disabled={!ticketTitle.trim() || !ticketDescription.trim() || createTicketMutation.isPending || uploadingAttachments}
               data-testid="button-submit-ticket"
             >
-              {createTicketMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Submit Ticket
+              {(createTicketMutation.isPending || uploadingAttachments) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {uploadingAttachments ? "Uploading..." : createTicketMutation.isPending ? "Submitting..." : "Submit Ticket"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1255,6 +1373,26 @@ function TicketCard({
           <span>Submitted by {ticket.submitterName}</span>
           <span>{ticket.createdAt ? format(new Date(ticket.createdAt), 'MMM d, yyyy') : 'Unknown'}</span>
         </div>
+
+        {ticket.attachmentUrls && ticket.attachmentUrls.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
+              <Paperclip className="h-3 w-3" />
+              Attachments ({ticket.attachmentUrls.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ticket.attachmentUrls.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={url}
+                    alt={`Attachment ${i + 1}`}
+                    className="h-20 w-20 object-cover rounded-md border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         
         {ticket.resolutionNotes && (
           <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">

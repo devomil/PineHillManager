@@ -25879,10 +25879,44 @@ Important:
     }
   });
 
+  // Upload images for support tickets
+  app.post('/api/support/tickets/upload', isAuthenticated, upload.array('images', 5), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+
+      const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      const imageUrls: string[] = [];
+
+      for (const file of files) {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!allowedExts.includes(ext)) {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          continue;
+        }
+        const newFileName = `ticket_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`;
+        const newPath = path.join(uploadsDir, newFileName);
+        fs.renameSync(file.path, newPath);
+        imageUrls.push(`/uploads/${newFileName}`);
+      }
+
+      if (imageUrls.length === 0) {
+        return res.status(400).json({ error: 'No valid image files found' });
+      }
+
+      res.json({ success: true, imageUrls });
+    } catch (error) {
+      console.error('Error uploading ticket images:', error);
+      res.status(500).json({ error: 'Failed to upload images' });
+    }
+  });
+
   // Create ticket (any authenticated user)
   app.post('/api/support/tickets', isAuthenticated, async (req, res) => {
     try {
-      const { title, description, category, priority } = req.body;
+      const { title, description, category, priority, attachmentUrls } = req.body;
       
       if (!title?.trim() || !description?.trim() || !category) {
         return res.status(400).json({ error: 'Title, description, and category are required' });
@@ -25894,6 +25928,7 @@ Important:
         category,
         priority: priority || 'normal',
         submittedById: req.user!.id,
+        attachmentUrls: Array.isArray(attachmentUrls) && attachmentUrls.length > 0 ? attachmentUrls : null,
       });
       
       res.status(201).json(ticket);
