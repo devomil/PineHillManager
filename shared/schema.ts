@@ -5897,6 +5897,9 @@ export const supportTickets = pgTable("support_tickets", {
   // Assignee (typically Ryan)
   assignedToId: varchar("assigned_to_id").references(() => users.id),
   
+  // Attachments
+  attachmentUrls: text("attachment_urls").array(),
+  
   // Resolution
   resolutionNotes: text("resolution_notes"),
   resolvedAt: timestamp("resolved_at"),
