@@ -2028,12 +2028,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Admin employee management methods
-  async createEmployee(employeeData: any): Promise<User> {
-    // Clean up empty date fields to avoid database errors
-    const cleanedData = { ...employeeData };
-    if (cleanedData.hireDate === '') {
-      cleanedData.hireDate = null;
+  private sanitizeEmployeeData(data: any): any {
+    const cleaned = { ...data };
+    // Null-out empty date strings
+    if (cleaned.hireDate === '') cleaned.hireDate = null;
+    // Null-out empty decimal/numeric fields so Postgres doesn't receive ""
+    const numericFields = ['defaultEntryCost', 'hourlyRate', 'employeePurchaseCap', 'employeePurchaseCostMarkup', 'employeePurchaseRetailDiscount'];
+    for (const field of numericFields) {
+      if (cleaned[field] === '' || cleaned[field] === null || cleaned[field] === undefined) {
+        cleaned[field] = null;
+      }
     }
+    return cleaned;
+  }
+
+  async createEmployee(employeeData: any): Promise<User> {
+    const cleanedData = this.sanitizeEmployeeData(employeeData);
     
     const [user] = await db
       .insert(users)
@@ -2048,11 +2058,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateEmployee(id: string, employeeData: any): Promise<User> {
-    // Clean up empty date fields to avoid database errors
-    const cleanedData = { ...employeeData };
-    if (cleanedData.hireDate === '') {
-      cleanedData.hireDate = null;
-    }
+    const cleanedData = this.sanitizeEmployeeData(employeeData);
     
     const [user] = await db
       .update(users)
