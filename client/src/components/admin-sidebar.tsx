@@ -155,7 +155,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
         )}
       </div>
 
-      {/* Quick Contact Button */}
+      {/* Client Connect Button */}
       <div className="p-4 border-b">
         <Button
           onClick={() => { setQuickContactOpen(true); if (isMobile) setIsMobileOpen(false); }}
@@ -166,7 +166,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
           data-testid="button-quick-contact-admin"
         >
           <Phone className={cn("h-5 w-5", !isCollapsed && "mr-2")} />
-          {(!isCollapsed || isMobile) && "Quick Contact"}
+          {(!isCollapsed || isMobile) && "Client Connect"}
         </Button>
       </div>
 
