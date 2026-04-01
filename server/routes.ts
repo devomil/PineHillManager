@@ -55,7 +55,7 @@ import {
   insertPurchaseOrderEventSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne, ilike } from "drizzle-orm";
 import { db } from "./db";
 import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages, mentions, responses } from "@shared/schema";
 
@@ -26113,7 +26113,7 @@ Important:
   // Get all practitioner contacts (with optional filters)
   app.get('/api/practitioner-contacts', isAuthenticated, async (req, res) => {
     try {
-      const { status, serviceType, assignedTo } = req.query;
+      const { status, serviceType, assignedTo, programType } = req.query;
       
       let query = db.select().from(practitionerContacts);
       const conditions = [];
@@ -26126,6 +26126,9 @@ Important:
       }
       if (assignedTo && assignedTo !== 'all') {
         conditions.push(eq(practitionerContacts.assignedPractitionerId, assignedTo as string));
+      }
+      if (programType && programType !== 'all') {
+        conditions.push(ilike(practitionerContacts.scanType, `%${programType}%`));
       }
       
       const contacts = conditions.length > 0

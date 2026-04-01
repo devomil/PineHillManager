@@ -99,6 +99,7 @@ export default function PractitionerDashboard() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [programTypeFilter, setProgramTypeFilter] = useState<string>("all");
   const [practitionerFilter, setPractitionerFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedContact, setSelectedContact] = useState<PractitionerContact | null>(null);
@@ -113,7 +114,7 @@ export default function PractitionerDashboard() {
   });
 
   const { data: contacts = [], isLoading: contactsLoading, refetch } = useQuery<PractitionerContact[]>({
-    queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, assignedTo: practitionerFilter }],
+    queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, programType: programTypeFilter, assignedTo: practitionerFilter }],
   });
 
   const matchesSearch = (c: PractitionerContact) => {
@@ -279,6 +280,21 @@ export default function PractitionerDashboard() {
                     {statusTypes.map(st => (
                       <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-48">
+                <label className="text-sm font-medium mb-1 block">Program Type</label>
+                <Select value={programTypeFilter} onValueChange={setProgramTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Programs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Programs</SelectItem>
+                    <SelectItem value="Remote Initial Scan">Remote Initial Scan</SelectItem>
+                    <SelectItem value="Follow-Up Scan">Follow-Up Scan</SelectItem>
+                    <SelectItem value="Pet Scan">Pet Scan</SelectItem>
+                    <SelectItem value="Quick Calls">Quick Calls</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
