@@ -166,12 +166,12 @@ export default function PractitionerDashboard() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { className: string; icon: any; label: string }> = {
-      pending:      { className: "bg-amber-100 text-amber-800 border border-amber-300",    icon: Clock,      label: "Pending" },
-      in_progress:  { className: "bg-blue-100 text-blue-800 border border-blue-300",       icon: AlertCircle, label: "In Progress" },
-      awaiting_dna: { className: "bg-orange-100 text-orange-800 border border-orange-300", icon: Hourglass,  label: "Awaiting DNA" },
-      dna_received: { className: "bg-purple-100 text-purple-800 border border-purple-300", icon: Dna,        label: "DNA Received" },
-      completed:    { className: "bg-green-100 text-green-800 border border-green-300",    icon: CheckCircle, label: "Completed" },
-      cancelled:    { className: "bg-gray-100 text-gray-700 border border-gray-300",       icon: XCircle,    label: "Cancelled" },
+      pending:              { className: "bg-amber-100 text-amber-800 border border-amber-300",    icon: Clock,       label: "Pending" },
+      pending_awaiting_dna: { className: "bg-orange-100 text-orange-800 border border-orange-300", icon: Hourglass,   label: "Pending - Awaiting DNA" },
+      pending_dna_received: { className: "bg-purple-100 text-purple-800 border border-purple-300", icon: Dna,         label: "Pending - DNA Received" },
+      in_progress:          { className: "bg-blue-100 text-blue-800 border border-blue-300",       icon: AlertCircle, label: "In Progress" },
+      completed:            { className: "bg-green-100 text-green-800 border border-green-300",    icon: CheckCircle, label: "Completed" },
+      cancelled:            { className: "bg-gray-100 text-gray-700 border border-gray-300",       icon: XCircle,     label: "Cancelled" },
     };
     const config = statusConfig[status] || statusConfig.pending;
     const Icon = config.icon;
