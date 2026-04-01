@@ -4,19 +4,51 @@ import { isAuthenticated, requireRole } from '../auth';
 const router = Router();
 const PB_BASE_URL = 'https://api.practicebetter.io';
 
-function getApiToken(): string {
-  const token = process.env.PRACTICEBETTER_ID;
-  if (!token) throw new Error('PRACTICEBETTER_ID environment variable is not configured');
-  return token;
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+async function getPBToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.token;
+  }
+
+  const clientId = process.env.PRACTICEBETTER_ID;
+  const clientSecret = process.env.PRACTICEBETTER_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('PracticeBetter credentials not configured');
+  }
+
+  const res = await fetch(`${PB_BASE_URL}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+    }).toString(),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PracticeBetter auth failed (${res.status}): ${text}`);
+  }
+
+  const data = await res.json() as { access_token: string; expires_in?: number };
+  cachedToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + ((data.expires_in ?? 3600) * 1000) - 60_000,
+  };
+
+  return cachedToken.token;
 }
 
 async function pbFetch(path: string, options: RequestInit = {}): Promise<globalThis.Response> {
-  const token = getApiToken();
+  const token = await getPBToken();
   return fetch(`${PB_BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': token,
+      'Authorization': `Bearer ${token}`,
       ...(options.headers ?? {}),
     },
   });
