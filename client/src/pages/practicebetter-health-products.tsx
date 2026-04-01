@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import AdminLayout from "@/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +28,12 @@ interface HealthProduct {
 
 export default function PBHealthProductsPage() {
   const [, setLocation] = useLocation();
+  const searchStr = useSearch();
+  const urlRecordId = new URLSearchParams(searchStr).get("recordId");
   const [search, setSearch] = useState("");
-  const [selectedRecord, setSelectedRecord] = useState<ClientRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<ClientRecord | null>(
+    urlRecordId ? { id: urlRecordId, first_name: "Loading", last_name: "..." } : null
+  );
   const [productSearch, setProductSearch] = useState("");
 
   const { data: recordsData, isLoading: recordsLoading, refetch } = useQuery<{ data: ClientRecord[] }>({
@@ -40,6 +44,13 @@ export default function PBHealthProductsPage() {
       return res.json();
     },
   });
+
+  // Auto-select the client when records load if recordId was in the URL
+  useEffect(() => {
+    if (!urlRecordId || !recordsData?.data) return;
+    const match = recordsData.data.find((r) => r.id === urlRecordId);
+    if (match) setSelectedRecord(match);
+  }, [recordsData, urlRecordId]);
 
   const { data: products, isLoading: productsLoading, error: productsError } = useQuery<HealthProduct[]>({
     queryKey: ["/api/practicebetter/medical-history/health-products", selectedRecord?.id],

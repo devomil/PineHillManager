@@ -222,7 +222,7 @@ export default function PractitionerDashboard() {
         {/* Quick Links — PracticeBetter pages */}
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Links</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               { label: "Client Records", icon: <Users className="h-5 w-5" />, colorCls: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400", path: "/practitioner/client-records" },
               { label: "Medical History", icon: <ClipboardList className="h-5 w-5" />, colorCls: "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400", path: "/practitioner/medical-history" },

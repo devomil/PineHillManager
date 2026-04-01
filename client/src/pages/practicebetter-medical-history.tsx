@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import AdminLayout from "@/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,10 +31,14 @@ interface MedicalHistory {
 
 export default function PBMedicalHistoryPage() {
   const [, setLocation] = useLocation();
+  const searchStr = useSearch();
+  const urlRecordId = new URLSearchParams(searchStr).get("recordId");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [selectedRecord, setSelectedRecord] = useState<ClientRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<ClientRecord | null>(
+    urlRecordId ? { id: urlRecordId, first_name: "Loading", last_name: "..." } : null
+  );
   const [editOpen, setEditOpen] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   const [editSymptoms, setEditSymptoms] = useState("");
@@ -47,6 +51,13 @@ export default function PBMedicalHistoryPage() {
       return res.json();
     },
   });
+
+  // When client list loads, replace placeholder with the real record name
+  useEffect(() => {
+    if (!urlRecordId || !recordsData?.data) return;
+    const match = recordsData.data.find((r) => r.id === urlRecordId);
+    if (match) setSelectedRecord(match);
+  }, [recordsData, urlRecordId]);
 
   const { data: history, isLoading: historyLoading, error: historyError } = useQuery<MedicalHistory>({
     queryKey: ["/api/practicebetter/medical-history", selectedRecord?.id],
