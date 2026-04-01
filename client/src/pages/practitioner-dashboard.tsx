@@ -233,18 +233,18 @@ export default function PractitionerDashboard() {
               <CardTitle className="text-sm font-medium text-yellow-600">Pending</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-6">
-                <div>
+              <div className="flex items-end justify-center gap-6">
+                <div className="text-center">
                   <div className="text-xs font-medium text-yellow-600 mb-1">Pending</div>
                   <div className="text-2xl font-bold text-yellow-600">{stats?.byStatus?.pending || 0}</div>
                 </div>
                 <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
-                <div>
+                <div className="text-center">
                   <div className="text-xs font-medium text-orange-500 mb-1">Awaiting DNA</div>
                   <div className="text-2xl font-bold text-orange-500">{stats?.byStatus?.pending_awaiting_dna || 0}</div>
                 </div>
                 <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
-                <div>
+                <div className="text-center">
                   <div className="text-xs font-medium text-purple-500 mb-1">DNA Received</div>
                   <div className="text-2xl font-bold text-purple-500">{stats?.byStatus?.pending_dna_received || 0}</div>
                 </div>
