@@ -65,6 +65,27 @@ function buildQuery(params: Record<string, string | undefined>): string {
 
 const protect = [isAuthenticated, requireRole(['admin', 'manager'])];
 
+// ── Helpers: normalize PB record shapes ───────────────────────────────────────
+
+function normalizeRecord(item: any) {
+  const p = item.profile ?? {};
+  return {
+    id: item.id,
+    first_name: p.firstName ?? '',
+    last_name: p.lastName ?? '',
+    email: p.emailAddress ?? null,
+    phone_number: p.phoneNumber ?? p.mobilePhone ?? null,
+    date_of_birth: p.dateOfBirth ?? null,
+    gender: p.gender ?? null,
+    is_active: item.isActive ?? true,
+    status: item.status ?? null,
+    created_at: item.dateCreated ?? null,
+    modified_at: item.dateModified ?? null,
+    patient_account_number: p.patientAccountNumber ?? null,
+    time_zone: p.timeZone ?? null,
+  };
+}
+
 // ── Client Records ────────────────────────────────────────────────────────────
 
 router.get('/client-records', ...protect, async (req: Request, res: ExpressResponse) => {
@@ -72,9 +93,13 @@ router.get('/client-records', ...protect, async (req: Request, res: ExpressRespo
     const { after_id, before_id, client, details, search } = req.query as Record<string, string>;
     const qs = buildQuery({ after_id, before_id, client, details, search });
     const pbRes = await pbFetch(`/consultant/records${qs}`);
-    const data = await pbRes.json();
-    if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    res.json(data);
+    const raw = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(raw);
+    res.json({
+      data: (raw.items ?? []).map(normalizeRecord),
+      has_more: raw.hasMore ?? false,
+      count: raw.count ?? 0,
+    });
   } catch (err: any) {
     console.error('[PB] client-records error:', err.message);
     res.status(500).json({ error: err.message });
@@ -84,9 +109,9 @@ router.get('/client-records', ...protect, async (req: Request, res: ExpressRespo
 router.get('/client-records/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/records/${req.params.recordId}`);
-    const data = await pbRes.json();
-    if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    res.json(data);
+    const raw = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(raw);
+    res.json(normalizeRecord(raw));
   } catch (err: any) {
     console.error('[PB] client-record get error:', err.message);
     res.status(500).json({ error: err.message });
