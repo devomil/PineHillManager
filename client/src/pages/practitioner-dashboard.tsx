@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search } from "lucide-react";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search, Dna, Hourglass } from "lucide-react";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
 
@@ -165,18 +165,20 @@ export default function PractitionerDashboard() {
   });
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
-      pending: { variant: "secondary", icon: Clock },
-      in_progress: { variant: "default", icon: AlertCircle },
-      completed: { variant: "outline", icon: CheckCircle },
-      cancelled: { variant: "destructive", icon: XCircle },
+    const statusConfig: Record<string, { className: string; icon: any; label: string }> = {
+      pending:      { className: "bg-amber-100 text-amber-800 border border-amber-300",    icon: Clock,      label: "Pending" },
+      in_progress:  { className: "bg-blue-100 text-blue-800 border border-blue-300",       icon: AlertCircle, label: "In Progress" },
+      awaiting_dna: { className: "bg-orange-100 text-orange-800 border border-orange-300", icon: Hourglass,  label: "Awaiting DNA" },
+      dna_received: { className: "bg-purple-100 text-purple-800 border border-purple-300", icon: Dna,        label: "DNA Received" },
+      completed:    { className: "bg-green-100 text-green-800 border border-green-300",    icon: CheckCircle, label: "Completed" },
+      cancelled:    { className: "bg-gray-100 text-gray-700 border border-gray-300",       icon: XCircle,    label: "Cancelled" },
     };
     const config = statusConfig[status] || statusConfig.pending;
     const Icon = config.icon;
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
+      <Badge className={`flex items-center gap-1 font-medium ${config.className}`}>
         <Icon className="h-3 w-3" />
-        {status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+        {config.label}
       </Badge>
     );
   };
@@ -537,12 +539,14 @@ export default function PractitionerDashboard() {
                                   });
                                 }}
                               >
-                                <SelectTrigger className="w-32">
-                                  <SelectValue />
+                                <SelectTrigger className="w-36 h-auto py-1 px-2">
+                                  <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="w-44">
                                   {statusTypes.map(st => (
-                                    <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                                    <SelectItem key={st.value} value={st.value}>
+                                      <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                    </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
@@ -844,12 +848,14 @@ export default function PractitionerDashboard() {
                                   });
                                 }}
                               >
-                                <SelectTrigger className="w-32">
-                                  <SelectValue />
+                                <SelectTrigger className="w-36 h-auto py-1 px-2">
+                                  <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="w-44">
                                   {statusTypes.map(st => (
-                                    <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                                    <SelectItem key={st.value} value={st.value}>
+                                      <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                    </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
