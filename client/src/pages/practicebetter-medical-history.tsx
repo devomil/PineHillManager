@@ -12,11 +12,19 @@ import { ArrowLeft, Search, RefreshCw, User, ClipboardList, Pencil, Plus } from 
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+interface PBProfile {
+  firstName: string;
+  lastName: string;
+  emailAddress?: string;
+  phoneNumber?: string;
+  patientAccountNumber?: string;
+}
+
 interface ClientRecord {
   id: string;
-  first_name: string;
-  last_name: string;
-  email?: string;
+  profile: PBProfile;
+  isActive?: boolean;
+  dateCreated?: string;
 }
 
 interface MedicalHistory {
@@ -37,13 +45,13 @@ export default function PBMedicalHistoryPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<ClientRecord | null>(
-    urlRecordId ? { id: urlRecordId, first_name: "Loading", last_name: "..." } : null
+    urlRecordId ? { id: urlRecordId, profile: { firstName: "Loading", lastName: "..." } } : null
   );
   const [editOpen, setEditOpen] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   const [editSymptoms, setEditSymptoms] = useState("");
 
-  const { data: recordsData, isLoading: recordsLoading, refetch } = useQuery<{ data: ClientRecord[] }>({
+  const { data: recordsData, isLoading: recordsLoading, refetch } = useQuery<{ items: ClientRecord[]; hasMore: boolean }>({
     queryKey: ["/api/practicebetter/client-records", "medical-list"],
     queryFn: async () => {
       const res = await fetch("/api/practicebetter/client-records?details=false");
@@ -54,8 +62,8 @@ export default function PBMedicalHistoryPage() {
 
   // When client list loads, replace placeholder with the real record name
   useEffect(() => {
-    if (!urlRecordId || !recordsData?.data) return;
-    const match = recordsData.data.find((r) => r.id === urlRecordId);
+    if (!urlRecordId || !recordsData?.items) return;
+    const match = recordsData.items.find((r) => r.id === urlRecordId);
     if (match) setSelectedRecord(match);
   }, [recordsData, urlRecordId]);
 
@@ -96,11 +104,12 @@ export default function PBMedicalHistoryPage() {
     },
   });
 
-  const records: ClientRecord[] = recordsData?.data ?? [];
+  const records: ClientRecord[] = recordsData?.items ?? [];
   const filtered = records.filter((r) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q);
+    const name = `${r.profile?.firstName ?? ""} ${r.profile?.lastName ?? ""}`.toLowerCase();
+    return name.includes(q) || (r.profile?.emailAddress ?? "").toLowerCase().includes(q);
   });
 
   const openEdit = () => {
@@ -187,8 +196,8 @@ export default function PBMedicalHistoryPage() {
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div>
-                            <div className="text-sm font-medium">{r.first_name} {r.last_name}</div>
-                            {r.email && <div className="text-xs text-muted-foreground">{r.email}</div>}
+                            <div className="text-sm font-medium">{r.profile?.firstName} {r.profile?.lastName}</div>
+                            {r.profile?.emailAddress && <div className="text-xs text-muted-foreground">{r.profile.emailAddress}</div>}
                           </div>
                         </div>
                       </button>
@@ -234,7 +243,7 @@ export default function PBMedicalHistoryPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>{selectedRecord.first_name} {selectedRecord.last_name}</CardTitle>
+                      <CardTitle>{selectedRecord.profile?.firstName} {selectedRecord.profile?.lastName}</CardTitle>
                       <CardDescription>Medical History Profile</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" onClick={openEdit}>
@@ -308,7 +317,7 @@ export default function PBMedicalHistoryPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              Edit Medical Profile — {selectedRecord?.first_name} {selectedRecord?.last_name}
+              Edit Medical Profile — {selectedRecord?.profile?.firstName} {selectedRecord?.profile?.lastName}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">

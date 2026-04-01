@@ -13,16 +13,32 @@ import { format } from "date-fns";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+// Exact shape PracticeBetter sends — never translate field names so round-trip writes stay valid
+interface PBProfile {
+  firstName: string;
+  lastName: string;
+  emailAddress?: string;
+  phoneNumber?: string;
+  mobilePhone?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  timeZone?: string;
+  patientAccountNumber?: string;
+  secondaryContacts?: unknown[];
+  emergencyContacts?: unknown[];
+  healthcareProviders?: unknown[];
+}
+
 interface PBRecord {
   id: string;
-  first_name: string;
-  last_name: string;
-  email?: string;
-  phone_number?: string;
-  date_of_birth?: string;
-  created_at?: string;
-  is_active?: boolean;
-  gender?: string;
+  profile: PBProfile;
+  isActive?: boolean;
+  isChildRecord?: boolean;
+  invitationSent?: boolean;
+  status?: string;
+  dateCreated?: string;
+  dateModified?: string;
+  relatedTags?: unknown[];
 }
 
 interface LocalContact {
@@ -42,9 +58,11 @@ interface LocalContact {
   assignedPractitioner?: { firstName?: string; lastName?: string } | null;
 }
 
+// PracticeBetter list envelope — exact field names from the API
 interface PBListResponse {
-  data: PBRecord[];
-  has_more?: boolean;
+  items: PBRecord[];
+  hasMore?: boolean;
+  count?: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -135,20 +153,21 @@ export default function PBClientRecordsPage() {
     );
   });
 
-  const pbRecords = pbData?.data ?? [];
+  const pbRecords = pbData?.items ?? [];
   const filteredPB = pbRecords.filter((r) => {
     if (!pbSearch.trim()) return true;
     const q = pbSearch.toLowerCase();
+    const name = `${r.profile?.firstName ?? ""} ${r.profile?.lastName ?? ""}`.toLowerCase();
     return (
-      `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) ||
-      (r.email ?? "").toLowerCase().includes(q) ||
-      (r.phone_number ?? "").includes(q)
+      name.includes(q) ||
+      (r.profile?.emailAddress ?? "").toLowerCase().includes(q) ||
+      (r.profile?.phoneNumber ?? r.profile?.mobilePhone ?? "").includes(q)
     );
   });
 
   const pbGoNext = () => {
-    if (pbData?.data?.length) {
-      const lastId = pbData.data[pbData.data.length - 1].id;
+    if (pbData?.items?.length) {
+      const lastId = pbData.items[pbData.items.length - 1].id;
       setPbHistory((h) => [...h, afterId ?? ""]);
       setAfterId(lastId);
     }
@@ -406,13 +425,13 @@ export default function PBClientRecordsPage() {
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
                                   <User className="h-4 w-4 text-muted-foreground" />
-                                  {r.first_name} {r.last_name}
+                                  {r.profile?.firstName} {r.profile?.lastName}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{r.email ?? "—"}</TableCell>
-                              <TableCell className="text-sm">{r.phone_number ?? "—"}</TableCell>
-                              <TableCell className="text-sm">{formatDate(r.date_of_birth)}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatDate(r.created_at)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{r.profile?.emailAddress ?? "—"}</TableCell>
+                              <TableCell className="text-sm">{r.profile?.phoneNumber ?? r.profile?.mobilePhone ?? "—"}</TableCell>
+                              <TableCell className="text-sm">{formatDate(r.profile?.dateOfBirth)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{formatDate(r.dateCreated)}</TableCell>
                               <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                             </TableRow>
                           ))}
@@ -428,7 +447,7 @@ export default function PBClientRecordsPage() {
                       ← Previous
                     </Button>
                     <span className="text-sm text-muted-foreground">{filteredPB.length} records shown</span>
-                    <Button variant="outline" size="sm" onClick={pbGoNext} disabled={!pbData?.has_more}>
+                    <Button variant="outline" size="sm" onClick={pbGoNext} disabled={!pbData?.hasMore}>
                       Next →
                     </Button>
                   </div>
@@ -446,7 +465,7 @@ export default function PBClientRecordsPage() {
                         </div>
                         <div>
                           <div className="font-semibold text-base">
-                            {selectedPB.first_name} {selectedPB.last_name}
+                            {selectedPB.profile?.firstName} {selectedPB.profile?.lastName}
                           </div>
                           <div className="text-xs text-muted-foreground">PracticeBetter Record</div>
                         </div>
@@ -458,15 +477,18 @@ export default function PBClientRecordsPage() {
                       ) : (
                         <>
                           <DetailRow label="Record ID" value={pbDetail?.id ?? selectedPB.id} mono />
-                          <DetailRow label="Email" value={pbDetail?.email ?? selectedPB.email} />
-                          <DetailRow label="Phone" value={pbDetail?.phone_number ?? selectedPB.phone_number} />
-                          <DetailRow label="Date of Birth" value={formatDate(pbDetail?.date_of_birth ?? selectedPB.date_of_birth)} />
-                          <DetailRow label="Gender" value={pbDetail?.gender ?? selectedPB.gender} />
+                          <DetailRow label="Patient #" value={pbDetail?.profile?.patientAccountNumber ?? selectedPB.profile?.patientAccountNumber} />
+                          <DetailRow label="Email" value={pbDetail?.profile?.emailAddress ?? selectedPB.profile?.emailAddress} />
+                          <DetailRow label="Phone" value={pbDetail?.profile?.phoneNumber ?? pbDetail?.profile?.mobilePhone ?? selectedPB.profile?.phoneNumber ?? selectedPB.profile?.mobilePhone} />
+                          <DetailRow label="Date of Birth" value={formatDate(pbDetail?.profile?.dateOfBirth ?? selectedPB.profile?.dateOfBirth)} />
+                          <DetailRow label="Gender" value={pbDetail?.profile?.gender ?? selectedPB.profile?.gender} />
+                          <DetailRow label="Time Zone" value={pbDetail?.profile?.timeZone ?? selectedPB.profile?.timeZone} />
                           <DetailRow
                             label="Status"
-                            value={selectedPB.is_active === false ? "Inactive" : "Active"}
+                            value={selectedPB.isActive === false ? "Inactive" : "Active"}
                           />
-                          <DetailRow label="Created" value={formatDate(pbDetail?.created_at ?? selectedPB.created_at)} />
+                          <DetailRow label="Created" value={formatDate(pbDetail?.dateCreated ?? selectedPB.dateCreated)} />
+                          <DetailRow label="Last Modified" value={formatDate(pbDetail?.dateModified ?? selectedPB.dateModified)} />
                         </>
                       )}
                       <Button
