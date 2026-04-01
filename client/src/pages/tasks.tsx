@@ -882,7 +882,7 @@ export default function Tasks() {
                             <MessageSquare className="h-4 w-4 mr-2" />
                             View
                           </Button>
-                          {isAdminOrManager && (
+                          {(isAdminOrManager || task.createdBy === user?.id) && (
                             <>
                               {task.archived ? (
                                 <Button

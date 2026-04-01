@@ -3274,11 +3274,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/tasks/:id/archive', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
-      
-      if (user?.role !== 'admin' && user?.role !== 'manager') {
-        return res.status(403).json({ message: 'Only admins and managers can archive tasks' });
-      }
-
       const taskId = parseInt(req.params.id);
       const task = await storage.getTaskById(taskId);
       
@@ -3286,10 +3281,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Task not found' });
       }
 
+      const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+      const isCreator = task.createdBy === user?.id;
+      if (!isAdminOrManager && !isCreator) {
+        return res.status(403).json({ message: 'You can only archive tasks you created' });
+      }
+
       const updatedTask = await storage.updateTask(taskId, {
         archived: true,
         archivedAt: new Date(),
-        archivedBy: user.id,
+        archivedBy: user!.id,
       });
       
       res.json(updatedTask);
@@ -3303,16 +3304,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/tasks/:id/unarchive', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
-      
-      if (user?.role !== 'admin' && user?.role !== 'manager') {
-        return res.status(403).json({ message: 'Only admins and managers can unarchive tasks' });
-      }
-
       const taskId = parseInt(req.params.id);
       const task = await storage.getTaskById(taskId);
       
       if (!task) {
         return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+      const isCreator = task.createdBy === user?.id;
+      if (!isAdminOrManager && !isCreator) {
+        return res.status(403).json({ message: 'You can only unarchive tasks you created' });
       }
 
       const updatedTask = await storage.updateTask(taskId, {
@@ -3328,16 +3330,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete task (admin/manager only) - Hard delete
+  // Delete task - Hard delete (admin/manager, or creator of the task)
   app.delete('/api/tasks/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
-      
-      if (user?.role !== 'admin' && user?.role !== 'manager') {
-        return res.status(403).json({ message: 'Only admins and managers can delete tasks' });
+      const taskId = parseInt(req.params.id);
+      const task = await storage.getTaskById(taskId);
+
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
       }
 
-      const taskId = parseInt(req.params.id);
+      const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+      const isCreator = task.createdBy === user?.id;
+      if (!isAdminOrManager && !isCreator) {
+        return res.status(403).json({ message: 'You can only delete tasks you created' });
+      }
+
       await storage.deleteTask(taskId);
       res.json({ message: 'Task deleted successfully' });
     } catch (error) {
