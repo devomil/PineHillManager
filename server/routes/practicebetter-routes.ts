@@ -1,8 +1,7 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response as ExpressResponse } from 'express';
 import { isAuthenticated, requireRole } from '../auth';
 
 const router = Router();
-
 const PB_BASE_URL = 'https://api.practicebetter.io';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
@@ -19,14 +18,17 @@ async function getPBToken(): Promise<string> {
     throw new Error('PracticeBetter credentials not configured');
   }
 
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
   const params = new URLSearchParams();
   params.set('grant_type', 'client_credentials');
-  params.set('client_id', clientId);
-  params.set('client_secret', clientSecret);
 
   const res = await fetch(`${PB_BASE_URL}/oauth2/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     body: params.toString(),
   });
 
@@ -35,7 +37,7 @@ async function getPBToken(): Promise<string> {
     throw new Error(`PracticeBetter auth failed (${res.status}): ${text}`);
   }
 
-  const data = await res.json();
+  const data = await res.json() as { access_token: string; expires_in?: number };
   cachedToken = {
     token: data.access_token,
     expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 - 60_000,
@@ -44,22 +46,22 @@ async function getPBToken(): Promise<string> {
   return cachedToken.token;
 }
 
-async function pbFetch(path: string, options: RequestInit = {}): Promise<Response> {
+async function pbFetch(path: string, options: RequestInit = {}): Promise<globalThis.Response> {
   const token = await getPBToken();
   return fetch(`${PB_BASE_URL}${path}`, {
     ...options,
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...(options.headers ?? {}),
     },
   });
 }
 
-function buildQuery(params: Record<string, any>): string {
+function buildQuery(params: Record<string, string | undefined>): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== '') q.set(k, String(v));
+    if (v !== undefined && v !== '') q.set(k, v);
   }
   const s = q.toString();
   return s ? `?${s}` : '';
@@ -69,7 +71,7 @@ const protect = [isAuthenticated, requireRole(['admin', 'manager'])];
 
 // ── Client Records ────────────────────────────────────────────────────────────
 
-router.get('/client-records', ...protect, async (req: Request, res: Response) => {
+router.get('/client-records', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const { after_id, before_id, client, details, search } = req.query as Record<string, string>;
     const qs = buildQuery({ after_id, before_id, client, details, search });
@@ -83,7 +85,7 @@ router.get('/client-records', ...protect, async (req: Request, res: Response) =>
   }
 });
 
-router.get('/client-records/:recordId', ...protect, async (req: Request, res: Response) => {
+router.get('/client-records/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/records/${req.params.recordId}`);
     const data = await pbRes.json();
@@ -97,7 +99,7 @@ router.get('/client-records/:recordId', ...protect, async (req: Request, res: Re
 
 // ── Medical History ───────────────────────────────────────────────────────────
 
-router.get('/medical-history/:recordId', ...protect, async (req: Request, res: Response) => {
+router.get('/medical-history/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/medicalhistory/${req.params.recordId}`);
     const data = await pbRes.json();
@@ -109,7 +111,7 @@ router.get('/medical-history/:recordId', ...protect, async (req: Request, res: R
   }
 });
 
-router.put('/medical-history/:recordId', ...protect, async (req: Request, res: Response) => {
+router.patch('/medical-history/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/medicalhistory/${req.params.recordId}`, {
       method: 'PUT',
@@ -124,7 +126,7 @@ router.put('/medical-history/:recordId', ...protect, async (req: Request, res: R
   }
 });
 
-router.post('/medical-history/:recordId', ...protect, async (req: Request, res: Response) => {
+router.post('/medical-history/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/medicalhistory/${req.params.recordId}`, {
       method: 'POST',
@@ -141,9 +143,12 @@ router.post('/medical-history/:recordId', ...protect, async (req: Request, res: 
 
 // ── Health Products ───────────────────────────────────────────────────────────
 
-router.get('/medical-history/:recordId/health-products', ...protect, async (req: Request, res: Response) => {
+// Generic endpoint — accepts recordId as query param for flexibility
+router.get('/medical-history/health-products', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
-    const pbRes = await pbFetch(`/consultant/medicalhistory/${req.params.recordId}/healthproducts`);
+    const { recordId } = req.query as Record<string, string>;
+    if (!recordId) return res.status(400).json({ error: 'recordId query param required' });
+    const pbRes = await pbFetch(`/consultant/medicalhistory/${recordId}/healthproducts`);
     const data = await pbRes.json();
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
     res.json(data);
@@ -153,11 +158,25 @@ router.get('/medical-history/:recordId/health-products', ...protect, async (req:
   }
 });
 
+// Record-specific endpoint
+router.get('/medical-history/:recordId/health-products', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const pbRes = await pbFetch(`/consultant/medicalhistory/${req.params.recordId}/healthproducts`);
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] health-products (by id) error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Availability & Sessions ───────────────────────────────────────────────────
 
-router.get('/availability/slots', ...protect, async (req: Request, res: Response) => {
+router.get('/availability/slots', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
-    const { as_consultant, day, location, serviceId, package: pkg } = req.query as Record<string, string>;
+    const { as_consultant, day, location, serviceId } = req.query as Record<string, string>;
+    const pkg = req.query['package'] as string | undefined;
     const qs = buildQuery({ as_consultant, day, location, serviceId, package: pkg });
     const pbRes = await pbFetch(`/consultant/availability/slots${qs}`);
     const data = await pbRes.json();
@@ -169,7 +188,7 @@ router.get('/availability/slots', ...protect, async (req: Request, res: Response
   }
 });
 
-router.get('/sessions', ...protect, async (req: Request, res: Response) => {
+router.get('/sessions', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const { after_id, before_id, consultants, date_eq, date_gte, date_lte } = req.query as Record<string, string>;
     const qs = buildQuery({ after_id, before_id, consultants, date_eq, date_gte, date_lte });
@@ -183,7 +202,7 @@ router.get('/sessions', ...protect, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/sessions', ...protect, async (req: Request, res: Response) => {
+router.post('/sessions', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch('/consultant/sessions', {
       method: 'POST',
@@ -191,7 +210,7 @@ router.post('/sessions', ...protect, async (req: Request, res: Response) => {
     });
     const data = await pbRes.json();
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    res.json(data);
+    res.status(201).json(data);
   } catch (err: any) {
     console.error('[PB] session create error:', err.message);
     res.status(500).json({ error: err.message });
@@ -200,7 +219,7 @@ router.post('/sessions', ...protect, async (req: Request, res: Response) => {
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
-router.get('/invoices', ...protect, async (req: Request, res: Response) => {
+router.get('/invoices', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const { after_id, before_id, consultants, invoicedate_eq, invoicedate_gte, invoicedate_lte } = req.query as Record<string, string>;
     const qs = buildQuery({ after_id, before_id, consultants, invoicedate_eq, invoicedate_gte, invoicedate_lte });
@@ -214,7 +233,7 @@ router.get('/invoices', ...protect, async (req: Request, res: Response) => {
   }
 });
 
-router.get('/invoices/:invoiceId', ...protect, async (req: Request, res: Response) => {
+router.get('/invoices/:invoiceId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/payments/invoices/${req.params.invoiceId}`);
     const data = await pbRes.json();

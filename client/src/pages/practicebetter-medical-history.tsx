@@ -4,14 +4,13 @@ import { useLocation } from "wouter";
 import AdminLayout from "@/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Search, RefreshCw, User, ClipboardList } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, Search, RefreshCw, User, ClipboardList, Pencil, Plus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 
 interface ClientRecord {
   id: string;
@@ -36,14 +35,14 @@ export default function PBMedicalHistoryPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<ClientRecord | null>(null);
-  const [afterId, setAfterId] = useState<string | undefined>();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editNotes, setEditNotes] = useState("");
+  const [editSymptoms, setEditSymptoms] = useState("");
 
   const { data: recordsData, isLoading: recordsLoading, refetch } = useQuery<{ data: ClientRecord[] }>({
-    queryKey: ["/api/practicebetter/client-records", afterId, "medical-list"],
+    queryKey: ["/api/practicebetter/client-records", "medical-list"],
     queryFn: async () => {
-      const params = new URLSearchParams({ details: "false" });
-      if (afterId) params.set("after_id", afterId);
-      const res = await fetch(`/api/practicebetter/client-records?${params}`);
+      const res = await fetch("/api/practicebetter/client-records?details=false");
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
@@ -59,16 +58,30 @@ export default function PBMedicalHistoryPage() {
     enabled: !!selectedRecord,
   });
 
-  const updateMutation = useMutation({
+  const patchMutation = useMutation({
     mutationFn: async ({ recordId, data }: { recordId: string; data: Partial<MedicalHistory> }) => {
-      return apiRequest("PUT", `/api/practicebetter/medical-history/${recordId}`, data);
+      return apiRequest("PATCH", `/api/practicebetter/medical-history/${recordId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/practicebetter/medical-history"] });
       toast({ title: "Saved", description: "Medical history updated successfully." });
+      setEditOpen(false);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update medical history.", variant: "destructive" });
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async ({ recordId }: { recordId: string }) => {
+      return apiRequest("POST", `/api/practicebetter/medical-history/${recordId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/practicebetter/medical-history"] });
+      toast({ title: "Created", description: "Medical history profile created." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create medical history.", variant: "destructive" });
     },
   });
 
@@ -79,13 +92,34 @@ export default function PBMedicalHistoryPage() {
     return `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q);
   });
 
+  const openEdit = () => {
+    setEditNotes(history?.notes ?? "");
+    setEditSymptoms(history?.current_symptoms ?? "");
+    setEditOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!selectedRecord) return;
+    patchMutation.mutate({
+      recordId: selectedRecord.id,
+      data: { notes: editNotes, current_symptoms: editSymptoms },
+    });
+  };
+
   const renderList = (items: any[] | undefined, fields: string[]) => {
     if (!items?.length) return <p className="text-sm text-muted-foreground italic">None recorded</p>;
     return (
       <div className="space-y-2">
         {items.map((item, i) => (
           <div key={i} className="p-3 rounded-md border bg-muted/30 text-sm">
-            {fields.map((f) => item[f] ? <div key={f}><span className="font-medium capitalize">{f.replace(/_/g, " ")}: </span>{item[f]}</div> : null)}
+            {fields.map((f) =>
+              item[f] ? (
+                <div key={f}>
+                  <span className="font-medium capitalize">{f.replace(/_/g, " ")}: </span>
+                  {item[f]}
+                </div>
+              ) : null
+            )}
           </div>
         ))}
       </div>
@@ -112,7 +146,7 @@ export default function PBMedicalHistoryPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Client list */}
-          <div className="space-y-4">
+          <div>
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">Select Client</CardTitle>
@@ -171,29 +205,35 @@ export default function PBMedicalHistoryPage() {
               </Card>
             ) : historyError ? (
               <Card>
-                <CardContent className="py-12 text-center text-red-500 text-sm">
-                  Could not load medical history. The client may not have a profile yet.
+                <CardContent className="py-12 text-center text-sm space-y-4">
+                  <p className="text-muted-foreground">No medical history found for this client.</p>
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
-                    className="mt-4 block mx-auto"
-                    onClick={() =>
-                      updateMutation.mutate({ recordId: selectedRecord.id, data: {} })
-                    }
+                    onClick={() => createMutation.mutate({ recordId: selectedRecord.id })}
+                    disabled={createMutation.isPending}
                   >
-                    Create Profile
+                    <Plus className="h-4 w-4 mr-2" />
+                    {createMutation.isPending ? "Creating..." : "Create Medical Profile"}
                   </Button>
                 </CardContent>
               </Card>
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle>{selectedRecord.first_name} {selectedRecord.last_name}</CardTitle>
-                  <CardDescription>Medical History Profile</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{selectedRecord.first_name} {selectedRecord.last_name}</CardTitle>
+                      <CardDescription>Medical History Profile</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={openEdit}>
+                      <Pencil className="h-4 w-4 mr-2" /> Edit Notes
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <Tabs defaultValue="conditions">
-                    <TabsList className="mb-4">
+                    <TabsList className="mb-4 flex-wrap h-auto">
                       <TabsTrigger value="conditions">Conditions</TabsTrigger>
                       <TabsTrigger value="medications">Medications</TabsTrigger>
                       <TabsTrigger value="allergies">Allergies</TabsTrigger>
@@ -222,8 +262,15 @@ export default function PBMedicalHistoryPage() {
                     </TabsContent>
                   </Tabs>
 
+                  {history?.current_symptoms && (
+                    <div className="mt-4 p-3 rounded-md border bg-yellow-50 dark:bg-yellow-900/10">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Current Symptoms</div>
+                      <p className="text-sm">{history.current_symptoms}</p>
+                    </div>
+                  )}
+
                   {history?.notes && (
-                    <div className="mt-4 p-3 rounded-md border bg-muted/30">
+                    <div className="mt-3 p-3 rounded-md border bg-muted/30">
                       <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Notes</div>
                       <p className="text-sm">{history.notes}</p>
                     </div>
@@ -244,6 +291,45 @@ export default function PBMedicalHistoryPage() {
           </div>
         </div>
       </div>
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Edit Medical Profile — {selectedRecord?.first_name} {selectedRecord?.last_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold">Current Symptoms</label>
+              <Textarea
+                placeholder="Describe current symptoms..."
+                rows={3}
+                value={editSymptoms}
+                onChange={(e) => setEditSymptoms(e.target.value)}
+                className="resize-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold">Clinical Notes</label>
+              <Textarea
+                placeholder="Add clinical notes..."
+                rows={4}
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={patchMutation.isPending}>
+              {patchMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
