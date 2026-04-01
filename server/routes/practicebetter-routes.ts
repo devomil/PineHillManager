@@ -99,6 +99,21 @@ router.get('/client-records/:recordId', ...protect, async (req: Request, res: Ex
 
 // ── Medical History ───────────────────────────────────────────────────────────
 
+// List endpoint — returns the client record list (PB has no list endpoint for history without a recordId)
+router.get('/medical-history', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { after_id, before_id, details } = req.query as Record<string, string>;
+    const qs = buildQuery({ after_id, before_id, details });
+    const pbRes = await pbFetch(`/consultant/records${qs}`);
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] medical-history list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/medical-history/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/medicalhistory/${req.params.recordId}`);
