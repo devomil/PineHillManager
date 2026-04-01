@@ -9,18 +9,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Phone, Users, ClipboardCheck, User, Stethoscope } from "lucide-react";
+import { Phone, Users, ClipboardCheck, User, Stethoscope, Layers } from "lucide-react";
 
 interface QuickContactFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const SERVICE_OPTIONS = [
+const PROGRAM_TYPE_OPTIONS = [
   { id: "remote_initial_scan", label: "Remote Initial Scan" },
   { id: "follow_up_scan", label: "Follow-Up Scan" },
   { id: "pet_scan", label: "Pet Scan" },
   { id: "quick_calls", label: "Quick Calls" },
+];
+
+const SERVICE_TYPE_OPTIONS = [
+  { id: "consultation", label: "Consultation" },
+  { id: "follow_up", label: "Follow-Up" },
+  { id: "treatment", label: "Treatment" },
+  { id: "assessment", label: "Assessment" },
 ];
 
 const PRACTITIONER_NAMES = ["Lynley", "Leanne", "Jackie", "Carmen", "Becca", "Caitlin"];
@@ -52,6 +59,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     services: [] as string[],
     programsText: "",
     labsText: "",
+    serviceTypeSelection: "",
     paidInStore: false,
     paidOnline: false,
     dnaReceived: false,
@@ -69,6 +77,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       services: [],
       programsText: "",
       labsText: "",
+      serviceTypeSelection: "",
       paidInStore: false,
       paidOnline: false,
       dnaReceived: false,
@@ -164,10 +173,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
         `Date: ${formData.clientDate}`,
         formData.clientComment ? `Comment: ${formData.clientComment}` : '',
       ].filter(Boolean).join('\n'),
-      serviceType: serviceType.includes('Scan') ? 'Assessment' : 
-                   serviceType.includes('Quick') ? 'Consultation' : 
-                   serviceType.includes('Program') ? 'Treatment' : 
-                   serviceType.includes('Lab') ? 'Assessment' : 'Consultation',
+      serviceType: SERVICE_TYPE_OPTIONS.find(o => o.id === formData.serviceTypeSelection)?.label || 'Consultation',
       scanType: scanTypeLabels.length > 0 ? scanTypeLabels.join(', ') : null,
       status: 'pending',
       assignedPractitionerId: formData.assignedPractitioner || null,
@@ -196,14 +202,14 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
 
         <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
 
-          {/* Service Needed */}
+          {/* Program Type */}
           <div className="bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 dark:from-blue-950/40 dark:via-sky-900/30 dark:to-indigo-900/30 border-2 border-blue-300 dark:border-blue-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-900 dark:text-blue-100">
               <Stethoscope className="h-5 w-5" />
-              Service Needed
+              Program Type
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              {SERVICE_OPTIONS.map(service => (
+              {PROGRAM_TYPE_OPTIONS.map(service => (
                 <label
                   key={service.id}
                   htmlFor={service.id}
@@ -240,6 +246,40 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   className={inputClass}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Service Type */}
+          <div className="bg-gradient-to-br from-teal-100 via-cyan-100 to-emerald-100 dark:from-teal-950/40 dark:via-cyan-900/30 dark:to-emerald-900/30 border-2 border-teal-300 dark:border-teal-800 p-5 rounded-xl shadow-sm">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-teal-900 dark:text-teal-100">
+              <Layers className="h-5 w-5" />
+              Service Type
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {SERVICE_TYPE_OPTIONS.map(opt => (
+                <label
+                  key={opt.id}
+                  htmlFor={`stype-${opt.id}`}
+                  className={`flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 cursor-pointer transition-colors ${
+                    formData.serviceTypeSelection === opt.id
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20'
+                  }`}
+                >
+                  <Checkbox
+                    id={`stype-${opt.id}`}
+                    checked={formData.serviceTypeSelection === opt.id}
+                    onCheckedChange={() =>
+                      setFormData(prev => ({
+                        ...prev,
+                        serviceTypeSelection: prev.serviceTypeSelection === opt.id ? '' : opt.id,
+                      }))
+                    }
+                    className="h-5 w-5 border-2 border-gray-500 dark:border-gray-400 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                  />
+                  <span className={checkLabelClass}>{opt.label}</span>
+                </label>
+              ))}
             </div>
           </div>
 

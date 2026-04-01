@@ -351,6 +351,7 @@ export default function PractitionerDashboard() {
                       <TableRow>
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
+                        <TableHead>Program Type</TableHead>
                         <TableHead>Service Type</TableHead>
                         <TableHead>Notes</TableHead>
                         <TableHead>Comments</TableHead>
@@ -380,7 +381,10 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} clientNotes={contact.clientNotes} />
+                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={undefined} clientNotes={contact.clientNotes} />
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{contact.serviceType}</Badge>
                           </TableCell>
                           <TableCell className="max-w-48">
                             {contact.clientNotes ? (
@@ -643,6 +647,7 @@ export default function PractitionerDashboard() {
                       <TableRow>
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
+                        <TableHead>Program Type</TableHead>
                         <TableHead>Service Type</TableHead>
                         <TableHead>Notes</TableHead>
                         <TableHead>Comments</TableHead>
@@ -672,7 +677,10 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} clientNotes={contact.clientNotes} />
+                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={undefined} clientNotes={contact.clientNotes} />
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{contact.serviceType}</Badge>
                           </TableCell>
                           <TableCell className="max-w-48">
                             {contact.clientNotes ? (
@@ -890,7 +898,7 @@ export default function PractitionerDashboard() {
                   </>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-500">Client Name</label>
                         <p className="text-lg font-semibold">
@@ -898,8 +906,12 @@ export default function PractitionerDashboard() {
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-500">Scan / Service Type</label>
-                        <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={selectedContact.serviceType} clientNotes={selectedContact.clientNotes} />
+                        <label className="text-sm font-medium text-gray-500">Program Type</label>
+                        <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={undefined} clientNotes={selectedContact.clientNotes} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-gray-500">Service Type</label>
+                        <Badge variant="outline">{selectedContact.serviceType}</Badge>
                       </div>
                     </div>
 
