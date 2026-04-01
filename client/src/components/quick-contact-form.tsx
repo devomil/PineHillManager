@@ -143,6 +143,15 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
 
     const serviceType = servicesList.length > 0 ? servicesList[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Consultation';
 
+    // Build human-readable scan type labels from selected services
+    const scanTypeLabels: string[] = [];
+    if (formData.services.includes('remote_initial_scan')) scanTypeLabels.push('Remote Initial Scan');
+    if (formData.services.includes('follow_up_scan')) scanTypeLabels.push('Follow-Up Scan');
+    if (formData.services.includes('pet_scan')) scanTypeLabels.push('Pet Scan');
+    if (formData.services.includes('quick_calls')) scanTypeLabels.push('Quick Calls');
+    if (formData.programsText.trim()) scanTypeLabels.push(`Programs: ${formData.programsText.trim()}`);
+    if (formData.labsText.trim()) scanTypeLabels.push(`Labs: ${formData.labsText.trim()}`);
+
     const contactData = {
       clientFirstName: firstName,
       clientLastName: lastName,
@@ -159,6 +168,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                    serviceType.includes('Quick') ? 'Consultation' : 
                    serviceType.includes('Program') ? 'Treatment' : 
                    serviceType.includes('Lab') ? 'Assessment' : 'Consultation',
+      scanType: scanTypeLabels.length > 0 ? scanTypeLabels.join(', ') : null,
       status: 'pending',
       assignedPractitionerId: formData.assignedPractitioner || null,
       priority: 'normal',
@@ -172,7 +182,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
   const textareaClass = "bg-white dark:bg-slate-900 border-2 border-gray-400 dark:border-gray-500 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-200 placeholder:text-gray-500 dark:placeholder:text-gray-400 text-gray-900 dark:text-gray-100 text-base";
   const labelClass = "text-sm font-semibold text-gray-800 dark:text-gray-200";
   const checkboxClass = "h-5 w-5 border-2 border-gray-500 dark:border-gray-400 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600";
-  const checkLabelClass = "text-sm font-medium text-gray-800 dark:text-gray-200 cursor-pointer leading-none";
+  const checkLabelClass = "text-[15px] font-semibold text-gray-800 dark:text-gray-200 cursor-pointer select-none";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -187,7 +197,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
         <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
 
           {/* Service Needed */}
-          <div className="bg-gradient-to-br from-blue-50 via-sky-100 to-indigo-100 dark:from-blue-950/40 dark:via-sky-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 p-5 rounded-xl shadow-sm">
+          <div className="bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 dark:from-blue-950/40 dark:via-sky-900/30 dark:to-indigo-900/30 border-2 border-blue-300 dark:border-blue-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-900 dark:text-blue-100">
               <Stethoscope className="h-5 w-5" />
               Service Needed
@@ -234,7 +244,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Status */}
-          <div className="bg-gradient-to-br from-amber-50 via-yellow-100 to-orange-100 dark:from-amber-950/40 dark:via-yellow-900/30 dark:to-orange-900/30 border border-yellow-200 dark:border-yellow-800 p-5 rounded-xl shadow-sm">
+          <div className="bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-100 dark:from-amber-950/40 dark:via-yellow-900/30 dark:to-orange-900/30 border-2 border-yellow-300 dark:border-yellow-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100">
               <ClipboardCheck className="h-5 w-5" />
               Status
@@ -263,7 +273,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Client Information */}
-          <div className="bg-gradient-to-br from-emerald-50 via-green-100 to-teal-100 dark:from-emerald-950/40 dark:via-green-900/30 dark:to-teal-900/30 border border-green-200 dark:border-green-800 p-5 rounded-xl shadow-sm">
+          <div className="bg-gradient-to-br from-emerald-100 via-green-100 to-teal-100 dark:from-emerald-950/40 dark:via-green-900/30 dark:to-teal-900/30 border-2 border-green-300 dark:border-green-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 dark:text-green-100">
               <User className="h-5 w-5" />
               Client Information
@@ -365,7 +375,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Practitioner Claim */}
-          <div className="bg-gradient-to-br from-violet-50 via-purple-100 to-fuchsia-100 dark:from-violet-950/40 dark:via-purple-900/30 dark:to-fuchsia-900/30 border border-purple-200 dark:border-purple-800 p-5 rounded-xl shadow-sm">
+          <div className="bg-gradient-to-br from-violet-100 via-purple-100 to-fuchsia-100 dark:from-violet-950/40 dark:via-purple-900/30 dark:to-fuchsia-900/30 border-2 border-purple-300 dark:border-purple-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100">
               <Users className="h-5 w-5" />
               Practitioner Claim
@@ -383,7 +393,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                     onCheckedChange={() => handlePractitionerSelect(practitioner.id)}
                     className={checkboxClass}
                   />
-                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer">{practitioner.name}</span>
+                  <span className={checkLabelClass}>{practitioner.name}</span>
                 </label>
               )) : (
                 <p className="text-sm text-muted-foreground col-span-full">Loading practitioners...</p>

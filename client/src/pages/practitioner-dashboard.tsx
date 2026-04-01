@@ -25,6 +25,47 @@ type StatusType = {
   color: string;
 };
 
+const SCAN_TYPE_STYLES: Record<string, string> = {
+  'Remote Initial Scan': 'bg-blue-100 text-blue-700 border-blue-200',
+  'Follow-Up Scan':      'bg-purple-100 text-purple-700 border-purple-200',
+  'Pet Scan':            'bg-green-100 text-green-700 border-green-200',
+  'Quick Calls':         'bg-orange-100 text-orange-700 border-orange-200',
+};
+
+function ScanTypeBadges({ scanType, serviceType }: { scanType?: string | null; serviceType?: string }) {
+  if (!scanType) {
+    return <Badge variant="outline">{serviceType || '—'}</Badge>;
+  }
+  const parts = scanType.split(',').map(s => s.trim()).filter(Boolean);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {parts.map((part, i) => {
+        const style = SCAN_TYPE_STYLES[part];
+        if (style) {
+          return (
+            <span key={i} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${style}`}>
+              {part}
+            </span>
+          );
+        }
+        // Programs / Labs get a teal/rose pill
+        const isProgram = part.startsWith('Programs:');
+        const isLab = part.startsWith('Labs:');
+        const miscStyle = isProgram
+          ? 'bg-teal-100 text-teal-700 border-teal-200'
+          : isLab
+            ? 'bg-rose-100 text-rose-700 border-rose-200'
+            : 'bg-gray-100 text-gray-700 border-gray-200';
+        return (
+          <span key={i} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${miscStyle}`}>
+            {part}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function PractitionerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -312,7 +353,7 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{contact.serviceType}</Badge>
+                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} />
                           </TableCell>
                           <TableCell className="max-w-48">
                             {contact.clientNotes ? (
@@ -604,7 +645,7 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{contact.serviceType}</Badge>
+                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} />
                           </TableCell>
                           <TableCell className="max-w-48">
                             {contact.clientNotes ? (
@@ -830,10 +871,8 @@ export default function PractitionerDashboard() {
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-500">Service Type</label>
-                        <Badge variant="outline" className="text-sm">
-                          {selectedContact.serviceType}
-                        </Badge>
+                        <label className="text-sm font-medium text-gray-500">Scan / Service Type</label>
+                        <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={selectedContact.serviceType} />
                       </div>
                     </div>
 

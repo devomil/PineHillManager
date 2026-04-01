@@ -6141,6 +6141,7 @@ export const practitionerContacts = pgTable('practitioner_contacts', {
   clientNotes: text('client_notes'),
   
   serviceType: text('service_type').notNull(),
+  scanType: text('scan_type'),
   status: text('status').notNull().default('pending'),
   
   assignedPractitionerId: text('assigned_practitioner_id').references(() => users.id),
