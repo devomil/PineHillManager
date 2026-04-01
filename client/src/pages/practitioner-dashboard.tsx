@@ -1162,24 +1162,25 @@ function EditableComment({ contactId, currentComment, onSave }: EditableCommentP
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-3" align="start">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Practitioner Comments</span>
+      <PopoverContent className="w-[680px] p-5" align="start">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 border-b pb-3">
+            <MessageSquare className="h-5 w-5 text-blue-500" />
+            <span className="text-base font-semibold">Practitioner Comments</span>
           </div>
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Add comments like 'awaiting DNA', 'call scheduled', etc."
-            className="min-h-[80px] text-sm"
+            placeholder="Add comments like 'awaiting DNA', 'call scheduled', 'health form done', etc."
+            className="min-h-[220px] text-sm leading-relaxed resize-y"
           />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={handleCancel}>
-              <X className="h-3 w-3 mr-1" />
+          <div className="flex justify-end gap-3 pt-1">
+            <Button variant="outline" size="sm" onClick={handleCancel} className="px-5">
+              <X className="h-4 w-4 mr-1.5" />
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave}>
-              <Save className="h-3 w-3 mr-1" />
+            <Button size="sm" onClick={handleSave} className="px-5 bg-blue-600 hover:bg-blue-700 text-white">
+              <Save className="h-4 w-4 mr-1.5" />
               Save
             </Button>
           </div>
