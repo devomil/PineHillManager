@@ -15,7 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search, Dna, Hourglass } from "lucide-react";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search, Dna, Hourglass, ChevronRight, FileText, ClipboardList, ShoppingBag, Receipt } from "lucide-react";
+import { useLocation } from "wouter";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
 
@@ -97,6 +98,7 @@ export default function PractitionerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [programTypeFilter, setProgramTypeFilter] = useState<string>("all");
@@ -215,6 +217,30 @@ export default function PractitionerDashboard() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
+        </div>
+
+        {/* Quick Links — PracticeBetter pages */}
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Links</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {[
+              { label: "Client Records", icon: <Users className="h-5 w-5" />, colorCls: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400", path: "/practitioner/client-records" },
+              { label: "Medical History", icon: <ClipboardList className="h-5 w-5" />, colorCls: "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400", path: "/practitioner/medical-history" },
+              { label: "Availability", icon: <Calendar className="h-5 w-5" />, colorCls: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400", path: "/practitioner/availability" },
+              { label: "Health Products", icon: <ShoppingBag className="h-5 w-5" />, colorCls: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", path: "/practitioner/health-products" },
+              { label: "Invoicing", icon: <Receipt className="h-5 w-5" />, colorCls: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", path: "/practitioner/invoicing" },
+            ].map((link) => (
+              <button
+                key={link.path}
+                onClick={() => navigate(link.path)}
+                className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all group text-left"
+              >
+                <div className={`p-2 rounded-lg shrink-0 ${link.colorCls}`}>{link.icon}</div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 leading-tight">{link.label}</span>
+                <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 shrink-0" />
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

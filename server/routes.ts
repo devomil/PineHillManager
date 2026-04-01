@@ -26128,6 +26128,12 @@ Important:
   app.use('/api/admin/s3-assets', s3AssetRoutes.default);
 
   // ================================
+  // PRACTICEBETTER API PROXY ROUTES
+  // ================================
+  const practicebetterRoutes = await import('./routes/practicebetter-routes');
+  app.use('/api/practicebetter', practicebetterRoutes.default);
+
+  // ================================
   // PRACTITIONER DASHBOARD ROUTES
   // ================================
   const { practitionerContacts, insertPractitionerContactSchema, updatePractitionerContactSchema } = await import('@shared/schema');

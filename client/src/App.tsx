@@ -47,6 +47,11 @@ import PurchasingPage from "@/pages/purchasing";
 import MarketplacePage from "@/pages/marketplace";
 import OrderFulfillmentPage from "@/pages/order-fulfillment";
 import PractitionerDashboard from "@/pages/practitioner-dashboard";
+import PBClientRecords from "@/pages/practicebetter-client-records";
+import PBMedicalHistory from "@/pages/practicebetter-medical-history";
+import PBAvailability from "@/pages/practicebetter-availability";
+import PBHealthProducts from "@/pages/practicebetter-health-products";
+import PBInvoicing from "@/pages/practicebetter-invoicing";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -187,6 +192,33 @@ function AuthenticatedApp() {
       {/* Practitioner Dashboard - All Roles */}
       <Route path="/practitioner" component={PractitionerDashboard} />
       <Route path="/practitioner-dashboard" component={PractitionerDashboard} />
+
+      {/* PracticeBetter API Pages - Admin/Manager Only */}
+      <Route path="/practitioner/client-records">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBClientRecords />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/medical-history">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBMedicalHistory />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/availability">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBAvailability />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/health-products">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBHealthProducts />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/invoicing">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBInvoicing />
+        </ProtectedRoute>
+      </Route>
       
       {/* Employee & Shared Routes */}
       <Route path="/calendar" component={Calendar} />
