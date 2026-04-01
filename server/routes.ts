@@ -26171,6 +26171,8 @@ Important:
         total: allContacts.length,
         byStatus: {
           pending: allContacts.filter(c => c.status === 'pending').length,
+          pending_awaiting_dna: allContacts.filter(c => c.status === 'pending_awaiting_dna').length,
+          pending_dna_received: allContacts.filter(c => c.status === 'pending_dna_received').length,
           in_progress: allContacts.filter(c => c.status === 'in_progress').length,
           completed: allContacts.filter(c => c.status === 'completed').length,
           cancelled: allContacts.filter(c => c.status === 'cancelled').length,

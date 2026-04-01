@@ -217,7 +217,7 @@ export default function PractitionerDashboard() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">Total Contacts</CardTitle>
@@ -226,14 +226,32 @@ export default function PractitionerDashboard() {
               <div className="text-2xl font-bold">{stats?.total || 0}</div>
             </CardContent>
           </Card>
-          <Card>
+
+          {/* Expanded Pending card spanning 2 columns */}
+          <Card className="md:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-yellow-600">Pending</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats?.byStatus?.pending || 0}</div>
+              <div className="flex items-end gap-6">
+                <div>
+                  <div className="text-xs font-medium text-yellow-600 mb-1">Pending</div>
+                  <div className="text-2xl font-bold text-yellow-600">{stats?.byStatus?.pending || 0}</div>
+                </div>
+                <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
+                <div>
+                  <div className="text-xs font-medium text-orange-500 mb-1">Awaiting DNA</div>
+                  <div className="text-2xl font-bold text-orange-500">{stats?.byStatus?.pending_awaiting_dna || 0}</div>
+                </div>
+                <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
+                <div>
+                  <div className="text-xs font-medium text-purple-500 mb-1">DNA Received</div>
+                  <div className="text-2xl font-bold text-purple-500">{stats?.byStatus?.pending_dna_received || 0}</div>
+                </div>
+              </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-blue-600">In Progress</CardTitle>
