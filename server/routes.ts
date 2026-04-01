@@ -3157,8 +3157,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Admin/Manager sees all tasks
         tasks = await storage.getAllTasks();
       } else {
-        // Employee sees only tasks assigned to them
-        tasks = await storage.getTasksByAssignee(user.id);
+        // Employee sees tasks assigned to them
+        const assigneeTasks = await storage.getTasksByAssignee(user.id);
+        if (showArchived) {
+          // When viewing archived, also include tasks the employee created
+          // so they can see self-archived tasks even if assigned to someone else
+          const createdTasks = await storage.getTasksByCreator(user.id);
+          const seenIds = new Set(assigneeTasks.map(t => t.id));
+          const merged = [...assigneeTasks];
+          for (const t of createdTasks) {
+            if (!seenIds.has(t.id)) merged.push(t);
+          }
+          tasks = merged;
+        } else {
+          tasks = assigneeTasks;
+        }
       }
 
       // Filter out archived tasks unless specifically requested

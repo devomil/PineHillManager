@@ -22,7 +22,7 @@ import { z } from "zod";
 import { insertTaskSchema, type Task, type User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, LogOut, Bell, ArrowLeft } from "lucide-react";
+import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, LogOut, Bell, ArrowLeft, Archive, ArchiveX } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -363,6 +363,7 @@ export default function Tasks() {
   const [showArchived, setShowArchived] = useState<boolean>(false);
   const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [archivedOpen, setArchivedOpen] = useState<boolean>(false);
 
   const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
@@ -374,6 +375,16 @@ export default function Tasks() {
       if (showArchived) params.append('archived', 'true');
       const response = await fetch(`/api/tasks?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch tasks');
+      return response.json();
+    },
+  });
+
+  // Fetch archived tasks for the dedicated archived section
+  const { data: archivedTasksList = [], isLoading: archivedLoading } = useQuery<Task[]>({
+    queryKey: ['/api/tasks', 'archived-panel'],
+    queryFn: async () => {
+      const response = await fetch('/api/tasks?archived=true');
+      if (!response.ok) throw new Error('Failed to fetch archived tasks');
       return response.json();
     },
   });
@@ -946,6 +957,150 @@ export default function Tasks() {
             </TableBody>
           </Table>
         </Card>
+
+        {/* Archived Tasks Section */}
+        {!showArchived && (
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setArchivedOpen(prev => !prev)}
+              className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                <Archive className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  Archived Tasks
+                </span>
+                {!archivedLoading && (
+                  <span className="inline-flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-semibold px-2.5 py-0.5 min-w-[1.5rem]">
+                    {archivedTasksList.length}
+                  </span>
+                )}
+              </div>
+              {archivedOpen
+                ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                : <ChevronDown className="h-4 w-4 text-gray-400" />
+              }
+            </button>
+
+            <AnimatePresence initial={false}>
+              {archivedOpen && (
+                <motion.div
+                  key="archived-panel"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div className="bg-white dark:bg-gray-900">
+                    {archivedLoading ? (
+                      <div className="py-10 text-center text-muted-foreground text-sm">
+                        Loading archived tasks...
+                      </div>
+                    ) : archivedTasksList.length === 0 ? (
+                      <div className="py-10 text-center text-muted-foreground text-sm">
+                        No archived tasks yet.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50 dark:bg-gray-800/40">
+                            <TableHead>Task</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Priority</TableHead>
+                            <TableHead>Created By</TableHead>
+                            <TableHead>Assigned To</TableHead>
+                            <TableHead>Archived</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {archivedTasksList.map(task => (
+                            <TableRow key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 opacity-80">
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <ArchiveX className="h-4 w-4 text-gray-400 shrink-0" />
+                                  <span>{task.title}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-gray-500">
+                                  {task.status.replace('_', ' ')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={getPriorityColor(task.priority)}>
+                                  {task.priority}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {(task as any).creatorName || getEmployeeName(task.createdBy)}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {(task as any).assigneeName || getEmployeeName(task.assignedTo)}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {task.archivedAt
+                                  ? format(new Date(task.archivedAt), 'MMM dd, yyyy')
+                                  : '—'
+                                }
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {(isAdminOrManager || task.createdBy === user?.id) && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => unarchiveTaskMutation.mutate(task.id)}
+                                        disabled={unarchiveTaskMutation.isPending}
+                                      >
+                                        Unarchive
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            disabled={deleteTaskMutation.isPending}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Permanently Delete Task?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to permanently delete "{task.title}"? This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => deleteTaskMutation.mutate(task.id)}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                              {deleteTaskMutation.isPending ? "Deleting..." : "Delete Permanently"}
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* Task Details Dialog */}
         {selectedTask && (
