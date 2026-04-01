@@ -180,6 +180,15 @@ export default function PractitionerDashboard() {
     );
   };
 
+  const PAYMENT_TYPE_LABELS: Record<string, string> = {
+    "Paid Online - Received": "Online · Received",
+    "Paid Online - Waiting Payment Confirmation": "Online · Waiting",
+    "Paid In-Store - Received": "In-Store · Received",
+    "Paid In-Store - Waiting Payment Confirmation": "In-Store · Waiting",
+  };
+  const getPaymentTypeShort = (value: string | null) =>
+    value ? (PAYMENT_TYPE_LABELS[value] ?? value) : "— Not set —";
+
   const getPractitionerName = (id: string | null) => {
     if (!id) return "Unassigned";
     const emp = employees.find(e => e.id === id);
@@ -465,14 +474,16 @@ export default function PractitionerDashboard() {
                               }}
                             >
                               <SelectTrigger className="w-44 text-xs h-8">
-                                <SelectValue placeholder="Set payment..." />
+                                <SelectValue>
+                                  {getPaymentTypeShort((contact as any).paymentType)}
+                                </SelectValue>
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="w-72">
                                 <SelectItem value="none">— Not set —</SelectItem>
                                 <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
-                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting</SelectItem>
+                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
                                 <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
-                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting</SelectItem>
+                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
@@ -770,14 +781,16 @@ export default function PractitionerDashboard() {
                               }}
                             >
                               <SelectTrigger className="w-44 text-xs h-8">
-                                <SelectValue placeholder="Set payment..." />
+                                <SelectValue>
+                                  {getPaymentTypeShort((contact as any).paymentType)}
+                                </SelectValue>
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="w-72">
                                 <SelectItem value="none">— Not set —</SelectItem>
                                 <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
-                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting</SelectItem>
+                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
                                 <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
-                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting</SelectItem>
+                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
