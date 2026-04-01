@@ -455,13 +455,26 @@ export default function PractitionerDashboard() {
                             {contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell>
-                            {(contact as any).paymentType ? (
-                              <Badge variant="outline" className="text-xs whitespace-nowrap bg-amber-50 border-amber-300 text-amber-800">
-                                {(contact as any).paymentType}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">—</span>
-                            )}
+                            <Select
+                              value={(contact as any).paymentType || "none"}
+                              onValueChange={(value) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { paymentType: value === "none" ? null : value },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-44 text-xs h-8">
+                                <SelectValue placeholder="Set payment..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— Not set —</SelectItem>
+                                <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
+                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting</SelectItem>
+                                <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
+                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -747,13 +760,26 @@ export default function PractitionerDashboard() {
                               : contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell>
-                            {(contact as any).paymentType ? (
-                              <Badge variant="outline" className="text-xs whitespace-nowrap bg-amber-50 border-amber-300 text-amber-800">
-                                {(contact as any).paymentType}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">—</span>
-                            )}
+                            <Select
+                              value={(contact as any).paymentType || "none"}
+                              onValueChange={(value) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { paymentType: value === "none" ? null : value },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-44 text-xs h-8">
+                                <SelectValue placeholder="Set payment..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— Not set —</SelectItem>
+                                <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
+                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting</SelectItem>
+                                <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
+                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
