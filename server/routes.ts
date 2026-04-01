@@ -26276,9 +26276,9 @@ Important:
     const statusTypes = [
       { value: 'pending', label: 'Pending', color: 'yellow' },
       { value: 'pending_awaiting_dna', label: 'Pending - Awaiting DNA', color: 'orange' },
-      { value: 'pending_dna_received', label: 'Pending - DNA Received', color: 'purple' },
+      { value: 'pending_dna_received', label: 'Pending - DNA Received', color: 'green' },
       { value: 'in_progress', label: 'In Progress', color: 'blue' },
-      { value: 'completed', label: 'Completed', color: 'green' },
+      { value: 'completed', label: 'Completed', color: 'purple' },
       { value: 'cancelled', label: 'Cancelled', color: 'gray' },
     ];
     res.json(statusTypes);

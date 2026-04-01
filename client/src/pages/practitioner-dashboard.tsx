@@ -168,9 +168,9 @@ export default function PractitionerDashboard() {
     const statusConfig: Record<string, { className: string; icon: any; label: string }> = {
       pending:              { className: "bg-amber-100 text-amber-800 border border-amber-300",    icon: Clock,       label: "Pending" },
       pending_awaiting_dna: { className: "bg-orange-100 text-orange-800 border border-orange-300", icon: Hourglass,   label: "Pending - Awaiting DNA" },
-      pending_dna_received: { className: "bg-purple-100 text-purple-800 border border-purple-300", icon: Dna,         label: "Pending - DNA Received" },
+      pending_dna_received: { className: "bg-green-100 text-green-800 border border-green-300",   icon: Dna,         label: "Pending - DNA Received" },
       in_progress:          { className: "bg-blue-100 text-blue-800 border border-blue-300",       icon: AlertCircle, label: "In Progress" },
-      completed:            { className: "bg-green-100 text-green-800 border border-green-300",    icon: CheckCircle, label: "Completed" },
+      completed:            { className: "bg-purple-100 text-purple-800 border border-purple-300",  icon: CheckCircle, label: "Completed" },
       cancelled:            { className: "bg-gray-100 text-gray-700 border border-gray-300",       icon: XCircle,     label: "Cancelled" },
     };
     const config = statusConfig[status] || statusConfig.pending;
@@ -245,8 +245,8 @@ export default function PractitionerDashboard() {
                 </div>
                 <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
                 <div className="text-center">
-                  <div className="text-xs font-medium text-purple-500 mb-1">DNA Received</div>
-                  <div className="text-2xl font-bold text-purple-500">{stats?.byStatus?.pending_dna_received || 0}</div>
+                  <div className="text-xs font-medium text-green-600 mb-1">DNA Received</div>
+                  <div className="text-2xl font-bold text-green-600">{stats?.byStatus?.pending_dna_received || 0}</div>
                 </div>
               </div>
             </CardContent>
@@ -262,10 +262,10 @@ export default function PractitionerDashboard() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-green-600">Completed</CardTitle>
+              <CardTitle className="text-sm font-medium text-purple-600">Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.byStatus?.completed || 0}</div>
+              <div className="text-2xl font-bold text-purple-600">{stats?.byStatus?.completed || 0}</div>
             </CardContent>
           </Card>
         </div>
