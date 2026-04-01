@@ -374,6 +374,7 @@ export default function PractitionerDashboard() {
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Created</TableHead>
+                        <TableHead>Payment Type</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -452,6 +453,15 @@ export default function PractitionerDashboard() {
                           </TableCell>
                           <TableCell className="text-sm text-gray-500">
                             {contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            {(contact as any).paymentType ? (
+                              <Badge variant="outline" className="text-xs whitespace-nowrap bg-amber-50 border-amber-300 text-amber-800">
+                                {(contact as any).paymentType}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">—</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -670,6 +680,7 @@ export default function PractitionerDashboard() {
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Completed</TableHead>
+                        <TableHead>Payment Type</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -734,6 +745,15 @@ export default function PractitionerDashboard() {
                             {contact.completedAt 
                               ? format(new Date(contact.completedAt), 'MMM d, yyyy')
                               : contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            {(contact as any).paymentType ? (
+                              <Badge variant="outline" className="text-xs whitespace-nowrap bg-amber-50 border-amber-300 text-amber-800">
+                                {(contact as any).paymentType}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">—</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

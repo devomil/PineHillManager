@@ -60,9 +60,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     programsText: "",
     labsText: "",
     serviceTypeSelection: "",
-    paidInStore: false,
-    paidOnline: false,
-    dnaReceived: false,
+    paymentType: "",
     clientDate: new Date().toISOString().split('T')[0],
     clientName: "",
     clientEmail: "",
@@ -78,9 +76,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       programsText: "",
       labsText: "",
       serviceTypeSelection: "",
-      paidInStore: false,
-      paidOnline: false,
-      dnaReceived: false,
+      paymentType: "",
       clientDate: new Date().toISOString().split('T')[0],
       clientName: "",
       clientEmail: "",
@@ -141,11 +137,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       servicesList.push(`Labs: ${formData.labsText.trim()}`);
     }
 
-    const statusParts = [];
-    if (formData.paidInStore) statusParts.push("Paid In-Store");
-    if (formData.paidOnline) statusParts.push("Paid Online");
-    if (formData.dnaReceived) statusParts.push("DNA Received");
-
     const nameParts = formData.clientName.trim().split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
@@ -168,13 +159,14 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       clientPhone: formData.clientPhone || null,
       clientNotes: [
         `Services: ${servicesList.join(', ') || 'None specified'}`,
-        `Status: ${statusParts.join(', ') || 'Pending'}`,
+        formData.paymentType ? `Payment: ${formData.paymentType}` : '',
         `DOB: ${formData.clientDob || 'Not provided'}`,
         `Date: ${formData.clientDate}`,
         formData.clientComment ? `Comment: ${formData.clientComment}` : '',
       ].filter(Boolean).join('\n'),
       serviceType: SERVICE_TYPE_OPTIONS.find(o => o.id === formData.serviceTypeSelection)?.label || 'Consultation',
       scanType: scanTypeLabels.length > 0 ? scanTypeLabels.join(', ') : null,
+      paymentType: formData.paymentType || null,
       status: 'pending',
       assignedPractitionerId: formData.assignedPractitioner || null,
       priority: 'normal',
@@ -283,30 +275,38 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
             </div>
           </div>
 
-          {/* Status */}
+          {/* Payment Type */}
           <div className="bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-100 dark:from-amber-950/40 dark:via-yellow-900/30 dark:to-orange-900/30 border-2 border-yellow-300 dark:border-yellow-800 p-5 rounded-xl shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100">
               <ClipboardCheck className="h-5 w-5" />
-              Status
+              Payment Type
             </h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {[
-                { id: "paidInStore", label: "Paid In-Store", field: "paidInStore" as const },
-                { id: "paidOnline", label: "Paid Online", field: "paidOnline" as const },
-                { id: "dnaReceived", label: "DNA Received (if scan)", field: "dnaReceived" as const },
-              ].map(({ id, label, field }) => (
+                "Paid Online - Received",
+                "Paid Online - Waiting Payment Confirmation",
+                "Paid In-Store - Received",
+                "Paid In-Store - Waiting Payment Confirmation",
+              ].map((option) => (
                 <label
-                  key={id}
-                  htmlFor={id}
-                  className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
+                  key={option}
+                  className={`flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 cursor-pointer transition-colors ${
+                    formData.paymentType === option
+                      ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                  }`}
                 >
                   <Checkbox
-                    id={id}
-                    checked={formData[field]}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, [field]: checked === true }))}
-                    className={checkboxClass}
+                    checked={formData.paymentType === option}
+                    onCheckedChange={() =>
+                      setFormData(prev => ({
+                        ...prev,
+                        paymentType: prev.paymentType === option ? '' : option,
+                      }))
+                    }
+                    className="h-5 w-5 border-2 border-gray-500 dark:border-gray-400 data-[state=checked]:bg-yellow-600 data-[state=checked]:border-yellow-600"
                   />
-                  <span className={checkLabelClass}>{label}</span>
+                  <span className={checkLabelClass}>{option}</span>
                 </label>
               ))}
             </div>

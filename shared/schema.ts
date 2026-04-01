@@ -6151,6 +6151,7 @@ export const practitionerContacts = pgTable('practitioner_contacts', {
   preferredDateTime: timestamp('preferred_date_time'),
   
   practitionerComments: text('practitioner_comments'),
+  paymentType: text('payment_type'),
   
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow(),
@@ -6196,6 +6197,8 @@ export const updatePractitionerContactSchema = z.object({
   preferredContactMethod: z.enum(['phone', 'email', 'text']).optional(),
   preferredDateTime: z.string().optional().nullable(),
   practitionerComments: z.string().optional().nullable(),
+  paymentType: z.string().optional().nullable(),
+  scanType: z.string().optional().nullable(),
 });
 
 export type PractitionerContact = typeof practitionerContacts.$inferSelect;
