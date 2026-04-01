@@ -32,11 +32,39 @@ const SCAN_TYPE_STYLES: Record<string, string> = {
   'Quick Calls':         'bg-orange-100 text-orange-700 border-orange-200',
 };
 
-function ScanTypeBadges({ scanType, serviceType }: { scanType?: string | null; serviceType?: string }) {
-  if (!scanType) {
+const SERVICE_ID_TO_LABEL: Record<string, string> = {
+  remote_initial_scan: 'Remote Initial Scan',
+  follow_up_scan: 'Follow-Up Scan',
+  pet_scan: 'Pet Scan',
+  quick_calls: 'Quick Calls',
+};
+
+function parseScanTypeFromNotes(clientNotes?: string | null): string | null {
+  if (!clientNotes) return null;
+  const match = clientNotes.match(/Services:\s*([^\n]+)/);
+  if (!match) return null;
+  const raw = match[1].trim();
+  if (!raw || raw === 'None specified') return null;
+  return raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => {
+      if (SERVICE_ID_TO_LABEL[s]) return SERVICE_ID_TO_LABEL[s];
+      if (s.startsWith('Programs:')) return s;
+      if (s.startsWith('Labs:')) return s;
+      // Convert snake_case to Title Case as fallback
+      return s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    })
+    .join(', ');
+}
+
+function ScanTypeBadges({ scanType, serviceType, clientNotes }: { scanType?: string | null; serviceType?: string; clientNotes?: string | null }) {
+  const resolved = scanType || parseScanTypeFromNotes(clientNotes);
+  if (!resolved) {
     return <Badge variant="outline">{serviceType || '—'}</Badge>;
   }
-  const parts = scanType.split(',').map(s => s.trim()).filter(Boolean);
+  const parts = resolved.split(',').map(s => s.trim()).filter(Boolean);
   return (
     <div className="flex flex-wrap gap-1">
       {parts.map((part, i) => {
@@ -48,7 +76,6 @@ function ScanTypeBadges({ scanType, serviceType }: { scanType?: string | null; s
             </span>
           );
         }
-        // Programs / Labs get a teal/rose pill
         const isProgram = part.startsWith('Programs:');
         const isLab = part.startsWith('Labs:');
         const miscStyle = isProgram
@@ -353,7 +380,7 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} />
+                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} clientNotes={contact.clientNotes} />
                           </TableCell>
                           <TableCell className="max-w-48">
                             {contact.clientNotes ? (
@@ -645,7 +672,7 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} />
+                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={contact.serviceType} clientNotes={contact.clientNotes} />
                           </TableCell>
                           <TableCell className="max-w-48">
                             {contact.clientNotes ? (
@@ -872,7 +899,7 @@ export default function PractitionerDashboard() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-500">Scan / Service Type</label>
-                        <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={selectedContact.serviceType} />
+                        <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={selectedContact.serviceType} clientNotes={selectedContact.clientNotes} />
                       </div>
                     </div>
 
