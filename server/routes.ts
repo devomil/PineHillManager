@@ -26128,7 +26128,20 @@ Important:
         conditions.push(eq(practitionerContacts.assignedPractitionerId, assignedTo as string));
       }
       if (programType && programType !== 'all') {
-        conditions.push(ilike(practitionerContacts.scanType, `%${programType}%`));
+        // Map display label to snake_case used in clientNotes for legacy records
+        const programTypeSnakeMap: Record<string, string> = {
+          'Remote Initial Scan': 'remote_initial_scan',
+          'Follow-Up Scan': 'follow_up_scan',
+          'Pet Scan': 'pet_scan',
+          'Quick Calls': 'quick_calls',
+        };
+        const snakeKey = programTypeSnakeMap[programType as string] || (programType as string).toLowerCase().replace(/[\s-]/g, '_');
+        conditions.push(
+          or(
+            ilike(practitionerContacts.scanType, `%${programType}%`),
+            ilike(practitionerContacts.clientNotes, `%${snakeKey}%`)
+          )!
+        );
       }
       
       const contacts = conditions.length > 0
