@@ -26113,7 +26113,7 @@ Important:
   // Get all practitioner contacts (with optional filters)
   app.get('/api/practitioner-contacts', isAuthenticated, async (req, res) => {
     try {
-      const { status, serviceType, assignedTo, programType } = req.query;
+      const { status, serviceType, assignedTo, programType, paymentType } = req.query;
       
       let query = db.select().from(practitionerContacts);
       const conditions = [];
@@ -26142,6 +26142,13 @@ Important:
             ilike(practitionerContacts.clientNotes, `%${snakeKey}%`)
           )!
         );
+      }
+      if (paymentType && paymentType !== 'all') {
+        if (paymentType === 'none') {
+          conditions.push(sql`${practitionerContacts.paymentType} IS NULL`);
+        } else {
+          conditions.push(eq(practitionerContacts.paymentType, paymentType as string));
+        }
       }
       
       const contacts = conditions.length > 0

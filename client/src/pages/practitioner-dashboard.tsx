@@ -100,6 +100,7 @@ export default function PractitionerDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [programTypeFilter, setProgramTypeFilter] = useState<string>("all");
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("all");
   const [practitionerFilter, setPractitionerFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedContact, setSelectedContact] = useState<PractitionerContact | null>(null);
@@ -114,7 +115,7 @@ export default function PractitionerDashboard() {
   });
 
   const { data: contacts = [], isLoading: contactsLoading, refetch } = useQuery<PractitionerContact[]>({
-    queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, programType: programTypeFilter, assignedTo: practitionerFilter }],
+    queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, programType: programTypeFilter, paymentType: paymentTypeFilter, assignedTo: practitionerFilter }],
   });
 
   const matchesSearch = (c: PractitionerContact) => {
@@ -318,6 +319,22 @@ export default function PractitionerDashboard() {
                     {serviceTypes.map(st => (
                       <SelectItem key={st} value={st}>{st}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-56">
+                <label className="text-sm font-medium mb-1 block">Payment Type</label>
+                <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Payments" />
+                  </SelectTrigger>
+                  <SelectContent className="w-72">
+                    <SelectItem value="all">All Payments</SelectItem>
+                    <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
+                    <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
+                    <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
+                    <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
+                    <SelectItem value="none">— Not set —</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
