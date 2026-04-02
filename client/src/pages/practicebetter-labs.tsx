@@ -10,38 +10,63 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft, RefreshCw, Search, FlaskConical, Calendar, User, AlertCircle,
-  FileText, Download, ChevronRight, ExternalLink, Hash, Paperclip,
+  FileText, Download, ChevronRight, ExternalLink, Paperclip, Stethoscope,
+  Building2, X,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── Real PB Lab Request shape (from /consultant/labrequests) ──────────────────
+
+interface PBLabTest {
+  testId: string;
+  labTest?: {
+    labTestId?: string;
+    name?: string;
+    labCompanyName?: string;
+    url?: string;
+    details?: string;
+  };
+  status?: string;
+  result?: string;
+}
+
+interface PBArtifact {
+  id: string;
+  name?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileType?: string;
+  url?: string;
+  [key: string]: unknown;
+}
 
 interface PBLabRequest {
   id: string;
-  status?: string;
-  resultStatus?: string;
-  type?: string;
-  labType?: string;
   name?: string;
-  title?: string;
-  testName?: string;
-  panelName?: string;
-  labName?: string;
-  labCompany?: string;
-  orderedDate?: string;
-  dateOrdered?: string;
-  orderDate?: string;
+  // Rupa patient fields (primary client source)
+  rupaPatientFirstName?: string;
+  rupaPatientLastName?: string;
+  rupaPatientEmail?: string;
+  rupaOrderId?: string;
+  rupaStatus?: string;
+  rupaPractitionerName?: string;
+  rupaClinicId?: string;
+  // Tests
+  orderedTests?: PBLabTest[];
+  // Dates
   dateCreated?: string;
-  resultDate?: string;
-  dateResult?: string;
-  notes?: string;
-  consultant?: { id?: string; name?: string; firstName?: string; lastName?: string };
-  clientRecord?: {
-    id?: string;
-    profile?: { firstName?: string; lastName?: string; emailAddress?: string; email?: string; phone?: string };
-  };
-  attachments?: { id: string; name?: string; fileName?: string; mimeType?: string }[];
-  items?: { id: string; name?: string; testName?: string; status?: string; result?: string }[];
+  dateModified?: string;
+  dateOrdered?: string;
+  // Consultant
+  consultant?: { profile?: { firstName?: string; lastName?: string } };
+  // Status
+  requestStatus?: string;
+  publishStatus?: string;
+  // Attachments / result files
+  artifacts?: PBArtifact[];
+  notesHistory?: { note?: string; createdAt?: string }[];
+  // Fallback fields (older records or different integrations)
+  clientRecord?: { profile?: { firstName?: string; lastName?: string; emailAddress?: string; email?: string } };
   [key: string]: unknown;
 }
 
@@ -59,49 +84,177 @@ const fmtDate = (s?: string) => {
 };
 
 function getClientName(lab: PBLabRequest): string | null {
+  // Rupa integration fields come first
+  const first = lab.rupaPatientFirstName;
+  const last = lab.rupaPatientLastName;
+  if (first || last) return [first, last].filter(Boolean).join(" ");
+  // Fallback to clientRecord
   const prof = lab.clientRecord?.profile;
   if (prof) return [prof.firstName, prof.lastName].filter(Boolean).join(" ") || null;
   return null;
 }
 
 function getClientEmail(lab: PBLabRequest): string | null {
-  const prof = lab.clientRecord?.profile;
-  return prof?.emailAddress ?? prof?.email ?? null;
+  return lab.rupaPatientEmail
+    ?? lab.clientRecord?.profile?.emailAddress
+    ?? lab.clientRecord?.profile?.email
+    ?? null;
 }
 
 function getLabName(lab: PBLabRequest): string {
-  return lab.name ?? lab.title ?? lab.testName ?? lab.panelName ?? "Lab Order";
+  return lab.name ?? "Lab Order";
 }
 
-function getOrderedDate(lab: PBLabRequest): string | undefined {
-  return lab.orderedDate ?? lab.dateOrdered ?? lab.orderDate ?? lab.dateCreated;
+function getPrimaryStatus(lab: PBLabRequest): string {
+  // rupaStatus comes in human-readable form e.g. "Pending Payment", "Results Received"
+  // requestStatus is lowercase e.g. "inprogress", "complete"
+  return lab.rupaStatus ?? lab.requestStatus ?? "ordered";
 }
 
-function getResultDate(lab: PBLabRequest): string | undefined {
-  return lab.resultDate ?? lab.dateResult;
+function getLabCompany(lab: PBLabRequest): string | null {
+  const tests = lab.orderedTests;
+  if (!tests || tests.length === 0) return null;
+  const company = tests[0]?.labTest?.labCompanyName;
+  return company ?? null;
 }
 
-function getStatus(lab: PBLabRequest): string {
-  return (lab.status ?? lab.resultStatus ?? "ordered").toLowerCase();
+// Map PB status strings to badge colors
+function statusBadgeClass(status: string): string {
+  const s = status.toLowerCase();
+  if (s.includes("results") || s.includes("received") || s.includes("complete")) return "bg-green-100 text-green-700 border-green-200";
+  if (s.includes("abnormal")) return "bg-red-100 text-red-700 border-red-200";
+  if (s.includes("pending") || s.includes("inprogress") || s.includes("in progress")) return "bg-yellow-100 text-yellow-700 border-yellow-200";
+  if (s.includes("ordered") || s.includes("draft")) return "bg-gray-100 text-gray-600 border-gray-200";
+  if (s.includes("cancel")) return "bg-gray-100 text-gray-400 border-gray-200";
+  if (s.includes("reviewed")) return "bg-purple-100 text-purple-700 border-purple-200";
+  return "bg-blue-100 text-blue-700 border-blue-200";
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  normal:    "bg-green-100 text-green-700 border-green-200",
-  abnormal:  "bg-red-100 text-red-700 border-red-200",
-  pending:   "bg-yellow-100 text-yellow-700 border-yellow-200",
-  received:  "bg-blue-100 text-blue-700 border-blue-200",
-  ordered:   "bg-gray-100 text-gray-600 border-gray-200",
-  completed: "bg-green-100 text-green-700 border-green-200",
-  cancelled: "bg-gray-100 text-gray-400 border-gray-200",
-  reviewed:  "bg-purple-100 text-purple-700 border-purple-200",
-};
-
-function statusBadge(status: string) {
-  const cls = STATUS_COLOR[status] ?? "bg-gray-100 text-gray-600";
+function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge className={`text-xs border ${cls}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+    <Badge className={`text-xs border font-medium ${statusBadgeClass(status)}`}>
+      {status}
     </Badge>
+  );
+}
+
+// ── Attachment Viewer Dialog ───────────────────────────────────────────────────
+
+function AttachmentViewerDialog({
+  labId,
+  artifact,
+  open,
+  onOpenChange,
+}: {
+  labId: string;
+  artifact: PBArtifact | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { data: attachmentMeta, isLoading } = useQuery<PBArtifact>({
+    queryKey: ["/api/practicebetter/labs", labId, "attachments", artifact?.id],
+    queryFn: async () => {
+      const r = await fetch(`/api/practicebetter/labs/${labId}/attachments/${artifact!.id}`);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+    enabled: open && !!artifact?.id && !!labId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  if (!artifact) return null;
+
+  const meta = attachmentMeta ?? artifact;
+  const name = meta.name ?? meta.fileName ?? artifact.name ?? artifact.fileName ?? artifact.id;
+  const mimeType = meta.mimeType ?? meta.fileType ?? "";
+  const downloadUrl = `/api/practicebetter/labs/${labId}/attachments/${artifact.id}?alt=media`;
+
+  const isImage = mimeType.startsWith("image/");
+  const isPdf = mimeType === "application/pdf";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-base font-bold truncate">{name}</DialogTitle>
+                {mimeType && <p className="text-xs text-muted-foreground">{mimeType}</p>}
+              </div>
+            </div>
+            <a href={downloadUrl} target="_blank" rel="noopener noreferrer" download>
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
+                <Download className="h-4 w-4" /> Download
+              </Button>
+            </a>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-auto min-h-0">
+          {isLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="text-center space-y-2">
+                <div className="h-8 w-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-sm text-muted-foreground">Loading attachment details...</p>
+              </div>
+            </div>
+          ) : isImage ? (
+            <div className="flex items-center justify-center p-4">
+              <img
+                src={downloadUrl}
+                alt={name}
+                className="max-w-full max-h-[60vh] rounded-lg shadow-md object-contain"
+              />
+            </div>
+          ) : isPdf ? (
+            <iframe
+              src={`${downloadUrl}#view=FitH`}
+              title={name}
+              className="w-full h-[60vh] rounded-lg border"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+              <div className="h-16 w-16 rounded-2xl bg-cyan-100 text-cyan-600 flex items-center justify-center">
+                <FileText className="h-8 w-8" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-gray-800">{name}</p>
+                {mimeType && <p className="text-sm text-muted-foreground">{mimeType}</p>}
+              </div>
+              <a href={downloadUrl} target="_blank" rel="noopener noreferrer" download>
+                <Button className="bg-cyan-600 hover:bg-cyan-700 text-white gap-2">
+                  <Download className="h-4 w-4" /> Download File
+                </Button>
+              </a>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                This file type can't be previewed in the browser. Click Download to open it locally.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Raw metadata */}
+        {attachmentMeta && Object.keys(attachmentMeta).length > 0 && (
+          <div className="shrink-0 border-t pt-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Attachment Details</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+              {Object.entries(attachmentMeta)
+                .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+                .map(([k, v]) => (
+                  <div key={k} className="flex gap-2">
+                    <span className="text-muted-foreground font-medium shrink-0">{k}:</span>
+                    <span className="text-gray-700 break-all">{String(v)}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -116,8 +269,10 @@ function LabDetailDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const [viewingArtifact, setViewingArtifact] = useState<PBArtifact | null>(null);
+
   const { data: detail, isLoading } = useQuery<PBLabRequest>({
-    queryKey: ["/api/practicebetter/labs", lab?.id],
+    queryKey: ["/api/practicebetter/labs/detail", lab?.id],
     queryFn: async () => {
       const r = await fetch(`/api/practicebetter/labs/${lab!.id}`);
       if (!r.ok) throw new Error(await r.text());
@@ -132,151 +287,236 @@ function LabDetailDialog({
 
   const clientName = getClientName(item);
   const clientEmail = getClientEmail(item);
-  const status = getStatus(item);
-  const orderedDate = getOrderedDate(item);
-  const resultDate = getResultDate(item);
-  const attachments = (item.attachments as any[]) ?? [];
-  const lineItems = (item.items as any[]) ?? [];
   const labName = getLabName(item);
-
-  const fields: { label: string; value: string | null | undefined }[] = [
-    { label: "Lab / Company", value: item.labName as string ?? item.labCompany as string },
-    { label: "Type", value: item.type as string ?? item.labType as string },
-    { label: "Ordered Date", value: fmtDate(orderedDate) },
-    { label: "Result Date", value: fmtDate(resultDate) },
-    { label: "Notes", value: item.notes as string },
-  ].filter(f => f.value);
+  const status = getPrimaryStatus(item);
+  const orderedTests = item.orderedTests ?? [];
+  const artifacts = (item.artifacts as PBArtifact[]) ?? [];
+  const notes = (item.notesHistory as any[]) ?? [];
+  const practitioner = item.rupaPractitionerName
+    ?? [item.consultant?.profile?.firstName, item.consultant?.profile?.lastName].filter(Boolean).join(" ")
+    || null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader className="shrink-0">
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0 mt-0.5">
-              <FlaskConical className="h-5 w-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <DialogTitle className="text-lg font-bold leading-tight">{labName}</DialogTitle>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {statusBadge(status)}
-                {item.type && <span className="text-xs text-muted-foreground capitalize">{String(item.type)}</span>}
+    <>
+      <Dialog open={open && !viewingArtifact} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0 pb-3 border-b">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0 mt-0.5">
+                <FlaskConical className="h-5 w-5" />
               </div>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-4 py-2">
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-12 bg-muted rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* Client */}
-              {(clientName || clientEmail) && (
-                <div className="rounded-xl border bg-cyan-50 p-4 space-y-1">
-                  <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide flex items-center gap-1">
-                    <User className="h-3 w-3" /> Client
-                  </p>
-                  {clientName && <p className="font-semibold text-gray-800">{clientName}</p>}
-                  {clientEmail && <p className="text-sm text-muted-foreground">{clientEmail}</p>}
-                  {item.clientRecord?.profile?.phone && (
-                    <p className="text-sm text-muted-foreground">{String(item.clientRecord.profile.phone)}</p>
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-lg font-bold leading-tight">{labName}</DialogTitle>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <StatusBadge status={status} />
+                  {item.publishStatus && item.publishStatus !== "draft" && (
+                    <span className="text-xs text-muted-foreground capitalize">{item.publishStatus}</span>
                   )}
                 </div>
-              )}
+              </div>
+              <Button variant="outline" size="sm" asChild className="shrink-0">
+                <a href="https://app.practicebetter.io" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-1.5" /> PracticeBetter
+                </a>
+              </Button>
+            </div>
+          </DialogHeader>
 
-              {/* Key fields */}
-              {fields.length > 0 && (
-                <div className="rounded-xl border bg-gray-50 p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Details</p>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                    {fields.map(f => (
-                      <div key={f.label}>
-                        <p className="text-xs text-muted-foreground">{f.label}</p>
-                        <p className="text-sm font-medium text-gray-800">{f.value}</p>
-                      </div>
-                    ))}
-                    <div>
-                      <p className="text-xs text-muted-foreground">Lab Request ID</p>
-                      <p className="text-xs font-mono text-gray-500 break-all">{item.id}</p>
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-4 py-3">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted rounded-lg animate-pulse" />)}
+              </div>
+            ) : (
+              <>
+                {/* Client & Practitioner */}
+                <div className="grid grid-cols-2 gap-3">
+                  {(clientName || clientEmail) && (
+                    <div className="rounded-xl border bg-cyan-50 p-4 space-y-1">
+                      <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide flex items-center gap-1">
+                        <User className="h-3 w-3" /> Patient
+                      </p>
+                      {clientName && <p className="font-semibold text-gray-800">{clientName}</p>}
+                      {clientEmail && <p className="text-xs text-muted-foreground break-all">{clientEmail}</p>}
+                      {item.rupaOrderId && (
+                        <p className="text-xs text-muted-foreground">Order: {item.rupaOrderId}</p>
+                      )}
+                    </div>
+                  )}
+                  {practitioner && (
+                    <div className="rounded-xl border bg-purple-50 p-4 space-y-1">
+                      <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide flex items-center gap-1">
+                        <Stethoscope className="h-3 w-3" /> Practitioner
+                      </p>
+                      <p className="font-semibold text-gray-800">{practitioner}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Dates */}
+                <div className="grid grid-cols-3 gap-3">
+                  {item.dateOrdered && (
+                    <div className="rounded-lg border bg-gray-50 p-3">
+                      <p className="text-xs text-muted-foreground">Ordered</p>
+                      <p className="text-sm font-semibold text-gray-800">{fmtDate(item.dateOrdered)}</p>
+                    </div>
+                  )}
+                  {item.dateCreated && (
+                    <div className="rounded-lg border bg-gray-50 p-3">
+                      <p className="text-xs text-muted-foreground">Created</p>
+                      <p className="text-sm font-semibold text-gray-800">{fmtDate(item.dateCreated)}</p>
+                    </div>
+                  )}
+                  {item.dateModified && (
+                    <div className="rounded-lg border bg-gray-50 p-3">
+                      <p className="text-xs text-muted-foreground">Last Updated</p>
+                      <p className="text-sm font-semibold text-gray-800">{fmtDate(item.dateModified)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ordered Tests */}
+                {orderedTests.length > 0 && (
+                  <div className="rounded-xl border p-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                      <FlaskConical className="h-3 w-3" /> Ordered Tests ({orderedTests.length})
+                    </p>
+                    <div className="space-y-2">
+                      {orderedTests.map((t, i) => {
+                        const lt = t.labTest;
+                        return (
+                          <div key={t.testId ?? i} className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800">{lt?.name ?? `Test ${i + 1}`}</p>
+                                {lt?.labCompanyName && (
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                    <Building2 className="h-3 w-3" /> {lt.labCompanyName}
+                                  </p>
+                                )}
+                                {lt?.details && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{lt.details}</p>
+                                )}
+                              </div>
+                              <div className="shrink-0 flex gap-2 items-center">
+                                {t.status && <StatusBadge status={t.status} />}
+                                {lt?.url && (
+                                  <a href={lt.url} target="_blank" rel="noopener noreferrer">
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            {t.result && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <span className="text-xs text-muted-foreground">Result: </span>
+                                <span className="text-xs font-medium text-gray-800">{String(t.result)}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Line items / panel tests */}
-              {lineItems.length > 0 && (
+                {/* Artifacts (Result Files / Attachments) */}
                 <div className="rounded-xl border p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1">
-                    <Hash className="h-3 w-3" /> Tests ({lineItems.length})
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <Paperclip className="h-3 w-3" /> Result Files & Attachments
+                    {artifacts.length > 0 && (
+                      <span className="ml-1 bg-cyan-100 text-cyan-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                        {artifacts.length}
+                      </span>
+                    )}
                   </p>
-                  <div className="space-y-2">
-                    {lineItems.map((item: any, i: number) => (
-                      <div key={item.id ?? i} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 gap-2">
-                        <span className="text-sm font-medium text-gray-800">{item.name ?? item.testName ?? `Test ${i + 1}`}</span>
-                        {item.status && statusBadge(String(item.status).toLowerCase())}
-                        {item.result && (
-                          <span className="text-xs text-muted-foreground">{String(item.result)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  {artifacts.length > 0 ? (
+                    <div className="space-y-2">
+                      {artifacts.map((art) => {
+                        const artName = art.name ?? art.fileName ?? art.id;
+                        return (
+                          <div
+                            key={art.id}
+                            className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100 hover:border-cyan-200 hover:bg-cyan-50 transition-colors group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-8 w-8 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
+                                <FileText className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{artName}</p>
+                                {art.mimeType && (
+                                  <p className="text-xs text-muted-foreground">{String(art.mimeType)}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1.5 border-cyan-300 text-cyan-700 hover:bg-cyan-100"
+                                onClick={() => setViewingArtifact(art)}
+                              >
+                                View
+                              </Button>
+                              <a
+                                href={`/api/practicebetter/labs/${item.id}/attachments/${art.id}?alt=media`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                              >
+                                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                                  <Download className="h-3.5 w-3.5" /> Download
+                                </Button>
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+                      <Paperclip className="h-8 w-8 text-muted-foreground/20" />
+                      <p className="text-sm text-muted-foreground">No result files attached to this lab request</p>
+                      <p className="text-xs text-muted-foreground">
+                        Result files will appear here once the lab returns results.
+      </p>
+                    </div>
+                  )}
                 </div>
-              )}
 
-              {/* Attachments */}
-              {attachments.length > 0 && (
-                <div className="rounded-xl border p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1">
-                    <Paperclip className="h-3 w-3" /> Attachments ({attachments.length})
-                  </p>
-                  <div className="space-y-2">
-                    {attachments.map((att: any) => (
-                      <div key={att.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-cyan-600 shrink-0" />
-                          <span className="text-sm text-gray-700 truncate">{att.name ?? att.fileName ?? att.id}</span>
+                {/* Notes history */}
+                {notes.length > 0 && (
+                  <div className="rounded-xl border p-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Notes</p>
+                    <div className="space-y-2">
+                      {notes.map((n: any, i: number) => (
+                        <div key={i} className="p-3 rounded-lg bg-gray-50 text-sm">
+                          {n.note && <p className="text-gray-700">{String(n.note)}</p>}
+                          {n.createdAt && (
+                            <p className="text-xs text-muted-foreground mt-1">{fmtDate(n.createdAt)}</p>
+                          )}
                         </div>
-                        <a
-                          href={`/api/practicebetter/labs/${item.id}/attachments/${att.id}?alt=media`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="shrink-0"
-                        >
-                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                            <Download className="h-3 w-3" /> Download
-                          </Button>
-                        </a>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-              {/* Empty attachment note */}
-              {attachments.length === 0 && (
-                <div className="rounded-xl border border-dashed bg-gray-50 p-4 text-center">
-                  <Paperclip className="h-6 w-6 mx-auto text-muted-foreground/30 mb-1" />
-                  <p className="text-xs text-muted-foreground">No attachments on this lab request</p>
-                </div>
-              )}
-
-              {/* PB Portal link */}
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" asChild>
-                  <a href="https://app.practicebetter.io" target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-2" /> Open in PracticeBetter
-                  </a>
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+      {/* Attachment Viewer — separate dialog layer */}
+      <AttachmentViewerDialog
+        labId={item.id}
+        artifact={viewingArtifact}
+        open={!!viewingArtifact}
+        onOpenChange={v => { if (!v) setViewingArtifact(null); }}
+      />
+    </>
   );
 }
 
@@ -305,13 +545,14 @@ export default function PBLabsPage() {
   });
 
   const items = data?.items ?? [];
-  const filtered = items.filter((l) => {
+  const filtered = items.filter(l => {
     if (!search) return true;
     const q = search.toLowerCase();
     const name = getLabName(l).toLowerCase();
     const client = (getClientName(l) ?? "").toLowerCase();
-    const lab = (l.labName as string ?? "").toLowerCase();
-    return name.includes(q) || client.includes(q) || lab.includes(q);
+    const company = (getLabCompany(l) ?? "").toLowerCase();
+    const practitioner = (l.rupaPractitionerName ?? "").toLowerCase();
+    return name.includes(q) || client.includes(q) || company.includes(q) || practitioner.includes(q);
   });
 
   const goNext = () => {
@@ -346,7 +587,7 @@ export default function PBLabsPage() {
           </div>
           <div className="flex items-center gap-2">
             {data?.count !== undefined && (
-              <span className="text-sm text-muted-foreground">{data.count} total</span>
+              <span className="text-sm text-muted-foreground font-medium">{data.count} total</span>
             )}
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4 mr-2" /> Refresh
@@ -359,24 +600,22 @@ export default function PBLabsPage() {
           <div className="relative flex-1 min-w-[220px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by lab name, client..."
+              placeholder="Search labs, clients, practitioners..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="pl-9"
             />
           </div>
           <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setAfterId(undefined); setHistory([]); }}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-48">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="ordered">Ordered</SelectItem>
-              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="received">Results Received</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="normal">Normal</SelectItem>
-              <SelectItem value="abnormal">Abnormal</SelectItem>
+              <SelectItem value="complete">Complete</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -393,7 +632,7 @@ export default function PBLabsPage() {
                     <div className="h-4 bg-muted rounded w-1/3" />
                     <div className="h-3 bg-muted rounded w-2/3" />
                   </div>
-                  <div className="h-6 w-20 bg-muted rounded-full" />
+                  <div className="h-6 w-28 bg-muted rounded-full" />
                 </CardContent>
               </Card>
             ))}
@@ -415,7 +654,7 @@ export default function PBLabsPage() {
                 {search || statusFilter !== "all" ? "No labs match your filters" : "No lab records found"}
               </p>
               <p className="text-sm text-muted-foreground">
-                Lab orders and results synced from Evexia, Fullscript, and other partners will appear here.
+                Lab orders synced from Rupa Health, Evexia, Fullscript, and other partners appear here.
               </p>
             </CardContent>
           </Card>
@@ -423,16 +662,17 @@ export default function PBLabsPage() {
           <div className="space-y-2">
             {filtered.map(lab => {
               const name = getLabName(lab);
-              const status = getStatus(lab);
-              const clientDisplay = getClientName(lab);
-              const orderedDate = getOrderedDate(lab);
-              const resultDate = getResultDate(lab);
-              const hasAttachments = Array.isArray(lab.attachments) && (lab.attachments as any[]).length > 0;
+              const status = getPrimaryStatus(lab);
+              const clientName = getClientName(lab);
+              const labCompany = getLabCompany(lab);
+              const orderedDate = lab.dateOrdered;
+              const hasArtifacts = Array.isArray(lab.artifacts) && lab.artifacts.length > 0;
+              const testCount = lab.orderedTests?.length ?? 0;
 
               return (
                 <Card
                   key={lab.id}
-                  className="hover:shadow-md transition-all border-cyan-100 hover:border-cyan-300 cursor-pointer group"
+                  className="hover:shadow-md transition-all border-gray-200 hover:border-cyan-300 cursor-pointer group"
                   onClick={() => setSelectedLab(lab)}
                 >
                   <CardContent className="p-4">
@@ -442,42 +682,44 @@ export default function PBLabsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm group-hover:text-cyan-700 transition-colors">{name}</p>
-                            {lab.labName && (
-                              <p className="text-xs text-muted-foreground mt-0.5">{String(lab.labName)}</p>
+                            {labCompany && (
+                              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                                <Building2 className="h-3 w-3" /> {labCompany}
+                              </p>
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {statusBadge(status)}
+                            <StatusBadge status={status} />
                             <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-cyan-500 transition-colors" />
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
-                          {clientDisplay && (
+                          {clientName && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <User className="h-3 w-3" /> {clientDisplay}
+                              <User className="h-3 w-3" /> {clientName}
+                            </span>
+                          )}
+                          {lab.rupaPractitionerName && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Stethoscope className="h-3 w-3" /> {lab.rupaPractitionerName}
                             </span>
                           )}
                           {orderedDate && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" /> Ordered {fmtDate(orderedDate)}
+                              <Calendar className="h-3 w-3" /> {fmtDate(orderedDate)}
                             </span>
                           )}
-                          {resultDate && (
-                            <span className="flex items-center gap-1 text-xs text-cyan-700 font-medium">
-                              <FileText className="h-3 w-3" /> Result {fmtDate(resultDate)}
-                            </span>
+                          {testCount > 1 && (
+                            <span className="text-xs text-muted-foreground">{testCount} tests</span>
                           )}
-                          {hasAttachments && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Paperclip className="h-3 w-3" /> Has attachments
+                          {hasArtifacts && (
+                            <span className="flex items-center gap-1 text-xs text-cyan-600 font-medium">
+                              <Paperclip className="h-3 w-3" /> Results attached
                             </span>
                           )}
                         </div>
-                        {lab.notes && (
-                          <p className="text-xs text-muted-foreground mt-1 italic line-clamp-1">{String(lab.notes)}</p>
-                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -490,7 +732,9 @@ export default function PBLabsPage() {
         {/* Pagination */}
         {!isLoading && !error && (
           <div className="flex items-center justify-between text-sm text-muted-foreground pt-1">
-            <span>{filtered.length} record{filtered.length !== 1 ? "s" : ""} shown{data?.count ? ` of ${data.count} total` : ""}</span>
+            <span>
+              {filtered.length} shown{data?.count ? ` of ${data.count} total` : ""}
+            </span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={goPrev} disabled={history.length === 0}>
                 ← Prev
