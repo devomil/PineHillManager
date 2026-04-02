@@ -467,15 +467,80 @@ router.get('/programs', ...protect, async (req: Request, res: ExpressResponse) =
 
 router.get('/labs', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
-    const { after_id, before_id, status } = req.query as Record<string, string>;
-    const qs = buildQuery({ after_id, before_id, status });
-    const pbRes = await pbFetch(`/consultant/lab-results${qs}`);
-    const data = await pbRes.json();
+    const { after_id, before_id, status, client_record_id } = req.query as Record<string, string>;
+    const limit = req.query.limit as string | undefined;
+    const qs = buildQuery({ after_id, before_id, status, client_record_id, limit: limit ?? '25' });
+    const pbRes = await pbFetch(`/consultant/labrequests${qs}`);
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      console.error('[PB] labs non-JSON response:', text.slice(0, 200));
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
+    }
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
-    res.json({ count: items.length, hasMore: data.hasMore ?? data.has_more ?? false, items });
+
+    const items: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+
+    // Log first item shape so we can see real field names
+    if (items.length > 0) {
+      console.log('[PB] labrequests sample keys:', Object.keys(items[0]));
+      console.log('[PB] labrequests sample item:', JSON.stringify(items[0], null, 2));
+    }
+
+    // Enrich with client names via batch fetch (same pattern as formrequests)
+    const clientIds = [...new Set(items.map((r: any) => r.clientRecord?.id).filter(Boolean))] as string[];
+    const clientMap = await batchFetchClientRecords(clientIds);
+
+    const enriched = items.map((r: any) => {
+      const cid = r.clientRecord?.id;
+      const fullClient = cid ? clientMap[cid] : null;
+      return { ...r, clientRecord: fullClient ?? r.clientRecord };
+    });
+
+    res.json({ count: data.count ?? enriched.length, hasMore: data.hasMore ?? data.has_more ?? false, items: enriched });
   } catch (err: any) {
     console.error('[PB] labs list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/labs/:labId', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const pbRes = await pbFetch(`/consultant/labrequests/${req.params.labId}`);
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON' });
+    }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] lab get error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/labs/:labId/attachments/:itemId', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { alt } = req.query as Record<string, string>;
+    const qs = alt ? `?alt=${alt}` : '';
+    const pbRes = await pbFetch(`/consultant/labrequests/${req.params.labId}/attachments/${req.params.itemId}${qs}`);
+    if (alt === 'media') {
+      // Stream binary content back with the correct content-type
+      const contentType = pbRes.headers.get('content-type') ?? 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      const buffer = Buffer.from(await pbRes.arrayBuffer());
+      return res.send(buffer);
+    }
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON' });
+    }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] lab attachment error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
