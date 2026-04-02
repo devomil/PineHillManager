@@ -292,8 +292,8 @@ function LabDetailDialog({
   const orderedTests = item.orderedTests ?? [];
   const artifacts = (item.artifacts as PBArtifact[]) ?? [];
   const notes = (item.notesHistory as any[]) ?? [];
-  const practitioner = item.rupaPractitionerName
-    ?? [item.consultant?.profile?.firstName, item.consultant?.profile?.lastName].filter(Boolean).join(" ")
+  const practitioner = (item.rupaPractitionerName
+    ?? [item.consultant?.profile?.firstName, item.consultant?.profile?.lastName].filter(Boolean).join(" "))
     || null;
 
   return (
