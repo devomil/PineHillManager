@@ -441,7 +441,6 @@ export default function PractitionerDashboard() {
                         <TableHead>Contact Info</TableHead>
                         <TableHead>Program Type</TableHead>
                         <TableHead>Service Type</TableHead>
-                        <TableHead>Notes</TableHead>
                         <TableHead>Comments</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
@@ -476,18 +475,6 @@ export default function PractitionerDashboard() {
                             <Badge variant="outline">{contact.serviceType}</Badge>
                           </TableCell>
                           <TableCell className="max-w-48">
-                            {contact.clientNotes ? (
-                              <div className="flex items-start gap-1">
-                                <StickyNote className="h-3 w-3 mt-1 text-gray-400 flex-shrink-0" />
-                                <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                                  {contact.clientNotes}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-400 italic">No notes</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-48">
                             <EditableComment 
                               contactId={contact.id} 
                               currentComment={contact.practitionerComments || ''} 
@@ -499,7 +486,28 @@ export default function PractitionerDashboard() {
                               }}
                             />
                           </TableCell>
-                          <TableCell>{getStatusBadge(contact.status)}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={contact.status}
+                              onValueChange={(value) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { status: value },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-36 h-auto py-1 px-2">
+                                <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent className="w-44">
+                                {statusTypes.map(st => (
+                                  <SelectItem key={st.value} value={st.value}>
+                                    <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell>
                             <Select
                               value={contact.assignedPractitionerId || "unassigned"}
@@ -551,51 +559,28 @@ export default function PractitionerDashboard() {
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="View/Edit details"
-                                aria-label="View or edit contact details"
-                                onClick={() => {
-                                  setSelectedContact(contact);
-                                  setEditFormData({
-                                    clientFirstName: contact.clientFirstName || '',
-                                    clientLastName: contact.clientLastName || '',
-                                    clientEmail: contact.clientEmail || '',
-                                    clientPhone: contact.clientPhone || '',
-                                    clientNotes: contact.clientNotes || '',
-                                  });
-                                  setIsEditing(false);
-                                  setViewDialogOpen(true);
-                                }}
-                                className="text-xs"
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                View/Edit
-                              </Button>
-                              <Select
-                                value={contact.status}
-                                onValueChange={(value) => {
-                                  updateContactMutation.mutate({
-                                    id: contact.id,
-                                    updates: { status: value },
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="w-36 h-auto py-1 px-2">
-                                  <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="w-44">
-                                  {statusTypes.map(st => (
-                                    <SelectItem key={st.value} value={st.value}>
-                                      <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="View/Edit details"
+                              aria-label="View or edit contact details"
+                              onClick={() => {
+                                setSelectedContact(contact);
+                                setEditFormData({
+                                  clientFirstName: contact.clientFirstName || '',
+                                  clientLastName: contact.clientLastName || '',
+                                  clientEmail: contact.clientEmail || '',
+                                  clientPhone: contact.clientPhone || '',
+                                  clientNotes: contact.clientNotes || '',
+                                });
+                                setIsEditing(false);
+                                setViewDialogOpen(true);
+                              }}
+                              className="text-xs"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View/Edit
+                            </Button>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -764,7 +749,6 @@ export default function PractitionerDashboard() {
                         <TableHead>Contact Info</TableHead>
                         <TableHead>Program Type</TableHead>
                         <TableHead>Service Type</TableHead>
-                        <TableHead>Notes</TableHead>
                         <TableHead>Comments</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
@@ -799,18 +783,6 @@ export default function PractitionerDashboard() {
                             <Badge variant="outline">{contact.serviceType}</Badge>
                           </TableCell>
                           <TableCell className="max-w-48">
-                            {contact.clientNotes ? (
-                              <div className="flex items-start gap-1">
-                                <StickyNote className="h-3 w-3 mt-1 text-gray-400 flex-shrink-0" />
-                                <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                                  {contact.clientNotes}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-400 italic">No notes</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-48">
                             <EditableComment 
                               contactId={contact.id} 
                               currentComment={contact.practitionerComments || ''} 
@@ -822,7 +794,28 @@ export default function PractitionerDashboard() {
                               }}
                             />
                           </TableCell>
-                          <TableCell>{getStatusBadge(contact.status)}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={contact.status}
+                              onValueChange={(value) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { status: value },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-36 h-auto py-1 px-2">
+                                <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent className="w-44">
+                                {statusTypes.map(st => (
+                                  <SelectItem key={st.value} value={st.value}>
+                                    <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell>
                             <span className="text-sm text-gray-500">
                               {employees.find(e => e.id === contact.assignedPractitionerId)
@@ -860,51 +853,28 @@ export default function PractitionerDashboard() {
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="View/Edit details"
-                                aria-label="View or edit contact details"
-                                onClick={() => {
-                                  setSelectedContact(contact);
-                                  setEditFormData({
-                                    clientFirstName: contact.clientFirstName || '',
-                                    clientLastName: contact.clientLastName || '',
-                                    clientEmail: contact.clientEmail || '',
-                                    clientPhone: contact.clientPhone || '',
-                                    clientNotes: contact.clientNotes || '',
-                                  });
-                                  setIsEditing(false);
-                                  setViewDialogOpen(true);
-                                }}
-                                className="text-xs"
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                View/Edit
-                              </Button>
-                              <Select
-                                value={contact.status}
-                                onValueChange={(value) => {
-                                  updateContactMutation.mutate({
-                                    id: contact.id,
-                                    updates: { status: value },
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="w-36 h-auto py-1 px-2">
-                                  <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="w-44">
-                                  {statusTypes.map(st => (
-                                    <SelectItem key={st.value} value={st.value}>
-                                      <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="View/Edit details"
+                              aria-label="View or edit contact details"
+                              onClick={() => {
+                                setSelectedContact(contact);
+                                setEditFormData({
+                                  clientFirstName: contact.clientFirstName || '',
+                                  clientLastName: contact.clientLastName || '',
+                                  clientEmail: contact.clientEmail || '',
+                                  clientPhone: contact.clientPhone || '',
+                                  clientNotes: contact.clientNotes || '',
+                                });
+                                setIsEditing(false);
+                                setViewDialogOpen(true);
+                              }}
+                              className="text-xs"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View/Edit
+                            </Button>
                         </TableRow>
                       ))}
                     </TableBody>
