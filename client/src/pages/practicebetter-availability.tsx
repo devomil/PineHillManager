@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import AdminLayout from "@/components/admin-layout";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, RefreshCw, Calendar, Clock, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -22,21 +23,34 @@ interface AvailabilitySlot {
   service_id?: string;
 }
 
+// Exact PracticeBetter session shape from the live API
 interface Session {
   id: string;
-  // PracticeBetter uses camelCase — field names kept raw from API
-  startTime?: string;
-  endTime?: string;
-  status?: string;
-  // Client may be nested object or flat string depending on PB version
-  client?: { id?: string; name?: string; firstName?: string; lastName?: string } | string;
-  clientName?: string;
-  consultant?: { id?: string; name?: string; firstName?: string; lastName?: string } | string;
-  consultantName?: string;
-  service?: { id?: string; name?: string } | string;
-  serviceName?: string;
-  notes?: string;
-  [key: string]: unknown; // allow any additional PB fields
+  clientRecord?: {
+    id?: string;
+    profile?: { firstName?: string; lastName?: string; emailAddress?: string };
+    isActive?: boolean;
+  };
+  clientConfirmationStatus?: string;
+  consultant?: {
+    id?: string;
+    profile?: { firstName?: string; lastName?: string };
+  };
+  service?: { id?: string; name?: string };
+  sessionDate?: string;
+  endDate?: string;
+  cancelled?: boolean;
+  upcoming?: boolean;
+  confirmationStatus?: string;
+  serviceType?: string;
+  duration?: number;
+  [key: string]: unknown;
+}
+
+interface PBService {
+  id: string;
+  name: string;
+  duration?: number;
 }
 
 interface BookSessionForm {
@@ -47,7 +61,6 @@ interface BookSessionForm {
   notes: string;
 }
 
-// PracticeBetter list response shape: { count, hasMore, items }
 interface PBListResponse<T> {
   count?: number;
   hasMore?: boolean;
@@ -63,6 +76,8 @@ export default function PBAvailabilityPage() {
   const [sessionHistory, setSessionHistory] = useState<string[]>([]);
   const [bookOpen, setBookOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
+  const [slotsConsultantId, setSlotsConsultantId] = useState<string>("");
+  const [slotsServiceId, setSlotsServiceId] = useState<string>("");
   const [bookForm, setBookForm] = useState<BookSessionForm>({
     client_id: "",
     service_id: "",
@@ -71,21 +86,7 @@ export default function PBAvailabilityPage() {
     notes: "",
   });
 
-  const {
-    data: slotsData,
-    isLoading: slotsLoading,
-    error: slotsError,
-    refetch: refetchSlots,
-  } = useQuery<AvailabilitySlot[]>({
-    queryKey: ["/api/practicebetter/availability/slots", selectedDay],
-    queryFn: async () => {
-      const params = new URLSearchParams({ day: selectedDay });
-      const res = await fetch(`/api/practicebetter/availability/slots?${params}`);
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-  });
-
+  // Sessions — always load so we can extract unique consultants for the slots filter
   const {
     data: sessionsData,
     isLoading: sessionsLoading,
@@ -96,6 +97,55 @@ export default function PBAvailabilityPage() {
       const params = new URLSearchParams();
       if (sessionAfter) params.set("after_id", sessionAfter);
       const res = await fetch(`/api/practicebetter/sessions?${params}`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+  });
+
+  // PB Services list for the slots consultant/service selector
+  const { data: servicesData } = useQuery<PBListResponse<PBService>>({
+    queryKey: ["/api/practicebetter/services"],
+    queryFn: async () => {
+      const res = await fetch("/api/practicebetter/services");
+      if (!res.ok) return { items: [] };
+      return res.json();
+    },
+  });
+
+  const services: PBService[] = servicesData?.items ?? [];
+
+  // Extract unique consultants from sessions data
+  const consultants = useMemo(() => {
+    const sessions = sessionsData?.items ?? [];
+    const map = new Map<string, string>();
+    for (const s of sessions) {
+      const id = s.consultant?.id;
+      if (id) {
+        const name = [s.consultant?.profile?.firstName, s.consultant?.profile?.lastName]
+          .filter(Boolean).join(" ") || id;
+        map.set(id, name);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [sessionsData]);
+
+  // Availability slots — only query when both consultant and service are selected
+  const slotsEnabled = Boolean(slotsConsultantId && slotsServiceId);
+  const {
+    data: slotsData,
+    isLoading: slotsLoading,
+    error: slotsError,
+    refetch: refetchSlots,
+  } = useQuery<AvailabilitySlot[]>({
+    queryKey: ["/api/practicebetter/availability/slots", selectedDay, slotsConsultantId, slotsServiceId],
+    enabled: slotsEnabled,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        day: selectedDay,
+        as_consultant: slotsConsultantId,
+        serviceId: slotsServiceId,
+      });
+      const res = await fetch(`/api/practicebetter/availability/slots?${params}`);
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
@@ -128,9 +178,9 @@ export default function PBAvailabilityPage() {
     setSelectedSlot(slot ?? null);
     setBookForm({
       client_id: "",
-      service_id: slot?.service_id ?? "",
+      service_id: slot?.service_id ?? slotsServiceId,
       start_time: slot?.start_time ?? "",
-      consultant_id: slot?.consultant_id ?? "",
+      consultant_id: slot?.consultant_id ?? slotsConsultantId,
       notes: "",
     });
     setBookOpen(true);
@@ -157,15 +207,6 @@ export default function PBAvailabilityPage() {
     }
   };
 
-  // Helper to resolve a client/consultant field that PB may return as an object or flat string
-  const resolveName = (field: { id?: string; name?: string; firstName?: string; lastName?: string } | string | undefined, fallback?: string): string => {
-    if (!field) return fallback ?? "—";
-    if (typeof field === "string") return field || (fallback ?? "—");
-    if (field.name) return field.name;
-    const parts = [field.firstName, field.lastName].filter(Boolean);
-    return parts.length ? parts.join(" ") : fallback ?? "—";
-  };
-
   const sessionPrev = () => {
     const prev = [...sessionHistory];
     const prevId = prev.pop() || undefined;
@@ -176,13 +217,25 @@ export default function PBAvailabilityPage() {
   const prevDay = () => setSelectedDay(format(subDays(new Date(selectedDay), 1), "yyyy-MM-dd"));
   const nextDay = () => setSelectedDay(format(addDays(new Date(selectedDay), 1), "yyyy-MM-dd"));
 
-  const getStatusColor = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case "booked": case "confirmed": return "bg-green-100 text-green-700 border-green-200";
-      case "cancelled": return "bg-red-100 text-red-700 border-red-200";
-      case "pending": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      default: return "bg-gray-100 text-gray-700 border-gray-200";
-    }
+  // Derive a human-readable status from PB's boolean/string fields
+  const getSessionStatus = (s: Session): { label: string; color: string } => {
+    if (s.cancelled) return { label: "Cancelled", color: "bg-red-100 text-red-700 border-red-200" };
+    if (s.upcoming) return { label: "Upcoming", color: "bg-blue-100 text-blue-700 border-blue-200" };
+    if (s.confirmationStatus === "confirmed") return { label: "Confirmed", color: "bg-green-100 text-green-700 border-green-200" };
+    if (s.confirmationStatus === "unconfirmed") return { label: "Unconfirmed", color: "bg-yellow-100 text-yellow-700 border-yellow-200" };
+    return { label: s.confirmationStatus ?? "—", color: "bg-gray-100 text-gray-700 border-gray-200" };
+  };
+
+  const clientName = (s: Session) => {
+    const p = s.clientRecord?.profile;
+    if (!p) return "—";
+    return [p.firstName, p.lastName].filter(Boolean).join(" ") || "—";
+  };
+
+  const consultantName = (s: Session) => {
+    const p = s.consultant?.profile;
+    if (!p) return "—";
+    return [p.firstName, p.lastName].filter(Boolean).join(" ") || "—";
   };
 
   return (
@@ -222,12 +275,12 @@ export default function PBAvailabilityPage() {
           <TabsContent value="slots" className="mt-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
                     <CardTitle>Available Slots</CardTitle>
-                    <CardDescription>Open appointment slots — click any slot to book</CardDescription>
+                    <CardDescription>Select a consultant and service, then browse open slots</CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={prevDay}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -242,10 +295,48 @@ export default function PBAvailabilityPage() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Consultant + Service selectors */}
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Consultant</Label>
+                    <Select value={slotsConsultantId} onValueChange={setSlotsConsultantId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a consultant…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {consultants.length === 0 ? (
+                          <SelectItem value="__none__" disabled>No consultants loaded yet</SelectItem>
+                        ) : consultants.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Service</Label>
+                    <Select value={slotsServiceId} onValueChange={setSlotsServiceId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a service…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {services.length === 0 ? (
+                          <SelectItem value="__none__" disabled>Loading services…</SelectItem>
+                        ) : services.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                {slotsLoading ? (
-                  <div className="py-8 text-center text-muted-foreground">Loading availability slots...</div>
+                {!slotsEnabled ? (
+                  <div className="py-8 text-center text-muted-foreground text-sm">
+                    Select a consultant and service above to view available slots.
+                  </div>
+                ) : slotsLoading ? (
+                  <div className="py-8 text-center text-muted-foreground">Loading availability slots…</div>
                 ) : slotsError ? (
                   <div className="py-8 text-center text-red-500 text-sm">Failed to load slots. Check PracticeBetter connection.</div>
                 ) : slots.length === 0 ? (
@@ -292,7 +383,7 @@ export default function PBAvailabilityPage() {
               </CardHeader>
               <CardContent className="p-0">
                 {sessionsLoading ? (
-                  <div className="py-8 text-center text-muted-foreground">Loading sessions...</div>
+                  <div className="py-8 text-center text-muted-foreground">Loading sessions…</div>
                 ) : sessions.length === 0 ? (
                   <div className="py-8 text-center text-muted-foreground">No sessions found.</div>
                 ) : (
@@ -308,28 +399,23 @@ export default function PBAvailabilityPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sessions.map((s) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="font-medium">
-                            {resolveName(s.client as any, s.clientName)}
-                          </TableCell>
-                          <TableCell>
-                            {resolveName(s.consultant as any, s.consultantName)}
-                          </TableCell>
-                          <TableCell>
-                            {typeof s.service === "object" && s.service !== null
-                              ? (s.service as any).name ?? "—"
-                              : (s.service as string) || s.serviceName || "—"}
-                          </TableCell>
-                          <TableCell className="text-sm">{formatDateTime(s.startTime)}</TableCell>
-                          <TableCell className="text-sm">{formatDateTime(s.endTime)}</TableCell>
-                          <TableCell>
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusColor(s.status)}`}>
-                              {s.status ?? "—"}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {sessions.map((s) => {
+                        const status = getSessionStatus(s);
+                        return (
+                          <TableRow key={s.id}>
+                            <TableCell className="font-medium">{clientName(s)}</TableCell>
+                            <TableCell>{consultantName(s)}</TableCell>
+                            <TableCell>{s.service?.name ?? "—"}</TableCell>
+                            <TableCell className="text-sm">{formatDateTime(s.sessionDate)}</TableCell>
+                            <TableCell className="text-sm">{formatDateTime(s.endDate)}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.color}`}>
+                                {status.label}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
@@ -414,7 +500,7 @@ export default function PBAvailabilityPage() {
               onClick={() => bookMutation.mutate(bookForm)}
               disabled={!bookForm.start_time || bookMutation.isPending}
             >
-              {bookMutation.isPending ? "Booking..." : "Book Session"}
+              {bookMutation.isPending ? "Booking…" : "Book Session"}
             </Button>
           </DialogFooter>
         </DialogContent>

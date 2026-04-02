@@ -237,6 +237,22 @@ router.post('/sessions', ...protect, async (req: Request, res: ExpressResponse) 
   }
 });
 
+// ── Services ──────────────────────────────────────────────────────────────────
+
+router.get('/services', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { after_id, before_id } = req.query as Record<string, string>;
+    const qs = buildQuery({ after_id, before_id });
+    const pbRes = await pbFetch(`/consultant/services${qs}`);
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] services list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
 router.get('/invoices', ...protect, async (req: Request, res: ExpressResponse) => {
