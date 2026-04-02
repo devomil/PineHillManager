@@ -176,15 +176,13 @@ function AttachmentViewerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="h-9 w-9 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
-                <FileText className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <DialogTitle className="text-base font-bold truncate">{name}</DialogTitle>
-                {mimeType && <p className="text-xs text-muted-foreground">{mimeType}</p>}
-              </div>
+          <div className="flex items-center gap-3 pr-10">
+            <div className="h-9 w-9 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-base font-bold truncate">{name}</DialogTitle>
+              {mimeType && <p className="text-xs text-muted-foreground">{mimeType}</p>}
             </div>
             <a href={downloadUrl} target="_blank" rel="noopener noreferrer" download>
               <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
@@ -301,24 +299,24 @@ function LabDetailDialog({
       <Dialog open={open && !viewingArtifact} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0 pb-3 border-b">
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 pr-10">
               <div className="h-10 w-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0 mt-0.5">
                 <FlaskConical className="h-5 w-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <DialogTitle className="text-lg font-bold leading-tight">{labName}</DialogTitle>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   <StatusBadge status={status} />
                   {item.publishStatus && item.publishStatus !== "draft" && (
                     <span className="text-xs text-muted-foreground capitalize">{item.publishStatus}</span>
                   )}
+                  <a href="https://app.practicebetter.io" target="_blank" rel="noopener noreferrer">
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 ml-1">
+                      <ExternalLink className="h-3.5 w-3.5" /> PracticeBetter
+                    </Button>
+                  </a>
                 </div>
               </div>
-              <Button variant="outline" size="sm" asChild className="shrink-0">
-                <a href="https://app.practicebetter.io" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-1.5" /> PracticeBetter
-                </a>
-              </Button>
             </div>
           </DialogHeader>
 

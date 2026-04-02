@@ -523,15 +523,52 @@ router.get('/labs/:labId', ...protect, async (req: Request, res: ExpressResponse
 router.get('/labs/:labId/attachments/:itemId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const { alt } = req.query as Record<string, string>;
-    const qs = alt ? `?alt=${alt}` : '';
-    const pbRes = await pbFetch(`/consultant/labrequests/${req.params.labId}/attachments/${req.params.itemId}${qs}`);
+
     if (alt === 'media') {
-      // Stream binary content back with the correct content-type
+      // PracticeBetter redirects ?alt=media requests to a presigned S3 URL.
+      // We MUST NOT forward the Authorization header to S3 — it will conflict
+      // with the presigned signature and cause SignatureDoesNotMatch errors.
+      // Strategy: call PB with redirect:'manual', grab the Location header,
+      // then fetch the S3 URL directly with no auth header.
+      const token = await getPBToken();
+      const pbUrl = `${PB_BASE_URL}/consultant/labrequests/${req.params.labId}/attachments/${req.params.itemId}?alt=media`;
+
+      const pbRes = await fetch(pbUrl, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        redirect: 'manual',
+      });
+
+      // Handle redirect to S3 presigned URL (301/302/303/307/308)
+      const location = pbRes.headers.get('location');
+      if ((pbRes.status >= 301 && pbRes.status <= 308) && location) {
+        console.log('[PB] lab attachment redirect to S3, fetching without auth...');
+        const s3Res = await fetch(location); // NO Authorization header — presigned URL auth only
+        if (!s3Res.ok) {
+          const errText = await s3Res.text();
+          console.error('[PB] S3 fetch error:', errText.slice(0, 300));
+          return res.status(502).json({ error: `S3 fetch failed (${s3Res.status})` });
+        }
+        const contentType = s3Res.headers.get('content-type') ?? 'application/octet-stream';
+        const contentDisposition = s3Res.headers.get('content-disposition');
+        res.setHeader('Content-Type', contentType);
+        if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
+        const buffer = Buffer.from(await s3Res.arrayBuffer());
+        return res.send(buffer);
+      }
+
+      // PB returned content directly (no redirect)
+      if (!pbRes.ok) {
+        const errText = await pbRes.text();
+        return res.status(pbRes.status).json({ error: errText.slice(0, 200) });
+      }
       const contentType = pbRes.headers.get('content-type') ?? 'application/octet-stream';
       res.setHeader('Content-Type', contentType);
       const buffer = Buffer.from(await pbRes.arrayBuffer());
       return res.send(buffer);
     }
+
+    // Without alt=media: return JSON metadata for the attachment
+    const pbRes = await pbFetch(`/consultant/labrequests/${req.params.labId}/attachments/${req.params.itemId}`);
     const text = await pbRes.text();
     let data: any;
     try { data = JSON.parse(text); } catch {
