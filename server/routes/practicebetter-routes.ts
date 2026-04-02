@@ -204,8 +204,16 @@ router.get('/availability/slots', ...protect, async (req: Request, res: ExpressR
       console.log('[PB] availability slots raw response:', JSON.stringify(data, null, 2));
     }
     const normalized = rawItems.map((slot: any) => ({
-      start_time: slot.start_time ?? slot.startTime ?? slot.start ?? slot.dateTime ?? slot.time ?? null,
-      end_time:   slot.end_time   ?? slot.endTime   ?? slot.end   ?? slot.endDateTime ?? null,
+      start_time:
+        slot.start_time ?? slot.startTime ?? slot.startAt ??
+        slot.start      ?? slot.dateTime  ?? slot.time    ??
+        slot.begin      ?? slot.slotStart ?? slot.slot_start ??
+        slot.StartTime  ?? slot.StartDate ?? null,
+      end_time:
+        slot.end_time   ?? slot.endTime   ?? slot.endAt   ??
+        slot.end        ?? slot.endDateTime ?? slot.finish ??
+        slot.slotEnd    ?? slot.slot_end  ??
+        slot.EndTime    ?? slot.EndDate   ?? null,
       consultant_id:   slot.consultant_id   ?? slot.consultantId   ?? slot.consultant?.id   ?? undefined,
       consultant_name: slot.consultant_name ?? slot.consultantName ?? slot.consultant?.name ?? undefined,
       service_id:      slot.service_id      ?? slot.serviceId      ?? slot.service?.id      ?? undefined,

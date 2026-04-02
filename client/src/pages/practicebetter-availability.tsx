@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import AdminLayout from "@/components/admin-layout";
@@ -33,6 +33,7 @@ interface AvailabilitySlot {
   consultant_name?: string;
   service_id?: string;
   duration?: number;
+  _raw?: Record<string, unknown>;
 }
 
 interface Session {
@@ -290,9 +291,41 @@ export default function PBAvailabilityPage() {
   // ── Slot tile ──────────────────────────────────────────────────────────────────
 
   const SlotTile = ({ slot }: { slot: AvailabilitySlot }) => {
-    const start = fmtTime(slot.start_time);
-    const end = fmtTime(slot.end_time);
-    if (!start) return null;
+    // Try normalized field first, then fall back to every possible raw field
+    const raw = slot._raw ?? {};
+    const rawStartVal =
+      slot.start_time ??
+      (raw.startAt as string) ?? (raw.startTime as string) ??
+      (raw.start as string) ?? (raw.dateTime as string) ??
+      (raw.time as string) ?? (raw.begin as string) ??
+      (raw.slotStart as string) ?? (raw.slot_start as string) ?? null;
+    const rawEndVal =
+      slot.end_time ??
+      (raw.endAt as string) ?? (raw.endTime as string) ??
+      (raw.end as string) ?? (raw.endDateTime as string) ??
+      (raw.finish as string) ?? (raw.slotEnd as string) ?? null;
+
+    const start = fmtTime(rawStartVal) ?? (rawStartVal ? rawStartVal.slice(11, 16) : null);
+    const end   = fmtTime(rawEndVal)   ?? (rawEndVal   ? rawEndVal.slice(11, 16)   : null);
+
+    // Log unknown structure once per session so we can identify PB's real field names
+    if (!rawStartVal && Object.keys(raw).length > 0) {
+      console.warn('[SlotTile] No time field found. Raw keys:', Object.keys(raw), raw);
+    }
+
+    if (!start) {
+      // Show a placeholder so the slot is at least visible (helps debug)
+      return (
+        <button
+          onClick={() => openBook(slot)}
+          className="w-full p-2.5 rounded-lg border-2 border-gray-200 bg-gray-50 text-left hover:border-gray-400 transition-colors"
+        >
+          <div className="text-xs text-muted-foreground">Slot available</div>
+          <div className="text-[10px] text-muted-foreground/60">Time TBD</div>
+        </button>
+      );
+    }
+
     return (
       <button
         onClick={() => openBook(slot)}
@@ -324,6 +357,76 @@ export default function PBAvailabilityPage() {
             {slots.map((slot, i) => <SlotTile key={i} slot={slot} />)}
           </div>
         )}
+      </div>
+    );
+  };
+
+  // ── Selected-day detail panel (month view) ─────────────────────────────────────
+
+  const SelectedDayDetail = () => {
+    const panelRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      if (selectedMonthDay && panelRef.current) {
+        setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+      }
+    }, [selectedMonthDay]);
+
+    if (!selectedMonthDay) return null;
+
+    const key = format(selectedMonthDay, "yyyy-MM-dd");
+    const slots = slotsByDay[key] ?? [];
+    const qIdx = fetchDays.findIndex((d) => isSameDay(d, selectedMonthDay));
+    const loading = slotsEnabled && qIdx >= 0 && slotQueries[qIdx]?.isLoading;
+    const daySessions = sessions.filter((s) => s.sessionDate && isSameDay(parseISO(s.sessionDate), selectedMonthDay));
+
+    return (
+      <div ref={panelRef} className="mt-4 rounded-xl border-2 border-blue-200 bg-blue-50/40 dark:bg-blue-950/20 dark:border-blue-800 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-100 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-sm">
+              {format(selectedMonthDay, "d")}
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-blue-900 dark:text-blue-100">{format(selectedMonthDay, "EEEE, MMMM d")}</h3>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                {loading ? "Loading…" : `${slots.length} open slot${slots.length !== 1 ? "s" : ""}${daySessions.length > 0 ? ` · ${daySessions.length} session${daySessions.length !== 1 ? "s" : ""} booked` : ""}`}
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-800" onClick={() => setSelectedMonthDay(null)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        {/* Slots */}
+        <div className="p-4">
+          {loading ? (
+            <div className="py-4 text-center text-sm text-muted-foreground animate-pulse">Loading slots…</div>
+          ) : slots.length === 0 ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">No available slots on this day.</div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+              {slots.map((slot, i) => <SlotTile key={i} slot={slot} />)}
+            </div>
+          )}
+          {/* Sessions on this day */}
+          {daySessions.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800">
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">Sessions booked this day:</p>
+              <div className="space-y-1.5">
+                {daySessions.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 text-xs bg-white dark:bg-slate-800 rounded-lg px-3 py-2 border border-blue-200 dark:border-blue-700">
+                    <span className="font-semibold text-foreground">{clientName(s)}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">{consultantName(s)}</span>
+                    {s.sessionDate && <span className="ml-auto text-muted-foreground">{format(parseISO(s.sessionDate), "h:mm a")}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -445,31 +548,7 @@ export default function PBAvailabilityPage() {
           })}
         </div>
         {/* Selected day slot detail */}
-        {selectedMonthDay && (
-          <div className="mt-3 pt-4 border-t-2 border-dashed border-border">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-base">{format(selectedMonthDay, "EEEE, MMMM d")}</h3>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setSelectedMonthDay(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            {(() => {
-              const key = format(selectedMonthDay, "yyyy-MM-dd");
-              const slots = slotsByDay[key] ?? [];
-              const qIdx = fetchDays.findIndex((d) => isSameDay(d, selectedMonthDay));
-              const loading = slotsEnabled && qIdx >= 0 && slotQueries[qIdx]?.isLoading;
-              return loading ? (
-                <div className="text-sm text-muted-foreground animate-pulse">Loading slots…</div>
-              ) : slots.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No available slots on this day.</div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
-                  {slots.map((slot, i) => <SlotTile key={i} slot={slot} />)}
-                </div>
-              );
-            })()}
-          </div>
-        )}
+        <SelectedDayDetail />
       </div>
     );
   };
