@@ -194,7 +194,25 @@ router.get('/availability/slots', ...protect, async (req: Request, res: ExpressR
     const pbRes = await pbFetch(`/consultant/availability/slots${qs}`);
     const data = await pbRes.json();
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    res.json(data);
+    // Normalize slots to consistent { start_time, end_time } shape
+    // PB may return various field name conventions
+    const rawItems: any[] = Array.isArray(data) ? data : (data?.items ?? data?.slots ?? []);
+    if (rawItems.length > 0) {
+      console.log('[PB] availability slots sample keys:', Object.keys(rawItems[0]));
+      console.log('[PB] availability slots sample item:', JSON.stringify(rawItems[0], null, 2));
+    } else {
+      console.log('[PB] availability slots raw response:', JSON.stringify(data, null, 2));
+    }
+    const normalized = rawItems.map((slot: any) => ({
+      start_time: slot.start_time ?? slot.startTime ?? slot.start ?? slot.dateTime ?? slot.time ?? null,
+      end_time:   slot.end_time   ?? slot.endTime   ?? slot.end   ?? slot.endDateTime ?? null,
+      consultant_id:   slot.consultant_id   ?? slot.consultantId   ?? slot.consultant?.id   ?? undefined,
+      consultant_name: slot.consultant_name ?? slot.consultantName ?? slot.consultant?.name ?? undefined,
+      service_id:      slot.service_id      ?? slot.serviceId      ?? slot.service?.id      ?? undefined,
+      duration:        slot.duration        ?? undefined,
+      _raw: slot,
+    }));
+    res.json(normalized);
   } catch (err: any) {
     console.error('[PB] availability slots error:', err.message);
     res.status(500).json({ error: err.message });
