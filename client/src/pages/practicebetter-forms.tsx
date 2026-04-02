@@ -185,7 +185,7 @@ function SendFormDialog({
         body: JSON.stringify({ formId: form?.id, clientRecordId: selectedClient?.id }),
       });
       if (!r.ok) {
-        const err = await r.json().catch(() => ({ error: await r.text() }));
+        const err = await r.json().catch(async () => ({ error: await r.text() }));
         throw new Error(err?.error ?? "Failed to send form");
       }
       return r.json();
