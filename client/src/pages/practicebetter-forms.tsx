@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, RefreshCw, Search, FileText, Send, Calendar, User, Clock,
-  CheckCircle, AlertCircle, Loader2, ChevronRight, X, ExternalLink, MailOpen,
+  CheckCircle, AlertCircle, Loader2, ChevronRight, X, ExternalLink, MailOpen, Eye,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -335,50 +335,72 @@ function FormDetailDialog({
   onOpenChange: (v: boolean) => void;
   onSend: () => void;
 }) {
+  const [afterId, setAfterId] = useState<string | undefined>();
+  const [history, setHistory] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<"requests" | "preview">("requests");
+
+  // Reset pagination when form changes
+  const formId = form?.id;
+
   const { data, isLoading, refetch } = useQuery<PBListResponse<PBFormRequest>>({
-    queryKey: ["/api/practicebetter/formrequests", form?.id],
+    queryKey: ["/api/practicebetter/formrequests", formId, afterId],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (form?.id) params.set("form_id", form.id);
+      if (formId) params.set("form_id", formId);
+      if (afterId) params.set("after_id", afterId);
+      params.set("limit", "25");
       const r = await fetch(`/api/practicebetter/formrequests?${params}`);
       if (!r.ok) throw new Error(await r.text());
       return r.json();
     },
-    enabled: open && !!form?.id,
+    enabled: open && !!formId && activeSection === "requests",
     staleTime: 2 * 60 * 1000,
   });
 
   const requests = data?.items ?? [];
+  const totalCount = data?.count ?? requests.length;
   const isActive = form?.isActive !== false && form?.status !== "inactive";
+  const formName = form?.name ?? form?.title ?? "Form";
+
+  const goNext = () => {
+    if (requests.length > 0) {
+      setHistory(h => [...h, afterId ?? ""]);
+      setAfterId(requests[requests.length - 1].id);
+    }
+  };
+  const goPrev = () => {
+    const p = [...history];
+    setHistory(p);
+    setAfterId(p.pop() || undefined);
+  };
+
+  // Build PB portal URL — links to the Practice Better admin
+  const pbPortalUrl = `https://app.practicebetter.io`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-lg font-bold leading-tight">
-                  {form?.name ?? form?.title ?? "Form"}
-                </DialogTitle>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge className={isActive ? "bg-green-100 text-green-700 border-green-200 text-xs" : "bg-gray-100 text-gray-500 text-xs"}>
-                    {isActive ? "Active" : "Inactive"}
-                  </Badge>
-                  {form?.type && (
-                    <span className="text-xs text-muted-foreground capitalize">{form.type}</span>
-                  )}
-                </div>
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold leading-tight">{formName}</DialogTitle>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className={isActive ? "bg-green-100 text-green-700 border-green-200 text-xs" : "bg-gray-100 text-gray-500 text-xs"}>
+                  {isActive ? "Active" : "Inactive"}
+                </Badge>
+                {form?.type && (
+                  <span className="text-xs text-muted-foreground capitalize">{form.type}</span>
+                )}
               </div>
             </div>
           </div>
         </DialogHeader>
 
         {/* Actions */}
-        <div className="shrink-0 flex items-center gap-2 pb-3 border-b">
+        <div className="shrink-0 flex items-center gap-2 pb-3 border-b flex-wrap">
           <Button
             onClick={onSend}
             className="bg-orange-600 hover:bg-orange-700 text-white"
@@ -386,47 +408,142 @@ function FormDetailDialog({
           >
             <Send className="h-4 w-4 mr-2" /> Send to Client
           </Button>
-          {form?.formUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={String(form.formUrl)} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4 mr-2" /> Open Form
-              </a>
-            </Button>
-          )}
+          <Button variant="outline" size="sm" asChild>
+            <a href={pbPortalUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-2" /> View in PracticeBetter
+            </a>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-auto">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Description */}
-        {form?.description && (
-          <p className="shrink-0 text-sm text-muted-foreground px-0.5">{String(form.description)}</p>
-        )}
+        {/* Section tabs */}
+        <div className="shrink-0 flex gap-1 border-b pb-0">
+          <button
+            onClick={() => setActiveSection("requests")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+              activeSection === "requests"
+                ? "border-orange-500 text-orange-700"
+                : "border-transparent text-muted-foreground hover:text-gray-700"
+            }`}
+          >
+            <MailOpen className="h-4 w-4 inline mr-1.5" />
+            Sent Requests
+            {totalCount > 0 && (
+              <span className="ml-1.5 text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold">
+                {totalCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveSection("preview")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+              activeSection === "preview"
+                ? "border-orange-500 text-orange-700"
+                : "border-transparent text-muted-foreground hover:text-gray-700"
+            }`}
+          >
+            <Eye className="h-4 w-4 inline mr-1.5" />
+            Form Preview
+          </button>
+        </div>
 
-        {/* Form Requests */}
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">Sent Requests</h3>
-            <span className="text-xs text-muted-foreground">{requests.length} total</span>
-          </div>
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto min-h-0">
 
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />
-              ))}
+          {/* ── Sent Requests ── */}
+          {activeSection === "requests" && (
+            <div className="space-y-3 py-3">
+              {isLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : requests.length === 0 ? (
+                <div className="text-center py-10 space-y-2">
+                  <MailOpen className="h-10 w-10 mx-auto text-muted-foreground/30" />
+                  <p className="text-sm font-medium text-muted-foreground">No requests sent yet</p>
+                  <p className="text-xs text-muted-foreground">Click "Send to Client" to send this form.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {requests.map((req) => (
+                      <FormRequestRow key={req.id} req={req} />
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                    <span>Showing {requests.length} of {totalCount} request{totalCount !== 1 ? "s" : ""}</span>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={goPrev} disabled={history.length === 0} className="h-7 text-xs">
+                        ← Prev
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={goNext} disabled={!data?.hasMore} className="h-7 text-xs">
+                        Next →
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          ) : requests.length === 0 ? (
-            <div className="text-center py-10 space-y-2">
-              <MailOpen className="h-10 w-10 mx-auto text-muted-foreground/30" />
-              <p className="text-sm font-medium text-muted-foreground">No requests sent yet</p>
-              <p className="text-xs text-muted-foreground">Click "Send to Client" to send this form.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {requests.map((req) => (
-                <FormRequestRow key={req.id} req={req} />
-              ))}
+          )}
+
+          {/* ── Form Preview ── */}
+          {activeSection === "preview" && (
+            <div className="py-6 space-y-4">
+              <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-800">{formName}</p>
+                    <p className="text-xs text-muted-foreground">Managed in PracticeBetter</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  Form questions and field configurations are stored directly in PracticeBetter
+                  and are not available through their API. To view or edit the full form layout,
+                  open it in the PracticeBetter portal.
+                </p>
+                <a
+                  href={pbPortalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open PracticeBetter Portal
+                </a>
+              </div>
+
+              <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Form Details</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Form Name</p>
+                    <p className="font-medium text-gray-800">{formName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <p className={`font-medium ${isActive ? "text-green-700" : "text-gray-500"}`}>
+                      {isActive ? "Active" : "Inactive"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Sent</p>
+                    <p className="font-medium text-gray-800">{totalCount} request{totalCount !== 1 ? "s" : ""}</p>
+                  </div>
+                  {form?.id && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Form ID</p>
+                      <p className="font-mono text-xs text-gray-500 break-all">{form.id}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -326,30 +326,62 @@ router.get('/forms', ...protect, async (req: Request, res: ExpressResponse) => {
 
 // ── Form Requests ──────────────────────────────────────────────────────────────
 
-router.get('/formrequests', ...protect, async (req: Request, res: ExpressResponse) => {
-  try {
-    const { after_id, before_id, form_id, client_record_id, status } = req.query as Record<string, string>;
-    const qs = buildQuery({ after_id, before_id, form_id, client_record_id, status });
-    const pbRes = await pbFetch(`/consultant/formrequests${qs}`);
-    const data = await pbRes.json();
-    if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    const items: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+// In-memory client record cache (cleared every 10 min to stay fresh)
+const clientRecordCache: Record<string, { data: any; fetchedAt: number }> = {};
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const k of Object.keys(clientRecordCache)) {
+    if (clientRecordCache[k].fetchedAt < cutoff) delete clientRecordCache[k];
+  }
+}, 5 * 60 * 1000);
 
-    // Enrich with client profiles — collect unique client record IDs then batch fetch
-    // PB uses /consultant/records/:id (not /consultant/client-records/:id)
-    const clientIds = [...new Set(items.map((r: any) => r.clientRecord?.id).filter(Boolean))] as string[];
-    const clientMap: Record<string, any> = {};
+async function batchFetchClientRecords(ids: string[]): Promise<Record<string, any>> {
+  const clientMap: Record<string, any> = {};
+  // Serve cached entries first
+  const uncached = ids.filter(id => {
+    if (clientRecordCache[id]) {
+      clientMap[id] = clientRecordCache[id].data;
+      return false;
+    }
+    return true;
+  });
+
+  // Fetch uncached IDs in chunks of 5 to avoid rate-limiting
+  const CHUNK = 5;
+  for (let i = 0; i < uncached.length; i += CHUNK) {
+    const chunk = uncached.slice(i, i + CHUNK);
     await Promise.all(
-      clientIds.map(async (cid) => {
+      chunk.map(async (cid) => {
         try {
           const cr = await pbFetch(`/consultant/records/${cid}`);
           if (cr.ok) {
             const crData = await cr.json();
             clientMap[cid] = crData;
+            clientRecordCache[cid] = { data: crData, fetchedAt: Date.now() };
           }
-        } catch { /* skip */ }
+        } catch { /* skip on error */ }
       })
     );
+    // Small pause between chunks to respect rate limits
+    if (i + CHUNK < uncached.length) await new Promise(r => setTimeout(r, 80));
+  }
+  return clientMap;
+}
+
+router.get('/formrequests', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { after_id, before_id, form_id, client_record_id } = req.query as Record<string, string>;
+    // Default limit to 25 so enrichment stays fast; callers can override
+    const limit = req.query.limit as string | undefined;
+    const qs = buildQuery({ after_id, before_id, form_id, client_record_id, limit: limit ?? '25' });
+    const pbRes = await pbFetch(`/consultant/formrequests${qs}`);
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    const items: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+
+    // Collect unique client record IDs and batch-fetch with caching + rate-limit protection
+    const clientIds = [...new Set(items.map((r: any) => r.clientRecord?.id).filter(Boolean))] as string[];
+    const clientMap = await batchFetchClientRecords(clientIds);
 
     // Merge enriched client profile and derive status from booleans
     const enriched = items.map((r: any) => {
