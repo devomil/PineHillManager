@@ -324,6 +324,50 @@ router.get('/forms', ...protect, async (req: Request, res: ExpressResponse) => {
   }
 });
 
+// ── Form Requests ──────────────────────────────────────────────────────────────
+
+router.get('/formrequests', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { after_id, before_id, form_id, client_record_id, status } = req.query as Record<string, string>;
+    const qs = buildQuery({ after_id, before_id, form_id, client_record_id, status });
+    const pbRes = await pbFetch(`/consultant/formrequests${qs}`);
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+    res.json({ count: items.length, hasMore: data.hasMore ?? data.has_more ?? false, items });
+  } catch (err: any) {
+    console.error('[PB] formrequests list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/formrequests', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const pbRes = await pbFetch('/consultant/formrequests', {
+      method: 'POST',
+      body: JSON.stringify(req.body),
+    });
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] formrequests create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/formrequests/:requestId', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const pbRes = await pbFetch(`/consultant/formrequests/${req.params.requestId}`);
+    const data = await pbRes.json();
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] formrequest get error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
 router.get('/tasks', ...protect, async (req: Request, res: ExpressResponse) => {
