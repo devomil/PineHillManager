@@ -545,15 +545,38 @@ export default function PBAvailabilityPage() {
               </div>
               {/* Navigation */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Period</Label>
-                <div className="flex items-center gap-1 h-9">
-                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={navigatePrev}>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Navigate — {slotView === "day" ? "day by day" : slotView === "week" ? "week by week" : "month by month"}
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={navigatePrev} title="Previous">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
+                  {/* Clickable date display — opens native date picker */}
+                  <div className="relative">
+                    <button
+                      className="h-9 px-3 rounded-md border text-sm font-medium hover:bg-muted transition-colors min-w-[170px] text-left flex items-center gap-2"
+                      onClick={() => (document.getElementById("anchor-date-input") as HTMLInputElement)?.showPicker?.()}
+                      title="Click to jump to a specific date"
+                    >
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span>{viewLabel}</span>
+                    </button>
+                    <input
+                      id="anchor-date-input"
+                      type="date"
+                      value={format(anchorDate, "yyyy-MM-dd")}
+                      onChange={(e) => {
+                        if (e.target.value) setAnchorDate(parseISO(e.target.value));
+                      }}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      tabIndex={-1}
+                    />
+                  </div>
                   <Button variant="outline" size="sm" className="h-9 px-3 text-sm" onClick={navigateToday}>
                     Today
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={navigateNext}>
+                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={navigateNext} title="Next">
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -561,14 +584,13 @@ export default function PBAvailabilityPage() {
             </div>
 
             {/* Period label + slot summary */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold">{viewLabel}</h2>
-              {slotsEnabled && !slotsLoading && (
+            {slotsEnabled && !slotsLoading && (
+              <div className="flex items-center justify-end">
                 <span className="text-sm text-muted-foreground">
-                  {totalSlots > 0 ? `${totalSlots} available slot${totalSlots !== 1 ? "s" : ""}` : "No available slots"}
+                  {totalSlots > 0 ? `${totalSlots} available slot${totalSlots !== 1 ? "s" : ""} in view` : "No available slots in this period"}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Calendar */}
             <Card>
