@@ -208,6 +208,13 @@ router.get('/sessions', ...protect, async (req: Request, res: ExpressResponse) =
     const pbRes = await pbFetch(`/consultant/sessions${qs}`);
     const data = await pbRes.json();
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    // Log first item shape so we can verify field names from the real API
+    if (data?.items?.length > 0) {
+      console.log('[PB] sessions sample item keys:', Object.keys(data.items[0]));
+      console.log('[PB] sessions sample item:', JSON.stringify(data.items[0], null, 2));
+    } else {
+      console.log('[PB] sessions response shape:', JSON.stringify(data, null, 2));
+    }
     res.json(data);
   } catch (err: any) {
     console.error('[PB] sessions list error:', err.message);

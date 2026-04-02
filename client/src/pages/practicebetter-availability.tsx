@@ -24,13 +24,19 @@ interface AvailabilitySlot {
 
 interface Session {
   id: string;
-  start_time?: string;
-  end_time?: string;
+  // PracticeBetter uses camelCase — field names kept raw from API
+  startTime?: string;
+  endTime?: string;
   status?: string;
-  client_name?: string;
-  consultant_name?: string;
-  service_name?: string;
+  // Client may be nested object or flat string depending on PB version
+  client?: { id?: string; name?: string; firstName?: string; lastName?: string } | string;
+  clientName?: string;
+  consultant?: { id?: string; name?: string; firstName?: string; lastName?: string } | string;
+  consultantName?: string;
+  service?: { id?: string; name?: string } | string;
+  serviceName?: string;
   notes?: string;
+  [key: string]: unknown; // allow any additional PB fields
 }
 
 interface BookSessionForm {
@@ -41,9 +47,11 @@ interface BookSessionForm {
   notes: string;
 }
 
+// PracticeBetter list response shape: { count, hasMore, items }
 interface PBListResponse<T> {
-  data: T[];
-  has_more?: boolean;
+  count?: number;
+  hasMore?: boolean;
+  items: T[];
 }
 
 export default function PBAvailabilityPage() {
@@ -129,7 +137,7 @@ export default function PBAvailabilityPage() {
   };
 
   const slots: AvailabilitySlot[] = Array.isArray(slotsData) ? slotsData : [];
-  const sessions: Session[] = sessionsData?.data ?? [];
+  const sessions: Session[] = sessionsData?.items ?? [];
 
   const formatTime = (s?: string) => {
     if (!s) return "—";
@@ -142,11 +150,20 @@ export default function PBAvailabilityPage() {
   };
 
   const sessionNext = () => {
-    if (sessionsData?.data?.length) {
-      const lastId = sessionsData.data[sessionsData.data.length - 1].id;
+    if (sessionsData?.items?.length) {
+      const lastId = sessionsData.items[sessionsData.items.length - 1].id;
       setSessionHistory((h) => [...h, sessionAfter ?? ""]);
       setSessionAfter(lastId);
     }
+  };
+
+  // Helper to resolve a client/consultant field that PB may return as an object or flat string
+  const resolveName = (field: { id?: string; name?: string; firstName?: string; lastName?: string } | string | undefined, fallback?: string): string => {
+    if (!field) return fallback ?? "—";
+    if (typeof field === "string") return field || fallback ?? "—";
+    if (field.name) return field.name;
+    const parts = [field.firstName, field.lastName].filter(Boolean);
+    return parts.length ? parts.join(" ") : fallback ?? "—";
   };
 
   const sessionPrev = () => {
@@ -293,11 +310,19 @@ export default function PBAvailabilityPage() {
                     <TableBody>
                       {sessions.map((s) => (
                         <TableRow key={s.id}>
-                          <TableCell className="font-medium">{s.client_name ?? "—"}</TableCell>
-                          <TableCell>{s.consultant_name ?? "—"}</TableCell>
-                          <TableCell>{s.service_name ?? "—"}</TableCell>
-                          <TableCell className="text-sm">{formatDateTime(s.start_time)}</TableCell>
-                          <TableCell className="text-sm">{formatDateTime(s.end_time)}</TableCell>
+                          <TableCell className="font-medium">
+                            {resolveName(s.client as any, s.clientName)}
+                          </TableCell>
+                          <TableCell>
+                            {resolveName(s.consultant as any, s.consultantName)}
+                          </TableCell>
+                          <TableCell>
+                            {typeof s.service === "object" && s.service !== null
+                              ? (s.service as any).name ?? "—"
+                              : (s.service as string) || s.serviceName || "—"}
+                          </TableCell>
+                          <TableCell className="text-sm">{formatDateTime(s.startTime)}</TableCell>
+                          <TableCell className="text-sm">{formatDateTime(s.endTime)}</TableCell>
                           <TableCell>
                             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusColor(s.status)}`}>
                               {s.status ?? "—"}
@@ -315,7 +340,7 @@ export default function PBAvailabilityPage() {
                 ← Previous
               </Button>
               <span className="text-sm text-muted-foreground">{sessions.length} sessions</span>
-              <Button variant="outline" size="sm" onClick={sessionNext} disabled={!sessionsData?.has_more}>
+              <Button variant="outline" size="sm" onClick={sessionNext} disabled={!sessionsData?.hasMore}>
                 Next →
               </Button>
             </div>
