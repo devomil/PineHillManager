@@ -4,16 +4,16 @@ import { useLocation } from "wouter";
 import AdminLayout from "@/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Search, RefreshCw, User, ChevronRight, AlertCircle, Database, Cloud } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Search, RefreshCw, User, ChevronRight, AlertCircle, Database, Cloud, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-// Exact shape PracticeBetter sends — never translate field names so round-trip writes stay valid
 interface PBProfile {
   firstName: string;
   lastName: string;
@@ -58,7 +58,6 @@ interface LocalContact {
   assignedPractitioner?: { firstName?: string; lastName?: string } | null;
 }
 
-// PracticeBetter list envelope — exact field names from the API
 interface PBListResponse {
   items: PBRecord[];
   hasMore?: boolean;
@@ -84,7 +83,7 @@ const statusColor = (status: string) => {
 
 function DetailRow({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
   return (
-    <div>
+    <div className="py-2 border-b border-muted/50 last:border-0">
       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className={`text-sm mt-0.5 break-all ${mono ? "font-mono text-xs" : ""}`}>{value ?? "—"}</div>
     </div>
@@ -95,14 +94,20 @@ function DetailRow({ label, value, mono }: { label: string; value?: string | nul
 
 export default function PBClientRecordsPage() {
   const [, setLocation] = useLocation();
+
+  // PracticeBetter state
   const [pbSearch, setPbSearch] = useState("");
   const [afterId, setAfterId] = useState<string | undefined>();
   const [pbHistory, setPbHistory] = useState<string[]>([]);
   const [selectedPB, setSelectedPB] = useState<PBRecord | null>(null);
+  const [pbDialogOpen, setPbDialogOpen] = useState(false);
+
+  // Local contacts state
   const [localSearch, setLocalSearch] = useState("");
   const [selectedLocal, setSelectedLocal] = useState<LocalContact | null>(null);
+  const [localDialogOpen, setLocalDialogOpen] = useState(false);
 
-  // ── PracticeBetter query ──
+  // ── PracticeBetter queries ──
   const { data: pbData, isLoading: pbLoading, error: pbError, refetch: pbRefetch } = useQuery<PBListResponse>({
     queryKey: ["/api/practicebetter/client-records", afterId],
     queryFn: async () => {
@@ -122,7 +127,7 @@ export default function PBClientRecordsPage() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: !!selectedPB,
+    enabled: !!selectedPB && pbDialogOpen,
     retry: false,
   });
 
@@ -136,7 +141,6 @@ export default function PBClientRecordsPage() {
     },
   });
 
-  // Filter to active (pending + in_progress) contacts only by default, but show all if search is active
   const activeContacts = localData.filter((c) =>
     localSearch.trim() ? true : ["pending", "in_progress"].includes(c.status)
   );
@@ -179,6 +183,16 @@ export default function PBClientRecordsPage() {
     setAfterId(prevId);
   };
 
+  const openLocalDialog = (c: LocalContact) => {
+    setSelectedLocal(c);
+    setLocalDialogOpen(true);
+  };
+
+  const openPbDialog = (r: PBRecord) => {
+    setSelectedPB(r);
+    setPbDialogOpen(true);
+  };
+
   return (
     <AdminLayout currentTab="practitioner">
       <div className="p-6 space-y-6">
@@ -218,302 +232,290 @@ export default function PBClientRecordsPage() {
 
           {/* ── Active Contacts tab ── */}
           <TabsContent value="active">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* List */}
-              <div className="lg:col-span-2 space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search contacts by name, email, phone, or program..."
-                    className="pl-9"
-                    value={localSearch}
-                    onChange={(e) => { setLocalSearch(e.target.value); setSelectedLocal(null); }}
-                  />
-                </div>
-                <Card>
-                  <CardContent className="p-0">
-                    {localLoading ? (
-                      <div className="py-12 text-center text-muted-foreground">Loading contacts...</div>
-                    ) : filteredLocal.length === 0 ? (
-                      <div className="py-12 text-center text-muted-foreground">
-                        {localSearch ? "No contacts match your search." : "No active contacts found."}
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Client Name</TableHead>
-                            <TableHead>Contact Info</TableHead>
-                            <TableHead>Program Type</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Assigned To</TableHead>
-                            <TableHead>Created</TableHead>
-                            <TableHead></TableHead>
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search contacts by name, email, phone, or program..."
+                  className="pl-9"
+                  value={localSearch}
+                  onChange={(e) => setLocalSearch(e.target.value)}
+                />
+              </div>
+              <Card>
+                <CardContent className="p-0">
+                  {localLoading ? (
+                    <div className="py-12 text-center text-muted-foreground">Loading contacts...</div>
+                  ) : filteredLocal.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground">
+                      {localSearch ? "No contacts match your search." : "No active contacts found."}
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Client Name</TableHead>
+                          <TableHead>Contact Info</TableHead>
+                          <TableHead>Program Type</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Assigned To</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredLocal.map((c) => (
+                          <TableRow
+                            key={c.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => openLocalDialog(c)}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                                {c.clientFirstName} {c.clientLastName}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              <div>{c.clientPhone ?? "—"}</div>
+                              {c.clientEmail && <div className="text-xs truncate max-w-[160px]">{c.clientEmail}</div>}
+                            </TableCell>
+                            <TableCell>
+                              {c.scanType ? (
+                                <Badge variant="outline" className="text-xs whitespace-nowrap">
+                                  {c.scanType.split(",")[0].trim()}
+                                </Badge>
+                              ) : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColor(c.status)}`}>
+                                {c.status.replace("_", " ")}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {c.assignedPractitioner
+                                ? `${c.assignedPractitioner.firstName ?? ""} ${c.assignedPractitioner.lastName ?? ""}`.trim()
+                                : <span className="text-muted-foreground italic text-xs">Unassigned</span>}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
+                            <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredLocal.map((c) => (
-                            <TableRow
-                              key={c.id}
-                              className={`cursor-pointer hover:bg-muted/50 ${selectedLocal?.id === c.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
-                              onClick={() => setSelectedLocal(c)}
-                            >
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                                  {c.clientFirstName} {c.clientLastName}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                <div>{c.clientPhone ?? "—"}</div>
-                                {c.clientEmail && <div className="text-xs truncate max-w-[140px]">{c.clientEmail}</div>}
-                              </TableCell>
-                              <TableCell>
-                                {c.scanType ? (
-                                  <Badge variant="outline" className="text-xs whitespace-nowrap">
-                                    {c.scanType.split(",")[0].trim()}
-                                  </Badge>
-                                ) : "—"}
-                              </TableCell>
-                              <TableCell>
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColor(c.status)}`}>
-                                  {c.status.replace("_", " ")}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                {c.assignedPractitioner
-                                  ? `${c.assignedPractitioner.firstName ?? ""} ${c.assignedPractitioner.lastName ?? ""}`.trim()
-                                  : <span className="text-muted-foreground italic text-xs">Unassigned</span>}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
-                              <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-                {!localSearch && (
-                  <p className="text-xs text-muted-foreground px-1">
-                    Showing pending &amp; in-progress contacts. Search to include all statuses.
-                  </p>
-                )}
-              </div>
-
-              {/* Detail panel */}
-              <div>
-                {selectedLocal ? (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                          <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-base">
-                            {selectedLocal.clientFirstName} {selectedLocal.clientLastName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Contact #{selectedLocal.id}</div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor(selectedLocal.status)}`}>
-                          {selectedLocal.status.replace("_", " ")}
-                        </span>
-                        {selectedLocal.priority && selectedLocal.priority !== "normal" && (
-                          <Badge variant="destructive" className="text-xs">{selectedLocal.priority}</Badge>
-                        )}
-                      </div>
-
-                      <DetailRow label="Email" value={selectedLocal.clientEmail} />
-                      <DetailRow label="Phone" value={selectedLocal.clientPhone} />
-                      <DetailRow label="Service Type" value={selectedLocal.serviceType} />
-                      <DetailRow label="Program / Scan Type" value={selectedLocal.scanType} />
-                      <DetailRow label="Payment" value={selectedLocal.paymentType} />
-                      <DetailRow
-                        label="Assigned To"
-                        value={selectedLocal.assignedPractitioner
-                          ? `${selectedLocal.assignedPractitioner.firstName ?? ""} ${selectedLocal.assignedPractitioner.lastName ?? ""}`.trim()
-                          : "Unassigned"}
-                      />
-                      <DetailRow label="Created" value={formatDate(selectedLocal.createdAt)} />
-
-                      {selectedLocal.clientNotes && (
-                        <div>
-                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notes</div>
-                          <p className="text-sm bg-muted/40 rounded-md p-2 whitespace-pre-wrap">{selectedLocal.clientNotes}</p>
-                        </div>
-                      )}
-
-                      {selectedLocal.practitionerComments && (
-                        <div>
-                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Comments</div>
-                          <p className="text-sm bg-muted/40 rounded-md p-2 whitespace-pre-wrap">{selectedLocal.practitionerComments}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="border-dashed">
-                    <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                      <User className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      Select a contact to see their details
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+              {!localSearch && (
+                <p className="text-xs text-muted-foreground px-1">
+                  Showing pending &amp; in-progress contacts. Search to include all statuses.
+                </p>
+              )}
             </div>
           </TabsContent>
 
           {/* ── PracticeBetter tab ── */}
           <TabsContent value="pb">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* List */}
-              <div className="lg:col-span-2 space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name, email, or phone..."
-                    className="pl-9"
-                    value={pbSearch}
-                    onChange={(e) => setPbSearch(e.target.value)}
-                  />
-                </div>
-                <Card>
-                  <CardContent className="p-0">
-                    {pbLoading ? (
-                      <div className="py-12 text-center text-muted-foreground">Connecting to PracticeBetter...</div>
-                    ) : pbError ? (
-                      <div className="py-10 text-center space-y-3 px-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto" />
-                        <div>
-                          <p className="font-semibold text-red-600">PracticeBetter connection failed</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Unable to reach the PracticeBetter API. Check that your credentials
-                            are configured correctly, or use the <strong>Active Contacts</strong> tab
-                            to view your local client records.
-                          </p>
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => pbRefetch()}>
-                          <RefreshCw className="h-4 w-4 mr-2" /> Retry Connection
-                        </Button>
-                      </div>
-                    ) : filteredPB.length === 0 ? (
-                      <div className="py-12 text-center text-muted-foreground">No PracticeBetter records found.</div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Phone</TableHead>
-                            <TableHead>Date of Birth</TableHead>
-                            <TableHead>Created</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredPB.map((r) => (
-                            <TableRow
-                              key={r.id}
-                              className={`cursor-pointer hover:bg-muted/50 ${selectedPB?.id === r.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
-                              onClick={() => setSelectedPB(r)}
-                            >
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
-                                  {r.profile?.firstName} {r.profile?.lastName}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{r.profile?.emailAddress ?? "—"}</TableCell>
-                              <TableCell className="text-sm">{r.profile?.phoneNumber ?? r.profile?.mobilePhone ?? "—"}</TableCell>
-                              <TableCell className="text-sm">{formatDate(r.profile?.dateOfBirth)}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatDate(r.dateCreated)}</TableCell>
-                              <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {!pbError && (
-                  <div className="flex items-center justify-between">
-                    <Button variant="outline" size="sm" onClick={pbGoPrev} disabled={pbHistory.length === 0}>
-                      ← Previous
-                    </Button>
-                    <span className="text-sm text-muted-foreground">{filteredPB.length} records shown</span>
-                    <Button variant="outline" size="sm" onClick={pbGoNext} disabled={!pbData?.hasMore}>
-                      Next →
-                    </Button>
-                  </div>
-                )}
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or phone..."
+                  className="pl-9"
+                  value={pbSearch}
+                  onChange={(e) => setPbSearch(e.target.value)}
+                />
               </div>
-
-              {/* Detail panel */}
-              <div>
-                {selectedPB ? (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                          <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-base">
-                            {selectedPB.profile?.firstName} {selectedPB.profile?.lastName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">PracticeBetter Record</div>
-                        </div>
+              <Card>
+                <CardContent className="p-0">
+                  {pbLoading ? (
+                    <div className="py-12 text-center text-muted-foreground">Connecting to PracticeBetter...</div>
+                  ) : pbError ? (
+                    <div className="py-10 text-center space-y-3 px-6">
+                      <AlertCircle className="h-10 w-10 text-red-400 mx-auto" />
+                      <div>
+                        <p className="font-semibold text-red-600">PracticeBetter connection failed</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Unable to reach the PracticeBetter API. Check that your credentials
+                          are configured correctly, or use the <strong>Active Contacts</strong> tab
+                          to view your local client records.
+                        </p>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {pbDetailLoading ? (
-                        <p className="text-sm text-muted-foreground">Loading details...</p>
-                      ) : (
-                        <>
-                          <DetailRow label="Record ID" value={pbDetail?.id ?? selectedPB.id} mono />
-                          <DetailRow label="Patient #" value={pbDetail?.profile?.patientAccountNumber ?? selectedPB.profile?.patientAccountNumber} />
-                          <DetailRow label="Email" value={pbDetail?.profile?.emailAddress ?? selectedPB.profile?.emailAddress} />
-                          <DetailRow label="Phone" value={pbDetail?.profile?.phoneNumber ?? pbDetail?.profile?.mobilePhone ?? selectedPB.profile?.phoneNumber ?? selectedPB.profile?.mobilePhone} />
-                          <DetailRow label="Date of Birth" value={formatDate(pbDetail?.profile?.dateOfBirth ?? selectedPB.profile?.dateOfBirth)} />
-                          <DetailRow label="Gender" value={pbDetail?.profile?.gender ?? selectedPB.profile?.gender} />
-                          <DetailRow label="Time Zone" value={pbDetail?.profile?.timeZone ?? selectedPB.profile?.timeZone} />
-                          <DetailRow
-                            label="Status"
-                            value={selectedPB.isActive === false ? "Inactive" : "Active"}
-                          />
-                          <DetailRow label="Created" value={formatDate(pbDetail?.dateCreated ?? selectedPB.dateCreated)} />
-                          <DetailRow label="Last Modified" value={formatDate(pbDetail?.dateModified ?? selectedPB.dateModified)} />
-                        </>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-2"
-                        onClick={() => setLocation(`/practitioner/medical-history?recordId=${selectedPB.id}`)}
-                      >
-                        View Medical History →
+                      <Button variant="outline" size="sm" onClick={() => pbRefetch()}>
+                        <RefreshCw className="h-4 w-4 mr-2" /> Retry Connection
                       </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="border-dashed">
-                    <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                      <Cloud className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      Select a record to see their PracticeBetter details
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                    </div>
+                  ) : filteredPB.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground">No PracticeBetter records found.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Phone</TableHead>
+                          <TableHead>Date of Birth</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPB.map((r) => (
+                          <TableRow
+                            key={r.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => openPbDialog(r)}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                {r.profile?.firstName} {r.profile?.lastName}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{r.profile?.emailAddress ?? "—"}</TableCell>
+                            <TableCell className="text-sm">{r.profile?.phoneNumber ?? r.profile?.mobilePhone ?? "—"}</TableCell>
+                            <TableCell className="text-sm">{formatDate(r.profile?.dateOfBirth)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{formatDate(r.dateCreated)}</TableCell>
+                            <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              {!pbError && (
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" onClick={pbGoPrev} disabled={pbHistory.length === 0}>
+                    ← Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">{filteredPB.length} records shown</span>
+                  <Button variant="outline" size="sm" onClick={pbGoNext} disabled={!pbData?.hasMore}>
+                    Next →
+                  </Button>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Active Contact detail dialog ── */}
+      <Dialog open={localDialogOpen} onOpenChange={setLocalDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {selectedLocal && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                    <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-lg leading-tight">
+                      {selectedLocal.clientFirstName} {selectedLocal.clientLastName}
+                    </div>
+                    <div className="text-xs font-normal text-muted-foreground">Contact #{selectedLocal.id}</div>
+                  </div>
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center gap-2 py-2">
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor(selectedLocal.status)}`}>
+                    {selectedLocal.status.replace("_", " ")}
+                  </span>
+                  {selectedLocal.priority && selectedLocal.priority !== "normal" && (
+                    <Badge variant="destructive" className="text-xs">{selectedLocal.priority}</Badge>
+                  )}
+                </div>
+
+                <DetailRow label="Email" value={selectedLocal.clientEmail} />
+                <DetailRow label="Phone" value={selectedLocal.clientPhone} />
+                <DetailRow label="Service Type" value={selectedLocal.serviceType} />
+                <DetailRow label="Program / Scan Type" value={selectedLocal.scanType} />
+                <DetailRow label="Payment" value={selectedLocal.paymentType} />
+                <DetailRow
+                  label="Assigned To"
+                  value={selectedLocal.assignedPractitioner
+                    ? `${selectedLocal.assignedPractitioner.firstName ?? ""} ${selectedLocal.assignedPractitioner.lastName ?? ""}`.trim()
+                    : "Unassigned"}
+                />
+                <DetailRow label="Created" value={formatDate(selectedLocal.createdAt)} />
+
+                {selectedLocal.clientNotes && (
+                  <div className="py-2 border-b border-muted/50">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notes</div>
+                    <p className="text-sm bg-muted/40 rounded-md p-2.5 whitespace-pre-wrap">{selectedLocal.clientNotes}</p>
+                  </div>
+                )}
+
+                {selectedLocal.practitionerComments && (
+                  <div className="py-2">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Practitioner Comments</div>
+                    <p className="text-sm bg-muted/40 rounded-md p-2.5 whitespace-pre-wrap">{selectedLocal.practitionerComments}</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── PracticeBetter record detail dialog ── */}
+      <Dialog open={pbDialogOpen} onOpenChange={setPbDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {selectedPB && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+                    <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-lg leading-tight">
+                      {selectedPB.profile?.firstName} {selectedPB.profile?.lastName}
+                    </div>
+                    <div className="text-xs font-normal text-muted-foreground">PracticeBetter Record</div>
+                  </div>
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="mt-2 space-y-1">
+                {pbDetailLoading ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">Loading full details...</p>
+                ) : (
+                  <>
+                    <DetailRow label="Record ID" value={pbDetail?.id ?? selectedPB.id} mono />
+                    <DetailRow label="Patient #" value={pbDetail?.profile?.patientAccountNumber ?? selectedPB.profile?.patientAccountNumber} />
+                    <DetailRow label="Email" value={pbDetail?.profile?.emailAddress ?? selectedPB.profile?.emailAddress} />
+                    <DetailRow label="Phone" value={pbDetail?.profile?.phoneNumber ?? pbDetail?.profile?.mobilePhone ?? selectedPB.profile?.phoneNumber ?? selectedPB.profile?.mobilePhone} />
+                    <DetailRow label="Date of Birth" value={formatDate(pbDetail?.profile?.dateOfBirth ?? selectedPB.profile?.dateOfBirth)} />
+                    <DetailRow label="Gender" value={pbDetail?.profile?.gender ?? selectedPB.profile?.gender} />
+                    <DetailRow label="Time Zone" value={pbDetail?.profile?.timeZone ?? selectedPB.profile?.timeZone} />
+                    <DetailRow label="Status" value={selectedPB.isActive === false ? "Inactive" : "Active"} />
+                    <DetailRow label="Created" value={formatDate(pbDetail?.dateCreated ?? selectedPB.dateCreated)} />
+                    <DetailRow label="Last Modified" value={formatDate(pbDetail?.dateModified ?? selectedPB.dateModified)} />
+                  </>
+                )}
+
+                <div className="pt-4">
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setPbDialogOpen(false);
+                      setLocation(`/practitioner/medical-history?recordId=${selectedPB.id}`);
+                    }}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Medical History
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
