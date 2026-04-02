@@ -160,7 +160,7 @@ export default function PBAvailabilityPage() {
   // Helper to resolve a client/consultant field that PB may return as an object or flat string
   const resolveName = (field: { id?: string; name?: string; firstName?: string; lastName?: string } | string | undefined, fallback?: string): string => {
     if (!field) return fallback ?? "—";
-    if (typeof field === "string") return field || fallback ?? "—";
+    if (typeof field === "string") return field || (fallback ?? "—");
     if (field.name) return field.name;
     const parts = [field.firstName, field.lastName].filter(Boolean);
     return parts.length ? parts.join(" ") : fallback ?? "—";
