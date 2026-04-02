@@ -10,10 +10,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, RefreshCw, Calendar, Clock, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft, RefreshCw, Calendar, Clock, ChevronLeft, ChevronRight, Plus, Search, X,
+} from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { format, addDays, subDays, parseISO } from "date-fns";
+import {
+  format, addDays, subDays, parseISO,
+  startOfWeek, endOfWeek, startOfMonth, endOfMonth,
+  isWithinInterval, isValid,
+} from "date-fns";
 
 interface AvailabilitySlot {
   start_time: string;
@@ -23,7 +30,7 @@ interface AvailabilitySlot {
   service_id?: string;
 }
 
-// Exact PracticeBetter session shape from the live API
+// Exact PracticeBetter session shape from live API
 interface Session {
   id: string;
   clientRecord?: {
@@ -67,26 +74,39 @@ interface PBListResponse<T> {
   items: T[];
 }
 
+const ALL = "__all__";
+
 export default function PBAvailabilityPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Slots tab state
   const [selectedDay, setSelectedDay] = useState<string>(format(new Date(), "yyyy-MM-dd"));
-  const [sessionAfter, setSessionAfter] = useState<string | undefined>();
-  const [sessionHistory, setSessionHistory] = useState<string[]>([]);
-  const [bookOpen, setBookOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [slotsConsultantId, setSlotsConsultantId] = useState<string>("");
   const [slotsServiceId, setSlotsServiceId] = useState<string>("");
+
+  // Sessions pagination state
+  const [sessionAfter, setSessionAfter] = useState<string | undefined>();
+  const [sessionHistory, setSessionHistory] = useState<string[]>([]);
+
+  // Sessions filter state
+  const [filterClient, setFilterClient] = useState("");
+  const [filterConsultant, setFilterConsultant] = useState(ALL);
+  const [filterService, setFilterService] = useState(ALL);
+  const [filterStatus, setFilterStatus] = useState(ALL);
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+
+  // Book dialog state
+  const [bookOpen, setBookOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [bookForm, setBookForm] = useState<BookSessionForm>({
-    client_id: "",
-    service_id: "",
-    start_time: "",
-    consultant_id: "",
-    notes: "",
+    client_id: "", service_id: "", start_time: "", consultant_id: "", notes: "",
   });
 
-  // Sessions — always load so we can extract unique consultants for the slots filter
+  // ─── Data fetching ───────────────────────────────────────────────────────────
+
   const {
     data: sessionsData,
     isLoading: sessionsLoading,
@@ -102,7 +122,6 @@ export default function PBAvailabilityPage() {
     },
   });
 
-  // PB Services list for the slots consultant/service selector
   const { data: servicesData } = useQuery<PBListResponse<PBService>>({
     queryKey: ["/api/practicebetter/services"],
     queryFn: async () => {
@@ -113,10 +132,10 @@ export default function PBAvailabilityPage() {
   });
 
   const services: PBService[] = servicesData?.items ?? [];
+  const sessions: Session[] = sessionsData?.items ?? [];
 
-  // Extract unique consultants from sessions data
+  // Unique consultants from loaded sessions
   const consultants = useMemo(() => {
-    const sessions = sessionsData?.items ?? [];
     const map = new Map<string, string>();
     for (const s of sessions) {
       const id = s.consultant?.id;
@@ -127,9 +146,19 @@ export default function PBAvailabilityPage() {
       }
     }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [sessionsData]);
+  }, [sessions]);
 
-  // Availability slots — only query when both consultant and service are selected
+  // Unique services from loaded sessions (for the filter dropdown)
+  const sessionServices = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sessions) {
+      if (s.service?.id && s.service?.name) map.set(s.service.id, s.service.name);
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [sessions]);
+
+  // ─── Availability slots ──────────────────────────────────────────────────────
+
   const slotsEnabled = Boolean(slotsConsultantId && slotsServiceId);
   const {
     data: slotsData,
@@ -151,16 +180,19 @@ export default function PBAvailabilityPage() {
     },
   });
 
+  const slots: AvailabilitySlot[] = Array.isArray(slotsData) ? slotsData : [];
+
+  // ─── Book mutation ───────────────────────────────────────────────────────────
+
   const bookMutation = useMutation({
-    mutationFn: async (payload: BookSessionForm) => {
-      return apiRequest("POST", "/api/practicebetter/sessions", {
+    mutationFn: async (payload: BookSessionForm) =>
+      apiRequest("POST", "/api/practicebetter/sessions", {
         client_id: payload.client_id || undefined,
         service_id: payload.service_id || undefined,
         start_time: payload.start_time,
         consultant_id: payload.consultant_id || undefined,
         notes: payload.notes || undefined,
-      });
-    },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/practicebetter/sessions"] });
       toast({ title: "Session Booked", description: "The session has been successfully booked." });
@@ -174,6 +206,8 @@ export default function PBAvailabilityPage() {
     },
   });
 
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
   const openBook = (slot?: AvailabilitySlot) => {
     setSelectedSlot(slot ?? null);
     setBookForm({
@@ -186,9 +220,6 @@ export default function PBAvailabilityPage() {
     setBookOpen(true);
   };
 
-  const slots: AvailabilitySlot[] = Array.isArray(slotsData) ? slotsData : [];
-  const sessions: Session[] = sessionsData?.items ?? [];
-
   const formatTime = (s?: string) => {
     if (!s) return "—";
     try { return format(parseISO(s), "h:mm a"); } catch { return s; }
@@ -199,25 +230,6 @@ export default function PBAvailabilityPage() {
     try { return format(parseISO(s), "MMM d, yyyy h:mm a"); } catch { return s; }
   };
 
-  const sessionNext = () => {
-    if (sessionsData?.items?.length) {
-      const lastId = sessionsData.items[sessionsData.items.length - 1].id;
-      setSessionHistory((h) => [...h, sessionAfter ?? ""]);
-      setSessionAfter(lastId);
-    }
-  };
-
-  const sessionPrev = () => {
-    const prev = [...sessionHistory];
-    const prevId = prev.pop() || undefined;
-    setSessionHistory(prev);
-    setSessionAfter(prevId);
-  };
-
-  const prevDay = () => setSelectedDay(format(subDays(new Date(selectedDay), 1), "yyyy-MM-dd"));
-  const nextDay = () => setSelectedDay(format(addDays(new Date(selectedDay), 1), "yyyy-MM-dd"));
-
-  // Derive a human-readable status from PB's boolean/string fields
   const getSessionStatus = (s: Session): { label: string; color: string } => {
     if (s.cancelled) return { label: "Cancelled", color: "bg-red-100 text-red-700 border-red-200" };
     if (s.upcoming) return { label: "Upcoming", color: "bg-blue-100 text-blue-700 border-blue-200" };
@@ -238,9 +250,100 @@ export default function PBAvailabilityPage() {
     return [p.firstName, p.lastName].filter(Boolean).join(" ") || "—";
   };
 
+  // ─── Session filtering ────────────────────────────────────────────────────────
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      // Client search
+      if (filterClient.trim()) {
+        const name = clientName(s).toLowerCase();
+        if (!name.includes(filterClient.toLowerCase())) return false;
+      }
+      // Consultant
+      if (filterConsultant !== ALL && s.consultant?.id !== filterConsultant) return false;
+      // Service
+      if (filterService !== ALL && s.service?.id !== filterService) return false;
+      // Status
+      if (filterStatus !== ALL) {
+        const status = getSessionStatus(s).label.toLowerCase();
+        if (status !== filterStatus.toLowerCase()) return false;
+      }
+      // Date range
+      if (filterDateFrom || filterDateTo) {
+        if (!s.sessionDate) return false;
+        try {
+          const sessionDt = parseISO(s.sessionDate);
+          if (filterDateFrom) {
+            const from = parseISO(filterDateFrom);
+            if (isValid(from) && sessionDt < from) return false;
+          }
+          if (filterDateTo) {
+            const to = parseISO(filterDateTo + "T23:59:59");
+            if (isValid(to) && sessionDt > to) return false;
+          }
+        } catch {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [sessions, filterClient, filterConsultant, filterService, filterStatus, filterDateFrom, filterDateTo]);
+
+  const activeFilterCount = [
+    filterClient.trim() !== "",
+    filterConsultant !== ALL,
+    filterService !== ALL,
+    filterStatus !== ALL,
+    filterDateFrom !== "",
+    filterDateTo !== "",
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setFilterClient("");
+    setFilterConsultant(ALL);
+    setFilterService(ALL);
+    setFilterStatus(ALL);
+    setFilterDateFrom("");
+    setFilterDateTo("");
+  };
+
+  const setThisWeek = () => {
+    const now = new Date();
+    setFilterDateFrom(format(startOfWeek(now, { weekStartsOn: 0 }), "yyyy-MM-dd"));
+    setFilterDateTo(format(endOfWeek(now, { weekStartsOn: 0 }), "yyyy-MM-dd"));
+  };
+
+  const setThisMonth = () => {
+    const now = new Date();
+    setFilterDateFrom(format(startOfMonth(now), "yyyy-MM-dd"));
+    setFilterDateTo(format(endOfMonth(now), "yyyy-MM-dd"));
+  };
+
+  // Pagination
+  const sessionNext = () => {
+    if (sessionsData?.items?.length) {
+      const lastId = sessionsData.items[sessionsData.items.length - 1].id;
+      setSessionHistory((h) => [...h, sessionAfter ?? ""]);
+      setSessionAfter(lastId);
+    }
+  };
+
+  const sessionPrev = () => {
+    const prev = [...sessionHistory];
+    const prevId = prev.pop() || undefined;
+    setSessionHistory(prev);
+    setSessionAfter(prevId);
+  };
+
+  const prevDay = () => setSelectedDay(format(subDays(new Date(selectedDay), 1), "yyyy-MM-dd"));
+  const nextDay = () => setSelectedDay(format(addDays(new Date(selectedDay), 1), "yyyy-MM-dd"));
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
   return (
     <AdminLayout currentTab="practitioner">
       <div className="p-6 space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => setLocation("/practitioner")}>
@@ -261,7 +364,7 @@ export default function PBAvailabilityPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="slots">
+        <Tabs defaultValue="sessions">
           <TabsList>
             <TabsTrigger value="slots">
               <Clock className="h-4 w-4 mr-2" /> Available Slots
@@ -271,7 +374,7 @@ export default function PBAvailabilityPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Availability Slots */}
+          {/* ── Available Slots ── */}
           <TabsContent value="slots" className="mt-4">
             <Card>
               <CardHeader>
@@ -295,8 +398,6 @@ export default function PBAvailabilityPage() {
                     </Button>
                   </div>
                 </div>
-
-                {/* Consultant + Service selectors */}
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-semibold">Consultant</Label>
@@ -305,11 +406,11 @@ export default function PBAvailabilityPage() {
                         <SelectValue placeholder="Select a consultant…" />
                       </SelectTrigger>
                       <SelectContent>
-                        {consultants.length === 0 ? (
-                          <SelectItem value="__none__" disabled>No consultants loaded yet</SelectItem>
-                        ) : consultants.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
+                        {consultants.length === 0
+                          ? <SelectItem value="__none__" disabled>No consultants loaded yet</SelectItem>
+                          : consultants.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -320,11 +421,11 @@ export default function PBAvailabilityPage() {
                         <SelectValue placeholder="Select a service…" />
                       </SelectTrigger>
                       <SelectContent>
-                        {services.length === 0 ? (
-                          <SelectItem value="__none__" disabled>Loading services…</SelectItem>
-                        ) : services.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
+                        {services.length === 0
+                          ? <SelectItem value="__none__" disabled>Loading services…</SelectItem>
+                          : services.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -367,14 +468,135 @@ export default function PBAvailabilityPage() {
             </Card>
           </TabsContent>
 
-          {/* Sessions list */}
-          <TabsContent value="sessions" className="mt-4">
+          {/* ── Sessions ── */}
+          <TabsContent value="sessions" className="mt-4 space-y-4">
+
+            {/* Filter bar */}
+            <Card className="border-dashed">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  {/* Client search */}
+                  <div className="flex-1 min-w-[160px] space-y-1">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client</Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search name…"
+                        value={filterClient}
+                        onChange={(e) => setFilterClient(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Consultant */}
+                  <div className="min-w-[160px] space-y-1">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Consultant</Label>
+                    <Select value={filterConsultant} onValueChange={setFilterConsultant}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All consultants" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>All consultants</SelectItem>
+                        {consultants.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Service */}
+                  <div className="min-w-[180px] space-y-1">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Service</Label>
+                    <Select value={filterService} onValueChange={setFilterService}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All services" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>All services</SelectItem>
+                        {sessionServices.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status */}
+                  <div className="min-w-[140px] space-y-1">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</Label>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>All statuses</SelectItem>
+                        <SelectItem value="Upcoming">Upcoming</SelectItem>
+                        <SelectItem value="Confirmed">Confirmed</SelectItem>
+                        <SelectItem value="Unconfirmed">Unconfirmed</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Date range */}
+                  <div className="flex-1 min-w-[280px] space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date Range</Label>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={setThisWeek}
+                          className="text-[11px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-medium transition-colors"
+                        >
+                          This week
+                        </button>
+                        <button
+                          onClick={setThisMonth}
+                          className="text-[11px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-medium transition-colors"
+                        >
+                          This month
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={filterDateFrom}
+                        onChange={(e) => setFilterDateFrom(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                      <span className="text-muted-foreground text-xs">to</span>
+                      <Input
+                        type="date"
+                        value={filterDateTo}
+                        onChange={(e) => setFilterDateTo(e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Clear button */}
+                  {activeFilterCount > 0 && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1.5 text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                      Clear
+                      <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-[10px]">{activeFilterCount}</Badge>
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Table */}
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Sessions</CardTitle>
-                    <CardDescription>All scheduled and past sessions</CardDescription>
+                    <CardDescription>
+                      {activeFilterCount > 0
+                        ? `${filteredSessions.length} of ${sessions.length} sessions match your filters`
+                        : `${sessions.length} sessions`}
+                    </CardDescription>
                   </div>
                   <Button variant="default" size="sm" onClick={() => openBook()}>
                     <Plus className="h-4 w-4 mr-2" /> Book Session
@@ -384,8 +606,17 @@ export default function PBAvailabilityPage() {
               <CardContent className="p-0">
                 {sessionsLoading ? (
                   <div className="py-8 text-center text-muted-foreground">Loading sessions…</div>
-                ) : sessions.length === 0 ? (
-                  <div className="py-8 text-center text-muted-foreground">No sessions found.</div>
+                ) : filteredSessions.length === 0 ? (
+                  <div className="py-10 text-center space-y-2">
+                    <p className="text-muted-foreground text-sm">
+                      {activeFilterCount > 0 ? "No sessions match your filters." : "No sessions found."}
+                    </p>
+                    {activeFilterCount > 0 && (
+                      <Button variant="link" size="sm" onClick={clearFilters} className="text-xs">
+                        Clear all filters
+                      </Button>
+                    )}
+                  </div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -399,7 +630,7 @@ export default function PBAvailabilityPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sessions.map((s) => {
+                      {filteredSessions.map((s) => {
                         const status = getSessionStatus(s);
                         return (
                           <TableRow key={s.id}>
@@ -421,13 +652,18 @@ export default function PBAvailabilityPage() {
                 )}
               </CardContent>
             </Card>
-            <div className="flex items-center justify-between mt-4">
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between">
               <Button variant="outline" size="sm" onClick={sessionPrev} disabled={sessionHistory.length === 0}>
-                ← Previous
+                ← Previous page
               </Button>
-              <span className="text-sm text-muted-foreground">{sessions.length} sessions</span>
+              <span className="text-sm text-muted-foreground">
+                Page {sessionHistory.length + 1}
+                {sessionsData?.hasMore ? "" : " (last page)"}
+              </span>
               <Button variant="outline" size="sm" onClick={sessionNext} disabled={!sessionsData?.hasMore}>
-                Next →
+                Next page →
               </Button>
             </div>
           </TabsContent>
