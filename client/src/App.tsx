@@ -52,6 +52,10 @@ import PBMedicalHistory from "@/pages/practicebetter-medical-history";
 import PBAvailability from "@/pages/practicebetter-availability";
 import PBHealthProducts from "@/pages/practicebetter-health-products";
 import PBInvoicing from "@/pages/practicebetter-invoicing";
+import PBForms from "@/pages/practicebetter-forms";
+import PBTasks from "@/pages/practicebetter-tasks";
+import PBPrograms from "@/pages/practicebetter-programs";
+import PBLabs from "@/pages/practicebetter-labs";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -219,7 +223,27 @@ function AuthenticatedApp() {
           <PBInvoicing />
         </ProtectedRoute>
       </Route>
-      
+      <Route path="/practitioner/forms">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBForms />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/tasks">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBTasks />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/programs-courses">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBPrograms />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/practitioner/labs">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PBLabs />
+        </ProtectedRoute>
+      </Route>
+
       {/* Employee & Shared Routes */}
       <Route path="/calendar" component={Calendar} />
       <Route path="/shift-swaps" component={ShiftSwapMarketplace} />

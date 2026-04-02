@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search, Dna, Hourglass, ChevronRight, FileText, ClipboardList, ShoppingBag, Receipt } from "lucide-react";
+import { Users, Phone, Calendar, Clock, CheckCircle, XCircle, AlertCircle, Filter, RefreshCw, Eye, Mail, StickyNote, MessageSquare, Edit2, Save, X, Pencil, Search, Dna, Hourglass, ChevronRight, FileText, ClipboardList, ShoppingBag, Receipt, CheckSquare, BookOpen, FlaskConical } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import type { PractitionerContact, User } from "@shared/schema";
@@ -229,6 +229,10 @@ export default function PractitionerDashboard() {
               { label: "Availability", icon: <Calendar className="h-5 w-5" />, colorCls: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400", path: "/practitioner/availability" },
               { label: "Health Products", icon: <ShoppingBag className="h-5 w-5" />, colorCls: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", path: "/practitioner/health-products" },
               { label: "Invoicing", icon: <Receipt className="h-5 w-5" />, colorCls: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", path: "/practitioner/invoicing" },
+              { label: "Forms", icon: <FileText className="h-5 w-5" />, colorCls: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", path: "/practitioner/forms" },
+              { label: "Tasks", icon: <CheckSquare className="h-5 w-5" />, colorCls: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", path: "/practitioner/tasks" },
+              { label: "Programs & Courses", icon: <BookOpen className="h-5 w-5" />, colorCls: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400", path: "/practitioner/programs-courses" },
+              { label: "Labs", icon: <FlaskConical className="h-5 w-5" />, colorCls: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400", path: "/practitioner/labs" },
             ].map((link) => (
               <button
                 key={link.path}
