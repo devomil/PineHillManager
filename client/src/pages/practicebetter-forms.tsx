@@ -37,10 +37,17 @@ interface PBFormRequest {
   form?: { id?: string; name?: string; title?: string };
   formId?: string;
   form_id?: string;
-  clientRecord?: { id?: string; profile?: { firstName?: string; lastName?: string; email?: string } };
-  client?: { id?: string; profile?: { firstName?: string; lastName?: string; email?: string } };
+  // clientRecord is enriched server-side with full record including profile
+  clientRecord?: {
+    id?: string;
+    profile?: { firstName?: string; lastName?: string; email?: string; emailAddress?: string };
+  };
+  client?: { id?: string; profile?: { firstName?: string; lastName?: string; emailAddress?: string } };
   clientName?: string;
+  // status is derived server-side from completed/started booleans
   status?: string;
+  completed?: boolean;
+  started?: boolean;
   dateCreated?: string;
   createdAt?: string;
   dateSent?: string;
@@ -51,7 +58,7 @@ interface PBFormRequest {
 
 interface PBClientRecord {
   id: string;
-  profile?: { firstName?: string; lastName?: string; email?: string };
+  profile?: { firstName?: string; lastName?: string; email?: string; emailAddress?: string };
 }
 
 interface PBListResponse<T> {
@@ -87,7 +94,15 @@ const getClientName = (req: PBFormRequest): string => {
   const prof = req.clientRecord?.profile ?? req.client?.profile;
   if (prof?.firstName || prof?.lastName)
     return [prof.firstName, prof.lastName].filter(Boolean).join(" ");
+  // Fall back to email from profile
+  const email = prof?.emailAddress ?? prof?.email;
+  if (email) return email;
   return req.clientName ?? "Unknown Client";
+};
+
+const getClientEmail = (req: PBFormRequest): string | undefined => {
+  const prof = req.clientRecord?.profile ?? req.client?.profile;
+  return prof?.emailAddress ?? prof?.email;
 };
 
 const getClientId = (req: PBFormRequest): string | undefined =>
@@ -103,6 +118,7 @@ function RequestStatusBadge({ status }: { status?: string }) {
 
 function FormRequestRow({ req, showForm = false }: { req: PBFormRequest; showForm?: boolean }) {
   const clientName = getClientName(req);
+  const clientEmail = getClientEmail(req);
   const formName = req.form?.name ?? req.form?.title ?? "Form";
   const sentDate = req.dateSent ?? req.dateCreated ?? req.createdAt;
   const completedDate = req.dateCompleted ?? req.completedAt;
@@ -116,7 +132,10 @@ function FormRequestRow({ req, showForm = false }: { req: PBFormRequest; showFor
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <div>
             <p className="font-semibold text-sm">{clientName}</p>
-            {showForm && <p className="text-xs text-muted-foreground">{formName}</p>}
+            {clientEmail && clientName !== clientEmail && (
+              <p className="text-xs text-muted-foreground">{clientEmail}</p>
+            )}
+            {showForm && <p className="text-xs text-orange-600 font-medium">{formName}</p>}
           </div>
           <RequestStatusBadge status={req.status} />
         </div>
@@ -172,7 +191,7 @@ function SendFormDialog({
     const q = clientSearch.toLowerCase();
     return all.filter((c) => {
       const n = [c.profile?.firstName, c.profile?.lastName].filter(Boolean).join(" ").toLowerCase();
-      const e = (c.profile?.email ?? "").toLowerCase();
+      const e = (c.profile?.emailAddress ?? c.profile?.email ?? "").toLowerCase();
       return n.includes(q) || e.includes(q);
     }).slice(0, 20);
   }, [clientsData, clientSearch]);
@@ -241,7 +260,9 @@ function SendFormDialog({
                   </div>
                   <div>
                     <p className="text-sm font-semibold">{[selectedClient.profile?.firstName, selectedClient.profile?.lastName].filter(Boolean).join(" ")}</p>
-                    {selectedClient.profile?.email && <p className="text-xs text-muted-foreground">{selectedClient.profile.email}</p>}
+                    {(selectedClient.profile?.emailAddress ?? selectedClient.profile?.email) && (
+                      <p className="text-xs text-muted-foreground">{selectedClient.profile?.emailAddress ?? selectedClient.profile?.email}</p>
+                    )}
                   </div>
                 </div>
                 <button onClick={() => setSelectedClient(null)} className="text-gray-400 hover:text-gray-600">
@@ -270,7 +291,9 @@ function SendFormDialog({
                       </div>
                       <div>
                         <p className="text-sm font-medium">{name}</p>
-                        {c.profile?.email && <p className="text-xs text-muted-foreground">{c.profile.email}</p>}
+                        {(c.profile?.emailAddress ?? c.profile?.email) && (
+                          <p className="text-xs text-muted-foreground">{c.profile?.emailAddress ?? c.profile?.email}</p>
+                        )}
                       </div>
                     </button>
                   );
@@ -448,14 +471,13 @@ export default function PBFormsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── Form requests query ──
+  // ── Form requests query — status filter done client-side (PB uses booleans, not status strings) ──
   const { data: reqData, isLoading: reqLoading, error: reqError, refetch: reqRefetch } =
     useQuery<PBListResponse<PBFormRequest>>({
-      queryKey: ["/api/practicebetter/formrequests", reqAfterId, reqStatus],
+      queryKey: ["/api/practicebetter/formrequests", reqAfterId],
       queryFn: async () => {
         const params = new URLSearchParams();
         if (reqAfterId) params.set("after_id", reqAfterId);
-        if (reqStatus !== "all") params.set("status", reqStatus);
         const r = await fetch(`/api/practicebetter/formrequests?${params}`);
         if (!r.ok) throw new Error(await r.text());
         return r.json();
@@ -472,11 +494,15 @@ export default function PBFormsPage() {
 
   const allRequests = reqData?.items ?? [];
   const filteredRequests = allRequests.filter((r) => {
+    // Status filter (client-side since PB uses booleans)
+    if (reqStatus !== "all" && r.status !== reqStatus) return false;
+    // Text search
     const q = reqSearch.toLowerCase();
     if (!q) return true;
     const client = getClientName(r).toLowerCase();
+    const email = (getClientEmail(r) ?? "").toLowerCase();
     const formName = (r.form?.name ?? r.form?.title ?? "").toLowerCase();
-    return client.includes(q) || formName.includes(q);
+    return client.includes(q) || email.includes(q) || formName.includes(q);
   });
 
   const openDetail = (form: PBForm) => {

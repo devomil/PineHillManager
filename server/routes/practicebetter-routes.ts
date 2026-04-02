@@ -333,8 +333,37 @@ router.get('/formrequests', ...protect, async (req: Request, res: ExpressRespons
     const pbRes = await pbFetch(`/consultant/formrequests${qs}`);
     const data = await pbRes.json();
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
-    res.json({ count: items.length, hasMore: data.hasMore ?? data.has_more ?? false, items });
+    const items: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+
+    // Enrich with client profiles — collect unique client record IDs then batch fetch
+    // PB uses /consultant/records/:id (not /consultant/client-records/:id)
+    const clientIds = [...new Set(items.map((r: any) => r.clientRecord?.id).filter(Boolean))] as string[];
+    const clientMap: Record<string, any> = {};
+    await Promise.all(
+      clientIds.map(async (cid) => {
+        try {
+          const cr = await pbFetch(`/consultant/records/${cid}`);
+          if (cr.ok) {
+            const crData = await cr.json();
+            clientMap[cid] = crData;
+          }
+        } catch { /* skip */ }
+      })
+    );
+
+    // Merge enriched client profile and derive status from booleans
+    const enriched = items.map((r: any) => {
+      const cid = r.clientRecord?.id;
+      const fullClient = cid ? clientMap[cid] : null;
+      const derivedStatus = r.completed ? 'completed' : r.started ? 'opened' : 'pending';
+      return {
+        ...r,
+        clientRecord: fullClient ?? r.clientRecord,
+        status: derivedStatus,
+      };
+    });
+
+    res.json({ count: enriched.length, hasMore: data.hasMore ?? data.has_more ?? false, items: enriched });
   } catch (err: any) {
     console.error('[PB] formrequests list error:', err.message);
     res.status(500).json({ error: err.message });

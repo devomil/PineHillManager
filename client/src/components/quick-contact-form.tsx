@@ -141,9 +141,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    const serviceType = servicesList.length > 0 ? servicesList[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Consultation';
-
-    // Build human-readable scan type labels from selected services
     const scanTypeLabels: string[] = [];
     if (formData.services.includes('remote_initial_scan')) scanTypeLabels.push('Remote Initial Scan');
     if (formData.services.includes('follow_up_scan')) scanTypeLabels.push('Follow-Up Scan');
@@ -176,16 +173,39 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     createContactMutation.mutate(contactData);
   };
 
-  const inputClass = "bg-white dark:bg-slate-900 border-2 border-gray-400 dark:border-gray-500 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-200 placeholder:text-gray-500 dark:placeholder:text-gray-400 text-gray-900 dark:text-gray-100 h-11 text-base";
-  const textareaClass = "bg-white dark:bg-slate-900 border-2 border-gray-400 dark:border-gray-500 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-200 placeholder:text-gray-500 dark:placeholder:text-gray-400 text-gray-900 dark:text-gray-100 text-base";
-  const labelClass = "text-sm font-semibold text-gray-800 dark:text-gray-200";
-  const checkboxClass = "h-5 w-5 border-2 border-gray-500 dark:border-gray-400 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600";
-  const checkLabelClass = "text-[15px] font-semibold text-gray-800 dark:text-gray-200 cursor-pointer select-none";
+  // Shared style classes — designed for maximum clarity on any monitor quality
+  const inputClass = [
+    "bg-white dark:bg-slate-900",
+    "border-2 border-gray-500 dark:border-gray-400",
+    "shadow-inner",
+    "focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-300",
+    "placeholder:text-gray-500 dark:placeholder:text-gray-400 placeholder:font-medium",
+    "text-gray-900 dark:text-gray-100 font-medium",
+    "h-11 text-base",
+  ].join(" ");
+
+  const textareaClass = [
+    "bg-white dark:bg-slate-900",
+    "border-2 border-gray-500 dark:border-gray-400",
+    "shadow-inner",
+    "focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-300",
+    "placeholder:text-gray-500 dark:placeholder:text-gray-400 placeholder:font-medium",
+    "text-gray-900 dark:text-gray-100 font-medium",
+    "text-base min-h-[96px]",
+  ].join(" ");
+
+  const labelClass = "text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wide";
+
+  const checkboxClass = "h-5 w-5 border-[2.5px] border-gray-600 dark:border-gray-400 rounded data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600";
+  const checkLabelClass = "text-[15px] font-semibold text-gray-900 dark:text-gray-100 cursor-pointer select-none leading-tight";
+
+  // Section card class — deeper background, clear border, rounded for separation
+  const sectionCard = "p-5 rounded-xl shadow-sm border-2";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] max-h-[900px] overflow-y-auto p-6">
-        <DialogHeader className="pb-4 border-b">
+        <DialogHeader className="pb-4 border-b-2 border-gray-200 dark:border-gray-700">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             <Phone className="h-6 w-6 text-green-600" />
             Intake Form
@@ -195,8 +215,8 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
         <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
 
           {/* Program Type */}
-          <div className="bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 dark:from-blue-950/40 dark:via-sky-900/30 dark:to-indigo-900/30 border-2 border-blue-300 dark:border-blue-800 p-5 rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-900 dark:text-blue-100">
+          <div className={`${sectionCard} bg-blue-100 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700`}>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-900 dark:text-blue-100 border-l-4 border-blue-500 pl-3">
               <Stethoscope className="h-5 w-5" />
               Program Type
             </h3>
@@ -205,7 +225,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                 <label
                   key={service.id}
                   htmlFor={service.id}
-                  className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  className="flex items-center gap-3.5 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 border-gray-400 dark:border-gray-500 cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors shadow-sm"
                 >
                   <Checkbox
                     id={service.id}
@@ -218,7 +238,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
               ))}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="programs" className={labelClass}>Programs (specify which)</Label>
                 <Input
                   id="programs"
@@ -228,7 +248,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="labs" className={labelClass}>Labs (specify which)</Label>
                 <Input
                   id="labs"
@@ -242,8 +262,8 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Service Type */}
-          <div className="bg-gradient-to-br from-teal-100 via-cyan-100 to-emerald-100 dark:from-teal-950/40 dark:via-cyan-900/30 dark:to-emerald-900/30 border-2 border-teal-300 dark:border-teal-800 p-5 rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-teal-900 dark:text-teal-100">
+          <div className={`${sectionCard} bg-teal-100 dark:bg-teal-950/40 border-teal-400 dark:border-teal-700`}>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-teal-900 dark:text-teal-100 border-l-4 border-teal-500 pl-3">
               <Layers className="h-5 w-5" />
               Service Type
             </h3>
@@ -252,10 +272,10 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                 <label
                   key={opt.id}
                   htmlFor={`stype-${opt.id}`}
-                  className={`flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3.5 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 cursor-pointer transition-colors shadow-sm ${
                     formData.serviceTypeSelection === opt.id
-                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20'
+                      ? 'border-teal-600 bg-teal-50 dark:bg-teal-900/30 shadow-md'
+                      : 'border-gray-400 dark:border-gray-500 hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20'
                   }`}
                 >
                   <Checkbox
@@ -267,7 +287,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                         serviceTypeSelection: prev.serviceTypeSelection === opt.id ? '' : opt.id,
                       }))
                     }
-                    className="h-5 w-5 border-2 border-gray-500 dark:border-gray-400 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                    className="h-5 w-5 border-[2.5px] border-gray-600 dark:border-gray-400 rounded data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
                   />
                   <span className={checkLabelClass}>{opt.label}</span>
                 </label>
@@ -276,8 +296,8 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Payment Type */}
-          <div className="bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-100 dark:from-amber-950/40 dark:via-yellow-900/30 dark:to-orange-900/30 border-2 border-yellow-300 dark:border-yellow-800 p-5 rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100">
+          <div className={`${sectionCard} bg-amber-100 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700`}>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100 border-l-4 border-amber-500 pl-3">
               <ClipboardCheck className="h-5 w-5" />
               Payment Type
             </h3>
@@ -290,10 +310,10 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
               ].map((option) => (
                 <label
                   key={option}
-                  className={`flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3.5 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 cursor-pointer transition-colors shadow-sm ${
                     formData.paymentType === option
-                      ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                      ? 'border-amber-600 bg-amber-50 dark:bg-amber-900/30 shadow-md'
+                      : 'border-gray-400 dark:border-gray-500 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                   }`}
                 >
                   <Checkbox
@@ -304,7 +324,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                         paymentType: prev.paymentType === option ? '' : option,
                       }))
                     }
-                    className="h-5 w-5 border-2 border-gray-500 dark:border-gray-400 data-[state=checked]:bg-yellow-600 data-[state=checked]:border-yellow-600"
+                    className="h-5 w-5 border-[2.5px] border-gray-600 dark:border-gray-400 rounded data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
                   />
                   <span className={checkLabelClass}>{option}</span>
                 </label>
@@ -313,13 +333,13 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Client Information */}
-          <div className="bg-gradient-to-br from-emerald-100 via-green-100 to-teal-100 dark:from-emerald-950/40 dark:via-green-900/30 dark:to-teal-900/30 border-2 border-green-300 dark:border-green-800 p-5 rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 dark:text-green-100">
+          <div className={`${sectionCard} bg-emerald-100 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700`}>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 dark:text-green-100 border-l-4 border-emerald-500 pl-3">
               <User className="h-5 w-5" />
               Client Information
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="clientDate" className={labelClass}>Date</Label>
                 <Input
                   id="clientDate"
@@ -329,9 +349,9 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="clientName" className={labelClass}>
-                  Client Name <span className="text-red-600">*</span>
+                  Client Name <span className="text-red-600 font-bold">*</span>
                 </Label>
                 <Input
                   id="clientName"
@@ -342,7 +362,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="clientEmail" className={labelClass}>Email</Label>
                 <Input
                   id="clientEmail"
@@ -353,7 +373,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="clientDob" className={labelClass}>Date of Birth</Label>
                 <Input
                   id="clientDob"
@@ -363,7 +383,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   className={inputClass}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="clientPhone" className={labelClass}>Phone Number</Label>
                 <Input
                   id="clientPhone"
@@ -375,16 +395,16 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                 />
               </div>
             </div>
-            <div className="mt-4 space-y-1.5">
+            <div className="mt-4 space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="clientComment" className={labelClass}>Comment / Quick Call Customer Concern</Label>
-                <span className={`text-xs font-medium tabular-nums ${
+                <span className={`text-xs font-bold tabular-nums ${
                   formData.clientComment.length === 0
-                    ? "text-gray-400"
+                    ? "text-gray-500"
                     : formData.clientComment.length <= 300
-                    ? "text-green-600 dark:text-green-400"
+                    ? "text-green-700 dark:text-green-400"
                     : formData.clientComment.length <= 450
-                    ? "text-yellow-600 dark:text-yellow-400"
+                    ? "text-yellow-700 dark:text-yellow-400"
                     : "text-red-600 dark:text-red-400"
                 }`}>
                   {formData.clientComment.length} / 500
@@ -402,7 +422,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                 rows={3}
                 className={textareaClass}
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
                 {formData.clientComment.length === 0
                   ? "Aim for 300 characters or less for a concise summary."
                   : formData.clientComment.length <= 300
@@ -415,8 +435,8 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
           </div>
 
           {/* Practitioner Claim */}
-          <div className="bg-gradient-to-br from-violet-100 via-purple-100 to-fuchsia-100 dark:from-violet-950/40 dark:via-purple-900/30 dark:to-fuchsia-900/30 border-2 border-purple-300 dark:border-purple-800 p-5 rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100">
+          <div className={`${sectionCard} bg-violet-100 dark:bg-violet-950/40 border-violet-400 dark:border-violet-700`}>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100 border-l-4 border-violet-500 pl-3">
               <Users className="h-5 w-5" />
               Practitioner Claim
             </h3>
@@ -425,7 +445,11 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                 <label
                   key={practitioner.id}
                   htmlFor={`practitioner-${practitioner.id}`}
-                  className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-md border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                  className={`flex items-center gap-3 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 cursor-pointer transition-colors shadow-sm ${
+                    formData.assignedPractitioner === practitioner.id
+                      ? 'border-violet-600 bg-violet-50 dark:bg-violet-900/30 shadow-md'
+                      : 'border-gray-400 dark:border-gray-500 hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20'
+                  }`}
                 >
                   <Checkbox
                     id={`practitioner-${practitioner.id}`}
@@ -436,18 +460,18 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   <span className={checkLabelClass}>{practitioner.name}</span>
                 </label>
               )) : (
-                <p className="text-sm text-muted-foreground col-span-full">Loading practitioners...</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 col-span-full">Loading practitioners...</p>
               )}
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-3 pt-4 border-t-2 border-gray-200 dark:border-gray-700">
+            <Button type="button" variant="outline" className="border-2 border-gray-400 font-semibold" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button 
               type="submit" 
-              className="bg-green-600 hover:bg-green-700 text-white px-8"
+              className="bg-green-600 hover:bg-green-700 text-white px-8 font-bold text-base shadow-md"
               disabled={createContactMutation.isPending || !formData.clientName.trim()}
             >
               {createContactMutation.isPending ? "Submitting..." : "Submit Contact"}
