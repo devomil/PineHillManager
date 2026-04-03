@@ -100,15 +100,32 @@ function ProgramDetailModal({
   const [showEnrollSearch, setShowEnrollSearch] = useState(false);
   const programName = program.name ?? program.title ?? "Untitled Program";
 
+  // Fetch full program detail for Overview tab
+  const { data: detail } = useQuery<PBProgram>({
+    queryKey: ["/api/practicebetter/programs", program.id, "detail"],
+    queryFn: async () => {
+      const r = await fetch(`/api/practicebetter/programs/${program.id}`);
+      const text = await r.text();
+      if (!r.ok) throw new Error(text);
+      try { return JSON.parse(text); } catch { throw new Error("Invalid response from server"); }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Merge list-level data with full detail (detail may have more fields)
+  const fullProgram: PBProgram = { ...program, ...(detail ?? {}) };
+
   const { data: enrollData, isLoading: enrollLoading, error: enrollError, refetch: refetchEnroll } =
     useQuery<PBListResponse<PBEnrollment>>({
       queryKey: ["/api/practicebetter/programs", program.id, "enrollments"],
       queryFn: async () => {
         const r = await fetch(`/api/practicebetter/programs/${program.id}/enrollments`);
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
+        const text = await r.text();
+        if (!r.ok) throw new Error(text.startsWith("{") ? JSON.parse(text)?.error ?? text : text);
+        try { return JSON.parse(text); } catch { throw new Error("Server returned invalid data"); }
       },
       staleTime: 2 * 60 * 1000,
+      retry: 2,
     });
 
   const { data: clientData, isLoading: clientSearchLoading } =
@@ -186,36 +203,36 @@ function ProgramDetailModal({
             {/* ── Overview Tab ── */}
             <TabsContent value="overview" className="space-y-4 mt-0">
               <div className="space-y-3">
-                {program.description && (
+                {fullProgram.description && (
                   <div className="rounded-lg bg-gray-50 dark:bg-slate-800 border p-3 text-sm text-gray-800 dark:text-gray-200">
-                    {String(program.description)}
+                    {String(fullProgram.description)}
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  {(program.type ?? program.category) && (
+                  {(fullProgram.type ?? fullProgram.category) && (
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Type</p>
-                        <p className="text-sm font-medium capitalize">{String(program.type ?? program.category)}</p>
+                        <p className="text-sm font-medium capitalize">{String(fullProgram.type ?? fullProgram.category)}</p>
                       </div>
                     </div>
                   )}
-                  {program.duration !== undefined && (
+                  {fullProgram.duration !== undefined && (
                     <div className="flex items-start gap-2">
                       <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Duration</p>
-                        <p className="text-sm font-medium">{String(program.duration)}</p>
+                        <p className="text-sm font-medium">{String(fullProgram.duration)}</p>
                       </div>
                     </div>
                   )}
-                  {(program.dateCreated ?? program.createdAt) && (
+                  {(fullProgram.dateCreated ?? fullProgram.createdAt) && (
                     <div className="flex items-start gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Created</p>
-                        <p className="text-sm font-medium">{fmtDate((program.dateCreated ?? program.createdAt) as string)}</p>
+                        <p className="text-sm font-medium">{fmtDate((fullProgram.dateCreated ?? fullProgram.createdAt) as string)}</p>
                       </div>
                     </div>
                   )}
@@ -223,17 +240,17 @@ function ProgramDetailModal({
                     <Hash className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                     <div>
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Course ID</p>
-                      <p className="text-xs font-mono text-muted-foreground break-all">{program.id}</p>
+                      <p className="text-xs font-mono text-muted-foreground break-all">{fullProgram.id}</p>
                     </div>
                   </div>
                 </div>
-                {program.modules && Array.isArray(program.modules) && program.modules.length > 0 && (
+                {fullProgram.modules && Array.isArray(fullProgram.modules) && (fullProgram.modules as any[]).length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Modules ({program.modules.length})
+                      Modules ({(fullProgram.modules as any[]).length})
                     </p>
                     <ul className="space-y-1">
-                      {(program.modules as any[]).map((mod: any, i: number) => (
+                      {(fullProgram.modules as any[]).map((mod: any, i: number) => (
                         <li key={mod.id ?? i} className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-gray-50 dark:bg-slate-800">
                           <span className="text-xs text-muted-foreground w-5 shrink-0">{i + 1}.</span>
                           <span className="font-medium truncate">{mod.name ?? mod.title ?? `Module ${i + 1}`}</span>
@@ -246,7 +263,7 @@ function ProgramDetailModal({
 
               <div className="pt-3 border-t">
                 <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                  <a href={`https://app.practicebetter.io/programs/${program.id}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`https://app.practicebetter.io/programs/${fullProgram.id}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Open in PracticeBetter
                   </a>
