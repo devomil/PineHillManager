@@ -118,6 +118,33 @@ router.get('/client-records', ...protect, async (req: Request, res: ExpressRespo
   }
 });
 
+// ── PB client count — lightweight total-records count for dashboard stats ─────
+// Calls PB with limit=1 and returns the `count` field from the response.
+// PracticeBetter returns the total record count regardless of limit.
+let cachedPBCount: { count: number; expiresAt: number } | null = null;
+
+router.get('/client-records/count', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    // Serve cached value if still fresh (10 minutes)
+    if (cachedPBCount && Date.now() < cachedPBCount.expiresAt) {
+      return res.json({ count: cachedPBCount.count });
+    }
+    const pbRes = await pbFetch('/consultant/records?limit=1');
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON' });
+    }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    const count: number = typeof data.count === 'number' ? data.count : (data.items?.length ?? 0);
+    cachedPBCount = { count, expiresAt: Date.now() + 10 * 60 * 1000 };
+    res.json({ count });
+  } catch (err: any) {
+    console.error('[PB] client-records count error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/client-records/:recordId', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const pbRes = await pbFetch(`/consultant/records/${req.params.recordId}`);

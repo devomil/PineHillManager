@@ -141,8 +141,10 @@ export default function PBClientRecordsPage() {
     },
   });
 
+  // "Active" = anything that hasn't been completed, cancelled, or archived
+  const ACTIVE_STATUSES = ["pending", "pending_awaiting_dna", "pending_dna_received", "in_progress"];
   const activeContacts = localData.filter((c) =>
-    localSearch.trim() ? true : ["pending", "in_progress"].includes(c.status)
+    localSearch.trim() ? true : ACTIVE_STATUSES.includes(c.status)
   );
 
   const filteredLocal = activeContacts.filter((c) => {

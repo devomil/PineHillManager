@@ -140,6 +140,13 @@ export default function PractitionerDashboard() {
     queryKey: ['/api/practitioner-contacts/stats'],
   });
 
+  // PracticeBetter total client count — cached 10 min on server, so this is cheap
+  const { data: pbCountData } = useQuery<{ count: number }>({
+    queryKey: ['/api/practicebetter/client-records/count'],
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+
   const { data: serviceTypes = [] } = useQuery<string[]>({
     queryKey: ['/api/practitioner-contacts/service-types'],
   });
@@ -253,7 +260,12 @@ export default function PractitionerDashboard() {
               <CardTitle className="text-sm font-medium text-gray-500">Total Contacts</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.total || 0}</div>
+              <div className="text-2xl font-bold">
+                {(stats?.total ?? 0) + (pbCountData?.count ?? 0)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats?.total ?? 0} intake&nbsp;·&nbsp;{pbCountData?.count ?? '…'} PracticeBetter
+              </p>
             </CardContent>
           </Card>
 
