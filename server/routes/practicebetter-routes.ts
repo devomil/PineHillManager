@@ -489,6 +489,107 @@ router.get('/programs', ...protect, async (req: Request, res: ExpressResponse) =
   }
 });
 
+// ── Single course detail ───────────────────────────────────────────────────────
+
+router.get('/programs/:courseId', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const pbRes = await pbFetch(`/consultant/courses/${req.params.courseId}`);
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
+    }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] course detail error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Course enrollments ─────────────────────────────────────────────────────────
+
+router.get('/programs/:courseId/enrollments', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { after_id, before_id } = req.query as Record<string, string>;
+    const qs = buildQuery({ after_id, before_id });
+    const pbRes = await pbFetch(`/consultant/courses/${req.params.courseId}/enrollments${qs}`);
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
+    }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+    if (items.length > 0) console.log('[PB] enrollment sample keys:', Object.keys(items[0]));
+    res.json({ count: items.length, hasMore: data.hasMore ?? data.has_more ?? false, items });
+  } catch (err: any) {
+    console.error('[PB] enrollments list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/programs/:courseId/enrollments', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { clientRecordId } = req.body;
+    if (!clientRecordId) return res.status(400).json({ error: 'clientRecordId is required' });
+    const pbRes = await pbFetch(`/consultant/courses/${req.params.courseId}/enrollments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientRecord: { id: clientRecordId } }),
+    });
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 200) }; }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] enroll error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/programs/:courseId/enrollments', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { clientRecordId } = req.body;
+    if (!clientRecordId) return res.status(400).json({ error: 'clientRecordId is required' });
+    const pbRes = await pbFetch(`/consultant/courses/${req.params.courseId}/enrollments`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientRecord: { id: clientRecordId } }),
+    });
+    const text = await pbRes.text();
+    let data: any;
+    try { data = text ? JSON.parse(text) : { success: true }; } catch { data = { success: true }; }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] unenroll error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PB client search (for enrollment) ─────────────────────────────────────────
+
+router.get('/clients', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { search } = req.query as Record<string, string>;
+    const qs = buildQuery({ search, limit: '20' });
+    const pbRes = await pbFetch(`/clients${qs}`);
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
+    }
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+    res.json({ items });
+  } catch (err: any) {
+    console.error('[PB] client search error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Labs ───────────────────────────────────────────────────────────────────────
 
 router.get('/labs', ...protect, async (req: Request, res: ExpressResponse) => {
