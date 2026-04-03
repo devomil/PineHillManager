@@ -582,5 +582,77 @@ router.get('/labs/:labId/attachments/:itemId', ...protect, async (req: Request, 
   }
 });
 
+// ── Tasks (PB calls them "reminders") ──────────────────────────────────────
+
+router.get('/tasks', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const { after_id, status, limit } = req.query as Record<string, string>;
+
+    const qs = buildQuery({
+      after_id,
+      status: status && status !== 'all' ? status : undefined,
+      limit: limit ?? '50',
+    });
+
+    const pbRes = await pbFetch(`/consultant/reminders${qs ? `?${qs}` : ''}`);
+    const text = await pbRes.text();
+
+    // PB can return an empty body (no reminders) — treat as empty list
+    if (!text.trim()) {
+      console.log('[PB] tasks: PB returned empty body');
+      return res.json({ count: 0, hasMore: false, items: [] });
+    }
+
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      console.error('[PB] tasks: invalid JSON from PB:', text.slice(0, 200));
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
+    }
+
+    if (!pbRes.ok) {
+      console.error('[PB] tasks: PB error response:', data);
+      return res.status(pbRes.status).json(data);
+    }
+
+    // PB returns { count, hasMore, items } — normalize to our standard shape
+    const items: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+
+    // Debug: log first item so we can confirm real field names from the API
+    if (items.length > 0) {
+      console.log('[PB] tasks first item keys:', Object.keys(items[0]));
+      console.log('[PB] tasks first item sample:', JSON.stringify(items[0]).slice(0, 500));
+    } else {
+      console.log('[PB] tasks: zero items returned (count:', data.count ?? 0, ')');
+    }
+
+    res.json({
+      count: data.count ?? items.length,
+      hasMore: data.hasMore ?? data.has_more ?? false,
+      items,
+    });
+  } catch (err: any) {
+    console.error('[PB] tasks list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/tasks/:taskId', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const pbRes = await pbFetch(`/consultant/reminders/${req.params.taskId}`);
+    const text = await pbRes.text();
+
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON' });
+    }
+
+    if (!pbRes.ok) return res.status(pbRes.status).json(data);
+    res.json(data);
+  } catch (err: any) {
+    console.error('[PB] task get error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 
