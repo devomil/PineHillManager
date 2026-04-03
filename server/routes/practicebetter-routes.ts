@@ -5,6 +5,7 @@ const router = Router();
 const PB_BASE_URL = 'https://api.practicebetter.io';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
+let cachedConsultants: { list: { id: string; name: string }[]; expiresAt: number } | null = null;
 
 async function getPBToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
@@ -52,6 +53,39 @@ async function pbFetch(path: string, options: RequestInit = {}): Promise<globalT
       ...(options.headers ?? {}),
     },
   });
+}
+
+// Discover all consultant IDs in the practice via a sessions sample.
+// Results are cached for 10 minutes to avoid redundant API calls.
+async function getPBConsultantIds(): Promise<{ id: string; name: string }[]> {
+  if (cachedConsultants && Date.now() < cachedConsultants.expiresAt) {
+    return cachedConsultants.list;
+  }
+  try {
+    const res = await pbFetch('/consultant/sessions?limit=50');
+    const text = await res.text();
+    if (!text.trim()) return [];
+    const data = JSON.parse(text);
+    const sessions: any[] = Array.isArray(data) ? data : (data.items ?? []);
+    const seen = new Set<string>();
+    const list: { id: string; name: string }[] = [];
+    for (const s of sessions) {
+      const c = s.consultant ?? s.Consultant ?? {};
+      const id = c.id ?? c._id ?? c.userId;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        const first = c.profile?.firstName ?? c.firstName ?? '';
+        const last  = c.profile?.lastName  ?? c.lastName  ?? '';
+        list.push({ id, name: `${first} ${last}`.trim() || id });
+      }
+    }
+    cachedConsultants = { list, expiresAt: Date.now() + 10 * 60 * 1000 };
+    console.log('[PB] discovered consultants:', list.map(c => `${c.name} (${c.id})`));
+    return list;
+  } catch (err: any) {
+    console.warn('[PB] getPBConsultantIds failed:', err.message);
+    return [];
+  }
 }
 
 function buildQuery(params: Record<string, string | undefined>): string {
@@ -566,53 +600,73 @@ router.get('/labs/:labId/attachments/:itemId', ...protect, async (req: Request, 
 });
 
 // ── Tasks (PB calls them "reminders") ──────────────────────────────────────
+// PB scopes /consultant/reminders to the authenticated consultant context.
+// To see ALL practitioners' tasks we discover consultant IDs via sessions,
+// then fan out a per-consultant reminders query and merge the results.
+
+async function fetchRemindersForConsultant(
+  consultantId: string | null,
+  params: { after_id?: string; status?: string; limit: string }
+): Promise<any[]> {
+  const qs = buildQuery({
+    ...(consultantId ? { consultant: consultantId } : {}),
+    after_id: params.after_id,
+    status: params.status,
+    limit: params.limit,
+  });
+  const pbRes = await pbFetch(`/consultant/reminders${qs}`);
+  const text = await pbRes.text();
+  if (!text.trim()) return [];
+  try {
+    const data = JSON.parse(text);
+    if (!pbRes.ok) {
+      console.warn(`[PB] reminders error for consultant ${consultantId}:`, data);
+      return [];
+    }
+    return Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+  } catch {
+    return [];
+  }
+}
 
 router.get('/tasks', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const { after_id, status, limit } = req.query as Record<string, string>;
-
-    const qs = buildQuery({
+    const params = {
       after_id,
       status: status && status !== 'all' ? status : undefined,
       limit: limit ?? '50',
-    });
+    };
 
-    const pbRes = await pbFetch(`/consultant/reminders${qs ? `?${qs}` : ''}`);
-    const text = await pbRes.text();
+    // 1. Always fetch the default (current-context) reminders — this works reliably
+    const defaultItems = await fetchRemindersForConsultant(null, params);
 
-    // PB can return an empty body (no reminders) — treat as empty list
-    if (!text.trim()) {
-      console.log('[PB] tasks: PB returned empty body');
-      return res.json({ count: 0, hasMore: false, items: [] });
+    // 2. Discover consultant IDs from sessions and fan-out per consultant
+    const consultants = await getPBConsultantIds();
+    const perConsultantResults = await Promise.all(
+      consultants.map(c => fetchRemindersForConsultant(c.id, params))
+    );
+
+    // 3. Merge all, deduplicating by id
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    for (const item of [...defaultItems, ...perConsultantResults.flat()]) {
+      const id = item.id ?? item._id;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        merged.push(item);
+      }
     }
 
-    let data: any;
-    try { data = JSON.parse(text); } catch {
-      console.error('[PB] tasks: invalid JSON from PB:', text.slice(0, 200));
-      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
-    }
-
-    if (!pbRes.ok) {
-      console.error('[PB] tasks: PB error response:', data);
-      return res.status(pbRes.status).json(data);
-    }
-
-    // PB returns { count, hasMore, items } — normalize to our standard shape
-    const items: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
-
-    // Debug: log first item so we can confirm real field names from the API
-    if (items.length > 0) {
-      console.log('[PB] tasks first item keys:', Object.keys(items[0]));
-      console.log('[PB] tasks first item sample:', JSON.stringify(items[0]).slice(0, 500));
+    if (merged.length > 0) {
+      console.log('[PB] tasks merged:', merged.length, 'items from', consultants.length + 1, 'queries');
+      console.log('[PB] tasks first item keys:', Object.keys(merged[0]));
+      console.log('[PB] tasks first item sample:', JSON.stringify(merged[0]).slice(0, 400));
     } else {
-      console.log('[PB] tasks: zero items returned (count:', data.count ?? 0, ')');
+      console.log('[PB] tasks: zero items returned across all consultants');
     }
 
-    res.json({
-      count: data.count ?? items.length,
-      hasMore: data.hasMore ?? data.has_more ?? false,
-      items,
-    });
+    res.json({ count: merged.length, hasMore: false, items: merged });
   } catch (err: any) {
     console.error('[PB] tasks list error:', err.message);
     res.status(500).json({ error: err.message });

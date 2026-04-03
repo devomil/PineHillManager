@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, RefreshCw, Search, CheckSquare, Calendar, User, Clock, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ArrowLeft, RefreshCw, Search, CheckSquare, Calendar, User, Clock, AlertCircle, FileText, Tag, Hash } from "lucide-react";
 import { format, parseISO, isPast } from "date-fns";
 
 interface PBTask {
@@ -15,16 +16,24 @@ interface PBTask {
   title?: string;
   name?: string;
   description?: string;
+  notes?: string;
   status?: string;
   priority?: string;
   dueDate?: string;
   due_date?: string;
+  dueAt?: string;
   assignedTo?: string;
   assigned_to?: string;
-  consultant?: { profile?: { firstName?: string; lastName?: string } };
+  consultant?: { id?: string; profile?: { firstName?: string; lastName?: string } };
+  clientRecord?: { id?: string; profile?: { firstName?: string; lastName?: string; emailAddress?: string } };
+  client?: { id?: string; firstName?: string; lastName?: string; email?: string };
   createdAt?: string;
   dateCreated?: string;
   completedAt?: string;
+  updatedAt?: string;
+  type?: string;
+  category?: string;
+  tags?: string[];
   [key: string]: unknown;
 }
 
@@ -37,6 +46,11 @@ interface PBListResponse {
 const fmtDate = (s?: string) => {
   if (!s) return "—";
   try { return format(parseISO(s), "MMM d, yyyy"); } catch { return s; }
+};
+
+const fmtDateTime = (s?: string) => {
+  if (!s) return "—";
+  try { return format(parseISO(s), "MMM d, yyyy 'at' h:mm a"); } catch { return s; }
 };
 
 const statusColor: Record<string, string> = {
@@ -55,18 +69,159 @@ const priorityColor: Record<string, string> = {
   urgent: "text-red-700 font-bold",
 };
 
+function getConsulantName(task: PBTask): string | null {
+  if (task.consultant?.profile) {
+    return [task.consultant.profile.firstName, task.consultant.profile.lastName].filter(Boolean).join(" ") || null;
+  }
+  return (task.assignedTo ?? task.assigned_to ?? null) as string | null;
+}
+
+function getClientName(task: PBTask): string | null {
+  if (task.clientRecord?.profile) {
+    return [task.clientRecord.profile.firstName, task.clientRecord.profile.lastName].filter(Boolean).join(" ") || null;
+  }
+  if (task.client) {
+    return [task.client.firstName, task.client.lastName].filter(Boolean).join(" ") || null;
+  }
+  return null;
+}
+
+function getDueDate(task: PBTask): string | undefined {
+  return task.dueDate ?? task.due_date ?? task.dueAt;
+}
+
+// ── Detail Modal ────────────────────────────────────────────────────────────
+
+function TaskDetailModal({ task, onClose }: { task: PBTask; onClose: () => void }) {
+  const title = task.title ?? task.name ?? "Untitled Task";
+  const dueDate = getDueDate(task);
+  const status = (task.status ?? "pending").toLowerCase();
+  const priority = (task.priority ?? "").toLowerCase();
+  const isOverdue = dueDate && !["completed", "complete", "cancelled"].includes(status) && isPast(parseISO(dueDate));
+  const assignee = getConsulantName(task);
+  const clientName = getClientName(task);
+  const clientEmail = task.clientRecord?.profile?.emailAddress ?? (task.client as any)?.email ?? null;
+
+  const DetailRow = ({ icon: Icon, label, value }: { icon: any; label: string; value: React.ReactNode }) =>
+    value ? (
+      <div className="flex items-start gap-3">
+        <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{value}</p>
+        </div>
+      </div>
+    ) : null;
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader className="pr-8">
+          <DialogTitle className="flex items-start gap-3">
+            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100 text-red-600" : "bg-indigo-100 text-indigo-600"}`}>
+              <CheckSquare className="h-4 w-4" />
+            </div>
+            <span className="text-base font-bold leading-snug">{title}</span>
+          </DialogTitle>
+          <DialogDescription className="sr-only">Task detail for {title}</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 pt-2">
+          {/* Badges row */}
+          <div className="flex flex-wrap gap-2">
+            <Badge className={`text-xs ${statusColor[status] ?? "bg-gray-100 text-gray-600"}`}>
+              {status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+            </Badge>
+            {priority && (
+              <Badge variant="outline" className={`text-xs ${priorityColor[priority] ?? ""}`}>
+                {priority.charAt(0).toUpperCase() + priority.slice(1)} Priority
+              </Badge>
+            )}
+            {isOverdue && (
+              <Badge className="text-xs bg-red-100 text-red-700 border-red-200">Overdue</Badge>
+            )}
+            {task.type && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                {String(task.type)}
+              </Badge>
+            )}
+          </div>
+
+          {/* Detail grid */}
+          <div className="space-y-3">
+            {assignee && <DetailRow icon={User} label="Assigned To" value={assignee} />}
+            {clientName && (
+              <DetailRow
+                icon={User}
+                label="Client"
+                value={clientEmail ? `${clientName} — ${clientEmail}` : clientName}
+              />
+            )}
+            {dueDate && (
+              <DetailRow
+                icon={Clock}
+                label="Due Date"
+                value={
+                  <span className={isOverdue ? "text-red-600 font-semibold" : undefined}>
+                    {fmtDate(dueDate)}{isOverdue ? " (overdue)" : ""}
+                  </span>
+                }
+              />
+            )}
+            {(task.dateCreated ?? task.createdAt) && (
+              <DetailRow icon={Calendar} label="Created" value={fmtDateTime((task.dateCreated ?? task.createdAt) as string)} />
+            )}
+            {task.completedAt && (
+              <DetailRow icon={Calendar} label="Completed" value={fmtDateTime(task.completedAt)} />
+            )}
+            {task.category && (
+              <DetailRow icon={Tag} label="Category" value={String(task.category)} />
+            )}
+            {task.id && (
+              <DetailRow icon={Hash} label="Task ID" value={task.id} />
+            )}
+          </div>
+
+          {/* Description / notes */}
+          {(task.description || task.notes) && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes / Description</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 dark:bg-slate-800 border p-3 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                {String(task.description ?? task.notes)}
+              </div>
+            </div>
+          )}
+
+          {/* Raw extra fields (collapsed) */}
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none">
+              Show all fields
+            </summary>
+            <pre className="mt-2 text-xs bg-gray-50 dark:bg-slate-900 border rounded-lg p-3 overflow-auto max-h-48 text-gray-700 dark:text-gray-300">
+              {JSON.stringify(task, null, 2)}
+            </pre>
+          </details>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Page ────────────────────────────────────────────────────────────────────
+
 export default function PBTasksPage() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [afterId, setAfterId] = useState<string | undefined>();
-  const [history, setHistory] = useState<string[]>([]);
+  const [selectedTask, setSelectedTask] = useState<PBTask | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery<PBListResponse>({
-    queryKey: ["/api/practicebetter/tasks", afterId, statusFilter],
+    queryKey: ["/api/practicebetter/tasks", statusFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (afterId) params.set("after_id", afterId);
       if (statusFilter !== "all") params.set("status", statusFilter);
       const r = await fetch(`/api/practicebetter/tasks?${params}`);
       if (!r.ok) throw new Error(await r.text());
@@ -80,21 +235,11 @@ export default function PBTasksPage() {
     const q = search.toLowerCase();
     if (!q) return true;
     const title = (t.title ?? t.name ?? "").toLowerCase();
-    const desc = (t.description ?? "").toLowerCase();
-    return title.includes(q) || desc.includes(q);
+    const desc = (t.description ?? t.notes ?? "").toLowerCase();
+    const assignee = (getConsulantName(t) ?? "").toLowerCase();
+    const client = (getClientName(t) ?? "").toLowerCase();
+    return title.includes(q) || desc.includes(q) || assignee.includes(q) || client.includes(q);
   });
-
-  const goNext = () => {
-    if (items.length > 0) {
-      setHistory((h) => [...h, afterId ?? ""]);
-      setAfterId(items[items.length - 1].id);
-    }
-  };
-  const goPrev = () => {
-    const p = [...history];
-    setHistory(p);
-    setAfterId(p.pop() || undefined);
-  };
 
   return (
     <AdminLayout currentTab="practitioner">
@@ -110,7 +255,7 @@ export default function PBTasksPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold">Tasks</h1>
-              <p className="text-sm text-muted-foreground">Client & practitioner task management</p>
+              <p className="text-sm text-muted-foreground">Client &amp; practitioner task management</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -122,7 +267,12 @@ export default function PBTasksPage() {
         <div className="flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input
+              placeholder="Search tasks, client, practitioner..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
@@ -137,6 +287,15 @@ export default function PBTasksPage() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Task count summary */}
+        {!isLoading && !error && items.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{filtered.length}</span> of{" "}
+            <span className="font-semibold text-foreground">{items.length}</span> task{items.length !== 1 ? "s" : ""}
+            {search ? " matching search" : ""}
+          </p>
+        )}
 
         {/* Content */}
         {isLoading ? (
@@ -177,16 +336,23 @@ export default function PBTasksPage() {
           <div className="space-y-2">
             {filtered.map((task) => {
               const title = task.title ?? task.name ?? "Untitled Task";
-              const dueDate = task.dueDate ?? task.due_date;
+              const dueDate = getDueDate(task);
               const status = (task.status ?? "pending").toLowerCase();
               const priority = (task.priority ?? "").toLowerCase();
               const isOverdue = dueDate && !["completed", "complete", "cancelled"].includes(status) && isPast(parseISO(dueDate));
-              const assignee = task.consultant?.profile
-                ? [task.consultant.profile.firstName, task.consultant.profile.lastName].filter(Boolean).join(" ")
-                : (task.assignedTo ?? task.assigned_to ?? null);
+              const assignee = getConsulantName(task);
+              const clientName = getClientName(task);
 
               return (
-                <Card key={task.id} className={`hover:shadow-md transition-shadow ${isOverdue ? "border-red-200 bg-red-50/30" : "border-indigo-100 hover:border-indigo-200"}`}>
+                <Card
+                  key={task.id}
+                  className={`cursor-pointer hover:shadow-md transition-shadow ${
+                    isOverdue
+                      ? "border-red-200 bg-red-50/30 hover:border-red-300"
+                      : "border-indigo-100 hover:border-indigo-300"
+                  }`}
+                  onClick={() => setSelectedTask(task)}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
                       <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100 text-red-600" : "bg-indigo-100 text-indigo-600"}`}>
@@ -206,13 +372,20 @@ export default function PBTasksPage() {
                             </Badge>
                           </div>
                         </div>
-                        {task.description && (
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{String(task.description)}</p>
+                        {(task.description ?? task.notes) && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {String(task.description ?? task.notes)}
+                          </p>
                         )}
                         <div className="flex flex-wrap items-center gap-4 mt-2">
                           {assignee && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
                               <User className="h-3 w-3" /> {assignee}
+                            </span>
+                          )}
+                          {clientName && (
+                            <span className="flex items-center gap-1 text-xs text-indigo-600 font-medium">
+                              <User className="h-3 w-3" /> {clientName}
                             </span>
                           )}
                           {dueDate && (
@@ -221,13 +394,15 @@ export default function PBTasksPage() {
                               {isOverdue && " (overdue)"}
                             </span>
                           )}
-                          {task.createdAt || task.dateCreated ? (
+                          {(task.createdAt ?? task.dateCreated) && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" /> Created {fmtDate((task.dateCreated ?? task.createdAt) as string)}
                             </span>
-                          ) : null}
+                          )}
                         </div>
                       </div>
+                      {/* Click hint */}
+                      <div className="text-xs text-muted-foreground/60 shrink-0 hidden sm:block">View →</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -235,18 +410,12 @@ export default function PBTasksPage() {
             })}
           </div>
         )}
-
-        {/* Pagination */}
-        {!isLoading && !error && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{filtered.length} task{filtered.length !== 1 ? "s" : ""} shown</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={goPrev} disabled={history.length === 0}>← Prev</Button>
-              <Button variant="outline" size="sm" onClick={goNext} disabled={!data?.hasMore}>Next →</Button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
+      )}
     </AdminLayout>
   );
 }
