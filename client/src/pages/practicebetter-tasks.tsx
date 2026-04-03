@@ -115,8 +115,8 @@ function TaskDetailModal({ task, onClose }: { task: PBTask; onClose: () => void 
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader className="pr-8">
+      <DialogContent className="max-w-lg flex flex-col max-h-[90vh]">
+        <DialogHeader className="pr-8 shrink-0">
           <DialogTitle className="flex items-start gap-3">
             <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100 text-red-600" : "bg-indigo-100 text-indigo-600"}`}>
               <CheckSquare className="h-4 w-4" />
@@ -126,7 +126,7 @@ function TaskDetailModal({ task, onClose }: { task: PBTask; onClose: () => void 
           <DialogDescription className="sr-only">Task detail for {title}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 pt-2">
+        <div className="space-y-5 pt-2 overflow-y-auto flex-1 pr-1">
           {/* Badges row */}
           <div className="flex flex-wrap gap-2">
             <Badge className={`text-xs ${statusColor[status] ?? "bg-gray-100 text-gray-600"}`}>
@@ -189,7 +189,7 @@ function TaskDetailModal({ task, onClose }: { task: PBTask; onClose: () => void 
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes / Description</p>
               </div>
-              <div className="rounded-lg bg-gray-50 dark:bg-slate-800 border p-3 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+              <div className="rounded-lg bg-gray-50 dark:bg-slate-800 border p-3 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-56 overflow-y-auto">
                 {String(task.description ?? task.notes)}
               </div>
             </div>
