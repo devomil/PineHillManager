@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, RefreshCw, Search, CheckSquare, Calendar, User, Clock, AlertCircle, FileText, Tag, Hash } from "lucide-react";
+import { ArrowLeft, RefreshCw, Search, CheckSquare, Calendar, User, Clock, AlertCircle, FileText, Tag, Hash, ExternalLink } from "lucide-react";
 import { format, parseISO, isPast } from "date-fns";
 
 interface PBTask {
@@ -204,6 +204,55 @@ function TaskDetailModal({ task, onClose }: { task: PBTask; onClose: () => void 
               {JSON.stringify(task, null, 2)}
             </pre>
           </details>
+
+          {/* PracticeBetter action footer */}
+          <div className="pt-3 border-t flex flex-wrap items-center gap-2">
+            {task.clientRecord?.id ? (
+              <>
+                <Button
+                  asChild
+                  className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                >
+                  <a
+                    href={`https://app.practicebetter.io/clients/${task.clientRecord.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open Client in PracticeBetter
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                >
+                  <a
+                    href="https://app.practicebetter.io/tasks"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    All Tasks in PB
+                  </a>
+                </Button>
+              </>
+            ) : (
+              <Button
+                asChild
+                className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+              >
+                <a
+                  href="https://app.practicebetter.io/tasks"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in PracticeBetter
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
