@@ -429,23 +429,6 @@ router.get('/formrequests/:requestId', ...protect, async (req: Request, res: Exp
   }
 });
 
-// ── Tasks ─────────────────────────────────────────────────────────────────────
-
-router.get('/tasks', ...protect, async (req: Request, res: ExpressResponse) => {
-  try {
-    const { after_id, before_id, status } = req.query as Record<string, string>;
-    const qs = buildQuery({ after_id, before_id, status });
-    const pbRes = await pbFetch(`/consultant/tasks${qs}`);
-    const data = await pbRes.json();
-    if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
-    res.json({ count: items.length, hasMore: data.hasMore ?? data.has_more ?? false, items });
-  } catch (err: any) {
-    console.error('[PB] tasks list error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ── Programs & Courses ─────────────────────────────────────────────────────────
 
 router.get('/programs', ...protect, async (req: Request, res: ExpressResponse) => {
