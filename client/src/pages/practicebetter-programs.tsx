@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import AdminLayout from "@/components/admin-layout";
@@ -97,8 +97,15 @@ function ProgramDetailModal({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [clientSearch, setClientSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showEnrollSearch, setShowEnrollSearch] = useState(false);
   const programName = program.name ?? program.title ?? "Untitled Program";
+
+  // Debounce client search by 400 ms to avoid hammering PB on every keystroke
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(clientSearch), 400);
+    return () => clearTimeout(id);
+  }, [clientSearch]);
 
   // Fetch full program detail for Overview tab
   const { data: detail } = useQuery<PBProgram>({
@@ -130,15 +137,16 @@ function ProgramDetailModal({
 
   const { data: clientData, isLoading: clientSearchLoading } =
     useQuery<PBListResponse<PBClient>>({
-      queryKey: ["/api/practicebetter/clients", clientSearch],
+      queryKey: ["/api/practicebetter/clients", debouncedSearch],
       queryFn: async () => {
         const params = new URLSearchParams();
-        if (clientSearch) params.set("search", clientSearch);
+        if (debouncedSearch) params.set("search", debouncedSearch);
         const r = await fetch(`/api/practicebetter/clients?${params}`);
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
+        const text = await r.text();
+        if (!r.ok) throw new Error(text);
+        try { return JSON.parse(text); } catch { throw new Error("Invalid search response"); }
       },
-      enabled: showEnrollSearch && clientSearch.length >= 2,
+      enabled: showEnrollSearch && debouncedSearch.length >= 2,
       staleTime: 60 * 1000,
     });
 
@@ -334,8 +342,8 @@ function ProgramDetailModal({
                         })}
                       </ul>
                     )}
-                    {clientSearch.length >= 2 && !clientSearchLoading && clients.length === 0 && (
-                      <p className="text-xs text-muted-foreground">No clients found for "{clientSearch}"</p>
+                    {debouncedSearch.length >= 2 && !clientSearchLoading && clients.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No clients found for "{debouncedSearch}"</p>
                     )}
                   </div>
                 )}

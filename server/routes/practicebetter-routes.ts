@@ -570,19 +570,33 @@ router.delete('/programs/:courseId/enrollments', ...protect, async (req: Request
 });
 
 // ── PB client search (for enrollment) ─────────────────────────────────────────
+// PracticeBetter does not have a /clients endpoint — client records live at
+// /consultant/records?search=<query>. We proxy that here so the frontend can
+// search by name and get back { items: [...] } with the same shape.
 
 router.get('/clients', ...protect, async (req: Request, res: ExpressResponse) => {
   try {
     const { search } = req.query as Record<string, string>;
-    const qs = buildQuery({ search, limit: '20' });
-    const pbRes = await pbFetch(`/clients${qs}`);
+    // Use /consultant/records with search + details so we get profile fields
+    const qs = buildQuery({ search, details: 'true', limit: '30' });
+    const pbRes = await pbFetch(`/consultant/records${qs}`);
     const text = await pbRes.text();
     let data: any;
     try { data = JSON.parse(text); } catch {
       return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 200) });
     }
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
-    const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+    // PB returns { count, hasMore, items } for list endpoints
+    const raw: any[] = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+    // Normalise each record so the frontend always has: id, profile.{firstName,lastName,emailAddress}
+    const items = raw.map((r: any) => ({
+      id: r.id,
+      profile: {
+        firstName: r.profile?.firstName ?? r.firstName ?? '',
+        lastName: r.profile?.lastName ?? r.lastName ?? '',
+        emailAddress: r.profile?.emailAddress ?? r.email ?? '',
+      },
+    }));
     res.json({ items });
   } catch (err: any) {
     console.error('[PB] client search error:', err.message);
