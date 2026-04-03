@@ -62,7 +62,8 @@ async function getPBConsultantIds(): Promise<{ id: string; name: string }[]> {
     return cachedConsultants.list;
   }
   try {
-    const res = await pbFetch('/consultant/sessions?limit=50');
+    // Use a large limit so we catch all practitioners including those with fewer recent sessions
+    const res = await pbFetch('/consultant/sessions?limit=200');
     const text = await res.text();
     if (!text.trim()) return [];
     const data = JSON.parse(text);
@@ -599,6 +600,20 @@ router.get('/labs/:labId/attachments/:itemId', ...protect, async (req: Request, 
   }
 });
 
+// ── Consultants list ──────────────────────────────────────────────────────────
+// Returns all discovered practitioner/consultant accounts in the practice.
+// Combines session-discovered consultants with any found embedded in tasks.
+
+router.get('/consultants', ...protect, async (req: Request, res: ExpressResponse) => {
+  try {
+    const list = await getPBConsultantIds();
+    res.json({ items: list });
+  } catch (err: any) {
+    console.error('[PB] consultants list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Tasks (PB calls them "reminders") ──────────────────────────────────────
 // PB scopes /consultant/reminders to the authenticated consultant context.
 // To see ALL practitioners' tasks we discover consultant IDs via sessions,
@@ -658,10 +673,23 @@ router.get('/tasks', ...protect, async (req: Request, res: ExpressResponse) => {
       }
     }
 
+    // 4. Also extract consultant info embedded in the task items and augment cached list
+    if (cachedConsultants) {
+      const seen = new Set(cachedConsultants.list.map(c => c.id));
+      for (const item of merged) {
+        const c = item.consultant ?? {};
+        const id = c.id ?? c._id;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          const first = c.profile?.firstName ?? c.firstName ?? '';
+          const last  = c.profile?.lastName  ?? c.lastName  ?? '';
+          cachedConsultants.list.push({ id, name: `${first} ${last}`.trim() || id });
+        }
+      }
+    }
+
     if (merged.length > 0) {
       console.log('[PB] tasks merged:', merged.length, 'items from', consultants.length + 1, 'queries');
-      console.log('[PB] tasks first item keys:', Object.keys(merged[0]));
-      console.log('[PB] tasks first item sample:', JSON.stringify(merged[0]).slice(0, 400));
     } else {
       console.log('[PB] tasks: zero items returned across all consultants');
     }

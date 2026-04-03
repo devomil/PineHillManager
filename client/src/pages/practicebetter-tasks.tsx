@@ -216,6 +216,7 @@ export default function PBTasksPage() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [practitionerFilter, setPractitionerFilter] = useState("all");
   const [selectedTask, setSelectedTask] = useState<PBTask | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery<PBListResponse>({
@@ -230,15 +231,52 @@ export default function PBTasksPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Also fetch the full consultant list (may include practitioners with 0 tasks)
+  const { data: consultantsData } = useQuery<{ items: { id: string; name: string }[] }>({
+    queryKey: ["/api/practicebetter/consultants"],
+    staleTime: 10 * 60 * 1000,
+  });
+
   const items = data?.items ?? [];
+
+  // Derive unique practitioner names from tasks + the consultant list
+  const practitionersFromTasks = Array.from(
+    new Map(
+      items
+        .map((t) => {
+          const id = t.consultant?.id ?? "";
+          const name = getConsulantName(t) ?? "";
+          return id && name ? [id, name] as [string, string] : null;
+        })
+        .filter((x): x is [string, string] => x !== null)
+    ).entries()
+  ).map(([id, name]) => ({ id, name }));
+
+  const consultantsFromAPI = consultantsData?.items ?? [];
+
+  // Merge both, dedup by id
+  const allPractitioners = Array.from(
+    new Map([
+      ...practitionersFromTasks.map(p => [p.id, p.name] as [string, string]),
+      ...consultantsFromAPI.map(p => [p.id, p.name] as [string, string]),
+    ]).entries()
+  )
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   const filtered = items.filter((t) => {
     const q = search.toLowerCase();
-    if (!q) return true;
-    const title = (t.title ?? t.name ?? "").toLowerCase();
-    const desc = (t.description ?? t.notes ?? "").toLowerCase();
-    const assignee = (getConsulantName(t) ?? "").toLowerCase();
-    const client = (getClientName(t) ?? "").toLowerCase();
-    return title.includes(q) || desc.includes(q) || assignee.includes(q) || client.includes(q);
+    const matchesSearch = !q || (() => {
+      const title = (t.title ?? t.name ?? "").toLowerCase();
+      const desc = (t.description ?? t.notes ?? "").toLowerCase();
+      const assignee = (getConsulantName(t) ?? "").toLowerCase();
+      const client = (getClientName(t) ?? "").toLowerCase();
+      return title.includes(q) || desc.includes(q) || assignee.includes(q) || client.includes(q);
+    })();
+    const matchesPractitioner = practitionerFilter === "all" ||
+      (t.consultant?.id === practitionerFilter) ||
+      (getConsulantName(t) === practitionerFilter);
+    return matchesSearch && matchesPractitioner;
   });
 
   return (
@@ -274,6 +312,20 @@ export default function PBTasksPage() {
               className="pl-9"
             />
           </div>
+          {/* Practitioner filter — options derived from loaded tasks + consultants API */}
+          <Select value={practitionerFilter} onValueChange={setPractitionerFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All Practitioners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Practitioners</SelectItem>
+              {allPractitioners.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="All Statuses" />
@@ -293,6 +345,11 @@ export default function PBTasksPage() {
           <p className="text-sm text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{filtered.length}</span> of{" "}
             <span className="font-semibold text-foreground">{items.length}</span> task{items.length !== 1 ? "s" : ""}
+            {practitionerFilter !== "all" && (
+              <> for <span className="font-semibold text-foreground">
+                {allPractitioners.find(p => p.id === practitionerFilter)?.name ?? practitionerFilter}
+              </span></>
+            )}
             {search ? " matching search" : ""}
           </p>
         )}
@@ -327,9 +384,17 @@ export default function PBTasksPage() {
             <CardContent className="p-12 text-center space-y-3">
               <CheckSquare className="h-12 w-12 mx-auto text-muted-foreground/30" />
               <p className="font-semibold text-muted-foreground">
-                {search || statusFilter !== "all" ? "No tasks match your filters" : "No tasks found"}
+                {practitionerFilter !== "all"
+                  ? `No tasks found for ${allPractitioners.find(p => p.id === practitionerFilter)?.name ?? "this practitioner"}`
+                  : search || statusFilter !== "all"
+                  ? "No tasks match your filters"
+                  : "No tasks found"}
               </p>
-              <p className="text-sm text-muted-foreground">Tasks from PracticeBetter will appear here.</p>
+              <p className="text-sm text-muted-foreground">
+                {practitionerFilter !== "all"
+                  ? "This practitioner may not have any tasks assigned in PracticeBetter yet."
+                  : "Tasks from PracticeBetter will appear here."}
+              </p>
             </CardContent>
           </Card>
         ) : (
