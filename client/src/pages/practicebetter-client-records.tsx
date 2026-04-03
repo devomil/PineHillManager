@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Search, RefreshCw, User, ChevronRight, AlertCircle, Database, Cloud, ExternalLink } from "lucide-react";
+import { ArrowLeft, Search, RefreshCw, User, ChevronRight, AlertCircle, Database, Cloud, ExternalLink, Clock, Hourglass, Dna, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -78,15 +78,79 @@ const formatDate = (s?: string | null) => {
   try { return format(new Date(s), "MMM d, yyyy"); } catch { return s; }
 };
 
-const statusColor = (status: string) => {
-  switch (status) {
-    case "pending":     return "bg-yellow-100 text-yellow-800 border-yellow-200";
-    case "in_progress": return "bg-blue-100 text-blue-800 border-blue-200";
-    case "completed":   return "bg-green-100 text-green-800 border-green-200";
-    case "cancelled":   return "bg-red-100 text-red-800 border-red-200";
-    default:            return "bg-gray-100 text-gray-700 border-gray-200";
-  }
+// ── Status badge — matches practitioner-dashboard exactly ─────────────────────
+type IconComponent = (props: { className?: string }) => JSX.Element;
+const STATUS_CONFIG: Record<string, { className: string; icon: IconComponent; label: string }> = {
+  pending:              { className: "bg-amber-100 text-amber-800 border border-amber-300",    icon: Clock,       label: "Pending" },
+  pending_awaiting_dna: { className: "bg-orange-100 text-orange-800 border border-orange-300", icon: Hourglass,   label: "Pending + Awaiting DNA" },
+  pending_dna_received: { className: "bg-green-100 text-green-800 border border-green-300",   icon: Dna,         label: "Pending + DNA Received" },
+  in_progress:          { className: "bg-blue-100 text-blue-800 border border-blue-300",       icon: AlertCircle, label: "In Progress" },
+  completed:            { className: "bg-purple-100 text-purple-800 border border-purple-300",  icon: CheckCircle, label: "Completed" },
+  cancelled:            { className: "bg-gray-100 text-gray-700 border border-gray-300",       icon: XCircle,     label: "Cancelled" },
 };
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
+  const Icon = cfg.icon;
+  return (
+    <Badge className={`flex items-center gap-1 font-medium whitespace-nowrap ${cfg.className}`}>
+      <Icon className="h-3 w-3 shrink-0" />
+      {cfg.label}
+    </Badge>
+  );
+}
+
+// ── Program type (scan type) badges — matches practitioner-dashboard exactly ───
+const SCAN_TYPE_STYLES: Record<string, string> = {
+  'Remote Initial Scan': 'bg-blue-100 text-blue-700 border-blue-200',
+  'Follow-Up Scan':      'bg-purple-100 text-purple-700 border-purple-200',
+  'Pet Scan':            'bg-teal-100 text-teal-700 border-teal-200',
+  'Quick Calls':         'bg-orange-100 text-orange-700 border-orange-200',
+};
+
+const SERVICE_ID_TO_LABEL: Record<string, string> = {
+  remote_initial_scan: 'Remote Initial Scan',
+  follow_up_scan:      'Follow-Up Scan',
+  pet_scan:            'Pet Scan',
+  quick_calls:         'Quick Calls',
+};
+
+function parseScanTypeFromNotes(clientNotes?: string | null): string | null {
+  if (!clientNotes) return null;
+  const match = clientNotes.match(/Services:\s*([^\n]+)/);
+  if (!match) return null;
+  const raw = match[1].trim();
+  if (!raw || raw === 'None specified') return null;
+  return raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => SERVICE_ID_TO_LABEL[s] ?? s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
+    .join(', ');
+}
+
+function ScanTypeBadges({ scanType, clientNotes }: { scanType?: string | null; clientNotes?: string | null }) {
+  const resolved = scanType || parseScanTypeFromNotes(clientNotes);
+  if (!resolved) return <span className="text-muted-foreground text-sm">—</span>;
+  const parts = resolved.split(',').map(s => s.trim()).filter(Boolean);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {parts.map((part, i) => {
+        const style = SCAN_TYPE_STYLES[part];
+        const miscStyle = part.startsWith('Programs:')
+          ? 'bg-teal-100 text-teal-700 border-teal-200'
+          : part.startsWith('Labs:')
+            ? 'bg-rose-100 text-rose-700 border-rose-200'
+            : 'bg-gray-100 text-gray-700 border-gray-200';
+        return (
+          <span key={i} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${style ?? miscStyle}`}>
+            {part}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 function DetailRow({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
   return (
@@ -302,16 +366,10 @@ export default function PBClientRecordsPage() {
                               {c.clientEmail && <div className="text-xs truncate max-w-[160px]">{c.clientEmail}</div>}
                             </TableCell>
                             <TableCell>
-                              {c.scanType ? (
-                                <Badge variant="outline" className="text-xs whitespace-nowrap">
-                                  {c.scanType.split(",")[0].trim()}
-                                </Badge>
-                              ) : "—"}
+                              <ScanTypeBadges scanType={c.scanType} clientNotes={c.clientNotes} />
                             </TableCell>
                             <TableCell>
-                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColor(c.status)}`}>
-                                {c.status.replace("_", " ")}
-                              </span>
+                              <StatusBadge status={c.status} />
                             </TableCell>
                             <TableCell className="text-sm">
                               {getPractitionerName(c.assignedPractitionerId)
@@ -442,9 +500,7 @@ export default function PBClientRecordsPage() {
 
               <div className="mt-2 space-y-1">
                 <div className="flex items-center gap-2 py-2">
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor(selectedLocal.status)}`}>
-                    {selectedLocal.status.replace("_", " ")}
-                  </span>
+                  <StatusBadge status={selectedLocal.status} />
                   {selectedLocal.priority && selectedLocal.priority !== "normal" && (
                     <Badge variant="destructive" className="text-xs">{selectedLocal.priority}</Badge>
                   )}
@@ -453,7 +509,10 @@ export default function PBClientRecordsPage() {
                 <DetailRow label="Email" value={selectedLocal.clientEmail} />
                 <DetailRow label="Phone" value={selectedLocal.clientPhone} />
                 <DetailRow label="Service Type" value={selectedLocal.serviceType} />
-                <DetailRow label="Program / Scan Type" value={selectedLocal.scanType} />
+                <div className="py-2 border-b border-muted/50">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Program / Scan Type</div>
+                  <ScanTypeBadges scanType={selectedLocal.scanType} clientNotes={selectedLocal.clientNotes} />
+                </div>
                 <DetailRow label="Payment" value={selectedLocal.paymentType} />
                 <DetailRow
                   label="Assigned To"
