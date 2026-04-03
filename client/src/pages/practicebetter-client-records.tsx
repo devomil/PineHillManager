@@ -55,7 +55,14 @@ interface LocalContact {
   priority?: string | null;
   practitionerComments?: string | null;
   createdAt?: string;
-  assignedPractitioner?: { firstName?: string; lastName?: string } | null;
+  assignedPractitionerId?: string | null;
+}
+
+interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  isActive?: boolean;
 }
 
 interface PBListResponse {
@@ -140,6 +147,18 @@ export default function PBClientRecordsPage() {
       return res.json();
     },
   });
+
+  // ── Employees (for resolving assignedPractitionerId → name) ──
+  const { data: employees = [] } = useQuery<Employee[]>({
+    queryKey: ["/api/employees"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const getPractitionerName = (id?: string | null): string => {
+    if (!id) return "";
+    const emp = employees.find(e => e.id === id);
+    return emp ? `${emp.firstName} ${emp.lastName}`.trim() : "";
+  };
 
   // "Active" = anything that hasn't been completed, cancelled, or archived
   const ACTIVE_STATUSES = ["pending", "pending_awaiting_dna", "pending_dna_received", "in_progress"];
@@ -295,9 +314,8 @@ export default function PBClientRecordsPage() {
                               </span>
                             </TableCell>
                             <TableCell className="text-sm">
-                              {c.assignedPractitioner
-                                ? `${c.assignedPractitioner.firstName ?? ""} ${c.assignedPractitioner.lastName ?? ""}`.trim()
-                                : <span className="text-muted-foreground italic text-xs">Unassigned</span>}
+                              {getPractitionerName(c.assignedPractitionerId)
+                                || <span className="text-muted-foreground italic text-xs">Unassigned</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
                             <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
@@ -310,7 +328,7 @@ export default function PBClientRecordsPage() {
               </Card>
               {!localSearch && (
                 <p className="text-xs text-muted-foreground px-1">
-                  Showing pending &amp; in-progress contacts. Search to include all statuses.
+                  Showing all active contacts (pending, awaiting DNA, DNA received, in-progress). Search to include archived.
                 </p>
               )}
             </div>
@@ -439,9 +457,7 @@ export default function PBClientRecordsPage() {
                 <DetailRow label="Payment" value={selectedLocal.paymentType} />
                 <DetailRow
                   label="Assigned To"
-                  value={selectedLocal.assignedPractitioner
-                    ? `${selectedLocal.assignedPractitioner.firstName ?? ""} ${selectedLocal.assignedPractitioner.lastName ?? ""}`.trim()
-                    : "Unassigned"}
+                  value={getPractitionerName(selectedLocal.assignedPractitionerId) || "Unassigned"}
                 />
                 <DetailRow label="Created" value={formatDate(selectedLocal.createdAt)} />
 
