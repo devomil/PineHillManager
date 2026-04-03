@@ -470,10 +470,18 @@ router.get('/programs', ...protect, async (req: Request, res: ExpressResponse) =
   try {
     const { after_id, before_id } = req.query as Record<string, string>;
     const qs = buildQuery({ after_id, before_id });
-    const pbRes = await pbFetch(`/consultant/programs${qs}`);
-    const data = await pbRes.json();
+    const pbRes = await pbFetch(`/consultant/courses${qs}`);
+    const text = await pbRes.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      console.error('[PB] courses non-JSON response:', text.slice(0, 300));
+      return res.status(502).json({ error: 'PracticeBetter returned invalid JSON', raw: text.slice(0, 300) });
+    }
     if (!pbRes.ok) return res.status(pbRes.status).json(data);
     const items = Array.isArray(data) ? data : (data.items ?? data.data ?? []);
+    if (items.length > 0) {
+      console.log('[PB] courses sample keys:', Object.keys(items[0]));
+    }
     res.json({ count: items.length, hasMore: data.hasMore ?? data.has_more ?? false, items });
   } catch (err: any) {
     console.error('[PB] programs list error:', err.message);
