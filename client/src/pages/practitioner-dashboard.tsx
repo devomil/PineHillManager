@@ -382,20 +382,6 @@ export default function PractitionerDashboard() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-48">
-                <label className="text-sm font-medium mb-1 block">Service Type</label>
-                <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Services" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Services</SelectItem>
-                    {serviceTypes.map(st => (
-                      <SelectItem key={st} value={st}>{st}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="w-56">
                 <label className="text-sm font-medium mb-1 block">Payment Type</label>
                 <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
@@ -435,7 +421,6 @@ export default function PractitionerDashboard() {
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
             <TabsTrigger value="all">All Contacts</TabsTrigger>
-            <TabsTrigger value="service">By Service Type</TabsTrigger>
             <TabsTrigger value="status">By Status</TabsTrigger>
             <TabsTrigger value="practitioner">By Practitioner</TabsTrigger>
             <TabsTrigger value="archive">
@@ -468,7 +453,7 @@ export default function PractitionerDashboard() {
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
                         <TableHead>Program Type</TableHead>
-                        <TableHead>Service Type</TableHead>
+
                         <TableHead>Comments</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
@@ -521,9 +506,7 @@ export default function PractitionerDashboard() {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{contact.serviceType}</Badge>
-                          </TableCell>
+
                           <TableCell className="max-w-48">
                             <EditableComment 
                               contactId={contact.id} 
@@ -642,42 +625,6 @@ export default function PractitionerDashboard() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="service" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Contacts by Service Type</CardTitle>
-                <CardDescription>Grouped by type of service requested</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {serviceTypes.map(serviceType => {
-                    const serviceContacts = contacts.filter(c => c.serviceType === serviceType);
-                    return (
-                      <Card key={serviceType}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-lg">{serviceType}</CardTitle>
-                          <CardDescription>{serviceContacts.length} contact(s)</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {serviceContacts.slice(0, 5).map(contact => (
-                              <div key={contact.id} className="flex justify-between items-center text-sm">
-                                <span>{contact.clientFirstName} {contact.clientLastName}</span>
-                                {getStatusBadge(contact.status)}
-                              </div>
-                            ))}
-                            {serviceContacts.length > 5 && (
-                              <p className="text-sm text-gray-500">+{serviceContacts.length - 5} more</p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="status" className="mt-4">
             <Card>
@@ -702,7 +649,6 @@ export default function PractitionerDashboard() {
                             {statusContacts.slice(0, 5).map(contact => (
                               <div key={contact.id} className="text-sm">
                                 <span className="font-medium">{contact.clientFirstName} {contact.clientLastName}</span>
-                                <span className="text-gray-500 ml-2">({contact.serviceType})</span>
                               </div>
                             ))}
                             {statusContacts.length > 5 && (
@@ -800,7 +746,7 @@ export default function PractitionerDashboard() {
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
                         <TableHead>Program Type</TableHead>
-                        <TableHead>Service Type</TableHead>
+
                         <TableHead>Comments</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
@@ -853,9 +799,7 @@ export default function PractitionerDashboard() {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{contact.serviceType}</Badge>
-                          </TableCell>
+
                           <TableCell className="max-w-48">
                             <EditableComment 
                               contactId={contact.id} 
@@ -1096,10 +1040,6 @@ export default function PractitionerDashboard() {
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-500">Program Type</label>
                         <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={undefined} clientNotes={selectedContact.clientNotes} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-500">Service Type</label>
-                        <Badge variant="outline">{selectedContact.serviceType}</Badge>
                       </div>
                     </div>
 

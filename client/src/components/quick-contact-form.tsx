@@ -261,40 +261,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
             </div>
           </div>
 
-          {/* Service Type */}
-          <div className={`${sectionCard} bg-teal-100 dark:bg-teal-950/40 border-teal-400 dark:border-teal-700`}>
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-teal-900 dark:text-teal-100 border-l-4 border-teal-500 pl-3">
-              <Layers className="h-5 w-5" />
-              Service Type
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {SERVICE_TYPE_OPTIONS.map(opt => (
-                <label
-                  key={opt.id}
-                  htmlFor={`stype-${opt.id}`}
-                  className={`flex items-center gap-3.5 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 cursor-pointer transition-colors shadow-sm ${
-                    formData.serviceTypeSelection === opt.id
-                      ? 'border-teal-600 bg-teal-50 dark:bg-teal-900/30 shadow-md'
-                      : 'border-gray-400 dark:border-gray-500 hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20'
-                  }`}
-                >
-                  <Checkbox
-                    id={`stype-${opt.id}`}
-                    checked={formData.serviceTypeSelection === opt.id}
-                    onCheckedChange={() =>
-                      setFormData(prev => ({
-                        ...prev,
-                        serviceTypeSelection: prev.serviceTypeSelection === opt.id ? '' : opt.id,
-                      }))
-                    }
-                    className="h-5 w-5 border-[2.5px] border-gray-600 dark:border-gray-400 rounded data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
-                  />
-                  <span className={checkLabelClass}>{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* Payment Type */}
           <div className={`${sectionCard} bg-amber-100 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700`}>
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100 border-l-4 border-amber-500 pl-3">
