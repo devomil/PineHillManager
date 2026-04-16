@@ -266,157 +266,110 @@ export default function PractitionerDashboard() {
         </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Total Contacts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {(stats?.total ?? 0) + (pbCountData?.count ?? 0)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats?.total ?? 0} intake&nbsp;·&nbsp;{pbCountData?.count ?? '…'} PracticeBetter
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Expanded Pending card spanning 2 columns */}
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-yellow-600">Pending</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-end justify-center gap-6">
-                <div className="text-center">
-                  <div className="text-xs font-medium text-yellow-600 mb-1">Pending</div>
-                  <div className="text-2xl font-bold text-yellow-600">{stats?.byStatus?.pending || 0}</div>
-                </div>
-                <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
-                <div className="text-center">
-                  <div className="text-xs font-medium text-orange-500 mb-1">Awaiting DNA</div>
-                  <div className="text-2xl font-bold text-orange-500">{stats?.byStatus?.pending_awaiting_dna || 0}</div>
-                </div>
-                <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center" />
-                <div className="text-center">
-                  <div className="text-xs font-medium text-green-600 mb-1">DNA Received</div>
-                  <div className="text-2xl font-bold text-green-600">{stats?.byStatus?.pending_dna_received || 0}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blue-600">In Progress</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats?.byStatus?.in_progress || 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-purple-600">Completed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{stats?.byStatus?.completed || 0}</div>
-            </CardContent>
-          </Card>
+        <div className="flex flex-wrap items-center gap-y-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-2 pr-4 border-r border-gray-200 dark:border-gray-700 mr-4">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total</span>
+            <span className="font-bold text-gray-900 dark:text-white text-xl leading-none">
+              {(stats?.total ?? 0) + (pbCountData?.count ?? 0)}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              ({stats?.total ?? 0} intake · {pbCountData?.count ?? '…'} PB)
+            </span>
+          </div>
+          {[
+            { label: "Pending",      value: stats?.byStatus?.pending ?? 0,              color: "text-amber-600" },
+            { label: "Awaiting DNA", value: stats?.byStatus?.pending_awaiting_dna ?? 0, color: "text-orange-500" },
+            { label: "DNA Received", value: stats?.byStatus?.pending_dna_received ?? 0,  color: "text-green-600" },
+            { label: "In Progress",  value: stats?.byStatus?.in_progress ?? 0,           color: "text-blue-600" },
+            { label: "Completed",    value: stats?.byStatus?.completed ?? 0,             color: "text-purple-600" },
+          ].map((stat, i, arr) => (
+            <div
+              key={stat.label}
+              className={`flex items-center gap-2 px-4 ${i < arr.length - 1 ? 'border-r border-gray-200 dark:border-gray-700' : ''}`}
+            >
+              <span className="text-xs text-gray-500 whitespace-nowrap">{stat.label}</span>
+              <span className={`font-bold text-lg leading-none ${stat.color}`}>{stat.value}</span>
+            </div>
+          ))}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="w-64">
-                <label className="text-sm font-medium mb-1 block">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Name, phone, or email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="w-48">
-                <label className="text-sm font-medium mb-1 block">Status</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {statusTypes.map(st => (
-                      <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-48">
-                <label className="text-sm font-medium mb-1 block">Program Type</label>
-                <Select value={programTypeFilter} onValueChange={setProgramTypeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Programs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Programs</SelectItem>
-                    <SelectItem value="Remote Initial Scan">Remote Initial Scan</SelectItem>
-                    <SelectItem value="Follow-Up Scan">Follow-Up Scan</SelectItem>
-                    <SelectItem value="Pet Scan">Pet Scan</SelectItem>
-                    <SelectItem value="Quick Calls">Quick Calls</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-56">
-                <label className="text-sm font-medium mb-1 block">Payment Type</label>
-                <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Payments" />
-                  </SelectTrigger>
-                  <SelectContent className="w-72">
-                    <SelectItem value="all">All Payments</SelectItem>
-                    <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
-                    <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
-                    <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
-                    <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
-                    <SelectItem value="none">— Not set —</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-48">
-                <label className="text-sm font-medium mb-1 block">Assigned Practitioner</label>
-                <Select value={practitionerFilter} onValueChange={setPractitionerFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Practitioners" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Practitioners</SelectItem>
-                    {employees.filter(e => e.isActive).map(emp => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap gap-2 items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 shadow-sm">
+          <Filter className="h-4 w-4 text-gray-400 shrink-0" />
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              placeholder="Search name, phone, email…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-sm w-52"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 text-sm w-36">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {statusTypes.map(st => (
+                <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={programTypeFilter} onValueChange={setProgramTypeFilter}>
+            <SelectTrigger className="h-8 text-sm w-36">
+              <SelectValue placeholder="All Programs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Programs</SelectItem>
+              <SelectItem value="Remote Initial Scan">Remote Initial Scan</SelectItem>
+              <SelectItem value="Follow-Up Scan">Follow-Up Scan</SelectItem>
+              <SelectItem value="Pet Scan">Pet Scan</SelectItem>
+              <SelectItem value="Quick Calls">Quick Calls</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
+            <SelectTrigger className="h-8 text-sm w-36">
+              <SelectValue placeholder="All Payments" />
+            </SelectTrigger>
+            <SelectContent className="w-72">
+              <SelectItem value="all">All Payments</SelectItem>
+              <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
+              <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
+              <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
+              <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
+              <SelectItem value="none">— Not set —</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={practitionerFilter} onValueChange={setPractitionerFilter}>
+            <SelectTrigger className="h-8 text-sm w-40">
+              <SelectValue placeholder="All Practitioners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Practitioners</SelectItem>
+              {employees.filter(e => e.isActive).map(emp => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.firstName} {emp.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {(statusFilter !== 'all' || programTypeFilter !== 'all' || paymentTypeFilter !== 'all' || practitionerFilter !== 'all' || searchQuery) && (
+            <button
+              onClick={() => { setStatusFilter('all'); setProgramTypeFilter('all'); setPaymentTypeFilter('all'); setPractitionerFilter('all'); setSearchQuery(''); }}
+              className="text-xs text-gray-500 hover:text-gray-800 underline underline-offset-2 ml-1"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
 
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
@@ -447,179 +400,185 @@ export default function PractitionerDashboard() {
                     No active contacts. All contacts are archived or use the Quick Contact button to add new contacts.
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Client Name</TableHead>
-                        <TableHead>Contact Info</TableHead>
-                        <TableHead>Program Type</TableHead>
-
-                        <TableHead>Comments</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Assigned To</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Payment Type</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {activeContacts.map((contact) => (
-                        <TableRow key={contact.id}>
-                          <TableCell className="font-medium">
-                            {contact.clientFirstName} {contact.clientLastName}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col text-sm">
-                              {contact.clientPhone && (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="h-3 w-3" />
-                                  {contact.clientPhone}
-                                </span>
-                              )}
-                              {contact.clientEmail && (
-                                <span className="text-gray-500">{contact.clientEmail}</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={(contact as any).scanType || "__none__"}
-                              onValueChange={(value) => {
-                                updateContactMutation.mutate({
-                                  id: contact.id,
-                                  updates: { scanType: value === "__none__" ? null : value } as any,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-44 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
-                                <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">
-                                  <span className="text-xs text-muted-foreground italic">— None —</span>
-                                </SelectItem>
-                                {SCAN_TYPE_OPTIONS.map(opt => (
-                                  <SelectItem key={opt} value={opt}>
-                                    {getScanTypePill(opt)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-
-                          <TableCell className="max-w-48">
-                            <EditableComment 
-                              contactId={contact.id} 
-                              currentComment={contact.practitionerComments || ''} 
-                              clientNotes={contact.clientNotes}
-                              onSave={(comment) => {
-                                updateContactMutation.mutate({
-                                  id: contact.id,
-                                  updates: { practitionerComments: comment || null },
-                                });
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={contact.status}
-                              onValueChange={(value) => {
-                                updateContactMutation.mutate({
-                                  id: contact.id,
-                                  updates: { status: value },
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-36 h-auto py-1 px-2">
-                                <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
-                              </SelectTrigger>
-                              <SelectContent className="w-44">
-                                {statusTypes.map(st => (
-                                  <SelectItem key={st.value} value={st.value}>
-                                    <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={contact.assignedPractitionerId || "unassigned"}
-                              onValueChange={(value) => {
-                                updateContactMutation.mutate({
-                                  id: contact.id,
-                                  updates: { assignedPractitionerId: value === "unassigned" ? null : value },
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-40">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned">Unassigned</SelectItem>
-                                {employees.filter(e => e.isActive).map(emp => (
-                                  <SelectItem key={emp.id} value={emp.id}>
-                                    {emp.firstName} {emp.lastName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500">
-                            {contact.createdAt && format(new Date(contact.createdAt), 'MMM d, yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={(contact as any).paymentType || "none"}
-                              onValueChange={(value) => {
-                                updateContactMutation.mutate({
-                                  id: contact.id,
-                                  updates: { paymentType: value === "none" ? null : value },
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-44 text-xs h-8">
-                                <SelectValue>
-                                  {getPaymentTypeShort((contact as any).paymentType)}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent className="w-72">
-                                <SelectItem value="none">— Not set —</SelectItem>
-                                <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
-                                <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
-                                <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
-                                <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="View/Edit details"
-                              aria-label="View or edit contact details"
-                              onClick={() => {
-                                setSelectedContact(contact);
-                                setEditFormData({
-                                  clientFirstName: contact.clientFirstName || '',
-                                  clientLastName: contact.clientLastName || '',
-                                  clientEmail: contact.clientEmail || '',
-                                  clientPhone: contact.clientPhone || '',
-                                  clientNotes: contact.clientNotes || '',
-                                });
-                                setIsEditing(false);
-                                setViewDialogOpen(true);
-                              }}
-                              className="text-xs"
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View/Edit
-                            </Button>
-                          </TableCell>
+                  <div className="overflow-y-auto max-h-[62vh] rounded-md border">
+                    <Table>
+                      <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
+                        <TableRow>
+                          <TableHead className="pl-5 w-[210px]">Client</TableHead>
+                          <TableHead className="w-[160px]">Program Type</TableHead>
+                          <TableHead className="w-[170px]">Status / Assigned To</TableHead>
+                          <TableHead className="w-[180px]">Comments</TableHead>
+                          <TableHead className="w-[148px]">Payment</TableHead>
+                          <TableHead className="w-[76px]"></TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                      {activeContacts.map((contact) => {
+                        const borderColorMap: Record<string, string> = {
+                          pending:              '#F59E0B',
+                          pending_awaiting_dna: '#F97316',
+                          pending_dna_received: '#22C55E',
+                          in_progress:          '#3B82F6',
+                          completed:            '#A855F7',
+                          cancelled:            '#9CA3AF',
+                        };
+                        const borderColor = borderColorMap[contact.status] || '#E5E7EB';
+                        return (
+                          <TableRow key={contact.id} style={{ borderLeft: `4px solid ${borderColor}` }}>
+                            <TableCell className="py-2 pl-3">
+                              <div className="font-medium text-sm leading-tight">
+                                {contact.clientFirstName} {contact.clientLastName}
+                              </div>
+                              <div className="flex flex-col gap-0.5 mt-0.5">
+                                {contact.clientPhone && (
+                                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Phone className="h-3 w-3 shrink-0" />{contact.clientPhone}
+                                  </span>
+                                )}
+                                {contact.clientEmail && (
+                                  <span className="text-xs text-gray-400 truncate max-w-[185px]">
+                                    {contact.clientEmail}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <Select
+                                value={(contact as any).scanType || "__none__"}
+                                onValueChange={(value) => {
+                                  updateContactMutation.mutate({
+                                    id: contact.id,
+                                    updates: { scanType: value === "__none__" ? null : value } as any,
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="w-40 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                  <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">
+                                    <span className="text-xs text-muted-foreground italic">— None —</span>
+                                  </SelectItem>
+                                  {SCAN_TYPE_OPTIONS.map(opt => (
+                                    <SelectItem key={opt} value={opt}>
+                                      {getScanTypePill(opt)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <div className="flex flex-col gap-1.5">
+                                <Select
+                                  value={contact.status}
+                                  onValueChange={(value) => {
+                                    updateContactMutation.mutate({
+                                      id: contact.id,
+                                      updates: { status: value },
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="w-36 h-auto py-0.5 px-2">
+                                    <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent className="w-44">
+                                    {statusTypes.map(st => (
+                                      <SelectItem key={st.value} value={st.value}>
+                                        <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Select
+                                  value={contact.assignedPractitionerId || "unassigned"}
+                                  onValueChange={(value) => {
+                                    updateContactMutation.mutate({
+                                      id: contact.id,
+                                      updates: { assignedPractitionerId: value === "unassigned" ? null : value },
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="w-36 h-6 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                                    {employees.filter(e => e.isActive).map(emp => (
+                                      <SelectItem key={emp.id} value={emp.id}>
+                                        {emp.firstName} {emp.lastName}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2 max-w-44">
+                              <EditableComment
+                                contactId={contact.id}
+                                currentComment={contact.practitionerComments || ''}
+                                clientNotes={contact.clientNotes}
+                                onSave={(comment) => {
+                                  updateContactMutation.mutate({
+                                    id: contact.id,
+                                    updates: { practitionerComments: comment || null },
+                                  });
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <Select
+                                value={(contact as any).paymentType || "none"}
+                                onValueChange={(value) => {
+                                  updateContactMutation.mutate({
+                                    id: contact.id,
+                                    updates: { paymentType: value === "none" ? null : value },
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="w-36 text-xs h-7">
+                                  <SelectValue>
+                                    {getPaymentTypeShort((contact as any).paymentType)}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="w-72">
+                                  <SelectItem value="none">— Not set —</SelectItem>
+                                  <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
+                                  <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
+                                  <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
+                                  <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="View/Edit details"
+                                aria-label="View or edit contact details"
+                                onClick={() => {
+                                  setSelectedContact(contact);
+                                  setEditFormData({
+                                    clientFirstName: contact.clientFirstName || '',
+                                    clientLastName: contact.clientLastName || '',
+                                    clientEmail: contact.clientEmail || '',
+                                    clientPhone: contact.clientPhone || '',
+                                    clientNotes: contact.clientNotes || '',
+                                  });
+                                  setIsEditing(false);
+                                  setViewDialogOpen(true);
+                                }}
+                                className="text-xs"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
