@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import AdminLayout from "@/components/admin-layout";
@@ -627,60 +627,232 @@ export default function PractitionerDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Contacts by Practitioner</CardTitle>
-                <CardDescription>Grouped by assigned practitioner</CardDescription>
+                <CardDescription>All contacts grouped by assigned practitioner</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Users className="h-5 w-5" />
-                        Unassigned
-                      </CardTitle>
-                      <CardDescription>
-                        {contacts.filter(c => !c.assignedPractitionerId).length} contact(s)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {contacts.filter(c => !c.assignedPractitionerId).slice(0, 5).map(contact => (
-                          <div key={contact.id} className="flex justify-between items-center text-sm">
-                            <span>{contact.clientFirstName} {contact.clientLastName}</span>
-                            {getStatusBadge(contact.status)}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  {employees.filter(e => e.isActive).map(emp => {
-                    const practitionerContacts = contacts.filter(c => c.assignedPractitionerId === emp.id);
-                    if (practitionerContacts.length === 0) return null;
-                    return (
-                      <Card key={emp.id}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <Users className="h-5 w-5" />
-                            {emp.firstName} {emp.lastName}
-                          </CardTitle>
-                          <CardDescription>{practitionerContacts.length} contact(s)</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {practitionerContacts.slice(0, 5).map(contact => (
-                              <div key={contact.id} className="flex justify-between items-center text-sm">
-                                <span>{contact.clientFirstName} {contact.clientLastName}</span>
-                                {getStatusBadge(contact.status)}
-                              </div>
-                            ))}
-                            {practitionerContacts.length > 5 && (
-                              <p className="text-sm text-gray-500">+{practitionerContacts.length - 5} more</p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                {contactsLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading contacts...</div>
+                ) : contacts.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No contacts found.</div>
+                ) : (
+                  <div className="overflow-y-auto max-h-[62vh] rounded-md border">
+                    <Table>
+                      <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
+                        <TableRow>
+                          <TableHead className="pl-5 w-[210px]">Client</TableHead>
+                          <TableHead className="w-[160px]">Program Type</TableHead>
+                          <TableHead className="w-[170px]">Status / Assigned To</TableHead>
+                          <TableHead className="w-[180px]">Comments</TableHead>
+                          <TableHead className="w-[148px]">Payment</TableHead>
+                          <TableHead className="w-[76px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(() => {
+                          const borderColorMap: Record<string, string> = {
+                            pending:              '#F59E0B',
+                            pending_awaiting_dna: '#F97316',
+                            pending_dna_received: '#22C55E',
+                            in_progress:          '#3B82F6',
+                            completed:            '#A855F7',
+                            cancelled:            '#9CA3AF',
+                          };
+                          const renderContactRow = (contact: PractitionerContact) => {
+                            const borderColor = borderColorMap[contact.status] || '#E5E7EB';
+                            return (
+                              <TableRow key={contact.id} style={{ borderLeft: `4px solid ${borderColor}` }}>
+                                <TableCell className="py-2 pl-3">
+                                  <div className="font-medium text-sm leading-tight">
+                                    {contact.clientFirstName} {contact.clientLastName}
+                                  </div>
+                                  <div className="flex flex-col gap-0.5 mt-0.5">
+                                    {contact.clientPhone && (
+                                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                                        <Phone className="h-3 w-3 shrink-0" />{contact.clientPhone}
+                                      </span>
+                                    )}
+                                    {contact.clientEmail && (
+                                      <span className="text-xs text-gray-400 truncate max-w-[185px]">
+                                        {contact.clientEmail}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <Select
+                                    value={(contact as any).scanType || "__none__"}
+                                    onValueChange={(value) => {
+                                      updateContactMutation.mutate({
+                                        id: contact.id,
+                                        updates: { scanType: value === "__none__" ? null : value } as any,
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-40 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                      <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">
+                                        <span className="text-xs text-muted-foreground italic">— None —</span>
+                                      </SelectItem>
+                                      {SCAN_TYPE_OPTIONS.map(opt => (
+                                        <SelectItem key={opt} value={opt}>{getScanTypePill(opt)}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <div className="flex flex-col gap-1.5">
+                                    <Select
+                                      value={contact.status}
+                                      onValueChange={(value) => {
+                                        updateContactMutation.mutate({ id: contact.id, updates: { status: value } });
+                                      }}
+                                    >
+                                      <SelectTrigger className="w-36 h-auto py-0.5 px-2">
+                                        <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent className="w-44">
+                                        {statusTypes.map(st => (
+                                          <SelectItem key={st.value} value={st.value}>
+                                            <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Select
+                                      value={contact.assignedPractitionerId || "unassigned"}
+                                      onValueChange={(value) => {
+                                        updateContactMutation.mutate({
+                                          id: contact.id,
+                                          updates: { assignedPractitionerId: value === "unassigned" ? null : value },
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="w-36 h-6 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                                        {employees.filter(e => e.isActive).map(emp => (
+                                          <SelectItem key={emp.id} value={emp.id}>
+                                            {emp.firstName} {emp.lastName}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-2 max-w-44">
+                                  <EditableComment
+                                    contactId={contact.id}
+                                    currentComment={contact.practitionerComments || ''}
+                                    clientNotes={contact.clientNotes}
+                                    onSave={(comment) => {
+                                      updateContactMutation.mutate({
+                                        id: contact.id,
+                                        updates: { practitionerComments: comment || null },
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <Select
+                                    value={(contact as any).paymentType || "none"}
+                                    onValueChange={(value) => {
+                                      updateContactMutation.mutate({
+                                        id: contact.id,
+                                        updates: { paymentType: value === "none" ? null : value },
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-36 text-xs h-7">
+                                      <SelectValue>{getPaymentTypeShort((contact as any).paymentType)}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent className="w-72">
+                                      <SelectItem value="none">— Not set —</SelectItem>
+                                      <SelectItem value="Paid Online - Received">Paid Online - Received</SelectItem>
+                                      <SelectItem value="Paid Online - Waiting Payment Confirmation">Paid Online - Waiting Payment Confirmation</SelectItem>
+                                      <SelectItem value="Paid In-Store - Received">Paid In-Store - Received</SelectItem>
+                                      <SelectItem value="Paid In-Store - Waiting Payment Confirmation">Paid In-Store - Waiting Payment Confirmation</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedContact(contact);
+                                      setEditFormData({
+                                        clientFirstName: contact.clientFirstName || '',
+                                        clientLastName: contact.clientLastName || '',
+                                        clientEmail: contact.clientEmail || '',
+                                        clientPhone: contact.clientPhone || '',
+                                        clientNotes: contact.clientNotes || '',
+                                      });
+                                      setIsEditing(false);
+                                      setViewDialogOpen(true);
+                                    }}
+                                    className="text-xs"
+                                  >
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    View
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          };
+
+                          const unassigned = contacts.filter(c => !c.assignedPractitionerId);
+                          const groups: JSX.Element[] = [];
+
+                          if (unassigned.length > 0) {
+                            groups.push(
+                              <Fragment key="unassigned">
+                                <TableRow className="bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                                  <TableCell colSpan={6} className="py-1.5 pl-4">
+                                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                      <Users className="h-3.5 w-3.5" />
+                                      Unassigned
+                                      <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4 font-medium">
+                                        {unassigned.length}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                                {unassigned.map(renderContactRow)}
+                              </Fragment>
+                            );
+                          }
+
+                          employees.filter(e => e.isActive).forEach(emp => {
+                            const empContacts = contacts.filter(c => c.assignedPractitionerId === emp.id);
+                            if (empContacts.length === 0) return;
+                            groups.push(
+                              <Fragment key={emp.id}>
+                                <TableRow className="bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                                  <TableCell colSpan={6} className="py-1.5 pl-4">
+                                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                      <Users className="h-3.5 w-3.5" />
+                                      {emp.firstName} {emp.lastName}
+                                      <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4 font-medium">
+                                        {empContacts.length}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                                {empContacts.map(renderContactRow)}
+                              </Fragment>
+                            );
+                          });
+
+                          return groups;
+                        })()}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
