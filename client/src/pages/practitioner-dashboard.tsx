@@ -507,7 +507,7 @@ export default function PractitionerDashboard() {
                               }}
                             >
                               <SelectTrigger className="w-44 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
-                                <SelectValue>{getScanTypePill((contact as any).scanType)}</SelectValue>
+                                <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__none__">
@@ -839,7 +839,7 @@ export default function PractitionerDashboard() {
                               }}
                             >
                               <SelectTrigger className="w-44 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
-                                <SelectValue>{getScanTypePill((contact as any).scanType)}</SelectValue>
+                                <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__none__">
