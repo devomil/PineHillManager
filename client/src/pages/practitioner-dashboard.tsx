@@ -461,8 +461,7 @@ export default function PractitionerDashboard() {
                     No active contacts. All contacts are archived or use the Quick Contact button to add new contacts.
                   </div>
                 ) : (
-                  <div className="overflow-y-auto max-h-[62vh] rounded-md border">
-                    <Table>
+                  <Table wrapperClassName="max-h-[62vh] rounded-md border">
                       <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
                         <TableRow>
                           <TableHead className="pl-5 w-[210px]">Client</TableHead>
@@ -522,7 +521,7 @@ export default function PractitionerDashboard() {
                                   </SelectItem>
                                   {SCAN_TYPE_OPTIONS.map(opt => (
                                     <SelectItem key={opt} value={opt}>
-                                      {getScanTypePill(opt)}
+                                      {getScanTypeChip(opt)}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -545,7 +544,7 @@ export default function PractitionerDashboard() {
                                   <SelectContent className="w-48">
                                     {statusTypes.map(st => (
                                       <SelectItem key={st.value} value={st.value}>
-                                        <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                        <span className="flex items-center gap-2">{getStatusChip(st.value)}</span>
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -637,7 +636,6 @@ export default function PractitionerDashboard() {
                       })}
                       </TableBody>
                     </Table>
-                  </div>
                 )}
               </CardContent>
             </Card>
@@ -694,8 +692,7 @@ export default function PractitionerDashboard() {
                 ) : contacts.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">No contacts found.</div>
                 ) : (
-                  <div className="overflow-y-auto max-h-[62vh] rounded-md border">
-                    <Table>
+                  <Table wrapperClassName="max-h-[62vh] rounded-md border">
                       <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
                         <TableRow>
                           <TableHead className="pl-5 w-[210px]">Client</TableHead>
@@ -755,7 +752,7 @@ export default function PractitionerDashboard() {
                                         <span className="text-xs text-muted-foreground italic">— None —</span>
                                       </SelectItem>
                                       {SCAN_TYPE_OPTIONS.map(opt => (
-                                        <SelectItem key={opt} value={opt}>{getScanTypePill(opt)}</SelectItem>
+                                        <SelectItem key={opt} value={opt}>{getScanTypeChip(opt)}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -774,7 +771,7 @@ export default function PractitionerDashboard() {
                                       <SelectContent className="w-48">
                                         {statusTypes.map(st => (
                                           <SelectItem key={st.value} value={st.value}>
-                                            <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                            <span className="flex items-center gap-2">{getStatusChip(st.value)}</span>
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
@@ -910,7 +907,6 @@ export default function PractitionerDashboard() {
                         })()}
                       </TableBody>
                     </Table>
-                  </div>
                 )}
               </CardContent>
             </Card>
@@ -930,8 +926,8 @@ export default function PractitionerDashboard() {
                     No archived contacts. Contacts with status "Completed" or "Cancelled" will appear here.
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
+                  <Table wrapperClassName="max-h-[62vh] rounded-md border">
+                    <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
                       <TableRow>
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
@@ -983,7 +979,7 @@ export default function PractitionerDashboard() {
                                 </SelectItem>
                                 {SCAN_TYPE_OPTIONS.map(opt => (
                                   <SelectItem key={opt} value={opt}>
-                                    {getScanTypePill(opt)}
+                                    {getScanTypeChip(opt)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1019,7 +1015,7 @@ export default function PractitionerDashboard() {
                               <SelectContent className="w-48">
                                 {statusTypes.map(st => (
                                   <SelectItem key={st.value} value={st.value}>
-                                    <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
+                                    <span className="flex items-center gap-2">{getStatusChip(st.value)}</span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
