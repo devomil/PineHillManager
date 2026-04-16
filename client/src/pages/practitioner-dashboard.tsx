@@ -1372,7 +1372,7 @@ function EditableComment({ contactId, currentComment, clientNotes, onSave }: Edi
           ) : clientNotes ? (
             <div className="flex items-center gap-1.5">
               <MessageSquare className="h-3 w-3 text-emerald-500 flex-shrink-0" />
-              <span className="text-sm text-emerald-600 font-medium">Form notes</span>
+              <span className="text-sm text-gray-900 dark:text-gray-100">Form notes</span>
             </div>
           ) : (
             <div className="flex items-center gap-1 text-gray-400">
