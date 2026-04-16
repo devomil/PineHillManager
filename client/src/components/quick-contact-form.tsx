@@ -261,43 +261,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
             </div>
           </div>
 
-          {/* Payment Type */}
-          <div className={`${sectionCard} bg-amber-100 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700`}>
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-yellow-900 dark:text-yellow-100 border-l-4 border-amber-500 pl-3">
-              <ClipboardCheck className="h-5 w-5" />
-              Payment Type
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                "Paid Online - Received",
-                "Paid Online - Waiting Payment Confirmation",
-                "Paid In-Store - Received",
-                "Paid In-Store - Waiting Payment Confirmation",
-              ].map((option) => (
-                <label
-                  key={option}
-                  className={`flex items-center gap-3.5 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 cursor-pointer transition-colors shadow-sm ${
-                    formData.paymentType === option
-                      ? 'border-amber-600 bg-amber-50 dark:bg-amber-900/30 shadow-md'
-                      : 'border-gray-400 dark:border-gray-500 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                  }`}
-                >
-                  <Checkbox
-                    checked={formData.paymentType === option}
-                    onCheckedChange={() =>
-                      setFormData(prev => ({
-                        ...prev,
-                        paymentType: prev.paymentType === option ? '' : option,
-                      }))
-                    }
-                    className="h-5 w-5 border-[2.5px] border-gray-600 dark:border-gray-400 rounded data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
-                  />
-                  <span className={checkLabelClass}>{option}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* Client Information */}
           <div className={`${sectionCard} bg-emerald-100 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700`}>
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 dark:text-green-100 border-l-4 border-emerald-500 pl-3">
@@ -397,37 +360,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   ? "Getting long — consider trimming if possible."
                   : "Approaching the 500 character limit."}
               </p>
-            </div>
-          </div>
-
-          {/* Practitioner Claim */}
-          <div className={`${sectionCard} bg-violet-100 dark:bg-violet-950/40 border-violet-400 dark:border-violet-700`}>
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100 border-l-4 border-violet-500 pl-3">
-              <Users className="h-5 w-5" />
-              Practitioner Claim
-            </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-              {practitioners.length > 0 ? practitioners.map(practitioner => (
-                <label
-                  key={practitioner.id}
-                  htmlFor={`practitioner-${practitioner.id}`}
-                  className={`flex items-center gap-3 p-3.5 bg-white dark:bg-slate-800 rounded-lg border-2 cursor-pointer transition-colors shadow-sm ${
-                    formData.assignedPractitioner === practitioner.id
-                      ? 'border-violet-600 bg-violet-50 dark:bg-violet-900/30 shadow-md'
-                      : 'border-gray-400 dark:border-gray-500 hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20'
-                  }`}
-                >
-                  <Checkbox
-                    id={`practitioner-${practitioner.id}`}
-                    checked={formData.assignedPractitioner === practitioner.id}
-                    onCheckedChange={() => handlePractitionerSelect(practitioner.id)}
-                    className={checkboxClass}
-                  />
-                  <span className={checkLabelClass}>{practitioner.name}</span>
-                </label>
-              )) : (
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 col-span-full">Loading practitioners...</p>
-              )}
             </div>
           </div>
 
