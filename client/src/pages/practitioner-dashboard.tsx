@@ -202,6 +202,24 @@ export default function PractitionerDashboard() {
     );
   };
 
+  const getStatusChip = (status: string) => {
+    const config: Record<string, { dot: string; label: string }> = {
+      pending:              { dot: 'bg-amber-400',  label: 'Pending' },
+      pending_awaiting_dna: { dot: 'bg-orange-500', label: 'Awaiting DNA' },
+      pending_dna_received: { dot: 'bg-green-500',  label: 'DNA Received' },
+      in_progress:          { dot: 'bg-blue-500',   label: 'In Progress' },
+      completed:            { dot: 'bg-purple-500', label: 'Completed' },
+      cancelled:            { dot: 'bg-gray-400',   label: 'Cancelled' },
+    };
+    const c = config[status] || config.pending;
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+        <span className={`h-2 w-2 rounded-full ${c.dot} shrink-0`} />
+        {c.label}
+      </span>
+    );
+  };
+
   const PAYMENT_TYPE_LABELS: Record<string, string> = {
     "Paid Online - Received": "Online · Received",
     "Paid Online - Waiting Payment Confirmation": "Online · Waiting",
@@ -467,8 +485,8 @@ export default function PractitionerDashboard() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell className="py-2">
-                              <div className="flex flex-col gap-1.5">
+                            <TableCell className="py-1.5">
+                              <div className="flex flex-col gap-1">
                                 <Select
                                   value={contact.status}
                                   onValueChange={(value) => {
@@ -478,10 +496,10 @@ export default function PractitionerDashboard() {
                                     });
                                   }}
                                 >
-                                  <SelectTrigger className="w-36 h-auto py-0.5 px-2">
-                                    <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                                  <SelectTrigger className="w-36 h-7 px-2 text-xs">
+                                    <SelectValue>{getStatusChip(contact.status)}</SelectValue>
                                   </SelectTrigger>
-                                  <SelectContent className="w-44">
+                                  <SelectContent className="w-48">
                                     {statusTypes.map(st => (
                                       <SelectItem key={st.value} value={st.value}>
                                         <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
@@ -701,18 +719,18 @@ export default function PractitionerDashboard() {
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
-                                <TableCell className="py-2">
-                                  <div className="flex flex-col gap-1.5">
+                                <TableCell className="py-1.5">
+                                  <div className="flex flex-col gap-1">
                                     <Select
                                       value={contact.status}
                                       onValueChange={(value) => {
                                         updateContactMutation.mutate({ id: contact.id, updates: { status: value } });
                                       }}
                                     >
-                                      <SelectTrigger className="w-36 h-auto py-0.5 px-2">
-                                        <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                                      <SelectTrigger className="w-36 h-7 px-2 text-xs">
+                                        <SelectValue>{getStatusChip(contact.status)}</SelectValue>
                                       </SelectTrigger>
-                                      <SelectContent className="w-44">
+                                      <SelectContent className="w-48">
                                         {statusTypes.map(st => (
                                           <SelectItem key={st.value} value={st.value}>
                                             <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
