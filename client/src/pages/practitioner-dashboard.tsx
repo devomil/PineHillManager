@@ -496,6 +496,7 @@ export default function PractitionerDashboard() {
                             <EditableComment 
                               contactId={contact.id} 
                               currentComment={contact.practitionerComments || ''} 
+                              clientNotes={contact.clientNotes}
                               onSave={(comment) => {
                                 updateContactMutation.mutate({
                                   id: contact.id,
@@ -805,6 +806,7 @@ export default function PractitionerDashboard() {
                             <EditableComment 
                               contactId={contact.id} 
                               currentComment={contact.practitionerComments || ''} 
+                              clientNotes={contact.clientNotes}
                               onSave={(comment) => {
                                 updateContactMutation.mutate({
                                   id: contact.id,
@@ -1153,10 +1155,11 @@ export default function PractitionerDashboard() {
 interface EditableCommentProps {
   contactId: number;
   currentComment: string;
+  clientNotes?: string | null;
   onSave: (comment: string) => void;
 }
 
-function EditableComment({ contactId, currentComment, onSave }: EditableCommentProps) {
+function EditableComment({ contactId, currentComment, clientNotes, onSave }: EditableCommentProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [comment, setComment] = useState(currentComment);
 
@@ -1198,16 +1201,31 @@ function EditableComment({ contactId, currentComment, onSave }: EditableCommentP
       </PopoverTrigger>
       <PopoverContent className="w-[680px] p-5" align="start">
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b pb-3">
-            <MessageSquare className="h-5 w-5 text-blue-500" />
-            <span className="text-base font-semibold">Practitioner Comments</span>
+          {clientNotes && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 border-b pb-3">
+                <MessageSquare className="h-5 w-5 text-emerald-500" />
+                <span className="text-base font-semibold">Connect Form Comments</span>
+              </div>
+              <Textarea
+                value={clientNotes}
+                readOnly
+                className="min-h-[140px] text-sm leading-relaxed resize-y bg-muted/50 text-muted-foreground cursor-default"
+              />
+            </div>
+          )}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 border-b pb-3">
+              <MessageSquare className="h-5 w-5 text-blue-500" />
+              <span className="text-base font-semibold">Practitioner Comments</span>
+            </div>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add comments like 'awaiting DNA', 'call scheduled', 'health form done', etc."
+              className="min-h-[140px] text-sm leading-relaxed resize-y"
+            />
           </div>
-          <Textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Add comments like 'awaiting DNA', 'call scheduled', 'health form done', etc."
-            className="min-h-[220px] text-sm leading-relaxed resize-y"
-          />
           <div className="flex justify-end gap-3 pt-1">
             <Button variant="outline" size="sm" onClick={handleCancel} className="px-5">
               <X className="h-4 w-4 mr-1.5" />
