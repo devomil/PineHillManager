@@ -226,7 +226,8 @@ export default function PractitionerDashboard() {
           </Button>
         </div>
 
-        {/* Quick Links — PracticeBetter pages */}
+        {/* Quick Links — PracticeBetter pages (admin & manager only) */}
+        {(user?.role === 'admin' || user?.role === 'manager') && (
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Links</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -253,6 +254,7 @@ export default function PractitionerDashboard() {
             ))}
           </div>
         </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
