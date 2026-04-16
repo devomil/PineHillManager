@@ -193,9 +193,6 @@ const getDefaultDateRange = () => {
 
 async function seedTeams() {
   try {
-    const existing = await db.select().from(chatChannels).where(eq(chatChannels.type, 'team'));
-    if (existing.length > 0) return; // Already seeded
-
     const adminUsers = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
     if (adminUsers.length === 0) {
       console.log('[Teams] No admin user found, skipping team seed');
@@ -212,27 +209,39 @@ async function seedTeams() {
     const allUsers = await db.select().from(users).where(eq(users.isActive, true));
 
     for (const teamDef of teamDefs) {
-      const [channel] = await db.insert(chatChannels).values({
-        name: teamDef.name,
-        description: teamDef.description,
-        type: 'team',
-        isPrivate: false,
-        isActive: true,
-        createdBy: adminId,
-      }).returning();
+      // Check if this specific team already exists
+      const [existing] = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.name, teamDef.name), eq(chatChannels.type, 'team')));
 
+      let channelId: number;
+      if (existing) {
+        channelId = existing.id;
+        console.log(`[Teams] Team "${teamDef.name}" already exists (id=${channelId})`);
+      } else {
+        const [channel] = await db.insert(chatChannels).values({
+          name: teamDef.name,
+          description: teamDef.description,
+          type: 'team',
+          isPrivate: false,
+          isActive: true,
+          createdBy: adminId,
+        }).returning();
+        channelId = channel.id;
+        console.log(`[Teams] Created "${teamDef.name}" (id=${channelId})`);
+      }
+
+      // Always ensure members are assigned (idempotent via onConflictDoNothing)
       const matchedUsers = allUsers.filter(u =>
         teamDef.firstNames.some(fn => u.firstName?.toLowerCase() === fn.toLowerCase())
       );
-
       for (const u of matchedUsers) {
         await db.insert(channelMembers).values({
-          channelId: channel.id,
+          channelId,
           userId: u.id,
           role: 'member',
         }).onConflictDoNothing();
       }
-      console.log(`[Teams] Created "${teamDef.name}" with ${matchedUsers.length} members`);
+      console.log(`[Teams] "${teamDef.name}" has ${matchedUsers.length} members ensured`);
     }
   } catch (err) {
     console.error('[Teams] Seed error:', err);
@@ -6840,6 +6849,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/teams/messages/all — all messages from the current user's teams (inbox integration)
+  app.get('/api/teams/messages/all', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user!.id;
+
+      // Get user's team memberships
+      const memberships = await db.select({ channelId: channelMembers.channelId })
+        .from(channelMembers).where(eq(channelMembers.userId, userId));
+
+      if (memberships.length === 0) return res.json([]);
+      const channelIds = memberships.map(m => m.channelId);
+
+      // Get channels for name lookup
+      const channels = await db.select().from(chatChannels)
+        .where(and(inArray(chatChannels.id, channelIds), eq(chatChannels.isActive, true)));
+      const channelMap: Record<number, string> = Object.fromEntries(channels.map(c => [c.id, c.name]));
+
+      // Get recent messages from all user's channels
+      const msgs = await db.select().from(channelMessages)
+        .where(inArray(channelMessages.channelId, channelIds))
+        .orderBy(desc(channelMessages.createdAt))
+        .limit(100);
+
+      // Enrich with sender names
+      const senderIds = [...new Set(msgs.map(m => m.senderId))];
+      const senders = senderIds.length > 0
+        ? await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+            .from(users).where(inArray(users.id, senderIds))
+        : [];
+      const senderMap = Object.fromEntries(senders.map(s => [s.id, s]));
+
+      res.json(msgs.map(m => ({
+        ...m,
+        senderName: senderMap[m.senderId] ? `${senderMap[m.senderId].firstName} ${senderMap[m.senderId].lastName}` : 'Unknown',
+        channelName: channelMap[m.channelId] || 'Team',
+        isTeamMessage: true,
+      })));
+    } catch (error) {
+      console.error('Error fetching all team messages:', error);
+      res.status(500).json({ message: 'Failed to fetch team messages' });
+    }
+  });
+
   // GET /api/teams/my — teams the current user is a member of
   app.get('/api/teams/my', isAuthenticated, async (req: any, res) => {
     try {
@@ -6979,10 +7031,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/employees/:id/teams — team memberships for an employee
+  // GET /api/employees/:id/teams — team memberships for an employee (admin/manager or self)
   app.get('/api/employees/:id/teams', isAuthenticated, async (req: any, res) => {
     try {
       const employeeId = req.params.id;
+      const requestingUserId = req.user!.id;
+      const requestingUserRole = req.user!.role;
+
+      // Only allow admin, manager, or the employee themselves
+      if (requestingUserRole !== 'admin' && requestingUserRole !== 'manager' && requestingUserId !== employeeId) {
+        return res.status(403).json({ error: 'Not authorized to view team assignments for this employee' });
+      }
+
       const memberships = await db.select({ channelId: channelMembers.channelId })
         .from(channelMembers).where(eq(channelMembers.userId, employeeId));
       res.json(memberships.map(m => m.channelId));

@@ -156,7 +156,7 @@ const formatAudience = (audience: string, teamsMap?: Record<number, string>) => 
 };
 
 // Function to format audience based on selected employees, recipients, or recipient_id
-const formatMessageAudience = (message: any, employees: any[] = []) => {
+const formatMessageAudience = (message: any, employees: any[] = [], teamsMap?: Record<number, string>) => {
   // For direct messages with recipients array (from readReceipts), show recipient names
   if (message.recipients && Array.isArray(message.recipients) && message.recipients.length > 0) {
     if (message.recipients.length === 1) {
@@ -219,7 +219,7 @@ const formatMessageAudience = (message: any, employees: any[] = []) => {
   }
   
   // Default to the audience type
-  return formatAudience(message.targetAudience);
+  return formatAudience(message.targetAudience, teamsMap);
 };
 
 const isExpired = (expiresAt?: string) => {
@@ -962,6 +962,35 @@ function CommunicationsContent() {
   });
 
   const teamsMap: Record<number, string> = Object.fromEntries(allTeams.map((t: any) => [t.id, t.name]));
+
+  // Fetch all team messages for the current user's inbox
+  const { data: rawTeamMessages = [] } = useQuery<any[]>({
+    queryKey: ["/api/teams/messages/all"],
+    queryFn: async () => {
+      const response = await fetch("/api/teams/messages/all", { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  // Normalize team messages to be compatible with the Messages inbox structure
+  const teamInboxMessages = rawTeamMessages.map((m: any) => ({
+    id: `team_${m.id}`,
+    messageType: 'team_message',
+    subject: `[${m.channelName}]`,
+    content: m.content,
+    senderId: m.senderId,
+    senderName: m.senderName,
+    priority: m.priority || 'normal',
+    smsEnabled: m.smsEnabled || false,
+    sentAt: m.createdAt,
+    targetAudience: `team:${m.channelId}`,
+    isTeamMessage: true,
+    channelName: m.channelName,
+    channelId: m.channelId,
+  }));
   
   // Fetch announcements (existing functionality)
   // Fetch traditional announcements
@@ -1835,7 +1864,7 @@ function CommunicationsContent() {
                             }
                             
                             // Default to audience type
-                            return formatAudience(formData.targetAudience);
+                            return formatAudience(formData.targetAudience, teamsMap);
                           })()} 
                         </span>
                       </SelectValue>
@@ -2350,7 +2379,7 @@ function CommunicationsContent() {
                             </span>
                             <span className="flex items-center">
                               {getTargetAudienceIcon(announcement.targetAudience)}
-                              <span className="ml-1">{formatMessageAudience(announcement, employees)}</span>
+                              <span className="ml-1">{formatMessageAudience(announcement, employees, teamsMap)}</span>
                             </span>
                           </div>
                           {announcement.expiresAt && (
@@ -2487,7 +2516,7 @@ function CommunicationsContent() {
                               </span>
                               <span className="flex items-center">
                                 {getTargetAudienceIcon(announcement.targetAudience)}
-                                <span className="ml-1">{formatMessageAudience(announcement, employees)}</span>
+                                <span className="ml-1">{formatMessageAudience(announcement, employees, teamsMap)}</span>
                               </span>
                             </div>
                             {announcement.expiresAt && (
@@ -2550,20 +2579,29 @@ function CommunicationsContent() {
             </div>
           ) : (
             <div className="space-y-4">
-              {communicationMessages
-                .filter(msg => msg.messageType === 'direct_message')
+              {[
+                ...communicationMessages.filter(msg => msg.messageType === 'direct_message'),
+                ...(!showArchivedMessages ? teamInboxMessages : []),
+              ]
                 .filter(msg => {
+                  if (msg.isTeamMessage) return true; // Team messages don't have archive support
                   const isArchived = archivedIds.messageIds.includes(msg.id);
                   return showArchivedMessages ? isArchived : !isArchived;
                 })
                 .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
                 .map((message) => (
-                  <Card key={message.id} className="shadow-sm hover:shadow-md transition-shadow">
+                  <Card key={message.id} className={`shadow-sm hover:shadow-md transition-shadow ${message.isTeamMessage ? 'border-l-4 border-l-green-500' : ''}`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1 flex-1 min-w-0">
-                          <CardTitle className="text-lg font-semibold text-gray-900">
+                          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                             {message.subject || 'Direct Message'}
+                            {message.isTeamMessage && (
+                              <Badge className="bg-green-100 text-green-800 text-xs font-normal">
+                                <Users className="h-3 w-3 mr-1" />
+                                Team
+                              </Badge>
+                            )}
                           </CardTitle>
                           {/* Sender Information */}
                           {message.senderId && (
@@ -2573,13 +2611,13 @@ function CommunicationsContent() {
                                 size="sm"
                               />
                               <span className="text-xs sm:text-sm text-gray-600">
-                                {(() => {
+                                {message.senderName || (() => {
                                   const sender = employees?.find(emp => emp.id === message.senderId);
                                   return sender ? `${sender.firstName} ${sender.lastName}` : 'Unknown Sender';
                                 })()}
                               </span>
                               <span className="text-xs text-gray-400">•</span>
-                              <span className="text-xs text-gray-500">Sender</span>
+                              <span className="text-xs text-gray-500">{message.isTeamMessage ? message.channelName : 'Sender'}</span>
                             </div>
                           )}
                         </div>
@@ -2676,7 +2714,7 @@ function CommunicationsContent() {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-sm text-gray-500">
-                            To: {formatMessageAudience(message, employees)}
+                            To: {formatMessageAudience(message, employees, teamsMap)}
                           </div>
                           <Button
                             variant="ghost"
@@ -2740,13 +2778,13 @@ function CommunicationsContent() {
                 .filter(msg => {
                   const isArchived = archivedIds.messageIds.includes(msg.id);
                   return showArchivedMessages ? isArchived : !isArchived;
-                }).length === 0 && (
+                }).length === 0 && teamInboxMessages.length === 0 && (
                 <Card>
                   <CardContent className="text-center py-12">
                     <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">{showArchivedMessages ? "No archived messages yet" : "No Messages Yet"}</h3>
                     <p className="text-gray-500">
-                      {showArchivedMessages ? "Archived messages will appear here." : "Direct messages will appear here once you start sending them."}
+                      {showArchivedMessages ? "Archived messages will appear here." : "Direct messages and team messages will appear here."}
                     </p>
                   </CardContent>
                 </Card>
@@ -2842,7 +2880,7 @@ function CommunicationsContent() {
                                 }
                                 
                                 // Default to audience type
-                                return formatAudience(formData.targetAudience);
+                                return formatAudience(formData.targetAudience, teamsMap);
                               })()
                               }
                             </span>
@@ -2994,7 +3032,7 @@ function CommunicationsContent() {
                             </div>
                             <div className="flex items-center gap-1">
                               <Users className="h-3 w-3" />
-                              <span>{formatMessageAudience(message, employees)}</span>
+                              <span>{formatMessageAudience(message, employees, teamsMap)}</span>
                             </div>
                             {message.smsEnabled && (
                               <Badge className="bg-blue-100 text-blue-800 text-xs">SMS</Badge>
