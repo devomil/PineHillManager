@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Users, User, Building, Search, Check, X, UserCheck } from "lucide-react";
+import { Users, User, Search, Check, X, UserCheck } from "lucide-react";
 
 interface Employee {
   id: string;
@@ -82,52 +82,6 @@ export function AudienceSelector({
       icon: <UserCheck className="h-4 w-4" />,
       count: employees.filter(e => e.isActive && e.role === "manager").length
     },
-    {
-      id: "admins-only",
-      name: "Admins Only", 
-      description: "Send to administrators only",
-      icon: <UserCheck className="h-4 w-4" />,
-      count: employees.filter(e => e.isActive && e.role === "admin").length
-    }
-  ];
-
-  // Location-based groups
-  const locationGroups = [
-    {
-      id: "lake-geneva",
-      name: "Lake Geneva Team",
-      description: "All employees at Lake Geneva location",
-      icon: <Building className="h-4 w-4" />,
-      count: employees.filter(e => e.isActive && (e.primaryStore === "lake_geneva" || e.assignedStores?.includes("lake_geneva"))).length
-    },
-    {
-      id: "watertown", 
-      name: "Watertown Team",
-      description: "All employees at Watertown locations",
-      icon: <Building className="h-4 w-4" />,
-      count: employees.filter(e => e.isActive && (e.primaryStore === "watertown" || e.assignedStores?.includes("watertown"))).length
-    },
-    {
-      id: "watertown-retail",
-      name: "Watertown Retail",
-      description: "Watertown retail location team",
-      icon: <Building className="h-4 w-4" />,
-      count: employees.filter(e => e.isActive && (e.primaryStore === "watertown_retail" || e.assignedStores?.includes("watertown_retail"))).length
-    },
-    {
-      id: "watertown-spa",
-      name: "Watertown Spa",
-      description: "Watertown spa team",
-      icon: <Building className="h-4 w-4" />,
-      count: employees.filter(e => e.isActive && (e.primaryStore === "watertown_spa" || e.assignedStores?.includes("watertown_spa"))).length
-    },
-    {
-      id: "online-team",
-      name: "Online Team", 
-      description: "Online/remote employees",
-      icon: <Building className="h-4 w-4" />,
-      count: employees.filter(e => e.isActive && (e.primaryStore === "online" || e.assignedStores?.includes("online"))).length
-    }
   ];
 
   // Filter employees for individual selection
@@ -175,7 +129,7 @@ export function AudienceSelector({
     if (selectedAudience.length === 0) return "No recipients selected";
     
     if (selectedAudience.length === 1 && !selectedAudience[0].startsWith("user:")) {
-      const group = [...audienceGroups, ...locationGroups].find(g => g.id === selectedAudience[0]);
+      const group = audienceGroups.find(g => g.id === selectedAudience[0]);
       return group ? `${group.name} (${group.count} people)` : selectedAudience[0];
     }
     
@@ -221,47 +175,14 @@ export function AudienceSelector({
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="groups">Groups</TabsTrigger>
-            <TabsTrigger value="locations">Locations</TabsTrigger>
             <TabsTrigger value="individuals">Individuals</TabsTrigger>
           </TabsList>
 
           <TabsContent value="groups" className="space-y-4 mt-4">
             <div className="space-y-2">
               {audienceGroups.map(group => (
-                <div
-                  key={group.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50 ${
-                    selectedAudience.includes(group.id) ? "bg-primary/10 border-primary" : "border-border"
-                  }`}
-                  onClick={() => handleGroupSelect(group.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded ${selectedAudience.includes(group.id) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                        {group.icon}
-                      </div>
-                      <div>
-                        <p className="font-medium">{group.name}</p>
-                        <p className="text-sm text-muted-foreground">{group.description}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="secondary">{group.count}</Badge>
-                      {selectedAudience.includes(group.id) && (
-                        <Check className="h-4 w-4 text-primary mt-1 ml-2" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="locations" className="space-y-4 mt-4">
-            <div className="space-y-2">
-              {locationGroups.map(group => (
                 <div
                   key={group.id}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50 ${

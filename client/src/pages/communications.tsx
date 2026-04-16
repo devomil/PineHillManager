@@ -144,12 +144,6 @@ const formatAudience = (audience: string, teamsMap?: Record<number, string>) => 
     case 'employees-only': return 'Employees Only';
     case 'admins-managers': return 'Admins & Managers';
     case 'managers-only': return 'Managers Only';
-    case 'admins-only': return 'Admins Only';
-    case 'lake-geneva': return 'Lake Geneva Team';
-    case 'watertown': return 'Watertown Team';
-    case 'watertown-retail': return 'Watertown Retail';
-    case 'watertown-spa': return 'Watertown Spa';
-    case 'online-team': return 'Online Team';
     case 'specific': return 'Selected Recipients';
     default: return audience ? audience.charAt(0).toUpperCase() + audience.slice(1) : '';
   }
@@ -1874,12 +1868,6 @@ function CommunicationsContent() {
                       <SelectItem value="employees-only">Employees Only</SelectItem>
                       <SelectItem value="admins-managers">Admins & Managers</SelectItem>
                       <SelectItem value="managers-only">Managers Only</SelectItem>
-                      <SelectItem value="admins-only">Admins Only</SelectItem>
-                      <SelectItem value="lake-geneva">Lake Geneva Team</SelectItem>
-                      <SelectItem value="watertown">Watertown Team</SelectItem>
-                      <SelectItem value="watertown-retail">Watertown Retail</SelectItem>
-                      <SelectItem value="watertown-spa">Watertown Spa</SelectItem>
-                      <SelectItem value="online-team">Online Team</SelectItem>
                       {allTeams.length > 0 && (
                         <>
                           <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-2">Teams</div>
@@ -2898,7 +2886,6 @@ function CommunicationsContent() {
                           <SelectItem value="employees-only">Employees Only</SelectItem>
                           <SelectItem value="admins-managers">Admins & Managers</SelectItem>
                           <SelectItem value="managers-only">Managers Only</SelectItem>
-                          <SelectItem value="admins-only">Admins Only</SelectItem>
                           {allTeams.length > 0 && (
                             <>
                               <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-2">Teams</div>
