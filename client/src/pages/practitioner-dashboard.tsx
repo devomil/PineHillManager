@@ -33,6 +33,16 @@ const SCAN_TYPE_STYLES: Record<string, string> = {
   'Quick Calls':         'bg-orange-100 text-orange-700 border-orange-200',
 };
 
+const SCAN_TYPE_OPTIONS = Object.keys(SCAN_TYPE_STYLES);
+
+function getScanTypePill(value: string | null | undefined) {
+  if (!value) return <span className="text-xs text-muted-foreground italic">— None —</span>;
+  const cls = SCAN_TYPE_STYLES[value];
+  return cls
+    ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>{value}</span>
+    : <span className="text-xs text-gray-600">{value}</span>;
+}
+
 const SERVICE_ID_TO_LABEL: Record<string, string> = {
   remote_initial_scan: 'Remote Initial Scan',
   follow_up_scan: 'Follow-Up Scan',
@@ -487,7 +497,29 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={undefined} clientNotes={contact.clientNotes} />
+                            <Select
+                              value={(contact as any).scanType || "__none__"}
+                              onValueChange={(value) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { scanType: value === "__none__" ? null : value } as any,
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-44 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                <SelectValue>{getScanTypePill((contact as any).scanType)}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">
+                                  <span className="text-xs text-muted-foreground italic">— None —</span>
+                                </SelectItem>
+                                {SCAN_TYPE_OPTIONS.map(opt => (
+                                  <SelectItem key={opt} value={opt}>
+                                    {getScanTypePill(opt)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{contact.serviceType}</Badge>
@@ -797,7 +829,29 @@ export default function PractitionerDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <ScanTypeBadges scanType={(contact as any).scanType} serviceType={undefined} clientNotes={contact.clientNotes} />
+                            <Select
+                              value={(contact as any).scanType || "__none__"}
+                              onValueChange={(value) => {
+                                updateContactMutation.mutate({
+                                  id: contact.id,
+                                  updates: { scanType: value === "__none__" ? null : value } as any,
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-44 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                <SelectValue>{getScanTypePill((contact as any).scanType)}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">
+                                  <span className="text-xs text-muted-foreground italic">— None —</span>
+                                </SelectItem>
+                                {SCAN_TYPE_OPTIONS.map(opt => (
+                                  <SelectItem key={opt} value={opt}>
+                                    {getScanTypePill(opt)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{contact.serviceType}</Badge>
