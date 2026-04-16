@@ -2694,15 +2694,17 @@ function CommunicationsContent() {
                         </div>
                       )}
                       
-                      {/* Message Reactions - Use messageId for direct messages */}
-                      <div className="pt-3 border-t border-gray-200">
-                        <MessageReactions messageId={message.id} />
-                      </div>
-                      
-                      {/* Message Responses - Use messageId for direct messages */}
-                      <div className="pt-2">
-                        <MessageResponses messageId={message.id} />
-                      </div>
+                      {/* Message Reactions and Responses — direct messages only */}
+                      {!message.isTeamMessage && (
+                        <>
+                          <div className="pt-3 border-t border-gray-200">
+                            <MessageReactions messageId={message.id} />
+                          </div>
+                          <div className="pt-2">
+                            <MessageResponses messageId={message.id} />
+                          </div>
+                        </>
+                      )}
                       
                       <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                         <div className="flex items-center text-sm text-gray-500">
@@ -2716,55 +2718,60 @@ function CommunicationsContent() {
                           <div className="text-sm text-gray-500">
                             To: {formatMessageAudience(message, employees, teamsMap)}
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const isArchived = archivedIds.messageIds.includes(message.id);
-                              archiveMutation.mutate({ type: 'messages', id: message.id, action: isArchived ? 'unarchive' : 'archive' });
-                            }}
-                            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
-                          >
-                            <Archive className="w-4 h-4" />
-                            <span className="text-xs">{archivedIds.messageIds.includes(message.id) ? 'Unarchive' : 'Archive'}</span>
-                          </Button>
-                          {(user?.role === 'admin' || user?.role === 'manager') && (
+                          {/* Archive, Edit, Delete — direct messages only */}
+                          {!message.isTeamMessage && (
                             <>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  setEditingItem({
-                                    type: 'message',
-                                    id: message.id,
-                                    title: message.subject || '',
-                                    content: message.content || '',
-                                  });
-                                  setEditTitle(message.subject || '');
-                                  setEditContent(message.content || '');
-                                  setEditDialogOpen(true);
+                                  const isArchived = archivedIds.messageIds.includes(message.id);
+                                  archiveMutation.mutate({ type: 'messages', id: message.id, action: isArchived ? 'unarchive' : 'archive' });
                                 }}
-                                className="flex items-center gap-1.5 text-blue-500 hover:text-blue-700"
+                                className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
                               >
-                                <Edit2 className="w-4 h-4" />
-                                <span className="text-xs">Edit</span>
+                                <Archive className="w-4 h-4" />
+                                <span className="text-xs">{archivedIds.messageIds.includes(message.id) ? 'Unarchive' : 'Archive'}</span>
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setDeletingItem({
-                                    type: 'message',
-                                    id: message.id,
-                                    title: message.subject || 'Direct Message',
-                                  });
-                                  setDeleteDialogOpen(true);
-                                }}
-                                className="flex items-center gap-1.5 text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                <span className="text-xs">Delete</span>
-                              </Button>
+                              {(user?.role === 'admin' || user?.role === 'manager') && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingItem({
+                                        type: 'message',
+                                        id: message.id,
+                                        title: message.subject || '',
+                                        content: message.content || '',
+                                      });
+                                      setEditTitle(message.subject || '');
+                                      setEditContent(message.content || '');
+                                      setEditDialogOpen(true);
+                                    }}
+                                    className="flex items-center gap-1.5 text-blue-500 hover:text-blue-700"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                    <span className="text-xs">Edit</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setDeletingItem({
+                                        type: 'message',
+                                        id: message.id,
+                                        title: message.subject || 'Direct Message',
+                                      });
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                    className="flex items-center gap-1.5 text-red-500 hover:text-red-700"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    <span className="text-xs">Delete</span>
+                                  </Button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>

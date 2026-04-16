@@ -200,10 +200,20 @@ async function seedTeams() {
     }
     const adminId = adminUsers[0].id;
 
+    // Members keyed by "firstName lastName" for deterministic matching
     const teamDefs = [
-      { name: 'Watertown Team', description: 'Watertown location team', firstNames: ['Jackie', 'Leanne', 'Lynley', 'Carmen', 'Dani', 'Roz', 'Janell', 'Diane', 'Caitlin'] },
-      { name: 'Lake Geneva Team', description: 'Lake Geneva location team', firstNames: ['Becca', 'Jami', 'Kristi', 'Dani', 'Roz', 'Jackie', 'Leanne', 'Lynley', 'Caitlin'] },
-      { name: 'Practitioner Team', description: 'Clinical practitioner team', firstNames: ['Jackie', 'Leanne', 'Lynley', 'Caitlin', 'Carmen', 'Becca'] },
+      {
+        name: 'Watertown Team', description: 'Watertown location team',
+        members: ['Jackie Neumann', 'Leanne Ruggiero', 'Lynley Stoltenberg', 'Carmen Beato', 'Dani Williams', 'Roz Wolter', 'Janell Leis', 'Diane Rylance', 'Caitlin Dempsey'],
+      },
+      {
+        name: 'Lake Geneva Team', description: 'Lake Geneva location team',
+        members: ['Becca Trentlage', 'Jami Schlitz', 'Kristi Ruggiero', 'Dani Williams', 'Roz Wolter', 'Jackie Neumann', 'Leanne Ruggiero', 'Lynley Stoltenberg', 'Caitlin Dempsey'],
+      },
+      {
+        name: 'Practitioner Team', description: 'Clinical practitioner team',
+        members: ['Jackie Neumann', 'Leanne Ruggiero', 'Lynley Stoltenberg', 'Caitlin Dempsey', 'Carmen Beato', 'Becca Trentlage'],
+      },
     ];
 
     const allUsers = await db.select().from(users).where(eq(users.isActive, true));
@@ -230,10 +240,11 @@ async function seedTeams() {
         console.log(`[Teams] Created "${teamDef.name}" (id=${channelId})`);
       }
 
-      // Always ensure members are assigned (idempotent via onConflictDoNothing)
-      const matchedUsers = allUsers.filter(u =>
-        teamDef.firstNames.some(fn => u.firstName?.toLowerCase() === fn.toLowerCase())
-      );
+      // Match by full name (first + last) for deterministic assignment
+      const matchedUsers = allUsers.filter(u => {
+        const fullName = `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
+        return teamDef.members.some(m => m.toLowerCase() === fullName.toLowerCase());
+      });
       for (const u of matchedUsers) {
         await db.insert(channelMembers).values({
           channelId,
@@ -7039,7 +7050,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestingUserRole = req.user!.role;
 
       // Only allow admin, manager, or the employee themselves
-      if (requestingUserRole !== 'admin' && requestingUserRole !== 'manager' && requestingUserId !== employeeId) {
+      // Compare as strings to guard against numeric/string type mismatch
+      if (requestingUserRole !== 'admin' && requestingUserRole !== 'manager' && String(requestingUserId) !== String(employeeId)) {
         return res.status(403).json({ error: 'Not authorized to view team assignments for this employee' });
       }
 
