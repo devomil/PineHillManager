@@ -55,9 +55,9 @@ import {
   insertPurchaseOrderEventSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne, ilike } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne, ilike, inArray } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages, mentions, responses } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages, mentions, responses, chatChannels, channelMembers, channelMessages, users } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -187,7 +187,62 @@ const getDefaultDateRange = () => {
   };
 };
 
+// ================================
+// TEAM SEED FUNCTION
+// ================================
+
+async function seedTeams() {
+  try {
+    const existing = await db.select().from(chatChannels).where(eq(chatChannels.type, 'team'));
+    if (existing.length > 0) return; // Already seeded
+
+    const adminUsers = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
+    if (adminUsers.length === 0) {
+      console.log('[Teams] No admin user found, skipping team seed');
+      return;
+    }
+    const adminId = adminUsers[0].id;
+
+    const teamDefs = [
+      { name: 'Watertown Team', description: 'Watertown location team', firstNames: ['Jackie', 'Leanne', 'Lynley', 'Carmen', 'Dani', 'Roz', 'Janell', 'Diane', 'Caitlin'] },
+      { name: 'Lake Geneva Team', description: 'Lake Geneva location team', firstNames: ['Becca', 'Jami', 'Kristi', 'Dani', 'Roz', 'Jackie', 'Leanne', 'Lynley', 'Caitlin'] },
+      { name: 'Practitioner Team', description: 'Clinical practitioner team', firstNames: ['Jackie', 'Leanne', 'Lynley', 'Caitlin', 'Carmen', 'Becca'] },
+    ];
+
+    const allUsers = await db.select().from(users).where(eq(users.isActive, true));
+
+    for (const teamDef of teamDefs) {
+      const [channel] = await db.insert(chatChannels).values({
+        name: teamDef.name,
+        description: teamDef.description,
+        type: 'team',
+        isPrivate: false,
+        isActive: true,
+        createdBy: adminId,
+      }).returning();
+
+      const matchedUsers = allUsers.filter(u =>
+        teamDef.firstNames.some(fn => u.firstName?.toLowerCase() === fn.toLowerCase())
+      );
+
+      for (const u of matchedUsers) {
+        await db.insert(channelMembers).values({
+          channelId: channel.id,
+          userId: u.id,
+          role: 'member',
+        }).onConflictDoNothing();
+      }
+      console.log(`[Teams] Created "${teamDef.name}" with ${matchedUsers.length} members`);
+    }
+  } catch (err) {
+    console.error('[Teams] Seed error:', err);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // Seed predefined teams on startup (idempotent)
+  seedTeams().catch(err => console.error('[Teams] Background seed failed:', err));
 
   // Serve static files from uploads directory
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
@@ -6757,20 +6812,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Chat channels API
+  // Chat channels API (DB-backed)
   app.get('/api/chat-channels', isAuthenticated, async (req, res) => {
     try {
-      // Return static channels based on locations
-      const channels = [
-        { id: 'general', name: 'General', description: 'General team discussion' },
-        { id: 'location-1', name: 'Lake Geneva Retail', description: 'Discussion for Lake Geneva Retail team' },
-        { id: 'location-2', name: 'Watertown Retail', description: 'Discussion for Watertown Retail team' },
-        { id: 'location-3', name: 'Watertown Spa', description: 'Discussion for Watertown Spa team' }
-      ];
+      const channels = await db.select().from(chatChannels).where(eq(chatChannels.isActive, true));
       res.json(channels);
     } catch (error) {
       console.error('Error fetching chat channels:', error);
       res.status(500).json({ message: 'Failed to fetch chat channels' });
+    }
+  });
+
+  // ================================
+  // TEAM MESSAGING ROUTES
+  // ================================
+
+  // GET /api/teams — all active team channels
+  app.get('/api/teams', isAuthenticated, async (req, res) => {
+    try {
+      const teams = await db.select().from(chatChannels)
+        .where(and(eq(chatChannels.type, 'team'), eq(chatChannels.isActive, true)))
+        .orderBy(chatChannels.name);
+      res.json(teams);
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      res.status(500).json({ message: 'Failed to fetch teams' });
+    }
+  });
+
+  // GET /api/teams/my — teams the current user is a member of
+  app.get('/api/teams/my', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user!.id;
+      const memberships = await db.select({ channelId: channelMembers.channelId })
+        .from(channelMembers).where(eq(channelMembers.userId, userId));
+      if (memberships.length === 0) return res.json([]);
+      const channelIds = memberships.map(m => m.channelId);
+      const teams = await db.select().from(chatChannels)
+        .where(and(
+          inArray(chatChannels.id, channelIds),
+          eq(chatChannels.type, 'team'),
+          eq(chatChannels.isActive, true)
+        ))
+        .orderBy(chatChannels.name);
+      res.json(teams);
+    } catch (error) {
+      console.error('Error fetching my teams:', error);
+      res.status(500).json({ message: 'Failed to fetch teams' });
+    }
+  });
+
+  // GET /api/teams/:id/members — members of a team channel
+  app.get('/api/teams/:id/members', isAuthenticated, async (req: any, res) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      const members = await db.select({
+        userId: channelMembers.userId,
+        role: channelMembers.role,
+        joinedAt: channelMembers.joinedAt,
+      }).from(channelMembers).where(eq(channelMembers.channelId, channelId));
+      res.json(members);
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      res.status(500).json({ message: 'Failed to fetch team members' });
+    }
+  });
+
+  // GET /api/teams/:id/messages — messages for a team channel
+  app.get('/api/teams/:id/messages', isAuthenticated, async (req: any, res) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      const userId = req.user!.id;
+
+      // Only members can read channel messages
+      const [membership] = await db.select().from(channelMembers)
+        .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)));
+      if (!membership && req.user!.role !== 'admin' && req.user!.role !== 'manager') {
+        return res.status(403).json({ error: 'Not a member of this team' });
+      }
+
+      const msgs = await db.select().from(channelMessages)
+        .where(eq(channelMessages.channelId, channelId))
+        .orderBy(desc(channelMessages.createdAt))
+        .limit(50);
+
+      // Enrich with sender names
+      const senderIds = [...new Set(msgs.map(m => m.senderId))];
+      const senders = senderIds.length > 0
+        ? await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+            .from(users).where(inArray(users.id, senderIds))
+        : [];
+      const senderMap = Object.fromEntries(senders.map(s => [s.id, s]));
+
+      const [channel] = await db.select().from(chatChannels).where(eq(chatChannels.id, channelId));
+
+      res.json(msgs.map(m => ({
+        ...m,
+        senderName: senderMap[m.senderId] ? `${senderMap[m.senderId].firstName} ${senderMap[m.senderId].lastName}` : 'Unknown',
+        channelName: channel?.name || 'Team',
+        isTeamMessage: true,
+      })));
+    } catch (error) {
+      console.error('Error fetching team messages:', error);
+      res.status(500).json({ message: 'Failed to fetch team messages' });
+    }
+  });
+
+  // POST /api/teams/:id/messages — send a message to a team
+  app.post('/api/teams/:id/messages', isAuthenticated, async (req: any, res) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      const senderId = req.user!.id;
+      const { content, priority = 'normal', smsEnabled = false } = req.body;
+
+      if (!content?.trim()) {
+        return res.status(400).json({ error: 'Message content is required' });
+      }
+
+      // Check membership (admins/managers can message any team)
+      if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
+        const [membership] = await db.select().from(channelMembers)
+          .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, senderId)));
+        if (!membership) {
+          return res.status(403).json({ error: 'Not a member of this team' });
+        }
+      }
+
+      const [newMsg] = await db.insert(channelMessages).values({
+        channelId,
+        senderId,
+        content: content.trim(),
+        priority,
+        smsEnabled,
+      }).returning();
+
+      // If SMS enabled, send SMS to all channel members with consent
+      if (smsEnabled) {
+        const allMembers = await db.select({ userId: channelMembers.userId })
+          .from(channelMembers).where(eq(channelMembers.channelId, channelId));
+        const memberIds = allMembers.map(m => m.userId).filter(id => id !== senderId);
+
+        if (memberIds.length > 0) {
+          const [channel] = await db.select().from(chatChannels).where(eq(chatChannels.id, channelId));
+          const sender = await storage.getUser(senderId);
+          const senderName = sender ? `${sender.firstName} ${sender.lastName}` : 'Team member';
+
+          await smartNotificationService.sendBulkSmartNotifications(
+            memberIds,
+            {
+              messageType: 'announcement',
+              priority: priority as any,
+              content: {
+                title: `Team Message: ${channel?.name || 'Team'}`,
+                message: `${senderName}: ${content.trim()}`
+              },
+              targetAudience: `team:${channelId}`,
+            }
+          );
+        }
+      }
+
+      res.json({ success: true, message: newMsg });
+    } catch (error) {
+      console.error('Error sending team message:', error);
+      res.status(500).json({ message: 'Failed to send team message' });
+    }
+  });
+
+  // GET /api/employees/:id/teams — team memberships for an employee
+  app.get('/api/employees/:id/teams', isAuthenticated, async (req: any, res) => {
+    try {
+      const employeeId = req.params.id;
+      const memberships = await db.select({ channelId: channelMembers.channelId })
+        .from(channelMembers).where(eq(channelMembers.userId, employeeId));
+      res.json(memberships.map(m => m.channelId));
+    } catch (error) {
+      console.error('Error fetching employee teams:', error);
+      res.status(500).json({ message: 'Failed to fetch employee teams' });
+    }
+  });
+
+  // PUT /api/employees/:id/teams — update team memberships (admin/manager only)
+  app.put('/api/employees/:id/teams', isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
+        return res.status(403).json({ error: 'Only admins and managers can update team assignments' });
+      }
+
+      const employeeId = req.params.id;
+      const { teamIds } = req.body; // array of channel IDs (numbers)
+
+      if (!Array.isArray(teamIds)) {
+        return res.status(400).json({ error: 'teamIds must be an array' });
+      }
+
+      // Get all team channels
+      const allTeams = await db.select({ id: chatChannels.id }).from(chatChannels)
+        .where(and(eq(chatChannels.type, 'team'), eq(chatChannels.isActive, true)));
+      const allTeamIds = allTeams.map(t => t.id);
+
+      // Remove from teams not in the new list
+      const toRemove = allTeamIds.filter(tid => !teamIds.includes(tid));
+      if (toRemove.length > 0) {
+        await db.delete(channelMembers)
+          .where(and(
+            eq(channelMembers.userId, employeeId),
+            inArray(channelMembers.channelId, toRemove)
+          ));
+      }
+
+      // Add to teams in the new list
+      for (const tid of teamIds) {
+        if (allTeamIds.includes(tid)) {
+          await db.insert(channelMembers).values({
+            channelId: tid,
+            userId: employeeId,
+            role: 'member',
+          }).onConflictDoNothing();
+        }
+      }
+
+      res.json({ success: true, teamIds });
+    } catch (error) {
+      console.error('Error updating employee teams:', error);
+      res.status(500).json({ message: 'Failed to update team assignments' });
     }
   });
 
@@ -22301,7 +22566,15 @@ Respond in JSON format:
             break;
           // Legacy support for old format
           default:
-            if (processedTargetAudience.startsWith('role:')) {
+            if (processedTargetAudience.startsWith('team:')) {
+              const teamChannelId = parseInt(processedTargetAudience.replace('team:', ''));
+              if (!isNaN(teamChannelId)) {
+                const members = await db.select({ userId: channelMembers.userId })
+                  .from(channelMembers).where(eq(channelMembers.channelId, teamChannelId));
+                const memberIds = new Set(members.map(m => m.userId));
+                targetUsers = eligibleUsers.filter(user => memberIds.has(user.id));
+              }
+            } else if (processedTargetAudience.startsWith('role:')) {
               const targetRole = processedTargetAudience.replace('role:', '');
               targetUsers = eligibleUsers.filter(user => user.role === targetRole);
             } else if (processedTargetAudience.startsWith('store:')) {
@@ -23229,6 +23502,14 @@ Respond in JSON format:
           targetUsers = eligibleUsers.filter(user => 
             user.role === 'admin' || user.role === 'manager'
           );
+        } else if (targetAudience.startsWith('team:')) {
+          const teamChannelId = parseInt(targetAudience.replace('team:', ''));
+          if (!isNaN(teamChannelId)) {
+            const members = await db.select({ userId: channelMembers.userId })
+              .from(channelMembers).where(eq(channelMembers.channelId, teamChannelId));
+            const memberIds = new Set(members.map(m => m.userId));
+            targetUsers = eligibleUsers.filter(user => memberIds.has(user.id));
+          }
         } else if (targetAudience.startsWith('role:')) {
           const targetRole = targetAudience.replace('role:', '');
           targetUsers = eligibleUsers.filter(user => user.role === targetRole);

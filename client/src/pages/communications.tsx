@@ -134,7 +134,11 @@ const getTargetAudienceIcon = (audience: string) => {
   return <Users className="h-4 w-4" />;
 };
 
-const formatAudience = (audience: string) => {
+const formatAudience = (audience: string, teamsMap?: Record<number, string>) => {
+  if (audience?.startsWith('team:')) {
+    const id = parseInt(audience.replace('team:', ''));
+    return teamsMap?.[id] ? `Team: ${teamsMap[id]}` : `Team #${id}`;
+  }
   switch (audience) {
     case 'all': return 'All Staff';
     case 'employees-only': return 'Employees Only';
@@ -146,8 +150,8 @@ const formatAudience = (audience: string) => {
     case 'watertown-retail': return 'Watertown Retail';
     case 'watertown-spa': return 'Watertown Spa';
     case 'online-team': return 'Online Team';
-    case 'specific': return 'Selected Recipients';  // Handle specific targeting
-    default: return audience.charAt(0).toUpperCase() + audience.slice(1);
+    case 'specific': return 'Selected Recipients';
+    default: return audience ? audience.charAt(0).toUpperCase() + audience.slice(1) : '';
   }
 };
 
@@ -896,6 +900,9 @@ function CommunicationsContent() {
   
   // Dialog states
   const [showDirectMessageDialog, setShowDirectMessageDialog] = useState(false);
+  const [showTeamMessageDialog, setShowTeamMessageDialog] = useState(false);
+  const [teamMessageForm, setTeamMessageForm] = useState({ teamId: '', content: '', smsEnabled: false });
+  const [teamMessageSending, setTeamMessageSending] = useState(false);
   
   // Employee search state for regular communications
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
@@ -930,6 +937,31 @@ function CommunicationsContent() {
     },
     retry: 1,
   });
+
+  // Fetch teams
+  const { data: allTeams = [] } = useQuery<any[]>({
+    queryKey: ["/api/teams"],
+    queryFn: async () => {
+      const response = await fetch("/api/teams", { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    retry: 1,
+  });
+
+  // Fetch employee's own teams (for employee role team messaging)
+  const { data: myTeams = [] } = useQuery<any[]>({
+    queryKey: ["/api/teams/my"],
+    queryFn: async () => {
+      const response = await fetch("/api/teams/my", { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    retry: 1,
+    enabled: user?.role === 'employee',
+  });
+
+  const teamsMap: Record<number, string> = Object.fromEntries(allTeams.map((t: any) => [t.id, t.name]));
   
   // Fetch announcements (existing functionality)
   // Fetch traditional announcements
@@ -1277,6 +1309,33 @@ function CommunicationsContent() {
     createDirectMessageMutation.mutate(directMessageData);
   };
 
+  const handleSendTeamMessage = async () => {
+    if (!teamMessageForm.teamId) {
+      toast({ title: 'Select a team', description: 'Please select a team to message', variant: 'destructive' });
+      return;
+    }
+    if (!teamMessageForm.content.trim()) {
+      toast({ title: 'Message required', description: 'Please enter a message', variant: 'destructive' });
+      return;
+    }
+    setTeamMessageSending(true);
+    try {
+      const response = await apiRequest('POST', `/api/teams/${teamMessageForm.teamId}/messages`, {
+        content: teamMessageForm.content.trim(),
+        smsEnabled: teamMessageForm.smsEnabled,
+        priority: 'normal',
+      });
+      if (!response.ok) throw new Error('Failed to send');
+      toast({ title: 'Message sent', description: 'Your team message was sent successfully.' });
+      setShowTeamMessageDialog(false);
+      setTeamMessageForm({ teamId: '', content: '', smsEnabled: false });
+    } catch (err) {
+      toast({ title: 'Send failed', description: 'Could not send team message.', variant: 'destructive' });
+    } finally {
+      setTeamMessageSending(false);
+    }
+  };
+
   // Utility functions are now defined at top level
 
   // Filter announcements
@@ -1482,6 +1541,78 @@ function CommunicationsContent() {
           
           </div>
         </div>
+
+        {/* Employee: Send Team Message */}
+        {user?.role === 'employee' && myTeams.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Users className="w-5 h-5 text-green-600" />
+                Team Messaging
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Send a message to one of your teams
+              </p>
+            </div>
+            <Dialog open={showTeamMessageDialog} onOpenChange={setShowTeamMessageDialog}>
+              <DialogTrigger asChild>
+                <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white shadow-lg">
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Team Message
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md mx-4 sm:mx-0">
+                <DialogHeader>
+                  <DialogTitle>Send Team Message</DialogTitle>
+                  <DialogDescription>Send a message to your team members</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div>
+                    <Label>Select Team</Label>
+                    <Select value={teamMessageForm.teamId} onValueChange={(v) => setTeamMessageForm(f => ({ ...f, teamId: v }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a team..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {myTeams.map((team: any) => (
+                          <SelectItem key={team.id} value={String(team.id)}>{team.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Message</Label>
+                    <Textarea
+                      placeholder="Type your message here..."
+                      value={teamMessageForm.content}
+                      onChange={(e) => setTeamMessageForm(f => ({ ...f, content: e.target.value }))}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="team-sms-enabled"
+                      checked={teamMessageForm.smsEnabled}
+                      onChange={(e) => setTeamMessageForm(f => ({ ...f, smsEnabled: e.target.checked }))}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="team-sms-enabled" className="text-sm font-normal cursor-pointer">
+                      Also send via SMS (to members with SMS consent)
+                    </Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowTeamMessageDialog(false)}>Cancel</Button>
+                  <Button onClick={handleSendTeamMessage} disabled={teamMessageSending} className="bg-green-600 hover:bg-green-700">
+                    <Send className="w-4 h-4 mr-2" />
+                    {teamMessageSending ? 'Sending...' : 'Send'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
 
         {/* Admin/Manager Communication Tools - Separate Section */}
         {(user?.role === 'admin' || user?.role === 'manager') && (
@@ -1720,6 +1851,14 @@ function CommunicationsContent() {
                       <SelectItem value="watertown-retail">Watertown Retail</SelectItem>
                       <SelectItem value="watertown-spa">Watertown Spa</SelectItem>
                       <SelectItem value="online-team">Online Team</SelectItem>
+                      {allTeams.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-2">Teams</div>
+                          {allTeams.map((team: any) => (
+                            <SelectItem key={`team:${team.id}`} value={`team:${team.id}`}>{team.name}</SelectItem>
+                          ))}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -2715,6 +2854,14 @@ function CommunicationsContent() {
                           <SelectItem value="admins-managers">Admins & Managers</SelectItem>
                           <SelectItem value="managers-only">Managers Only</SelectItem>
                           <SelectItem value="admins-only">Admins Only</SelectItem>
+                          {allTeams.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-2">Teams</div>
+                              {allTeams.map((team: any) => (
+                                <SelectItem key={`team:${team.id}`} value={`team:${team.id}`}>{team.name}</SelectItem>
+                              ))}
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>

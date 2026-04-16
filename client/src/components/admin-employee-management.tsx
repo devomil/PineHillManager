@@ -433,6 +433,52 @@ export default function AdminEmployeeManagement() {
     staleTime: 30000,
   });
 
+  // Team assignment state
+  const [editingTeamIds, setEditingTeamIds] = useState<number[]>([]);
+  const [teamsSaving, setTeamsSaving] = useState(false);
+
+  // Fetch all teams
+  const { data: allTeams = [] } = useQuery<any[]>({
+    queryKey: ['/api/teams'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/teams');
+      return response.json();
+    },
+    staleTime: 60000,
+  });
+
+  // Fetch employee's current team memberships when editing
+  const { data: employeeTeamIds = [] } = useQuery<number[]>({
+    queryKey: ['/api/employees', selectedEmployee?.id, 'teams'],
+    queryFn: async () => {
+      if (!selectedEmployee?.id) return [];
+      const response = await apiRequest('GET', `/api/employees/${selectedEmployee.id}/teams`);
+      return response.json();
+    },
+    enabled: !!selectedEmployee?.id && editDialogOpen,
+    staleTime: 30000,
+  });
+
+  // Sync employee team IDs when the query data loads
+  useEffect(() => {
+    setEditingTeamIds(employeeTeamIds);
+  }, [JSON.stringify(employeeTeamIds)]);
+
+  const handleSaveTeams = async () => {
+    if (!selectedEmployee) return;
+    setTeamsSaving(true);
+    try {
+      const response = await apiRequest('PUT', `/api/employees/${selectedEmployee.id}/teams`, { teamIds: editingTeamIds });
+      if (!response.ok) throw new Error('Failed to update teams');
+      queryClient.invalidateQueries({ queryKey: ['/api/employees', selectedEmployee.id, 'teams'] });
+      toast({ title: 'Teams updated', description: 'Team assignments saved successfully.' });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to save team assignments.', variant: 'destructive' });
+    } finally {
+      setTeamsSaving(false);
+    }
+  };
+
   // Time Clock queries
   const { data: timeEntries = [], isLoading: timeEntriesLoading } = useQuery({
     queryKey: ['/api/admin/time-clock/entries', selectedEmployeeId, fromDate, toDate],
@@ -2869,6 +2915,55 @@ export default function AdminEmployeeManagement() {
                 <SMSConsentHistoryComponent employeeId={selectedEmployee.id} />
               )}
             </div>
+
+            {/* Team Assignments */}
+            {allTeams.length > 0 && (
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1">Team Assignments</h3>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Select which teams this employee belongs to
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {allTeams.map((team: any) => (
+                    <div key={team.id} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
+                      <input
+                        type="checkbox"
+                        id={`team-${team.id}`}
+                        checked={editingTeamIds.includes(team.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditingTeamIds(ids => [...ids, team.id]);
+                          } else {
+                            setEditingTeamIds(ids => ids.filter(id => id !== team.id));
+                          }
+                        }}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor={`team-${team.id}`} className="font-medium cursor-pointer text-sm">
+                          {team.name}
+                        </Label>
+                        {team.description && (
+                          <p className="text-xs text-slate-500">{team.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSaveTeams}
+                  disabled={teamsSaving}
+                  className="border-green-300 text-green-700 hover:bg-green-50"
+                >
+                  {teamsSaving ? 'Saving...' : 'Save Team Assignments'}
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
         
