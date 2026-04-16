@@ -220,6 +220,49 @@ export default function PractitionerDashboard() {
     );
   };
 
+  const getScanTypeChip = (value: string | null | undefined) => {
+    if (!value) {
+      return <span className="text-xs text-muted-foreground italic">— None —</span>;
+    }
+    const dots: Record<string, string> = {
+      'Remote Initial Scan': 'bg-blue-500',
+      'Follow-Up Scan':      'bg-purple-500',
+      'Pet Scan':            'bg-teal-500',
+      'Quick Calls':         'bg-orange-500',
+    };
+    const dot = dots[value] || 'bg-gray-400';
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+        <span className={`h-2 w-2 rounded-full ${dot} shrink-0`} />
+        {value}
+      </span>
+    );
+  };
+
+  const getPaymentChip = (value: string | null | undefined) => {
+    const config: Record<string, { dot: string; label: string }> = {
+      'Paid Online - Received':                       { dot: 'bg-green-500',   label: 'Online · Received' },
+      'Paid Online - Waiting Payment Confirmation':   { dot: 'bg-yellow-500',  label: 'Online · Waiting' },
+      'Paid In-Store - Received':                     { dot: 'bg-emerald-600', label: 'In-Store · Received' },
+      'Paid In-Store - Waiting Payment Confirmation': { dot: 'bg-amber-500',   label: 'In-Store · Waiting' },
+    };
+    if (!value || !config[value]) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 whitespace-nowrap">
+          <span className="h-2 w-2 rounded-full bg-gray-300 shrink-0" />
+          Not set
+        </span>
+      );
+    }
+    const c = config[value];
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+        <span className={`h-2 w-2 rounded-full ${c.dot} shrink-0`} />
+        {c.label}
+      </span>
+    );
+  };
+
   const PAYMENT_TYPE_LABELS: Record<string, string> = {
     "Paid Online - Received": "Online · Received",
     "Paid Online - Waiting Payment Confirmation": "Online · Waiting",
@@ -470,8 +513,8 @@ export default function PractitionerDashboard() {
                                   });
                                 }}
                               >
-                                <SelectTrigger className="w-40 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
-                                  <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
+                                <SelectTrigger className="w-44 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                  <SelectValue>{getScanTypeChip((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="__none__">
@@ -553,10 +596,8 @@ export default function PractitionerDashboard() {
                                   });
                                 }}
                               >
-                                <SelectTrigger className="w-36 text-xs h-7">
-                                  <SelectValue>
-                                    {getPaymentTypeShort((contact as any).paymentType)}
-                                  </SelectValue>
+                                <SelectTrigger className="w-44 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                  <SelectValue>{getPaymentChip((contact as any).paymentType)}</SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="w-72">
                                   <SelectItem value="none">— Not set —</SelectItem>
@@ -706,8 +747,8 @@ export default function PractitionerDashboard() {
                                       });
                                     }}
                                   >
-                                    <SelectTrigger className="w-40 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
-                                      <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
+                                    <SelectTrigger className="w-44 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                      <SelectValue>{getScanTypeChip((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="__none__">
@@ -784,8 +825,8 @@ export default function PractitionerDashboard() {
                                       });
                                     }}
                                   >
-                                    <SelectTrigger className="w-36 text-xs h-7">
-                                      <SelectValue>{getPaymentTypeShort((contact as any).paymentType)}</SelectValue>
+                                    <SelectTrigger className="w-44 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                      <SelectValue>{getPaymentChip((contact as any).paymentType)}</SelectValue>
                                     </SelectTrigger>
                                     <SelectContent className="w-72">
                                       <SelectItem value="none">— Not set —</SelectItem>
@@ -933,8 +974,8 @@ export default function PractitionerDashboard() {
                                 });
                               }}
                             >
-                              <SelectTrigger className="w-44 h-auto py-1 px-2 border-transparent shadow-none hover:border-gray-200 focus:ring-0">
-                                <SelectValue>{getScanTypePill((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
+                              <SelectTrigger className="w-44 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                <SelectValue>{getScanTypeChip((contact as any).scanType || parseScanTypeFromNotes(contact.clientNotes)?.split(',')[0]?.trim())}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__none__">
@@ -972,10 +1013,10 @@ export default function PractitionerDashboard() {
                                 });
                               }}
                             >
-                              <SelectTrigger className="w-36 h-auto py-1 px-2">
-                                <SelectValue>{getStatusBadge(contact.status)}</SelectValue>
+                              <SelectTrigger className="w-36 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                <SelectValue>{getStatusChip(contact.status)}</SelectValue>
                               </SelectTrigger>
-                              <SelectContent className="w-44">
+                              <SelectContent className="w-48">
                                 {statusTypes.map(st => (
                                   <SelectItem key={st.value} value={st.value}>
                                     <span className="flex items-center gap-2">{getStatusBadge(st.value)}</span>
@@ -1006,10 +1047,8 @@ export default function PractitionerDashboard() {
                                 });
                               }}
                             >
-                              <SelectTrigger className="w-44 text-xs h-8">
-                                <SelectValue>
-                                  {getPaymentTypeShort((contact as any).paymentType)}
-                                </SelectValue>
+                              <SelectTrigger className="w-44 h-7 px-2 text-xs border-transparent shadow-none hover:border-gray-200 focus:ring-0">
+                                <SelectValue>{getPaymentChip((contact as any).paymentType)}</SelectValue>
                               </SelectTrigger>
                               <SelectContent className="w-72">
                                 <SelectItem value="none">— Not set —</SelectItem>
