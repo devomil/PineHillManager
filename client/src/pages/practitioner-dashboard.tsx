@@ -297,8 +297,8 @@ export default function PractitionerDashboard() {
           </Button>
         </div>
 
-        {/* Quick Links — PracticeBetter pages (admin & manager only) */}
-        {(user?.role === 'admin' || user?.role === 'manager') && (
+        {/* Quick Links — temporarily hidden from all users (revisit later) */}
+        {false && (user?.role === 'admin' || user?.role === 'manager') && (
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Links</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
