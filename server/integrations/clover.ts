@@ -1843,38 +1843,56 @@ export class CloverIntegration {
     status: number | 'error';
     sample: string;
   }>> {
-    const candidates: string[] = [
-      `programs`,
-      `program_customer_metrics`,
-      `loyalty_program`,
-      `customer_audiences`,
-    ];
+    const tag = this.config.merchantName ?? this.config.merchantId;
+    const out: Array<{ endpoint: string; status: number | 'error'; sample: string }> = [];
+
+    // Routes the call through the existing retry/backoff wrapper. The wrapper
+    // throws on non-2xx with a message of the form
+    //   `Clover API error: <status> <statusText> - <body>`
+    // — parse that out so the probe can record the HTTP status without
+    // duplicating the wrapper's networking logic.
+    const probe = async (ep: string) => {
+      try {
+        const json = await this.makeCloverAPICallWithConfig(ep, this.config, 'GET', undefined, 1);
+        const sample = JSON.stringify(json).slice(0, 200);
+        out.push({ endpoint: ep, status: 200, sample });
+        console.log(`[CloverLoyaltyDiscovery] ${tag} ${ep} → 200 ${sample}`);
+        return json;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const m = msg.match(/Clover API error:\s*(\d+)\b/);
+        const status: number | 'error' = m ? Number(m[1]) : 'error';
+        const sample = msg.length > 200 ? msg.slice(0, 200) + '…' : msg;
+        out.push({ endpoint: ep, status, sample });
+        console.warn(`[CloverLoyaltyDiscovery] ${tag} ${ep} → ${status} ${sample.replace(/\s+/g, ' ').slice(0, 160)}`);
+        return null;
+      }
+    };
+
+    // 1. /programs — if it returns programs, chain into the per-program
+    //    customer-metrics endpoint that the task spec calls out explicitly.
+    const programsJson = await probe(`programs`);
+    const programIds: string[] = [];
+    if (programsJson && Array.isArray(programsJson?.elements)) {
+      for (const p of programsJson.elements) {
+        if (p && typeof p.id === 'string') programIds.push(p.id);
+      }
+    }
+    for (const pid of programIds) {
+      await probe(`programs/${pid}/program_customer_metrics`);
+    }
+
+    // 2. Other documented loyalty surfaces.
+    await probe(`loyalty_program`);
+    await probe(`customer_audiences`);
+
+    // 3. Customer expand variants (only meaningful with a sample customer).
     if (sampleCustomerId) {
-      candidates.push(
+      await probe(
         `customers/${sampleCustomerId}?expand=loyaltyPoints,programMetrics,rewards`
       );
     }
-    const out: Array<{ endpoint: string; status: number | 'error'; sample: string }> = [];
-    for (const ep of candidates) {
-      try {
-        const url = `https://api.clover.com/v3/merchants/${this.config.merchantId}/${ep}`;
-        const resp = await fetch(url, {
-          headers: { Authorization: `Bearer ${this.config.accessToken}` },
-        });
-        const body = await resp.text();
-        const sample = body.length > 200 ? body.slice(0, 200) + '…' : body;
-        out.push({ endpoint: ep, status: resp.status, sample });
-        console.log(
-          `[CloverLoyaltyDiscovery] ${this.config.merchantName ?? this.config.merchantId} ${ep} → ${resp.status} ${sample.replace(/\s+/g, ' ').slice(0, 160)}`
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        out.push({ endpoint: ep, status: 'error', sample: msg });
-        console.warn(
-          `[CloverLoyaltyDiscovery] ${this.config.merchantName ?? this.config.merchantId} ${ep} → ERROR ${msg}`
-        );
-      }
-    }
+
     return out;
   }
 

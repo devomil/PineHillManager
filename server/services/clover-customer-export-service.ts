@@ -325,9 +325,17 @@ async function runExportJob(job: ExportJob): Promise<void> {
           if (i >= customers.length) return;
           const customer = customers[i];
           if (livePoints.has(customer.id)) {
-            merchantPoints.set(customer.id, livePoints.get(customer.id)!);
-            progress.loyaltyFetched++;
-            loyaltySuccessTotal++;
+            const pts = livePoints.get(customer.id)!;
+            merchantPoints.set(customer.id, pts);
+            // Normalize counting with reconstructed mode: only customers with
+            // a positive balance count toward `loyaltyFetched`. Zero-balance
+            // customers are still written to the CSV (with 0) but they aren't
+            // counted as "fetched" so the progress totals stay comparable
+            // across live vs. reconstructed runs.
+            if (pts > 0) {
+              progress.loyaltyFetched++;
+              loyaltySuccessTotal++;
+            }
             continue;
           }
           loyaltyAttemptTotal++;
@@ -335,8 +343,10 @@ async function runExportJob(job: ExportJob): Promise<void> {
             const r = await integration.fetchCustomerLoyaltyPoints(customer.id);
             if (r.points !== null) {
               merchantPoints.set(customer.id, r.points);
-              progress.loyaltyFetched++;
-              loyaltySuccessTotal++;
+              if (r.points > 0) {
+                progress.loyaltyFetched++;
+                loyaltySuccessTotal++;
+              }
             } else {
               progress.loyaltyErrors++;
             }
