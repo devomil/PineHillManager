@@ -10,6 +10,9 @@ interface MerchantProgress {
   customersFetched: number;
   loyaltyFetched: number;
   loyaltyErrors: number;
+  loyaltySource: 'live' | 'reconstructed' | 'unavailable' | 'pending';
+  ordersScanned: number;
+  rewardOrders: number;
   done: boolean;
 }
 
@@ -244,6 +247,18 @@ async function runExportJob(job: ExportJob): Promise<void> {
   let loyaltyAttemptTotal = 0;
   const loyaltyErrorSamples = new Set<string>();
 
+  // Pine Hill's rewards program launched 2025-08-13 (config: programs prior
+  // to this date didn't exist, so order history from this point onward fully
+  // reconstructs the current balance).
+  const PROGRAM_START_MS = Date.parse(
+    process.env.CLOVER_REWARDS_PROGRAM_START ?? '2025-08-13T00:00:00Z'
+  );
+  // Default: 100 points = $5 reward (Clover's stock rewards menu).
+  // Override via env if Pine Hill's redemption rate changes.
+  const POINTS_PER_DOLLAR_REDEEMED = Number(
+    process.env.CLOVER_REWARDS_POINTS_PER_DOLLAR_REDEEMED ?? '20'
+  );
+
   for (const cfg of activeConfigs) {
     const merchantName = cfg.merchantName || cfg.merchantId;
     const progress: MerchantProgress = {
@@ -252,6 +267,9 @@ async function runExportJob(job: ExportJob): Promise<void> {
       customersFetched: 0,
       loyaltyFetched: 0,
       loyaltyErrors: 0,
+      loyaltySource: 'pending',
+      ordersScanned: 0,
+      rewardOrders: 0,
       done: false,
     };
     job.merchants.push(progress);
@@ -264,80 +282,123 @@ async function runExportJob(job: ExportJob): Promise<void> {
     });
     progress.customersFetched = customers.length;
 
-    // Pull loyalty in parallel with a small worker pool. Clover's
-    // makeCloverAPICallWithConfig already handles 429 with exponential backoff,
-    // so a low-concurrency pool stays well within rate limits while cutting
-    // wall-clock time dramatically vs. sequential 60ms-paced calls.
-    const CONCURRENCY = 5;
-    // Probe size: if the first N attempts all fail with no successes, the
-    // loyalty scope is almost certainly missing — skip the remainder fast
-    // instead of spending minutes hitting an unavailable endpoint.
-    const PROBE_SIZE = Math.min(20, customers.length);
-    const points: Array<number | null> = new Array(customers.length).fill(null);
-    // Probe state is intentionally per-merchant: a different merchant's Clover
-    // token may have the loyalty scope even when this one doesn't, so we can't
-    // share success/failure tallies across merchants.
-    let merchantAttempts = 0;
-    let merchantSuccesses = 0;
-    let probeFailures = 0;
-    let endpointDisabled = false;
-    let nextIndex = 0;
-
-    const worker = async () => {
-      while (true) {
-        const i = nextIndex++;
-        if (i >= customers.length) return;
-        const customer = customers[i];
-
-        if (endpointDisabled) {
-          // Short-circuit: probe established the endpoint isn't available.
-          continue;
+    // Step 1: Quick live-endpoint probe. We tested every documented Clover
+    // loyalty path and they all 405 for these tokens, but a future scope grant
+    // could change that — so we still try a tiny sample (3 customers) before
+    // committing to the order-history reconstruction.
+    //
+    // Routing rule: live mode is selected if the probe shows the endpoint is
+    // *reachable* (any HTTP status other than 405 from the loyalty paths),
+    // even when the sampled customers happen to return zero balances. Routing
+    // on "did sample customers have points" would incorrectly downgrade a
+    // working endpoint to reconstruction whenever the first 3 customers were
+    // unenrolled.
+    const PROBE_SIZE = Math.min(3, customers.length);
+    const livePoints = new Map<string, number>();
+    let endpointReachable = false;
+    for (let i = 0; i < PROBE_SIZE; i++) {
+      loyaltyAttemptTotal++;
+      try {
+        const r = await integration.fetchCustomerLoyaltyPoints(customers[i].id);
+        if (r.points !== null) {
+          livePoints.set(customers[i].id, r.points);
+          endpointReachable = true;
+        } else if (r.error) {
+          // The error message embeds the HTTP status (e.g. "Clover API error: 405 …").
+          // Anything other than 405 means *some* loyalty path was reachable —
+          // 404 / 200-with-no-shape both still indicate the merchant could be
+          // serving balances; 405 is Clover's "this path doesn't exist for your
+          // token's scope" response and is the only definitive disable signal.
+          if (!/\b405\b/.test(r.error)) endpointReachable = true;
+          if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(r.error);
+        } else {
+          // No error but null points → endpoint succeeded with empty/unknown
+          // shape. That counts as reachable.
+          endpointReachable = true;
         }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/\b405\b/.test(msg)) endpointReachable = true;
+        if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(msg);
+      }
+    }
 
-        loyaltyAttemptTotal++;
-        merchantAttempts++;
-        try {
-          const result = await integration.fetchCustomerLoyaltyPoints(customer.id);
-          if (result.points !== null) {
-            points[i] = result.points;
+    let merchantPoints = new Map<string, number>();
+
+    if (endpointReachable) {
+      // Live endpoint works — pull every customer's balance with a small pool.
+      progress.loyaltySource = 'live';
+      const CONCURRENCY = 5;
+      let nextIndex = 0;
+      const worker = async () => {
+        while (true) {
+          const i = nextIndex++;
+          if (i >= customers.length) return;
+          const customer = customers[i];
+          if (livePoints.has(customer.id)) {
+            merchantPoints.set(customer.id, livePoints.get(customer.id)!);
             progress.loyaltyFetched++;
             loyaltySuccessTotal++;
-            merchantSuccesses++;
-          } else {
-            progress.loyaltyErrors++;
-            if (result.error && loyaltyErrorSamples.size < 3) {
-              loyaltyErrorSamples.add(result.error);
-            }
-            if (merchantSuccesses === 0 && merchantAttempts <= PROBE_SIZE) {
-              probeFailures++;
-              if (probeFailures >= PROBE_SIZE) {
-                endpointDisabled = true;
-                console.warn(
-                  `[CloverExport] Loyalty endpoint unavailable for ${merchantName} after ${PROBE_SIZE} probes — skipping remaining loyalty lookups.`
-                );
-              }
-            }
+            continue;
           }
-        } catch (err) {
-          progress.loyaltyErrors++;
-          const msg = err instanceof Error ? err.message : String(err);
-          if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(msg);
-          if (merchantSuccesses === 0 && merchantAttempts <= PROBE_SIZE) {
-            probeFailures++;
-            if (probeFailures >= PROBE_SIZE) {
-              endpointDisabled = true;
+          loyaltyAttemptTotal++;
+          try {
+            const r = await integration.fetchCustomerLoyaltyPoints(customer.id);
+            if (r.points !== null) {
+              merchantPoints.set(customer.id, r.points);
+              progress.loyaltyFetched++;
+              loyaltySuccessTotal++;
+            } else {
+              progress.loyaltyErrors++;
             }
+          } catch {
+            progress.loyaltyErrors++;
           }
         }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, customers.length) }, () => worker())
+      );
+    } else {
+      // Live endpoint unavailable — reconstruct from order history. Pine Hill's
+      // program started after the order sync window begins, so this is complete.
+      console.log(
+        `[CloverExport] Loyalty endpoint unavailable for ${merchantName} — reconstructing from orders since ${new Date(PROGRAM_START_MS).toISOString()}.`
+      );
+      try {
+        const recon = await integration.reconstructLoyaltyBalancesFromOrders({
+          sinceMs: PROGRAM_START_MS,
+          pointsPerDollarRedeemed: POINTS_PER_DOLLAR_REDEEMED,
+          onProgress: (n) => {
+            progress.ordersScanned = n;
+          },
+        });
+        merchantPoints = recon.balances;
+        progress.ordersScanned = recon.ordersScanned;
+        progress.rewardOrders = recon.rewardOrders;
+        progress.loyaltySource = 'reconstructed';
+        // Count customers that ended up with a positive balance
+        for (const [, v] of merchantPoints) {
+          if (v > 0) {
+            progress.loyaltyFetched++;
+            loyaltySuccessTotal++;
+          }
+        }
+      } catch (err) {
+        progress.loyaltySource = 'unavailable';
+        const msg = err instanceof Error ? err.message : String(err);
+        loyaltyErrorSamples.add(`reconstruction failed: ${msg}`);
+        console.error(`[CloverExport] Reconstruction failed for ${merchantName}:`, err);
       }
-    };
+    }
 
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, customers.length) }, () => worker())
-    );
-
-    for (let i = 0; i < customers.length; i++) {
-      allRows.push({ merchantName, customer: customers[i], loyaltyPoints: points[i] });
+    for (const customer of customers) {
+      const pts = merchantPoints.get(customer.id);
+      allRows.push({
+        merchantName,
+        customer,
+        loyaltyPoints: pts !== undefined ? pts : null,
+      });
     }
     progress.done = true;
   }
@@ -349,19 +410,37 @@ async function runExportJob(job: ExportJob): Promise<void> {
   job.totalCustomers = allRows.length;
   job.totalWithLoyalty = loyaltySuccessTotal;
 
-  // Determine if loyalty endpoint is available at all
-  if (loyaltyAttemptTotal > 0) {
-    job.loyaltyEndpointAvailable = loyaltySuccessTotal > 0;
-    if (loyaltySuccessTotal === 0) {
-      job.loyaltyWarning =
-        'Loyalty endpoint returned no balances for any customer. The Clover API token likely lacks the loyalty/rewards scope. ' +
-        'Sample errors: ' + Array.from(loyaltyErrorSamples).join(' | ');
-    } else if (loyaltySuccessTotal < loyaltyAttemptTotal) {
-      job.loyaltyWarning =
-        `Loyalty balances were returned for ${loyaltySuccessTotal} of ${loyaltyAttemptTotal} customers. ` +
-        'Customers without a balance are likely not enrolled in the rewards program.';
-    }
+  // Build a per-merchant loyalty source summary
+  const liveMerchants = job.merchants.filter((m) => m.loyaltySource === 'live');
+  const reconMerchants = job.merchants.filter((m) => m.loyaltySource === 'reconstructed');
+  const failedMerchants = job.merchants.filter((m) => m.loyaltySource === 'unavailable');
+
+  job.loyaltyEndpointAvailable = liveMerchants.length > 0;
+
+  const parts: string[] = [];
+  if (liveMerchants.length > 0) {
+    parts.push(
+      `Live API balances pulled for: ${liveMerchants.map((m) => m.merchantName).join(', ')}.`
+    );
   }
+  if (reconMerchants.length > 0) {
+    const totalOrders = reconMerchants.reduce((s, m) => s + m.ordersScanned, 0);
+    parts.push(
+      `Balances reconstructed from order history for: ${reconMerchants
+        .map((m) => m.merchantName)
+        .join(', ')} (${totalOrders.toLocaleString()} orders scanned, ` +
+        `1 pt/$1 earned, ${POINTS_PER_DOLLAR_REDEEMED} pts/$1 redeemed via "Rewards" discounts). ` +
+        `Spot-check 5–10 customers against Clover's web Customer Summary page; values within ±5 are expected variance.`
+    );
+  }
+  if (failedMerchants.length > 0) {
+    parts.push(
+      `No loyalty data available for: ${failedMerchants
+        .map((m) => m.merchantName)
+        .join(', ')} — those rows export with 0 points.`
+    );
+  }
+  if (parts.length > 0) job.loyaltyWarning = parts.join(' ');
 
   job.status = 'completed';
   job.finishedAt = new Date();

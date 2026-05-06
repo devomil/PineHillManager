@@ -16,6 +16,9 @@ type MerchantProgress = {
   customersFetched: number;
   loyaltyFetched: number;
   loyaltyErrors: number;
+  loyaltySource: "live" | "reconstructed" | "unavailable" | "pending";
+  ordersScanned: number;
+  rewardOrders: number;
   done: boolean;
 };
 
@@ -159,27 +162,52 @@ function CloverSquareExportContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {job.merchants.map((m) => (
-                <div
-                  key={m.merchantId}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <div className="font-medium">{m.merchantName}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {m.customersFetched.toLocaleString()} customers fetched
-                      {" · "}
-                      {m.loyaltyFetched.toLocaleString()} loyalty balances retrieved
-                      {m.loyaltyErrors > 0 && (
-                        <> · {m.loyaltyErrors.toLocaleString()} without balance</>
-                      )}
+              {job.merchants.map((m) => {
+                const sourceLabel =
+                  m.loyaltySource === "live"
+                    ? "Live API"
+                    : m.loyaltySource === "reconstructed"
+                    ? "Reconstructed from orders"
+                    : m.loyaltySource === "unavailable"
+                    ? "Unavailable"
+                    : "Pending";
+                const sourceVariant =
+                  m.loyaltySource === "live"
+                    ? "default"
+                    : m.loyaltySource === "reconstructed"
+                    ? "secondary"
+                    : m.loyaltySource === "unavailable"
+                    ? "destructive"
+                    : "outline";
+                return (
+                  <div
+                    key={m.merchantId}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
+                    <div>
+                      <div className="font-medium">{m.merchantName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {m.customersFetched.toLocaleString()} customers fetched
+                        {" · "}
+                        {m.loyaltyFetched.toLocaleString()} customers with a balance
+                        {m.loyaltySource === "reconstructed" && m.ordersScanned > 0 && (
+                          <>
+                            {" · "}
+                            {m.ordersScanned.toLocaleString()} orders scanned
+                            {m.rewardOrders > 0 && <> · {m.rewardOrders.toLocaleString()} with redemptions</>}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={sourceVariant as any}>{sourceLabel}</Badge>
+                      <Badge variant={m.done ? "default" : "secondary"}>
+                        {m.done ? "Done" : "Working…"}
+                      </Badge>
                     </div>
                   </div>
-                  <Badge variant={m.done ? "default" : "secondary"}>
-                    {m.done ? "Done" : "Working…"}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -225,7 +253,7 @@ function CloverSquareExportContent() {
             <Button
               variant="outline"
               onClick={() => handleDownload("loyalty")}
-              disabled={!job?.hasLoyaltyCsv || job?.loyaltyEndpointAvailable === false}
+              disabled={!job?.hasLoyaltyCsv}
               className="w-full sm:w-auto"
             >
               <Download className="w-4 h-4 mr-2" />

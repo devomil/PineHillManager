@@ -1832,6 +1832,137 @@ export class CloverIntegration {
 
     return { points: null, source: 'none', error: lastError ?? 'no loyalty endpoint matched' };
   }
+
+  // Reconstruct per-customer loyalty point balances from order history.
+  // Used when Clover's loyalty endpoints are unavailable (all 405s for this
+  // merchant). Pine Hill's program: 1 point per $1 of pre-tax subtotal earned;
+  // a discount line literally named "Rewards" (case-insensitive) with a
+  // negative amount (cents) is treated as a redemption — its dollar value is
+  // converted back to points using `pointsPerDollarRedeemed` (default 20,
+  // matching Clover's stock "100 pts = $5" reward menu).
+  //
+  // Returns a Map<customerId, currentBalance> plus a count of orders scanned.
+  async reconstructLoyaltyBalancesFromOrders(options: {
+    sinceMs: number;
+    pointsPerDollarRedeemed?: number;
+    onProgress?: (ordersScanned: number) => void;
+  }): Promise<{ balances: Map<string, number>; ordersScanned: number; rewardOrders: number }> {
+    const pointsPerDollarRedeemed = options.pointsPerDollarRedeemed ?? 20;
+    const balances = new Map<string, number>();
+    let ordersScanned = 0;
+    let rewardOrders = 0;
+
+    const limit = 200; // smaller page = less timeout risk with full expand
+    let offset = 0;
+    while (true) {
+      const params = new URLSearchParams();
+      params.append('limit', String(limit));
+      params.append('offset', String(offset));
+      params.append('expand', 'customers,lineItems,lineItems.discounts,discounts');
+      params.append('filter', `createdTime>=${options.sinceMs}`);
+      const resp = await this.makeCloverAPICallWithConfig(`orders?${params.toString()}`, this.config);
+      const elements: any[] = resp?.elements ?? [];
+      if (elements.length === 0) break;
+
+      for (const order of elements) {
+        ordersScanned++;
+        // Only finalized (locked) orders accrue/redeem points. We intentionally
+        // do NOT filter on paymentState — Clover often leaves it as 'OPEN' even
+        // for finalized in-store sales when payments aren't expanded.
+        const state = String(order.state ?? '').toLowerCase();
+        if (state !== 'locked') continue;
+
+        const customerId = (order.customers?.elements ?? [])[0]?.id;
+        if (!customerId) continue;
+
+        // Pre-tax subtotal in cents = sum of line items (price * unitQty fallback)
+        // minus all discounts on lines AND order-level discounts. We sum
+        // discounts as their actual sign (rewards are already negative, percent
+        // discounts have no `amount` so we approximate from price * pct).
+        let subtotalCents = 0;
+        let rewardDollars = 0;
+        let lineDiscountCents = 0;
+
+        const lineItems: any[] = order.lineItems?.elements ?? [];
+        for (const li of lineItems) {
+          if (li.refunded) continue;
+          const price = Number(li.price ?? 0);
+          // Clover line items use `unitQty` for weighed items; default 1 for countable
+          const qty = li.unitQty && li.unitQty !== 1000
+            ? Number(li.unitQty) / 1000
+            : Number(li.quantity ?? 1);
+          const lineGross = price * qty;
+          subtotalCents += lineGross;
+
+          for (const d of li.discounts?.elements ?? []) {
+            if (this.isRewardsRedemption(d)) {
+              rewardDollars += Math.abs(Number(d.amount ?? 0)) / 100;
+            } else if (typeof d.amount === 'number') {
+              lineDiscountCents += Math.abs(d.amount);
+            } else if (typeof d.percentage === 'number') {
+              lineDiscountCents += Math.round((lineGross * d.percentage) / 100);
+            }
+          }
+        }
+
+        let orderDiscountCents = 0;
+        for (const d of order.discounts?.elements ?? []) {
+          if (this.isRewardsRedemption(d)) {
+            rewardDollars += Math.abs(Number(d.amount ?? 0)) / 100;
+          } else if (typeof d.amount === 'number') {
+            orderDiscountCents += Math.abs(d.amount);
+          } else if (typeof d.percentage === 'number') {
+            orderDiscountCents += Math.round((subtotalCents * d.percentage) / 100);
+          }
+        }
+
+        const netPretaxDollars = Math.max(
+          0,
+          (subtotalCents - lineDiscountCents - orderDiscountCents) / 100
+        );
+
+        // 1 point per whole pre-tax dollar earned
+        const earned = Math.floor(netPretaxDollars);
+        // Redemption cost (e.g. $5 reward = 100 points at default 20 pts/$)
+        const redeemed = Math.round(rewardDollars * pointsPerDollarRedeemed);
+        if (rewardDollars > 0) rewardOrders++;
+
+        const delta = earned - redeemed;
+        if (delta !== 0) {
+          balances.set(customerId, (balances.get(customerId) ?? 0) + delta);
+        }
+      }
+
+      if (options.onProgress) options.onProgress(ordersScanned);
+
+      if (elements.length < limit) break;
+      offset += limit;
+      // Light pacing — makeCloverAPICallWithConfig already handles 429
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    // Floor at 0 — a customer can't have a negative balance in Clover's UI.
+    for (const [k, v] of balances) {
+      if (v < 0) balances.set(k, 0);
+    }
+
+    return { balances, ordersScanned, rewardOrders };
+  }
+
+  // A Clover Rewards redemption is recorded as a discount named "Rewards" (or
+  // "$X off any purchase" for stock reward menus) with a NEGATIVE `amount` in
+  // cents. Both signals must be present — name alone matches ordinary promos
+  // (e.g. a manager-applied "$5 off"), and a negative amount alone matches
+  // arbitrary cash discounts. Requiring both keeps the redemption count tight.
+  private isRewardsRedemption(discount: any): boolean {
+    const amount = Number(discount?.amount);
+    if (!Number.isFinite(amount) || amount >= 0) return false;
+    const name = String(discount?.name ?? '').toLowerCase().trim();
+    if (!name) return false;
+    if (name === 'rewards' || name === 'reward') return true;
+    if (/^\$\d+(\.\d+)?\s*off\s+(any\s+)?(purchase|order)/.test(name)) return true;
+    return false;
+  }
 }
 
 export const cloverIntegration = new CloverIntegration();
