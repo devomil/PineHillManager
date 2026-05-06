@@ -1725,6 +1725,71 @@ export class CloverIntegration {
       throw error;
     }
   }
+
+  // ========================================
+  // CUSTOMER + LOYALTY EXPORT METHODS
+  // (used by Clover → Square migration export)
+  // ========================================
+
+  // Fetch a single page of customers with all profile data expanded
+  async fetchCustomersPage(options: { limit?: number; offset?: number } = {}): Promise<{ elements: any[]; href?: string }> {
+    const params = new URLSearchParams();
+    params.append('limit', String(options.limit ?? 100));
+    params.append('offset', String(options.offset ?? 0));
+    params.append('expand', 'addresses,emailAddresses,phoneNumbers,metadata,marketingCampaigns,cards');
+    const endpoint = `customers?${params.toString()}`;
+    return await this.makeCloverAPICallWithConfig(endpoint, this.config);
+  }
+
+  // Fetch ALL customers (paged) for the configured merchant
+  async fetchAllCustomers(progressCb?: (count: number) => void): Promise<any[]> {
+    const all: any[] = [];
+    const limit = 100;
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const page = await this.fetchCustomersPage({ limit, offset });
+      const elements = page?.elements ?? [];
+      all.push(...elements);
+      if (progressCb) progressCb(all.length);
+      if (elements.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit;
+        await new Promise((r) => setTimeout(r, 150)); // light rate-limit between pages
+      }
+    }
+    return all;
+  }
+
+  // Fetch the current loyalty point balance for a single customer.
+  // Tries multiple known Clover endpoints; returns { points, source, error? }.
+  async fetchCustomerLoyaltyPoints(customerId: string): Promise<{ points: number | null; source: string; error?: string }> {
+    // Strategy 1: customer-scoped loyalty endpoint
+    const candidates = [
+      { endpoint: `customers/${customerId}/loyalty`, source: 'customers/{id}/loyalty' },
+      { endpoint: `loyalty/customers/${customerId}`, source: 'loyalty/customers/{id}' },
+      { endpoint: `loyalty/customer_balances/${customerId}`, source: 'loyalty/customer_balances/{id}' },
+    ];
+    let lastError: string | undefined;
+    for (const c of candidates) {
+      try {
+        // retries=1 keeps 429/network backoff active without amplifying calls 3x
+        // for thousands of customers when the loyalty scope is missing entirely.
+        const resp = await this.makeCloverAPICallWithConfig(c.endpoint, this.config, 'GET', undefined, 1);
+        // Common shapes: { points: 123 }, { balance: 123 }, { totalPoints: 123 }, { pointsBalance: 123 }
+        const points = (resp?.points ?? resp?.balance ?? resp?.totalPoints ?? resp?.pointsBalance ?? null);
+        if (points !== null && points !== undefined) {
+          return { points: Number(points) || 0, source: c.source };
+        }
+        // Endpoint succeeded but no recognizable shape — keep trying others
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        // try next candidate
+      }
+    }
+    return { points: null, source: 'none', error: lastError ?? 'no loyalty endpoint matched' };
+  }
 }
 
 export const cloverIntegration = new CloverIntegration();
