@@ -264,30 +264,80 @@ async function runExportJob(job: ExportJob): Promise<void> {
     });
     progress.customersFetched = customers.length;
 
-    // Pull loyalty per customer (sequential, with light pacing)
-    for (const customer of customers) {
-      let points: number | null = null;
-      loyaltyAttemptTotal++;
-      try {
-        const result = await integration.fetchCustomerLoyaltyPoints(customer.id);
-        if (result.points !== null) {
-          points = result.points;
-          progress.loyaltyFetched++;
-          loyaltySuccessTotal++;
-        } else {
+    // Pull loyalty in parallel with a small worker pool. Clover's
+    // makeCloverAPICallWithConfig already handles 429 with exponential backoff,
+    // so a low-concurrency pool stays well within rate limits while cutting
+    // wall-clock time dramatically vs. sequential 60ms-paced calls.
+    const CONCURRENCY = 5;
+    // Probe size: if the first N attempts all fail with no successes, the
+    // loyalty scope is almost certainly missing — skip the remainder fast
+    // instead of spending minutes hitting an unavailable endpoint.
+    const PROBE_SIZE = Math.min(20, customers.length);
+    const points: Array<number | null> = new Array(customers.length).fill(null);
+    // Probe state is intentionally per-merchant: a different merchant's Clover
+    // token may have the loyalty scope even when this one doesn't, so we can't
+    // share success/failure tallies across merchants.
+    let merchantAttempts = 0;
+    let merchantSuccesses = 0;
+    let probeFailures = 0;
+    let endpointDisabled = false;
+    let nextIndex = 0;
+
+    const worker = async () => {
+      while (true) {
+        const i = nextIndex++;
+        if (i >= customers.length) return;
+        const customer = customers[i];
+
+        if (endpointDisabled) {
+          // Short-circuit: probe established the endpoint isn't available.
+          continue;
+        }
+
+        loyaltyAttemptTotal++;
+        merchantAttempts++;
+        try {
+          const result = await integration.fetchCustomerLoyaltyPoints(customer.id);
+          if (result.points !== null) {
+            points[i] = result.points;
+            progress.loyaltyFetched++;
+            loyaltySuccessTotal++;
+            merchantSuccesses++;
+          } else {
+            progress.loyaltyErrors++;
+            if (result.error && loyaltyErrorSamples.size < 3) {
+              loyaltyErrorSamples.add(result.error);
+            }
+            if (merchantSuccesses === 0 && merchantAttempts <= PROBE_SIZE) {
+              probeFailures++;
+              if (probeFailures >= PROBE_SIZE) {
+                endpointDisabled = true;
+                console.warn(
+                  `[CloverExport] Loyalty endpoint unavailable for ${merchantName} after ${PROBE_SIZE} probes — skipping remaining loyalty lookups.`
+                );
+              }
+            }
+          }
+        } catch (err) {
           progress.loyaltyErrors++;
-          if (result.error && loyaltyErrorSamples.size < 3) {
-            loyaltyErrorSamples.add(result.error);
+          const msg = err instanceof Error ? err.message : String(err);
+          if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(msg);
+          if (merchantSuccesses === 0 && merchantAttempts <= PROBE_SIZE) {
+            probeFailures++;
+            if (probeFailures >= PROBE_SIZE) {
+              endpointDisabled = true;
+            }
           }
         }
-      } catch (err) {
-        progress.loyaltyErrors++;
-        const msg = err instanceof Error ? err.message : String(err);
-        if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(msg);
       }
-      allRows.push({ merchantName, customer, loyaltyPoints: points });
-      // Light pacing to respect Clover rate limits
-      await new Promise((r) => setTimeout(r, 60));
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, customers.length) }, () => worker())
+    );
+
+    for (let i = 0; i < customers.length; i++) {
+      allRows.push({ merchantName, customer: customers[i], loyaltyPoints: points[i] });
     }
     progress.done = true;
   }
