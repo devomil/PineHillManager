@@ -1788,6 +1788,48 @@ export class CloverIntegration {
         // try next candidate
       }
     }
+
+    // Fallback: derive current balance by summing the customer's loyalty activity.
+    // Earn entries add to the balance, redemption entries subtract.
+    try {
+      const activityCandidates = [
+        `customers/${customerId}/rewards`,
+        `loyalty/activity?filter=${encodeURIComponent('customer.id=' + customerId)}&limit=500`,
+      ];
+      for (const ep of activityCandidates) {
+        try {
+          const resp = await this.makeCloverAPICallWithConfig(ep, this.config, 'GET', undefined, 1);
+          const elements: any[] = resp?.elements ?? (Array.isArray(resp) ? resp : []);
+          if (!elements || elements.length === 0) continue;
+          let total = 0;
+          let counted = 0;
+          for (const e of elements) {
+            const raw = e.points ?? e.pointsAmount ?? e.amount ?? null;
+            if (raw === null || raw === undefined) continue;
+            const n = Number(raw);
+            if (Number.isNaN(n)) continue;
+            const type = String(e.type ?? e.activityType ?? '').toUpperCase();
+            if (type.includes('REDEEM') || type.includes('REDEMPTION')) {
+              total -= Math.abs(n);
+            } else if (type.includes('EARN') || type.includes('ACCRU') || type === '') {
+              // unsigned positive earn, or already-signed value
+              total += n;
+            } else {
+              total += n;
+            }
+            counted++;
+          }
+          if (counted > 0) {
+            return { points: Math.max(0, Math.round(total)), source: `activity:${ep.split('?')[0]}` };
+          }
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : String(err);
+        }
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+
     return { points: null, source: 'none', error: lastError ?? 'no loyalty endpoint matched' };
   }
 }

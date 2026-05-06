@@ -33,6 +33,7 @@ import {
   Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 interface NavItem {
   label: string;
@@ -40,6 +41,7 @@ interface NavItem {
   value: string;
   href: string;
   section: 'main' | 'operations' | 'tools';
+  adminOnly?: boolean;
 }
 
 const navigationItems: NavItem[] = [
@@ -63,7 +65,7 @@ const navigationItems: NavItem[] = [
   { label: "Orders", icon: ShoppingCart, value: "orders", href: "/orders", section: "tools" },
   { label: "Employee Content", icon: FileText, value: "employee-content", href: "/admin/employee-content", section: "tools" },
   { label: "Integrations", icon: Settings, value: "integrations", href: "/admin/integrations", section: "tools" },
-  { label: "Clover → Square Export", icon: Download, value: "clover-square-export", href: "/admin/clover-square-export", section: "tools" },
+  { label: "Clover → Square Export", icon: Download, value: "clover-square-export", href: "/admin/clover-square-export", section: "tools", adminOnly: true },
   { label: "Communications", icon: MessageSquare, value: "communications", href: "/communications", section: "tools" },
   { label: "Support", icon: LifeBuoy, value: "support", href: "/support", section: "tools" },
   { label: "Users", icon: Settings, value: "user-management", href: "/user-management", section: "tools" },
@@ -77,6 +79,9 @@ interface SidebarProps {
 
 export function AdminSidebar({ currentTab }: SidebarProps) {
   const [location, setLocation] = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const visibleNavItems = navigationItems.filter((item) => !item.adminOnly || isAdmin);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
@@ -181,7 +186,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
               Main
             </p>
           )}
-          {navigationItems
+          {visibleNavItems
             .filter(item => item.section === 'main')
             .map(item => (
               <NavButton
@@ -201,7 +206,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
               Operations
             </p>
           )}
-          {navigationItems
+          {visibleNavItems
             .filter(item => item.section === 'operations')
             .map(item => (
               <NavButton
@@ -221,7 +226,7 @@ export function AdminSidebar({ currentTab }: SidebarProps) {
               Tools & Settings
             </p>
           )}
-          {navigationItems
+          {visibleNavItems
             .filter(item => item.section === 'tools')
             .map(item => (
               <NavButton

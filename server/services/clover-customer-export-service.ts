@@ -178,19 +178,20 @@ function buildCsvs(rows: Array<{
       ])
     );
 
-    if (loyaltyPoints !== null) {
-      loyaltyLines.push(
-        toCsvRow([
-          merchantName,
-          customer.id,
-          firstName,
-          lastName,
-          primaryPhone,
-          primaryEmail,
-          loyaltyPoints,
-        ])
-      );
-    }
+    // Per requirements: one loyalty row per customer. Customers without a
+    // resolved balance get 0 (Square's loyalty importer treats blank/0 as
+    // "not enrolled / no balance").
+    loyaltyLines.push(
+      toCsvRow([
+        merchantName,
+        customer.id,
+        firstName,
+        lastName,
+        primaryPhone,
+        primaryEmail,
+        loyaltyPoints ?? 0,
+      ])
+    );
   }
 
   return {
