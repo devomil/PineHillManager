@@ -1833,6 +1833,51 @@ export class CloverIntegration {
     return { points: null, source: 'none', error: lastError ?? 'no loyalty endpoint matched' };
   }
 
+  // One-time per-merchant discovery probe of the documented loyalty/program
+  // endpoints from the task spec. Logs HTTP status + a sample of each response
+  // body so we can confirm whether anything other than 405 ever shows up here.
+  // Returns the list of probe results and the customer ID used (so the caller
+  // can report it).
+  async probeLoyaltyDiscoveryEndpoints(sampleCustomerId: string | null): Promise<Array<{
+    endpoint: string;
+    status: number | 'error';
+    sample: string;
+  }>> {
+    const candidates: string[] = [
+      `programs`,
+      `program_customer_metrics`,
+      `loyalty_program`,
+      `customer_audiences`,
+    ];
+    if (sampleCustomerId) {
+      candidates.push(
+        `customers/${sampleCustomerId}?expand=loyaltyPoints,programMetrics,rewards`
+      );
+    }
+    const out: Array<{ endpoint: string; status: number | 'error'; sample: string }> = [];
+    for (const ep of candidates) {
+      try {
+        const url = `https://api.clover.com/v3/merchants/${this.config.merchantId}/${ep}`;
+        const resp = await fetch(url, {
+          headers: { Authorization: `Bearer ${this.config.accessToken}` },
+        });
+        const body = await resp.text();
+        const sample = body.length > 200 ? body.slice(0, 200) + '…' : body;
+        out.push({ endpoint: ep, status: resp.status, sample });
+        console.log(
+          `[CloverLoyaltyDiscovery] ${this.config.merchantName ?? this.config.merchantId} ${ep} → ${resp.status} ${sample.replace(/\s+/g, ' ').slice(0, 160)}`
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        out.push({ endpoint: ep, status: 'error', sample: msg });
+        console.warn(
+          `[CloverLoyaltyDiscovery] ${this.config.merchantName ?? this.config.merchantId} ${ep} → ERROR ${msg}`
+        );
+      }
+    }
+    return out;
+  }
+
   // Reconstruct per-customer loyalty point balances from order history.
   // Used when Clover's loyalty endpoints are unavailable (all 405s for this
   // merchant). Pine Hill's program: 1 point per $1 of pre-tax subtotal earned;

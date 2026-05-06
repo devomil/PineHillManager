@@ -171,7 +171,7 @@ function CloverSquareExportContent() {
                     : m.loyaltySource === "unavailable"
                     ? "Unavailable"
                     : "Pending";
-                const sourceVariant =
+                const sourceVariant: "default" | "secondary" | "destructive" | "outline" =
                   m.loyaltySource === "live"
                     ? "default"
                     : m.loyaltySource === "reconstructed"
@@ -200,7 +200,7 @@ function CloverSquareExportContent() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={sourceVariant as any}>{sourceLabel}</Badge>
+                      <Badge variant={sourceVariant}>{sourceLabel}</Badge>
                       <Badge variant={m.done ? "default" : "secondary"}>
                         {m.done ? "Done" : "Working…"}
                       </Badge>

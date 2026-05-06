@@ -282,50 +282,39 @@ async function runExportJob(job: ExportJob): Promise<void> {
     });
     progress.customersFetched = customers.length;
 
-    // Step 1: Quick live-endpoint probe. We tested every documented Clover
-    // loyalty path and they all 405 for these tokens, but a future scope grant
-    // could change that — so we still try a tiny sample (3 customers) before
-    // committing to the order-history reconstruction.
-    //
-    // Routing rule: live mode is selected if the probe shows the endpoint is
-    // *reachable* (any HTTP status other than 405 from the loyalty paths),
-    // even when the sampled customers happen to return zero balances. Routing
-    // on "did sample customers have points" would incorrectly downgrade a
-    // working endpoint to reconstruction whenever the first 3 customers were
-    // unenrolled.
+    // Step 1: Endpoint discovery. First probe the documented program /
+    // loyalty / audience paths once per merchant with structured logging
+    // (results show up in workflow logs prefixed [CloverLoyaltyDiscovery]),
+    // then probe the per-customer loyalty endpoints for a small sample.
+    // Live mode is only selected if at least one customer probe returns a
+    // real numeric point balance — that is the only proof Clover's loyalty
+    // surface is actually returning usable data for this merchant. Anything
+    // else (405, 404, empty 200, network error) routes to reconstruction.
+    const sampleCustomerId = customers[0]?.id ?? null;
+    await integration.probeLoyaltyDiscoveryEndpoints(sampleCustomerId);
+
     const PROBE_SIZE = Math.min(3, customers.length);
     const livePoints = new Map<string, number>();
-    let endpointReachable = false;
+    let liveDataFound = false;
     for (let i = 0; i < PROBE_SIZE; i++) {
       loyaltyAttemptTotal++;
       try {
         const r = await integration.fetchCustomerLoyaltyPoints(customers[i].id);
         if (r.points !== null) {
           livePoints.set(customers[i].id, r.points);
-          endpointReachable = true;
-        } else if (r.error) {
-          // The error message embeds the HTTP status (e.g. "Clover API error: 405 …").
-          // Anything other than 405 means *some* loyalty path was reachable —
-          // 404 / 200-with-no-shape both still indicate the merchant could be
-          // serving balances; 405 is Clover's "this path doesn't exist for your
-          // token's scope" response and is the only definitive disable signal.
-          if (!/\b405\b/.test(r.error)) endpointReachable = true;
-          if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(r.error);
-        } else {
-          // No error but null points → endpoint succeeded with empty/unknown
-          // shape. That counts as reachable.
-          endpointReachable = true;
+          liveDataFound = true;
+        } else if (r.error && loyaltyErrorSamples.size < 3) {
+          loyaltyErrorSamples.add(r.error);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (!/\b405\b/.test(msg)) endpointReachable = true;
         if (loyaltyErrorSamples.size < 3) loyaltyErrorSamples.add(msg);
       }
     }
 
     let merchantPoints = new Map<string, number>();
 
-    if (endpointReachable) {
+    if (liveDataFound) {
       // Live endpoint works — pull every customer's balance with a small pool.
       progress.loyaltySource = 'live';
       const CONCURRENCY = 5;
