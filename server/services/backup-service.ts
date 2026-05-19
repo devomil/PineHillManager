@@ -180,8 +180,7 @@ function parseAndValidateObjectPath(rawPath: string): { bucketName: string; obje
     const bucketName = parts[0];
     const objectName = parts.slice(1).join('/');
     if (bucketName !== expectedBucket) return null;
-    const baseEnvPrefix = prefix.replace(/\/(prod|dev)$/, '');
-    if (!objectName.startsWith(`${baseEnvPrefix}/backups/`)) return null;
+    if (!objectName.startsWith(`${prefix}/`)) return null;
     if (!objectName.endsWith('.sql.gz')) return null;
     return { bucketName, objectName };
   } catch {
