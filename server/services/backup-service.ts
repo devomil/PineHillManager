@@ -7,7 +7,28 @@ import { backupRuns } from '@shared/schema';
 import { eq, lt, desc, and } from 'drizzle-orm';
 import { objectStorageClient } from '../objectStorage';
 
-const EXCLUDED_TABLES = ['sessions'];
+export const PROTECTED_TABLES = [
+  'users',
+  'work_schedules',
+  'time_clock_entries',
+  'time_off_requests',
+  'shift_swap_requests',
+  'shift_coverage_requests',
+  'messages',
+  'channel_messages',
+  'announcements',
+  'support_tickets',
+  'responses',
+  'tasks',
+  'documents',
+  'notifications',
+  'goals',
+  'training_progress',
+  'lesson_progress',
+  'employee_invitations',
+  'password_reset_tokens',
+  'backup_runs',
+];
 const RETENTION_DAYS = 30;
 
 function getBackupBucketAndPrefix(): { bucketName: string; prefix: string } {
@@ -77,8 +98,8 @@ export async function runBackup(
       '--no-comments',
       '--quote-all-identifiers',
     ];
-    for (const t of EXCLUDED_TABLES) {
-      args.push(`--exclude-table-data=public.${t}`);
+    for (const t of PROTECTED_TABLES) {
+      args.push(`-t`, `public.${t}`);
     }
     args.push(dbUrl);
 
@@ -121,6 +142,8 @@ export async function runBackup(
       durationMs,
       objectPath,
       sizeBytes: bytesWritten,
+      tableCount: PROTECTED_TABLES.length,
+      tableList: PROTECTED_TABLES,
     }).where(eq(backupRuns.id, run.id));
 
     console.log(`[Backup] Completed run #${run.id} (${(bytesWritten / 1024 / 1024).toFixed(2)} MB in ${(durationMs / 1000).toFixed(1)}s) → ${objectPath}`);

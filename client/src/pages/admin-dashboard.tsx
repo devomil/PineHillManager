@@ -828,12 +828,18 @@ function PrePublishBanner() {
               </span>
             </li>
             <li className="flex items-center gap-2">
-              <Circle className="h-4 w-4 text-slate-400 flex-shrink-0" />
-              <span>Review pending schema changes in the Publish dialog before confirming</span>
+              <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
+              <span>
+                <strong>Never click "Overwrite data"</strong> in the Publish dialog — it
+                wipes the production database
+              </span>
             </li>
             <li className="flex items-center gap-2">
               <Circle className="h-4 w-4 text-slate-400 flex-shrink-0" />
-              <span>Verify deploys are paused during high-traffic hours</span>
+              <span>
+                Review the Publish SQL preview — confirm any column renames map to the
+                correct existing column instead of creating a new one
+              </span>
             </li>
           </ul>
         </div>

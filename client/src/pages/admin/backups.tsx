@@ -18,6 +18,8 @@ type BackupRow = {
   triggeredBy: string;
   objectPath: string | null;
   sizeBytes: number | null;
+  tableCount: number | null;
+  tableList: string[] | null;
   durationMs: number | null;
   error: string | null;
   environment: string;
@@ -169,6 +171,7 @@ function BackupsContent() {
                   <TableHead>Status</TableHead>
                   <TableHead>Trigger</TableHead>
                   <TableHead>Env</TableHead>
+                  <TableHead>Tables</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -192,6 +195,11 @@ function BackupsContent() {
                     </TableCell>
                     <TableCell className="capitalize">{b.triggeredBy}</TableCell>
                     <TableCell>{b.environment}</TableCell>
+                    <TableCell>
+                      <span title={b.tableList?.join(", ") ?? ""}>
+                        {b.tableCount ?? "—"}
+                      </span>
+                    </TableCell>
                     <TableCell>{formatBytes(b.sizeBytes)}</TableCell>
                     <TableCell>{formatDuration(b.durationMs)}</TableCell>
                     <TableCell className="text-right">
