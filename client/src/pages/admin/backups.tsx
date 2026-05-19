@@ -20,6 +20,7 @@ type BackupRow = {
   sizeBytes: number | null;
   tableCount: number | null;
   tableList: string[] | null;
+  tableRowCounts: Record<string, number> | null;
   durationMs: number | null;
   error: string | null;
   environment: string;
@@ -86,11 +87,27 @@ function BackupsContent() {
 
   const completed = backups.filter((b) => b.status === "completed");
   const latest = completed[0];
+  const previous = completed[1];
   const lastSuccessAgeHours = latest
     ? (Date.now() - new Date(latest.startedAt).getTime()) / (1000 * 60 * 60)
     : null;
   const isStale = lastSuccessAgeHours !== null && lastSuccessAgeHours > 36;
   const isFresh = lastSuccessAgeHours !== null && lastSuccessAgeHours <= 30;
+
+  const rowCountRows: Array<{ table: string; count: number; delta: number | null; pct: number | null }> = [];
+  if (latest?.tableRowCounts) {
+    const prevCounts = previous?.tableRowCounts ?? {};
+    const tables = Object.keys(latest.tableRowCounts).sort();
+    for (const t of tables) {
+      const count = latest.tableRowCounts[t];
+      const prev = prevCounts[t];
+      const delta = typeof prev === "number" ? count - prev : null;
+      const pct = typeof prev === "number" && prev > 0 ? (delta! / prev) * 100 : null;
+      rowCountRows.push({ table: t, count, delta, pct });
+    }
+  }
+  const isLargeDrop = (pct: number | null, delta: number | null) =>
+    pct !== null && delta !== null && delta < 0 && pct <= -10;
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -145,6 +162,70 @@ function BackupsContent() {
             {" · "}{formatBytes(latest.sizeBytes)}.
           </AlertDescription>
         </Alert>
+      )}
+
+      {rowCountRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Row counts (latest backup)</CardTitle>
+            <CardDescription>
+              {previous?.tableRowCounts
+                ? <>Compared with the previous backup from <strong>{format(new Date(previous.startedAt), "PPp")}</strong>. Drops of 10% or more are highlighted.</>
+                : "No previous backup to compare against yet — deltas will appear after the next run."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Table</TableHead>
+                  <TableHead className="text-right">Rows</TableHead>
+                  <TableHead className="text-right">Change</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowCountRows.map((r) => {
+                  const dropped = isLargeDrop(r.pct, r.delta);
+                  return (
+                    <TableRow
+                      key={r.table}
+                      className={dropped ? "bg-destructive/10" : undefined}
+                      data-testid={`row-count-${r.table}`}
+                    >
+                      <TableCell className="font-mono text-sm">{r.table}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.count.toLocaleString()}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.delta === null ? (
+                          <span className="text-muted-foreground">new</span>
+                        ) : r.delta === 0 ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span
+                            className={
+                              dropped
+                                ? "text-destructive font-semibold inline-flex items-center gap-1"
+                                : r.delta < 0
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-emerald-600 dark:text-emerald-400"
+                            }
+                          >
+                            {dropped && <AlertTriangle className="h-3.5 w-3.5" />}
+                            {r.delta > 0 ? "+" : ""}{r.delta.toLocaleString()}
+                            {r.pct !== null && (
+                              <span className="ml-1 text-xs">
+                                ({r.pct > 0 ? "+" : ""}{r.pct.toFixed(1)}%)
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       <Card>

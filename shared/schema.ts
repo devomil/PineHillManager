@@ -6290,6 +6290,7 @@ export const backupRuns = pgTable("backup_runs", {
   sizeBytes: integer("size_bytes"),
   tableCount: integer("table_count"),
   tableList: text("table_list").array(),
+  tableRowCounts: jsonb("table_row_counts").$type<Record<string, number>>(),
   durationMs: integer("duration_ms"),
   error: text("error"),
   environment: varchar("environment").notNull().default("production"),

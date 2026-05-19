@@ -4,7 +4,7 @@ import { pipeline } from 'stream/promises';
 import { PassThrough } from 'stream';
 import { db } from '../db';
 import { backupRuns, users } from '@shared/schema';
-import { eq, lt, desc, and } from 'drizzle-orm';
+import { eq, lt, desc, and, sql } from 'drizzle-orm';
 import { objectStorageClient } from '../objectStorage';
 import sgMail from '@sendgrid/mail';
 import { smsService } from '../smsService';
@@ -97,6 +97,7 @@ export async function runBackup(
   let objectPath = '';
   let stderrBuf = '';
   let bytesWritten = 0;
+  let tableRowCounts: Record<string, number> = {};
 
   try {
     const [inserted] = await db
@@ -131,6 +132,20 @@ export async function runBackup(
       args.push(`-t`, `public.${t}`);
     }
     args.push(dbUrl);
+
+    for (const t of BACKUP_TABLES) {
+      try {
+        const result = await db.execute(
+          sql.raw(`SELECT COUNT(*)::bigint AS count FROM public."${t}"`)
+        );
+        const rows = (result as any).rows ?? (result as any);
+        const raw = Array.isArray(rows) ? rows[0]?.count : undefined;
+        const n = typeof raw === 'bigint' ? Number(raw) : Number(raw ?? 0);
+        if (Number.isFinite(n)) tableRowCounts[t] = n;
+      } catch (countErr) {
+        console.warn(`[Backup] Failed to count rows in ${t}:`, countErr);
+      }
+    }
 
     const proc = spawn('pg_dump', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     proc.stderr.on('data', (chunk) => {
@@ -173,6 +188,7 @@ export async function runBackup(
       sizeBytes: bytesWritten,
       tableCount: BACKUP_TABLES.length,
       tableList: BACKUP_TABLES,
+      tableRowCounts,
     }).where(eq(backupRuns.id, run.id));
 
     console.log(`[Backup] Completed run #${run.id} (${(bytesWritten / 1024 / 1024).toFixed(2)} MB in ${(durationMs / 1000).toFixed(1)}s) → ${objectPath}`);
