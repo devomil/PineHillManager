@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle, TrendingDown, UserCheck, Repeat, Database, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
@@ -785,6 +786,12 @@ export default function AdminDashboard() {
 }
 
 function PrePublishBanner() {
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('prePublishBannerDismissed') === '1';
+  });
+  if (dismissed) return null;
+
   const { data: backups } = useQuery<Array<{ id: number; startedAt: string; status: string; sizeBytes: number | null }>>({
     queryKey: ["/api/admin/backups"],
     refetchInterval: 60000,
@@ -843,11 +850,25 @@ function PrePublishBanner() {
             </li>
           </ul>
         </div>
-        <Link href="/admin/backups">
-          <Button variant="outline" size="sm" data-testid="button-open-backups">
-            <Database className="h-4 w-4 mr-1" /> Backups
+        <div className="flex items-center gap-2">
+          <Link href="/admin/backups">
+            <Button variant="outline" size="sm" data-testid="button-open-backups">
+              <Database className="h-4 w-4 mr-1" /> Backups
+            </Button>
+          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              sessionStorage.setItem('prePublishBannerDismissed', '1');
+              setDismissed(true);
+            }}
+            data-testid="button-dismiss-pre-publish"
+            aria-label="Dismiss"
+          >
+            ✕
           </Button>
-        </Link>
+        </div>
       </div>
     </div>
   );
