@@ -47,11 +47,6 @@ function getBackupBucketAndPrefix(): { bucketName: string; prefix: string } {
   return { bucketName, prefix };
 }
 
-function objectPathFromName(objectName: string): string {
-  const { bucketName } = getBackupBucketAndPrefix();
-  return `/${bucketName}/${objectName}`;
-}
-
 export interface BackupResult {
   id: number;
   status: 'completed' | 'failed';
