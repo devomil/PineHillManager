@@ -39,6 +39,20 @@ The frontend uses React 18 with TypeScript and Vite, styled with Tailwind CSS an
 ### System Design Choices
 The system maintains a clear separation of concerns between frontend and backend. Authentication is session-based with robust password hashing. Data flow is optimized for clarity and performance through efficient database queries and consistent timezone handling. The architecture supports multi-merchant configurations and department-specific page access. Key optimizations include real-time API data fetching, React Query caching, and self-contained component design. Video generation runs on a dedicated service (port 5001, `server/video-service.ts`) spawned as a detached process from the main server, ensuring main server restarts do not disrupt active renders. The main server (port 5000) proxies `/api/universal-video/*` requests to the video service via HTTP. Both share the same PostgreSQL session store for auth. Monotonic progress protection (`Math.max`) prevents progress regression during Lambda render monitoring.
 
+## Production data & publishing
+
+Production runs on Replit's managed PostgreSQL behind the autoscale deployment at https://phfmanager.co. Development uses an external Neon database via the `@neondatabase/serverless` HTTP driver. The two databases are independent — publishing does NOT copy dev data into production.
+
+**Publish flow (safe):** Replit's publish diff is the only supported path for production schema changes. Each publish builds the app, diffs `shared/schema.ts` against the live production schema, presents the SQL preview, and applies the migration only after explicit confirmation. Existing rows in protected tables (users, work_schedules, time_clock_entries, time_off_requests, shift_swap_requests, shift_coverage_requests, messages, channel_messages, announcements, support_tickets, responses, tasks, documents, notifications, goals, training_progress, lesson_progress, employee_invitations, password_reset_tokens, etc.) are preserved across publishes. Never bypass this by adding startup DDL, custom migration scripts, or `drizzle-kit push` against production.
+
+**Backups:** A nightly `pg_dump` (excluding sessions) runs at 2:00 AM CT, gzips the output, and uploads it to Replit Object Storage at `<PRIVATE_OBJECT_DIR>/backups/prod/<timestamp>.sql.gz`. Each run is tracked in the `backup_runs` table. Backups older than 30 days are pruned automatically. Override the schedule with `BACKUP_HOUR_CT` (24h, default `2`).
+
+**Admin Backups page (`/admin/backups`, admin role only):** Lists recent backup runs with status/size/duration, lets admins download any completed snapshot, and provides a "Run backup now" button for ad-hoc snapshots before risky publishes. A pre-publish checklist banner on the admin dashboard surfaces backup freshness so admins always see whether a recent snapshot exists before deploying.
+
+**Recovery:** Download the most recent `.sql.gz` from `/admin/backups`, `gunzip` it, then load into a staging database (`psql $STAGING_DATABASE_URL < backup.sql`) to verify. Once verified, restore to production by coordinating with Replit support to swap or reload the managed database. Never restore directly to live production without staging verification.
+
+Implementation: `server/services/backup-service.ts` (pg_dump → gzip → Object Storage stream upload, retention pruning, daily scheduler), `server/routes.ts` (`GET /api/admin/backups`, `POST /api/admin/backups/run`, `GET /api/admin/backups/:id/download`), `client/src/pages/admin/backups.tsx`, `client/src/pages/admin-dashboard.tsx` `PrePublishBanner`, `shared/schema.ts` `backupRuns` table.
+
 ## External Dependencies
 
 -   **Email Service**: SendGrid

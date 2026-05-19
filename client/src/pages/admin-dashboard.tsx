@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle, TrendingDown, UserCheck, Repeat } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle, TrendingDown, UserCheck, Repeat, Database, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 import AdminLayout from "@/components/admin-layout";
@@ -305,12 +305,21 @@ export default function AdminDashboard() {
       href: "/admin/marketing",
       color: "text-pink-600",
       bgColor: "bg-pink-50"
-    }
+    },
+    ...(user?.role === 'admin' ? [{
+      title: "Database Backups",
+      description: "Nightly snapshots of production data with download & restore",
+      icon: Database,
+      href: "/admin/backups",
+      color: "text-slate-700",
+      bgColor: "bg-slate-100"
+    }] : [])
   ];
 
 
   return (
     <AdminLayout currentTab="dashboard">
+      {user?.role === 'admin' && <PrePublishBanner />}
       <div className="flex gap-6">
         {/* Main Content Area */}
         <div className="flex-1 space-y-6">
@@ -772,5 +781,68 @@ export default function AdminDashboard() {
         </div>
       </div>
     </AdminLayout>
+  );
+}
+
+function PrePublishBanner() {
+  const { data: backups } = useQuery<Array<{ id: number; startedAt: string; status: string; sizeBytes: number | null }>>({
+    queryKey: ["/api/admin/backups"],
+    refetchInterval: 60000,
+  });
+
+  const completed = (backups ?? []).filter((b) => b.status === "completed");
+  const latest = completed[0];
+  const ageHours = latest ? (Date.now() - new Date(latest.startedAt).getTime()) / 3_600_000 : null;
+  const fresh = ageHours !== null && ageHours <= 30;
+  const stale = ageHours !== null && ageHours > 36;
+  const missing = backups !== undefined && completed.length === 0;
+
+  const tone = fresh
+    ? "border-emerald-200 bg-emerald-50"
+    : stale || missing
+    ? "border-amber-300 bg-amber-50"
+    : "border-slate-200 bg-slate-50";
+
+  return (
+    <div className={`mb-6 rounded-xl border ${tone} px-5 py-4`} data-testid="banner-pre-publish">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5">
+          {fresh ? (
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900">Pre-publish checklist</p>
+          <ul className="mt-1 text-sm text-gray-700 space-y-0.5">
+            <li className="flex items-center gap-2">
+              {fresh ? (
+                <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+              ) : (
+                <Circle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              )}
+              <span>
+                Recent backup available
+                {latest ? ` — last run ${format(new Date(latest.startedAt), "MMM d, h:mm a")}` : missing ? " — none yet, run one before publishing" : "…"}
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              <Circle className="h-4 w-4 text-slate-400 flex-shrink-0" />
+              <span>Review pending schema changes in the Publish dialog before confirming</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <Circle className="h-4 w-4 text-slate-400 flex-shrink-0" />
+              <span>Verify deploys are paused during high-traffic hours</span>
+            </li>
+          </ul>
+        </div>
+        <Link href="/admin/backups">
+          <Button variant="outline" size="sm" data-testid="button-open-backups">
+            <Database className="h-4 w-4 mr-1" /> Backups
+          </Button>
+        </Link>
+      </div>
+    </div>
   );
 }

@@ -13,6 +13,7 @@ import AdminEmployeesPage from "@/pages/admin/employees";
 import AdminEmployeePurchases from "@/pages/admin/admin-employee-purchases";
 import AdminEmployeeContentPage from "@/pages/admin/employee-content";
 import CloverSquareExportPage from "@/pages/admin/clover-square-export";
+import BackupsPage from "@/pages/admin/backups";
 import CommunicationsPage from "@/pages/communications";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
@@ -131,6 +132,11 @@ function AuthenticatedApp() {
       <Route path="/admin/clover-square-export">
         <ProtectedRoute allowedRoles={['admin']}>
           <CloverSquareExportPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/backups">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <BackupsPage />
         </ProtectedRoute>
       </Route>
       <Route path="/shift-scheduling">

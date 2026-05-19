@@ -6278,3 +6278,28 @@ export const insertBigcommerceInventorySyncConfigSchema = createInsertSchema(big
 
 export type BigcommerceInventorySyncConfig = typeof bigcommerceInventorySyncConfig.$inferSelect;
 export type InsertBigcommerceInventorySyncConfig = z.infer<typeof insertBigcommerceInventorySyncConfigSchema>;
+
+export const backupRuns = pgTable("backup_runs", {
+  id: serial("id").primaryKey(),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+  status: varchar("status").notNull().default("running"),
+  triggeredBy: varchar("triggered_by").notNull().default("scheduled"),
+  triggeredByUserId: varchar("triggered_by_user_id").references(() => users.id),
+  objectPath: varchar("object_path"),
+  sizeBytes: integer("size_bytes"),
+  tableCount: integer("table_count"),
+  durationMs: integer("duration_ms"),
+  error: text("error"),
+  environment: varchar("environment").notNull().default("production"),
+}, (table) => ({
+  startedAtIdx: index("idx_backup_runs_started_at").on(table.startedAt),
+  statusIdx: index("idx_backup_runs_status").on(table.status),
+}));
+
+export const insertBackupRunSchema = createInsertSchema(backupRuns).omit({
+  id: true,
+  startedAt: true,
+});
+export type BackupRun = typeof backupRuns.$inferSelect;
+export type InsertBackupRun = z.infer<typeof insertBackupRunSchema>;

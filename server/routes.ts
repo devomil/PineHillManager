@@ -25860,6 +25860,43 @@ Important:
     res.send(csv);
   });
 
+  // ================================
+  // ADMIN BACKUPS — nightly snapshots of production DB to Object Storage
+  // ================================
+  {
+    const { runBackup, listBackups, streamBackupToResponse } = await import('./services/backup-service');
+
+    app.get('/api/admin/backups', isAuthenticated, requireStrictAdmin, async (_req, res) => {
+      try {
+        const rows = await listBackups(60);
+        res.json(rows);
+      } catch (err) {
+        console.error('[Backups] List failed:', err);
+        res.status(500).json({ message: err instanceof Error ? err.message : 'Failed to list backups' });
+      }
+    });
+
+    app.post('/api/admin/backups/run', isAuthenticated, requireStrictAdmin, async (req: any, res) => {
+      res.json({ started: true });
+      runBackup('manual', req.user?.id).catch((err) => {
+        console.error('[Backups] Manual run failed:', err);
+      });
+    });
+
+    app.get('/api/admin/backups/:id/download', isAuthenticated, requireStrictAdmin, async (req, res) => {
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid backup id' });
+      try {
+        await streamBackupToResponse(id, res);
+      } catch (err) {
+        console.error('[Backups] Download failed:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ message: err instanceof Error ? err.message : 'Download failed' });
+        }
+      }
+    });
+  }
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates

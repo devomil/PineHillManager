@@ -156,6 +156,15 @@ app.use((req, res, next) => {
   bigcommerceInventorySyncService.startScheduledSync();
   log('📦 BigCommerce inventory sync scheduler initialized', 'bigcommerce-sync');
 
+  // Nightly database backup scheduler (production data → Object Storage, 30-day retention)
+  try {
+    const { startBackupScheduler } = await import('./services/backup-service');
+    startBackupScheduler();
+    log('💾 Database backup scheduler initialized', 'backup');
+  } catch (err) {
+    log('⚠️ Failed to initialize backup scheduler: ' + (err instanceof Error ? err.message : String(err)), 'backup');
+  }
+
   // Setup Vite integration for React app
   if (process.env.NODE_ENV !== "production") {
     const { setupVite } = await import("./vite");
