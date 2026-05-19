@@ -244,7 +244,7 @@ function BackupsContent() {
 
 export default function BackupsPage() {
   return (
-    <AdminLayout>
+    <AdminLayout currentTab="backups">
       <BackupsContent />
     </AdminLayout>
   );
