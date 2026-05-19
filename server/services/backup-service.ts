@@ -3,9 +3,11 @@ import { createGzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 import { PassThrough } from 'stream';
 import { db } from '../db';
-import { backupRuns } from '@shared/schema';
+import { backupRuns, users } from '@shared/schema';
 import { eq, lt, desc, and } from 'drizzle-orm';
 import { objectStorageClient } from '../objectStorage';
+import sgMail from '@sendgrid/mail';
+import { smsService } from '../smsService';
 
 export const PROTECTED_TABLES = [
   'users',
@@ -276,6 +278,119 @@ export async function streamBackupToResponse(id: number, res: import('express').
     .pipe(res);
 }
 
+function parseNotificationChannels(): { email: boolean; sms: boolean } {
+  const raw = process.env.BACKUP_FAILURE_NOTIFICATIONS;
+  if (!raw) return { email: true, sms: false };
+  const parts = raw.split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+  return { email: parts.includes('email'), sms: parts.includes('sms') };
+}
+
+function getBackupsPageUrl(): string {
+  const explicit = process.env.APP_BASE_URL || process.env.PUBLIC_BASE_URL;
+  if (explicit) {
+    return `${explicit.replace(/\/$/, '')}/admin/backups`;
+  }
+  const domain =
+    process.env.NODE_ENV === 'production'
+      ? process.env.PRODUCTION_DOMAIN || 'phfmanager.co'
+      : process.env.REPLIT_DEV_DOMAIN;
+  if (!domain) return '/admin/backups';
+  return `https://${domain}/admin/backups`;
+}
+
+export async function notifyAdminsOfBackupFailure(result: BackupResult): Promise<void> {
+  const channels = parseNotificationChannels();
+  if (!channels.email && !channels.sms) return;
+
+  let admins: Array<{ email: string | null; phone: string | null }>;
+  try {
+    admins = await db
+      .select({ email: users.email, phone: users.phone })
+      .from(users)
+      .where(and(eq(users.role, 'admin'), eq(users.isActive, true)));
+  } catch (err) {
+    console.error('[Backup] Failed to load admins for failure notification:', err);
+    return;
+  }
+
+  if (admins.length === 0) {
+    console.warn('[Backup] No active admin users to notify about failure');
+    return;
+  }
+
+  const url = getBackupsPageUrl();
+  const errorMsg = (result.error || 'Unknown error').slice(0, 500);
+  const subject = `[Pine Hill Farm] Nightly backup FAILED (run #${result.id})`;
+  const textBody = `The scheduled nightly backup failed.
+
+Run ID: ${result.id}
+Duration: ${(result.durationMs / 1000).toFixed(1)}s
+Error: ${errorMsg}
+
+Review and take action: ${url}
+
+Pine Hill Farm Employee Management System (automated alert)`;
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px;">
+      <h2 style="color: #b91c1c; margin: 0 0 12px;">Nightly backup FAILED</h2>
+      <p>The scheduled Pine Hill Farm database backup did not complete successfully.</p>
+      <table style="border-collapse: collapse; margin: 12px 0;">
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Run ID</strong></td><td>#${result.id}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0;"><strong>Duration</strong></td><td>${(result.durationMs / 1000).toFixed(1)}s</td></tr>
+      </table>
+      <p><strong>Error:</strong></p>
+      <pre style="background: #f3f4f6; padding: 12px; border-radius: 6px; white-space: pre-wrap;">${errorMsg.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!))}</pre>
+      <p><a href="${url}" style="display: inline-block; background: #1e40af; color: white; padding: 10px 18px; border-radius: 6px; text-decoration: none;">Open /admin/backups</a></p>
+      <p style="color: #6b7280; font-size: 12px;">This is an automated alert from Pine Hill Farm Employee Management System.</p>
+    </div>
+  `;
+  const smsBody = `Pine Hill Farm: Nightly backup FAILED (run #${result.id}). ${errorMsg.slice(0, 120)}... ${url}`;
+
+  if (channels.email && !process.env.SENDGRID_API_KEY) {
+    console.warn('[Backup] Email notifications enabled but SENDGRID_API_KEY is not set');
+  }
+  if (channels.sms && !smsService.isConfigured()) {
+    console.warn('[Backup] SMS notifications enabled but Twilio is not configured');
+  }
+
+  if (channels.email && process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    const recipients = admins.map((a) => a.email).filter((e): e is string => !!e);
+    if (recipients.length > 0) {
+      try {
+        await sgMail.sendMultiple({
+          to: recipients,
+          from: { email: 'noreply@pinehillfarm.co', name: 'Pine Hill Farm Backups' },
+          subject,
+          text: textBody,
+          html: htmlBody,
+        });
+        console.log(`[Backup] Failure email sent to ${recipients.length} admin(s)`);
+      } catch (err) {
+        console.error('[Backup] Failed to send failure email:', err);
+      }
+    } else {
+      console.warn('[Backup] Email notifications enabled but no admin has an email address');
+    }
+  }
+
+  if (channels.sms && smsService.isConfigured()) {
+    const phones = admins.map((a) => a.phone).filter((p): p is string => !!p);
+    for (const phone of phones) {
+      try {
+        await smsService.sendSMS(phone, smsBody);
+      } catch (err) {
+        console.error(`[Backup] Failed to send failure SMS to ${phone}:`, err);
+      }
+    }
+    if (phones.length > 0) {
+      console.log(`[Backup] Failure SMS sent to ${phones.length} admin(s)`);
+    } else {
+      console.warn('[Backup] SMS notifications enabled but no admin has a phone number');
+    }
+  }
+}
+
 let schedulerStarted = false;
 let isRunning = false;
 
@@ -295,9 +410,20 @@ export function startBackupScheduler(): void {
       lastRunDate = ctDate;
       isRunning = true;
       try {
-        await runBackup('scheduled');
+        const result = await runBackup('scheduled');
+        if (result.status === 'failed') {
+          await notifyAdminsOfBackupFailure(result);
+        }
       } catch (err) {
         console.error('[Backup] Scheduled run failed:', err);
+        await notifyAdminsOfBackupFailure({
+          id: -1,
+          status: 'failed',
+          durationMs: 0,
+          error: err instanceof Error ? err.message : String(err),
+        }).catch((notifyErr) =>
+          console.error('[Backup] Failed to notify admins after scheduler exception:', notifyErr)
+        );
       } finally {
         isRunning = false;
       }
