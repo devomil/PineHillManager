@@ -168,7 +168,9 @@ export async function runBackup(
     if (bucketName && objectName) {
       try {
         await objectStorageClient.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
-      } catch {}
+      } catch (cleanupErr) {
+        console.warn('[Backup] Failed to cleanup partial object after error:', cleanupErr);
+      }
     }
     if (run) {
       try {

@@ -25876,12 +25876,13 @@ Important:
       }
     });
 
-    app.post('/api/admin/backups/run', isAuthenticated, requireStrictAdmin, async (req: any, res) => {
+    app.post('/api/admin/backups/run', isAuthenticated, requireStrictAdmin, async (req, res) => {
       if (isBackupRunning()) {
         return res.status(409).json({ message: 'A backup is already running' });
       }
+      const userId = (req as Express.Request & { user?: { id?: string } }).user?.id;
       res.json({ started: true });
-      runBackup('manual', req.user?.id).catch((err) => {
+      runBackup('manual', userId).catch((err) => {
         console.error('[Backups] Manual run failed:', err);
       });
     });
