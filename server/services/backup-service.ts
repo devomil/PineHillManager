@@ -73,16 +73,7 @@ export async function runBackup(
   const startMs = Date.now();
   const environment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
 
-  const [run] = await db
-    .insert(backupRuns)
-    .values({
-      status: 'running',
-      triggeredBy,
-      triggeredByUserId: userId,
-      environment,
-    })
-    .returning();
-
+  let run: { id: number } | undefined;
   let bucketName = '';
   let objectName = '';
   let objectPath = '';
@@ -90,6 +81,16 @@ export async function runBackup(
   let bytesWritten = 0;
 
   try {
+    const [inserted] = await db
+      .insert(backupRuns)
+      .values({
+        status: 'running',
+        triggeredBy,
+        triggeredByUserId: userId,
+        environment,
+      })
+      .returning();
+    run = inserted;
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) throw new Error('DATABASE_URL not set');
 
@@ -161,19 +162,25 @@ export async function runBackup(
     return { id: run.id, status: 'completed', objectPath, sizeBytes: bytesWritten, durationMs };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[Backup] Run #${run.id} failed:`, message);
+    console.error(`[Backup] Run ${run ? `#${run.id}` : '(uninitialized)'} failed:`, message);
     if (bucketName && objectName) {
       try {
         await objectStorageClient.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
       } catch {}
     }
-    await db.update(backupRuns).set({
-      status: 'failed',
-      finishedAt: new Date(),
-      durationMs: Date.now() - startMs,
-      error: message.slice(0, 2000),
-    }).where(eq(backupRuns.id, run.id));
-    return { id: run.id, status: 'failed', durationMs: Date.now() - startMs, error: message };
+    if (run) {
+      try {
+        await db.update(backupRuns).set({
+          status: 'failed',
+          finishedAt: new Date(),
+          durationMs: Date.now() - startMs,
+          error: message.slice(0, 2000),
+        }).where(eq(backupRuns.id, run.id));
+      } catch (updateErr) {
+        console.error('[Backup] Failed to record failure row:', updateErr);
+      }
+    }
+    return { id: run?.id ?? -1, status: 'failed', durationMs: Date.now() - startMs, error: message };
   } finally {
     backupInFlight = false;
   }
