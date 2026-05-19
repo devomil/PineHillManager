@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Download, Loader2, Database, ShieldCheck, AlertTriangle, RefreshCw } from "lucide-react";
+import { Download, Loader2, Database, ShieldCheck, AlertTriangle, RefreshCw, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { format } from "date-fns";
 
 type BackupRow = {
@@ -24,6 +24,10 @@ type BackupRow = {
   durationMs: number | null;
   error: string | null;
   environment: string;
+  verificationStatus: string | null;
+  verifiedAt: string | null;
+  verificationError: string | null;
+  verifiedTableCount: number | null;
 };
 
 function formatBytes(n: number | null): string {
@@ -46,9 +50,43 @@ function StatusBadge({ status }: { status: string }) {
     completed: "default",
     running: "secondary",
     failed: "destructive",
+    verification_failed: "destructive",
     pruned: "outline",
   };
-  return <Badge variant={variant[status] ?? "outline"}>{status}</Badge>;
+  const label = status === "verification_failed" ? "verify failed" : status;
+  return <Badge variant={variant[status] ?? "outline"}>{label}</Badge>;
+}
+
+function VerificationBadge({
+  status,
+  error,
+  verifiedTableCount,
+  tableCount,
+}: {
+  status: string | null;
+  error: string | null;
+  verifiedTableCount: number | null;
+  tableCount: number | null;
+}) {
+  if (status === "verified") {
+    return (
+      <Badge variant="outline" className="border-green-600 text-green-700" title={`Verified ${verifiedTableCount ?? 0}/${tableCount ?? 0} tables`}>
+        <ShieldCheck className="h-3 w-3 mr-1" /> Verified
+      </Badge>
+    );
+  }
+  if (status === "verification_failed") {
+    return (
+      <Badge variant="destructive" title={error ?? "Verification failed"}>
+        <ShieldAlert className="h-3 w-3 mr-1" /> Verify failed
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-muted-foreground" title="Not yet verified">
+      <ShieldQuestion className="h-3 w-3 mr-1" /> Not verified
+    </Badge>
+  );
 }
 
 function BackupsContent() {
@@ -250,6 +288,7 @@ function BackupsContent() {
                 <TableRow>
                   <TableHead>Started</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Verification</TableHead>
                   <TableHead>Trigger</TableHead>
                   <TableHead>Env</TableHead>
                   <TableHead>Tables</TableHead>
@@ -274,6 +313,21 @@ function BackupsContent() {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <VerificationBadge
+                          status={b.verificationStatus}
+                          error={b.verificationError}
+                          verifiedTableCount={b.verifiedTableCount}
+                          tableCount={b.tableCount}
+                        />
+                        {b.verificationError && b.verificationStatus === "verification_failed" && (
+                          <span className="text-xs text-destructive max-w-xs truncate" title={b.verificationError}>
+                            {b.verificationError}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="capitalize">{b.triggeredBy}</TableCell>
                     <TableCell>{b.environment}</TableCell>
                     <TableCell>
@@ -284,7 +338,7 @@ function BackupsContent() {
                     <TableCell>{formatBytes(b.sizeBytes)}</TableCell>
                     <TableCell>{formatDuration(b.durationMs)}</TableCell>
                     <TableCell className="text-right">
-                      {b.status === "completed" && (
+                      {(b.status === "completed" || b.status === "verification_failed") && b.objectPath && (
                         <Button
                           variant="outline"
                           size="sm"

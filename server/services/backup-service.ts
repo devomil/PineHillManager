@@ -1,10 +1,11 @@
 import { spawn } from 'child_process';
-import { createGzip } from 'zlib';
+import { createGzip, createGunzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 import { PassThrough } from 'stream';
+import readline from 'readline';
 import { db } from '../db';
 import { backupRuns, users } from '@shared/schema';
-import { eq, lt, desc, and, sql } from 'drizzle-orm';
+import { eq, lt, desc, and, inArray, sql } from 'drizzle-orm';
 import { objectStorageClient } from '../objectStorage';
 import sgMail from '@sendgrid/mail';
 import { smsService } from '../smsService';
@@ -67,11 +68,14 @@ function getBackupBucketAndPrefix(): { bucketName: string; prefix: string } {
 
 export interface BackupResult {
   id: number;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'verification_failed';
   objectPath?: string;
   sizeBytes?: number;
   durationMs: number;
   error?: string;
+  verificationStatus?: 'verified' | 'verification_failed';
+  verificationError?: string;
+  verifiedTableCount?: number;
 }
 
 let backupInFlight = false;
@@ -193,9 +197,33 @@ export async function runBackup(
 
     console.log(`[Backup] Completed run #${run.id} (${(bytesWritten / 1024 / 1024).toFixed(2)} MB in ${(durationMs / 1000).toFixed(1)}s) → ${objectPath}`);
 
+    const verification = await verifyBackupObject(bucketName, objectName);
+    await db.update(backupRuns).set({
+      verificationStatus: verification.status,
+      verifiedAt: new Date(),
+      verificationError: verification.error ?? null,
+      verifiedTableCount: verification.tablesFound.length,
+      ...(verification.status === 'verification_failed' ? { status: 'verification_failed' } : {}),
+    }).where(eq(backupRuns.id, run.id));
+
+    if (verification.status === 'verified') {
+      console.log(`[Backup] Verified run #${run.id}: ${verification.tablesFound.length}/${BACKUP_TABLES.length} tables present`);
+    } else {
+      console.error(`[Backup] Verification FAILED for run #${run.id}: ${verification.error}`);
+    }
+
     pruneOldBackups().catch((err) => console.error('[Backup] Prune failed:', err));
 
-    return { id: run.id, status: 'completed', objectPath, sizeBytes: bytesWritten, durationMs };
+    return {
+      id: run.id,
+      status: verification.status === 'verification_failed' ? 'verification_failed' : 'completed',
+      objectPath,
+      sizeBytes: bytesWritten,
+      durationMs,
+      verificationStatus: verification.status,
+      verificationError: verification.error,
+      verifiedTableCount: verification.tablesFound.length,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[Backup] Run ${run ? `#${run.id}` : '(uninitialized)'} failed:`, message);
@@ -224,6 +252,95 @@ export async function runBackup(
   }
 }
 
+export interface VerificationResult {
+  status: 'verified' | 'verification_failed';
+  error?: string;
+  tablesFound: string[];
+  tablesMissing: string[];
+}
+
+async function verifyBackupObject(bucketName: string, objectName: string): Promise<VerificationResult> {
+  const tablesFound = new Set<string>();
+  const copyRegex = /^COPY "public"\."([^"]+)"/;
+  try {
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return {
+        status: 'verification_failed',
+        error: 'Backup file missing from storage immediately after upload',
+        tablesFound: [],
+        tablesMissing: [...BACKUP_TABLES],
+      };
+    }
+    const gunzip = createGunzip();
+    const readStream = file.createReadStream();
+    const errors: Error[] = [];
+    readStream.on('error', (err) => errors.push(err));
+    gunzip.on('error', (err) => errors.push(err));
+    const rl = readline.createInterface({ input: readStream.pipe(gunzip), crlfDelay: Infinity });
+    for await (const line of rl) {
+      const m = copyRegex.exec(line);
+      if (m) tablesFound.add(m[1]);
+    }
+    if (errors.length > 0) {
+      const msg = errors.map((e) => e.message).join('; ');
+      return {
+        status: 'verification_failed',
+        error: `Stream/gunzip error: ${msg}`.slice(0, 1000),
+        tablesFound: Array.from(tablesFound),
+        tablesMissing: BACKUP_TABLES.filter((t) => !tablesFound.has(t)),
+      };
+    }
+  } catch (err) {
+    return {
+      status: 'verification_failed',
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 1000),
+      tablesFound: Array.from(tablesFound),
+      tablesMissing: BACKUP_TABLES.filter((t) => !tablesFound.has(t)),
+    };
+  }
+  const missing = BACKUP_TABLES.filter((t) => !tablesFound.has(t));
+  if (missing.length > 0) {
+    return {
+      status: 'verification_failed',
+      error: `Missing COPY blocks for ${missing.length} table(s): ${missing.join(', ')}`.slice(0, 1000),
+      tablesFound: Array.from(tablesFound),
+      tablesMissing: missing,
+    };
+  }
+  return { status: 'verified', tablesFound: Array.from(tablesFound), tablesMissing: [] };
+}
+
+export async function verifyBackup(id: number): Promise<VerificationResult> {
+  const row = await getBackup(id);
+  if (!row || !row.objectPath) {
+    return {
+      status: 'verification_failed',
+      error: 'Backup row not found or has no objectPath',
+      tablesFound: [],
+      tablesMissing: [...BACKUP_TABLES],
+    };
+  }
+  const parsed = parseAndValidateObjectPath(row.objectPath);
+  if (!parsed) {
+    return {
+      status: 'verification_failed',
+      error: 'Object path outside expected backup location',
+      tablesFound: [],
+      tablesMissing: [...BACKUP_TABLES],
+    };
+  }
+  const result = await verifyBackupObject(parsed.bucketName, parsed.objectName);
+  await db.update(backupRuns).set({
+    verificationStatus: result.status,
+    verifiedAt: new Date(),
+    verificationError: result.error ?? null,
+    verifiedTableCount: result.tablesFound.length,
+  }).where(eq(backupRuns.id, id));
+  return result;
+}
+
 function parseAndValidateObjectPath(rawPath: string): { bucketName: string; objectName: string } | null {
   try {
     const { bucketName: expectedBucket, prefix } = getBackupBucketAndPrefix();
@@ -245,7 +362,7 @@ export async function pruneOldBackups(): Promise<number> {
   const stale = await db
     .select()
     .from(backupRuns)
-    .where(and(eq(backupRuns.status, 'completed'), lt(backupRuns.startedAt, cutoff)));
+    .where(and(inArray(backupRuns.status, ['completed', 'verification_failed']), lt(backupRuns.startedAt, cutoff)));
 
   let deleted = 0;
   for (const row of stale) {
@@ -282,7 +399,7 @@ export async function getBackup(id: number) {
 
 export async function streamBackupToResponse(id: number, res: import('express').Response) {
   const row = await getBackup(id);
-  if (!row || !row.objectPath || row.status !== 'completed') {
+  if (!row || !row.objectPath || (row.status !== 'completed' && row.status !== 'verification_failed')) {
     res.status(404).json({ error: 'Backup not found or incomplete' });
     return;
   }
@@ -351,8 +468,12 @@ export async function notifyAdminsOfBackupFailure(result: BackupResult): Promise
   }
 
   const url = getBackupsPageUrl();
-  const errorMsg = (result.error || 'Unknown error').slice(0, 500);
-  const subject = `[Pine Hill Farm] Nightly backup FAILED (run #${result.id})`;
+  const isVerificationFailure = result.status === 'verification_failed';
+  const errorMsg = (
+    (isVerificationFailure ? result.verificationError : result.error) || 'Unknown error'
+  ).slice(0, 500);
+  const failureLabel = isVerificationFailure ? 'VERIFICATION FAILED' : 'FAILED';
+  const subject = `[Pine Hill Farm] Nightly backup ${failureLabel} (run #${result.id})`;
   const textBody = `The scheduled nightly backup failed.
 
 Run ID: ${result.id}
@@ -376,7 +497,7 @@ Pine Hill Farm Employee Management System (automated alert)`;
       <p style="color: #6b7280; font-size: 12px;">This is an automated alert from Pine Hill Farm Employee Management System.</p>
     </div>
   `;
-  const smsBody = `Pine Hill Farm: Nightly backup FAILED (run #${result.id}). ${errorMsg.slice(0, 120)}... ${url}`;
+  const smsBody = `Pine Hill Farm: Nightly backup ${failureLabel} (run #${result.id}). ${errorMsg.slice(0, 120)}... ${url}`;
 
   if (channels.email && !process.env.SENDGRID_API_KEY) {
     console.warn('[Backup] Email notifications enabled but SENDGRID_API_KEY is not set');
@@ -443,7 +564,7 @@ export function startBackupScheduler(): void {
       isRunning = true;
       try {
         const result = await runBackup('scheduled');
-        if (result.status === 'failed') {
+        if (result.status === 'failed' || result.status === 'verification_failed') {
           await notifyAdminsOfBackupFailure(result);
         }
       } catch (err) {

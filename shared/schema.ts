@@ -6294,6 +6294,10 @@ export const backupRuns = pgTable("backup_runs", {
   durationMs: integer("duration_ms"),
   error: text("error"),
   environment: varchar("environment").notNull().default("production"),
+  verificationStatus: varchar("verification_status"),
+  verifiedAt: timestamp("verified_at"),
+  verificationError: text("verification_error"),
+  verifiedTableCount: integer("verified_table_count"),
 }, (table) => ({
   startedAtIdx: index("idx_backup_runs_started_at").on(table.startedAt),
   statusIdx: index("idx_backup_runs_status").on(table.status),
