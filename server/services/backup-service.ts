@@ -88,6 +88,8 @@ export async function runBackup(
         triggeredBy,
         triggeredByUserId: userId,
         environment,
+        tableCount: PROTECTED_TABLES.length,
+        tableList: PROTECTED_TABLES,
       })
       .returning();
     run = inserted;
