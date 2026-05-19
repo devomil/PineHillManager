@@ -61,10 +61,20 @@ export interface BackupResult {
   error?: string;
 }
 
+let backupInFlight = false;
+
+export function isBackupRunning(): boolean {
+  return backupInFlight;
+}
+
 export async function runBackup(
   triggeredBy: 'scheduled' | 'manual',
   userId?: string
 ): Promise<BackupResult> {
+  if (backupInFlight) {
+    throw new Error('A backup is already running');
+  }
+  backupInFlight = true;
   const startMs = Date.now();
   const environment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
 
@@ -169,6 +179,8 @@ export async function runBackup(
       error: message.slice(0, 2000),
     }).where(eq(backupRuns.id, run.id));
     return { id: run.id, status: 'failed', durationMs: Date.now() - startMs, error: message };
+  } finally {
+    backupInFlight = false;
   }
 }
 

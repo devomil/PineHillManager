@@ -25864,7 +25864,7 @@ Important:
   // ADMIN BACKUPS — nightly snapshots of production DB to Object Storage
   // ================================
   {
-    const { runBackup, listBackups, streamBackupToResponse } = await import('./services/backup-service');
+    const { runBackup, listBackups, streamBackupToResponse, isBackupRunning } = await import('./services/backup-service');
 
     app.get('/api/admin/backups', isAuthenticated, requireStrictAdmin, async (_req, res) => {
       try {
@@ -25877,6 +25877,9 @@ Important:
     });
 
     app.post('/api/admin/backups/run', isAuthenticated, requireStrictAdmin, async (req: any, res) => {
+      if (isBackupRunning()) {
+        return res.status(409).json({ message: 'A backup is already running' });
+      }
       res.json({ started: true });
       runBackup('manual', req.user?.id).catch((err) => {
         console.error('[Backups] Manual run failed:', err);
