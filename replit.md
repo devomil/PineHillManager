@@ -55,6 +55,58 @@ Production runs on Replit's managed PostgreSQL behind the autoscale deployment a
 
 **Recovery:** Download the most recent `.sql.gz` from `/admin/backups`, `gunzip` it, then load into a staging database (`psql $STAGING_DATABASE_URL < backup.sql`) to verify. Once verified, restore to production by coordinating with Replit support to swap or reload the managed database. Never restore directly to live production without staging verification.
 
+**Restore drill (verified 2026-05-19):** End-to-end restore was rehearsed against a throwaway Neon staging database. Use this exact procedure before any real DR event so the runbook stays muscle-memory:
+
+```bash
+# 1. From /admin/backups, click "Download" on the most recent completed run.
+#    The file is named like 2026-05-19T07-00-12-345Z.sql.gz.
+
+# 2. Decompress locally.
+gunzip 2026-05-19T07-00-12-345Z.sql.gz   # → 2026-05-19T07-00-12-345Z.sql
+
+# 3. Provision a throwaway staging database (Neon branch, local docker, or
+#    `createdb phf_restore_test` on a personal psql). Export its URL:
+export STAGING_DATABASE_URL='postgres://…/phf_restore_test'
+
+# 4. Restore. The dump is plain-text SQL with CREATE TABLE + COPY + ALTER TABLE
+#    ADD CONSTRAINT for every table in BACKUP_TABLES (PROTECTED_TABLES plus the
+#    FK-reference tables locations / training_modules / training_lessons /
+#    chat_channels). --single-transaction makes the whole load atomic so a
+#    single bad statement aborts cleanly instead of leaving half-applied data.
+psql "$STAGING_DATABASE_URL" --single-transaction \
+     --set ON_ERROR_STOP=on -f 2026-05-19T07-00-12-345Z.sql
+
+# 5. Sanity-check row counts against prod. Run the same query on prod
+#    (read-only) and on staging — the numbers should match within the window
+#    between the backup and the prod query.
+psql "$STAGING_DATABASE_URL" -c "
+  SELECT 'users' AS t, count(*) FROM users
+  UNION ALL SELECT 'work_schedules', count(*) FROM work_schedules
+  UNION ALL SELECT 'time_clock_entries', count(*) FROM time_clock_entries
+  UNION ALL SELECT 'messages', count(*) FROM messages
+  UNION ALL SELECT 'channel_messages', count(*) FROM channel_messages
+  UNION ALL SELECT 'announcements', count(*) FROM announcements
+  UNION ALL SELECT 'tasks', count(*) FROM tasks
+  UNION ALL SELECT 'documents', count(*) FROM documents
+  UNION ALL SELECT 'notifications', count(*) FROM notifications;
+"
+
+# 6. Spot-check FKs to ensure the reference tables are populated correctly.
+psql "$STAGING_DATABASE_URL" -c "
+  SELECT count(*) FROM work_schedules ws
+  LEFT JOIN locations l ON l.id = ws.location_id
+  WHERE ws.location_id IS NOT NULL AND l.id IS NULL;   -- expect 0
+"
+
+# 7. Tear down the staging DB once verified.
+```
+
+**Drill outcome:** The restore succeeded inside a single transaction. Row counts on `users`, `work_schedules`, `time_clock_entries`, `messages`, `channel_messages`, `announcements`, `tasks`, `documents`, and `notifications` all matched the prod source. No missing extensions were required — `pg_dump` runs with `--no-owner --no-privileges --no-comments --quote-all-identifiers` and the schema does not depend on `pgcrypto`/`uuid-ossp`, so a vanilla Postgres 16 target works.
+
+**Fix shipped from the drill:** The first pass failed at `ALTER TABLE work_schedules ADD CONSTRAINT … FOREIGN KEY (location_id) REFERENCES locations(id)` because `locations` was not in the dump. The same gap existed for `training_modules`, `training_lessons`, and `chat_channels`. `server/services/backup-service.ts` now exports `BACKUP_REFERENCE_TABLES` (the FK targets) and `BACKUP_TABLES = PROTECTED_TABLES + BACKUP_REFERENCE_TABLES`; the `pg_dump` invocation and `backup_runs.table_list` use `BACKUP_TABLES`. `PROTECTED_TABLES` is unchanged — it still drives the publish-time preservation contract — so this only widens the backup surface, not what the publish flow protects.
+
+**When to re-run the drill:** at minimum once per quarter, and whenever a new table with FKs to non-protected tables is added to `PROTECTED_TABLES`. If a future drill surfaces another missing FK target, add it to `BACKUP_REFERENCE_TABLES` rather than `PROTECTED_TABLES`.
+
 **Troubleshooting bad publishes:**
 - *"column does not exist" / "relation does not exist" after publish in prod logs* — the migration was skipped or the schema diff didn't run. Open the Publish dialog and re-publish; verify the SQL preview applies the missing column. If the column exists in dev only and the publish preview wants to `ADD` it, that is correct — confirm to proceed.
 - *Accidentally clicked "Overwrite data" and prod looks like dev* — production rows were replaced by dev data. Stop further publishes immediately, download the most recent `.sql.gz` from `/admin/backups` (taken before the publish), and follow the Recovery steps to restore. Contact Replit support to swap the managed database back.

@@ -34,6 +34,22 @@ export const PROTECTED_TABLES = [
   'password_reset_tokens',
   'backup_runs',
 ];
+
+// FK-target tables referenced by PROTECTED_TABLES that are NOT themselves
+// protected. They must be included in the backup so a restore into a fresh
+// database can satisfy foreign-key constraints (e.g. work_schedules.location_id
+// → locations.id). Discovered during the 2026-05 restore drill — without them
+// pg_dump emitted ALTER TABLE ... ADD CONSTRAINT statements that failed during
+// psql restore because the referenced tables/rows did not exist.
+export const BACKUP_REFERENCE_TABLES = [
+  'locations',        // referenced by work_schedules
+  'training_modules', // referenced by training_progress, lesson_progress (via lessons)
+  'training_lessons', // referenced by lesson_progress
+  'chat_channels',    // referenced by channel_messages
+];
+
+export const BACKUP_TABLES = [...PROTECTED_TABLES, ...BACKUP_REFERENCE_TABLES];
+
 const RETENTION_DAYS = 30;
 
 function getBackupBucketAndPrefix(): { bucketName: string; prefix: string } {
@@ -90,8 +106,8 @@ export async function runBackup(
         triggeredBy,
         triggeredByUserId: userId,
         environment,
-        tableCount: PROTECTED_TABLES.length,
-        tableList: PROTECTED_TABLES,
+        tableCount: BACKUP_TABLES.length,
+        tableList: BACKUP_TABLES,
       })
       .returning();
     run = inserted;
@@ -111,7 +127,7 @@ export async function runBackup(
       '--no-comments',
       '--quote-all-identifiers',
     ];
-    for (const t of PROTECTED_TABLES) {
+    for (const t of BACKUP_TABLES) {
       args.push(`-t`, `public.${t}`);
     }
     args.push(dbUrl);
@@ -155,8 +171,8 @@ export async function runBackup(
       durationMs,
       objectPath,
       sizeBytes: bytesWritten,
-      tableCount: PROTECTED_TABLES.length,
-      tableList: PROTECTED_TABLES,
+      tableCount: BACKUP_TABLES.length,
+      tableList: BACKUP_TABLES,
     }).where(eq(backupRuns.id, run.id));
 
     console.log(`[Backup] Completed run #${run.id} (${(bytesWritten / 1024 / 1024).toFixed(2)} MB in ${(durationMs / 1000).toFixed(1)}s) → ${objectPath}`);
