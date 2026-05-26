@@ -3022,14 +3022,21 @@ function CommunicationsContent() {
                               <Calendar className="h-3 w-3" />
                               <span>
                                 Scheduled: {(() => {
-                                  // Parse time as local time - split and manually create date
-                                  const timeStr = message.scheduledFor.replace('T', ' ');
-                                  const [datePart, timePart] = timeStr.split(' ');
-                                  const [year, month, day] = datePart.split('-').map(Number);
-                                  const [hour, minute] = timePart.split(':').map(Number);
-                                  // Create date in local timezone
-                                  const localDate = new Date(year, month - 1, day, hour, minute);
-                                  return format(localDate, 'MMM dd, yyyy h:mm a');
+                                  if (!message.scheduledFor) return '—';
+                                  try {
+                                    // Parse time as local time - split and manually create date
+                                    const timeStr = String(message.scheduledFor).replace('T', ' ');
+                                    const [datePart, timePart] = timeStr.split(' ');
+                                    if (!datePart || !timePart) return '—';
+                                    const [year, month, day] = datePart.split('-').map(Number);
+                                    const [hour, minute] = timePart.split(':').map(Number);
+                                    // Create date in local timezone
+                                    const localDate = new Date(year, month - 1, day, hour, minute);
+                                    if (isNaN(localDate.getTime())) return '—';
+                                    return format(localDate, 'MMM dd, yyyy h:mm a');
+                                  } catch {
+                                    return '—';
+                                  }
                                 })()}
                               </span>
                             </div>
