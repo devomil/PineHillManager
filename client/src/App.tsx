@@ -15,6 +15,7 @@ import AdminEmployeeContentPage from "@/pages/admin/employee-content";
 import CloverSquareExportPage from "@/pages/admin/clover-square-export";
 import BackupsPage from "@/pages/admin/backups";
 import CommunicationsPage from "@/pages/communications";
+import { ErrorBoundary } from "@/components/error-boundary";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
 import TimeManagement from "@/pages/time-management";
@@ -267,7 +268,7 @@ function AuthenticatedApp() {
       <Route path="/notifications" component={Notifications} />
       <Route path="/documents" component={Documents} />
       <Route path="/announcements" component={CommunicationsPage} />
-      <Route path="/communications" component={CommunicationsPage} />
+      <Route path="/communications">{() => <ErrorBoundary label="Communications"><CommunicationsPage /></ErrorBoundary>}</Route>
       <Route path="/time-clock" component={TimeClock} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/time-off" component={TimeOff} />
