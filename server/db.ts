@@ -27,11 +27,42 @@ const patchedFetch: typeof fetch = async (input, init) => {
     });
   }
   const normalize = (obj: any) => {
-    if (obj && typeof obj === 'object' && 'rows' in obj && obj.rows === null) {
-      obj.rows = [];
-    }
-    if (obj && typeof obj === 'object' && 'fields' in obj && obj.fields === null) {
-      obj.fields = [];
+    if (!obj || typeof obj !== 'object') return;
+    if ('rows' in obj && obj.rows === null) obj.rows = [];
+    if ('fields' in obj && obj.fields === null) obj.fields = [];
+    if (Array.isArray(obj.fields) && Array.isArray(obj.rows)) {
+      const boolCols: number[] = [];
+      const boolArrayCols: number[] = [];
+      obj.fields.forEach((f: any, i: number) => {
+        if (f && f.dataTypeID === 16) boolCols.push(i);
+        if (f && f.dataTypeID === 1000) boolArrayCols.push(i);
+      });
+      if (boolCols.length || boolArrayCols.length) {
+        const rowsAsArrays = obj.rows.length > 0 && Array.isArray(obj.rows[0]);
+        for (const row of obj.rows) {
+          if (rowsAsArrays) {
+            for (const i of boolCols) {
+              if (typeof row[i] === 'boolean') row[i] = row[i] ? 't' : 'f';
+            }
+            for (const i of boolArrayCols) {
+              if (Array.isArray(row[i])) {
+                row[i] = '{' + row[i].map((v: any) => v === null ? 'NULL' : (v ? 't' : 'f')).join(',') + '}';
+              }
+            }
+          } else {
+            for (const i of boolCols) {
+              const name = obj.fields[i].name;
+              if (typeof row[name] === 'boolean') row[name] = row[name] ? 't' : 'f';
+            }
+            for (const i of boolArrayCols) {
+              const name = obj.fields[i].name;
+              if (Array.isArray(row[name])) {
+                row[name] = '{' + row[name].map((v: any) => v === null ? 'NULL' : (v ? 't' : 'f')).join(',') + '}';
+              }
+            }
+          }
+        }
+      }
     }
   };
   if (Array.isArray(body?.results)) {
