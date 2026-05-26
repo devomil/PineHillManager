@@ -216,9 +216,18 @@ const formatMessageAudience = (message: any, employees: any[] = [], teamsMap?: R
   return formatAudience(message.targetAudience, teamsMap);
 };
 
-const isExpired = (expiresAt?: string) => {
+const isExpired = (expiresAt?: string | null) => {
   if (!expiresAt) return false;
   return isAfter(new Date(), parseISO(expiresAt));
+};
+
+const safeFormat = (value: string | null | undefined, fmt: string, fallback = "—") => {
+  if (!value) return fallback;
+  try {
+    return format(parseISO(value), fmt);
+  } catch {
+    return fallback;
+  }
 };
 
 // Employee Selection Component
@@ -2359,8 +2368,8 @@ function CommunicationsContent() {
                           <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm text-gray-500 gap-2 sm:gap-4">
                             <span className="flex items-center">
                               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                              Published {format(parseISO(announcement.createdAt), "MMM d")}
-                              <span className="hidden sm:inline">, {format(parseISO(announcement.createdAt), "yyyy")}</span>
+                              Published {safeFormat(announcement.createdAt, "MMM d")}
+                              <span className="hidden sm:inline">, {safeFormat(announcement.createdAt, "yyyy")}</span>
                               {(announcement as any).editedAt && (
                                 <span className="text-xs text-gray-400 italic ml-2">(edited)</span>
                               )}
@@ -2374,7 +2383,7 @@ function CommunicationsContent() {
                             <span className="flex items-center text-xs sm:text-sm text-orange-600">
                               <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                               <span className="hidden sm:inline">Expires </span>
-                              {format(parseISO(announcement.expiresAt), "MMM d")}
+                              {safeFormat(announcement.expiresAt, "MMM d")}
                             </span>
                           )}
                           <Button
@@ -2500,7 +2509,7 @@ function CommunicationsContent() {
                             <div className="flex items-center text-sm text-gray-500 space-x-4">
                               <span className="flex items-center">
                                 <Calendar className="h-4 w-4 mr-1" />
-                                Published {format(parseISO(announcement.createdAt), "MMM d, yyyy")}
+                                Published {safeFormat(announcement.createdAt, "MMM d, yyyy")}
                               </span>
                               <span className="flex items-center">
                                 {getTargetAudienceIcon(announcement.targetAudience)}
@@ -2510,7 +2519,7 @@ function CommunicationsContent() {
                             {announcement.expiresAt && (
                               <span className="flex items-center text-sm text-red-600">
                                 <Clock className="h-4 w-4 mr-1" />
-                                Expired {format(parseISO(announcement.expiresAt), "MMM d, yyyy")}
+                                Expired {safeFormat(announcement.expiresAt, "MMM d, yyyy")}
                               </span>
                             )}
                           </div>
@@ -2697,7 +2706,7 @@ function CommunicationsContent() {
                       <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                         <div className="flex items-center text-sm text-gray-500">
                           <Calendar className="h-4 w-4 mr-1" />
-                          Sent {format(parseISO(message.sentAt), "MMM d, yyyy 'at' h:mm a")}
+                          Sent {safeFormat(message.sentAt, "MMM d, yyyy 'at' h:mm a")}
                           {message.editedAt && (
                             <span className="text-xs text-gray-400 italic ml-2">(edited)</span>
                           )}

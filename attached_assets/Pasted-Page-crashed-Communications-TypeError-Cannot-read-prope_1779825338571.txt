@@ -1,0 +1,33 @@
+Page crashed: Communications
+TypeError: Cannot read properties of null (reading 'split')
+
+TypeError: Cannot read properties of null (reading 'split')
+    at splitDateString (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6PJ6ZD5Z.js?v=d214ac7f:5293:28)
+    at parseISO (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6PJ6ZD5Z.js?v=d214ac7f:5242:23)
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/communications.tsx:4209:32
+    at Array.map (<anonymous>)
+    at CommunicationsContent (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/communications.tsx:3978:215)
+    at renderWithHooks (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=d214ac7f:11548:26)
+    at updateFunctionComponent (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=d214ac7f:14582:28)
+    at beginWork (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=d214ac7f:15924:22)
+    at beginWork$1 (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=d214ac7f:19753:22)
+    at performUnitOfWork (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=d214ac7f:19198:20)
+Component stack
+
+    at CommunicationsContent (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/communications.tsx:1364:47)
+    at div
+    at div
+    at div
+    at div
+    at AdminLayout (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/admin-layout.tsx:29:39)
+    at CommunicationsPage (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/communications.tsx:6863:20)
+    at ErrorBoundary (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/error-boundary.tsx:7:5)
+    at Route (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=d214ac7f:323:16)
+    at Switch (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=d214ac7f:379:17)
+    at AuthenticatedApp (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=pvQdDMqWlqo1Pf79tqhZ4:81:20)
+    at AppRouter (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=pvQdDMqWlqo1Pf79tqhZ4:726:48)
+    at Router (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=d214ac7f:291:17)
+    at AuthProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/hooks/use-auth.tsx:26:32)
+    at ThemeProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/contexts/ThemeContext.tsx:306:33)
+    at App
+    at QueryClientProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=d214ac7f:2805:3)
