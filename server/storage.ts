@@ -3315,14 +3315,51 @@ export class DatabaseStorage implements IStorage {
   // Messages
 
   async getUserMessages(userId: string, limit = 50, offset = 0): Promise<Message[]> {
-    // Get all messages sent by or received by this user, including custom direct messages
+    // Look up the user's profile + team memberships so audience-targeted
+    // messages (team:N, role:X, store:Y, all, admin_manager) reach them
+    // even when no read_receipt row was created.
+    const [user] = await db
+      .select({
+        id: users.id,
+        role: users.role,
+        primaryStore: users.primaryStore,
+        assignedStores: users.assignedStores,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    const memberships = await db
+      .select({ channelId: channelMembers.channelId })
+      .from(channelMembers)
+      .where(eq(channelMembers.userId, userId));
+    const teamAudiences = memberships.map(m => `team:${m.channelId}`);
+
+    const audienceMatches: any[] = [
+      eq(messages.targetAudience, 'all'),
+    ];
+    if (user?.role) {
+      audienceMatches.push(eq(messages.targetAudience, `role:${user.role}`));
+      if (user.role === 'admin' || user.role === 'manager') {
+        audienceMatches.push(eq(messages.targetAudience, 'admin_manager'));
+      }
+    }
+    if (user?.primaryStore) {
+      audienceMatches.push(eq(messages.targetAudience, `store:${user.primaryStore}`));
+    }
+    for (const store of user?.assignedStores || []) {
+      audienceMatches.push(eq(messages.targetAudience, `store:${store}`));
+    }
+    for (const aud of teamAudiences) {
+      audienceMatches.push(eq(messages.targetAudience, aud));
+    }
+
     return await db
       .select()
       .from(messages)
       .where(
         or(
           eq(messages.senderId, userId), // Messages sent by this user
-          eq(messages.recipientId, userId), // Messages received by this user
+          eq(messages.recipientId, userId), // Messages addressed directly to this user
           exists(
             db.select().from(readReceipts)
               .where(
@@ -3331,7 +3368,8 @@ export class DatabaseStorage implements IStorage {
                   eq(readReceipts.userId, userId)
                 )
               )
-          ) // Messages where this user has a readReceipt (custom recipients)
+          ), // Messages where this user has a readReceipt (custom recipients)
+          or(...audienceMatches) // Messages targeted at an audience this user belongs to
         )
       )
       .orderBy(desc(messages.sentAt))
