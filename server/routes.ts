@@ -9407,8 +9407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Also get location names from locations table as fallback
-        const { storeLocations } = await import('@shared/schema');
-        const allLocations = await db.select().from(storeLocations);
+        const { locations: locationsTable } = await import('@shared/schema');
+        const allLocations = await db.select().from(locationsTable);
         for (const loc of allLocations) {
           if (!locationIdToName.has(loc.id)) {
             locationIdToName.set(loc.id, loc.name);
