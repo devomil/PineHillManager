@@ -495,7 +495,7 @@ export class CloverIntegration {
             itemName: item.name,
             description: item.description || '',
             category: category,
-            tags: tags.length > 0 ? tags : null,       // Array of tag names
+            tags: tags,                                // Array of tag names (empty array if none)
             unitCost: accurateCost,                    // Enhanced cost from inventory endpoints
             unitPrice: item.price ? (parseFloat(item.price) / 100).toString() : '0.00',
             quantityOnHand: stockQuantity.toString(),
