@@ -8025,36 +8025,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Look for the most recent announcement OR message they could be replying to
+        // Look for the most recent announcement OR message they could be replying to.
+        // The user is replying via SMS, so only consider items that were actually
+        // SMS-delivered (smsEnabled=true) within the last 48 hours; everything
+        // older or web-only is excluded so a stale announcement can't hijack a
+        // reply that was meant for a direct message.
         const announcements = await storage.getPublishedAnnouncements();
-        const messages = await storage.getUserMessages(user.id, 10, 0); // Get recent messages for this user
-        
-        // Determine content targeting based on most recent activity
+        const messages = await storage.getUserMessages(user.id, 25, 0);
 
-        // Determine which is more recent: announcement or direct message
+        const SMS_REPLY_WINDOW_MS = 48 * 60 * 60 * 1000;
+        const nowMs = Date.now();
+
+        const smsMessages = messages
+          .filter((m: any) => m.smsEnabled && m.sentAt && (nowMs - new Date(m.sentAt).getTime()) <= SMS_REPLY_WINDOW_MS)
+          .sort((a: any, b: any) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+        const smsAnnouncements = announcements
+          .filter((a: any) => a.smsEnabled && a.createdAt && (nowMs - new Date(a.createdAt).getTime()) <= SMS_REPLY_WINDOW_MS)
+          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
         let isRespondingToMessage = false;
-        let targetMessage = null;
-        let targetAnnouncement = null;
+        let targetMessage: any = null;
+        let targetAnnouncement: any = null;
 
-        if (messages.length > 0 && announcements.length > 0) {
+        if (smsMessages.length > 0 && smsAnnouncements.length > 0) {
+          const latestMessageTime = new Date(smsMessages[0].sentAt).getTime();
+          const latestAnnouncementTime = new Date(smsAnnouncements[0].createdAt).getTime();
+          // Prefer the more recent of the two. Direct messages are conversational,
+          // so if a message was sent within the last hour, prefer it even when an
+          // announcement edges it out by a small margin.
+          if (latestMessageTime >= latestAnnouncementTime ||
+              (nowMs - latestMessageTime) <= 60 * 60 * 1000) {
+            isRespondingToMessage = true;
+            targetMessage = smsMessages[0];
+            console.log('📨 SMS routing to message:', targetMessage.id);
+          } else {
+            targetAnnouncement = smsAnnouncements[0];
+            console.log('📢 SMS routing to announcement:', targetAnnouncement.id);
+          }
+        } else if (smsMessages.length > 0) {
+          isRespondingToMessage = true;
+          targetMessage = smsMessages[0];
+          console.log('🎯 User responding to MESSAGE (no recent SMS announcements):', targetMessage.id);
+        } else if (smsAnnouncements.length > 0) {
+          targetAnnouncement = smsAnnouncements[0];
+          console.log('🎯 User responding to ANNOUNCEMENT (no recent SMS messages):', targetAnnouncement.id);
+        } else if (messages.length > 0 && announcements.length > 0) {
+          // Nothing within the SMS window — fall back to the old "latest of either"
+          // heuristic so we still attach the reply somewhere reasonable.
           const latestMessageTime = messages[0].sentAt ? new Date(messages[0].sentAt).getTime() : 0;
           const latestAnnouncementTime = announcements[0].createdAt ? new Date(announcements[0].createdAt).getTime() : 0;
-          
           if (latestMessageTime > latestAnnouncementTime) {
             isRespondingToMessage = true;
             targetMessage = messages[0];
-            console.log('📨 SMS routing to message:', targetMessage.id);
+            console.log('📨 SMS routing to message (fallback):', targetMessage.id);
           } else {
             targetAnnouncement = announcements[0];
-            console.log('📢 SMS routing to announcement:', targetAnnouncement.id);
+            console.log('📢 SMS routing to announcement (fallback):', targetAnnouncement.id);
           }
         } else if (messages.length > 0) {
           isRespondingToMessage = true;
           targetMessage = messages[0];
-          console.log('🎯 User responding to MESSAGE (no announcements):', targetMessage.id);
+          console.log('🎯 User responding to MESSAGE (fallback, no announcements):', targetMessage.id);
         } else if (announcements.length > 0) {
           targetAnnouncement = announcements[0];
-          console.log('🎯 User responding to ANNOUNCEMENT (no messages):', targetAnnouncement.id);
+          console.log('🎯 User responding to ANNOUNCEMENT (fallback, no messages):', targetAnnouncement.id);
         }
 
         if (targetMessage || targetAnnouncement) {
