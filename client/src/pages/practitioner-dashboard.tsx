@@ -386,10 +386,10 @@ export default function PractitionerDashboard() {
           </Select>
           <Select value={programTypeFilter} onValueChange={setProgramTypeFilter}>
             <SelectTrigger className="h-8 text-sm w-36">
-              <SelectValue placeholder="All Programs" />
+              <SelectValue placeholder="All Services" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Programs</SelectItem>
+              <SelectItem value="all">All Services</SelectItem>
               <SelectItem value="Remote Initial Scan">Remote Initial Scan</SelectItem>
               <SelectItem value="Follow-Up Scan">Follow-Up Scan</SelectItem>
               <SelectItem value="Pet Scan">Pet Scan</SelectItem>
