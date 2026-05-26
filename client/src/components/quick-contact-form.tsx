@@ -214,11 +214,11 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
 
         <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
 
-          {/* Program Type */}
+          {/* Service Type */}
           <div className={`${sectionCard} bg-blue-100 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700`}>
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-900 dark:text-blue-100 border-l-4 border-blue-500 pl-3">
               <Stethoscope className="h-5 w-5" />
-              Program Type
+              Service Type
             </h3>
             <div className="grid grid-cols-2 gap-4">
               {PROGRAM_TYPE_OPTIONS.map(service => (

@@ -341,7 +341,7 @@ export default function PBClientRecordsPage() {
                         <TableRow>
                           <TableHead>Client Name</TableHead>
                           <TableHead>Contact Info</TableHead>
-                          <TableHead>Program Type</TableHead>
+                          <TableHead>Service Type</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Assigned To</TableHead>
                           <TableHead>Created</TableHead>

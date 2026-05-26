@@ -465,7 +465,7 @@ export default function PractitionerDashboard() {
                       <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
                         <TableRow>
                           <TableHead className="pl-5 w-[210px]">Client</TableHead>
-                          <TableHead className="w-[160px]">Program Type</TableHead>
+                          <TableHead className="w-[160px]">Service Type</TableHead>
                           <TableHead className="w-[170px]">Status / Assigned To</TableHead>
                           <TableHead className="w-[180px]">Comments</TableHead>
                           <TableHead className="w-[148px]">Payment</TableHead>
@@ -696,7 +696,7 @@ export default function PractitionerDashboard() {
                       <TableHeader className="sticky top-0 z-10 bg-white dark:bg-gray-950 shadow-sm">
                         <TableRow>
                           <TableHead className="pl-5 w-[210px]">Client</TableHead>
-                          <TableHead className="w-[160px]">Program Type</TableHead>
+                          <TableHead className="w-[160px]">Service Type</TableHead>
                           <TableHead className="w-[170px]">Status / Assigned To</TableHead>
                           <TableHead className="w-[180px]">Comments</TableHead>
                           <TableHead className="w-[148px]">Payment</TableHead>
@@ -931,7 +931,7 @@ export default function PractitionerDashboard() {
                       <TableRow>
                         <TableHead>Client Name</TableHead>
                         <TableHead>Contact Info</TableHead>
-                        <TableHead>Program Type</TableHead>
+                        <TableHead>Service Type</TableHead>
 
                         <TableHead>Comments</TableHead>
                         <TableHead>Status</TableHead>
@@ -1222,7 +1222,7 @@ export default function PractitionerDashboard() {
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-500">Program Type</label>
+                        <label className="text-sm font-medium text-gray-500">Service Type</label>
                         <ScanTypeBadges scanType={(selectedContact as any).scanType} serviceType={undefined} clientNotes={selectedContact.clientNotes} />
                       </div>
                     </div>
