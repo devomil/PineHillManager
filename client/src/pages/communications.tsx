@@ -2352,17 +2352,34 @@ function CommunicationsContent() {
                           </div>
                         )}
                         
-                        {/* Message Reactions */}
-                        {typeof announcement.id === 'number' && announcement.id > 0 && (
-                          <MessageReactions 
-                            announcementId={announcement.id} 
-                          />
-                        )}
-                        
-                        {/* Announcement Responses */}
-                        {typeof announcement.id === 'number' && announcement.id > 0 && (
-                          <AnnouncementResponses announcementId={announcement.id} />
-                        )}
+                        {/* Reactions + Responses
+                            - Legacy announcements (numeric id) → announcement endpoints.
+                            - Merged messages (id like "msg_<n>", flagged isNewMessage)
+                              → message endpoints so recipients of Group Messages can
+                              still react and reply. */}
+                        {(() => {
+                          const isMergedMsg = (announcement as any).isNewMessage === true
+                            || (typeof announcement.id === 'string' && String(announcement.id).startsWith('msg_'));
+                          if (isMergedMsg) {
+                            const numId = parseInt(String(announcement.id).replace('msg_', ''), 10);
+                            if (!Number.isFinite(numId) || numId <= 0) return null;
+                            return (
+                              <>
+                                <MessageReactions messageId={numId} />
+                                <MessageResponses messageId={numId} />
+                              </>
+                            );
+                          }
+                          if (typeof announcement.id === 'number' && announcement.id > 0) {
+                            return (
+                              <>
+                                <MessageReactions announcementId={announcement.id} />
+                                <AnnouncementResponses announcementId={announcement.id} />
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
                         
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-3 md:pt-4 border-t border-gray-200 gap-2">
                           <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm text-gray-500 gap-2 sm:gap-4">
