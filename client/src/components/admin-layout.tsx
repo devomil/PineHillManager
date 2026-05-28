@@ -6,6 +6,7 @@ import UserAvatar from "@/components/user-avatar";
 import { User, LogOut, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 import { SeasonalThemeSwitcher } from "@/components/SeasonalThemeSwitcher";
+import NotificationBell from "@/components/notification-bell";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { HomerAIAssistant } from "@/components/homer-ai-assistant";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,9 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
             <div className="flex items-center space-x-4">
               {/* Seasonal Theme Switcher */}
               <SeasonalThemeSwitcher />
+
+              {/* Notifications */}
+              <NotificationBell />
               
               {/* User Profile Dropdown */}
               <DropdownMenu>

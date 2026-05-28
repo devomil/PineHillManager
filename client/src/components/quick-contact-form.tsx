@@ -68,6 +68,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     clientPhone: "",
     clientComment: "",
     assignedPractitioner: "",
+    notifyAssignee: true,
   });
 
   const resetForm = () => {
@@ -84,6 +85,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       clientPhone: "",
       clientComment: "",
       assignedPractitioner: "",
+      notifyAssignee: true,
     });
   };
 
@@ -168,6 +170,7 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       assignedPractitionerId: formData.assignedPractitioner || null,
       priority: 'normal',
       preferredContactMethod: 'phone',
+      notifyAssignee: formData.notifyAssignee,
     };
 
     createContactMutation.mutate(contactData);
@@ -361,6 +364,25 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
                   : "Approaching the 500 character limit."}
               </p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <Checkbox
+              id="notifyAssignee"
+              checked={formData.notifyAssignee}
+              onCheckedChange={(checked) =>
+                setFormData(prev => ({ ...prev, notifyAssignee: checked === true }))
+              }
+              disabled={!formData.assignedPractitioner}
+              className={checkboxClass}
+              data-testid="checkbox-notify-assignee"
+            />
+            <Label htmlFor="notifyAssignee" className={checkLabelClass}>
+              Notify assigned practitioner
+              {!formData.assignedPractitioner && (
+                <span className="ml-1 text-xs text-gray-500 font-normal">(select a practitioner first)</span>
+              )}
+            </Label>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t-2 border-gray-200 dark:border-gray-700">

@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import Sidebar from "./sidebar";
 import { Button } from "@/components/ui/button";
-import { Bell, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import UserAvatar from "@/components/user-avatar";
 import { useAuth } from "@/hooks/use-auth";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ContextualHelp, useContextualHelp } from "@/components/ui/contextual-help";
+import NotificationBell from "@/components/notification-bell";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -29,12 +29,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
     });
   };
 
-  const handleNotifications = () => {
-    toast({
-      title: "Notifications",
-      description: "Notifications panel would open here",
-    });
-  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -65,21 +59,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             
             <div className="flex items-center space-x-4">
               {/* Notifications */}
-              <div className="relative">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={handleNotifications}
-                  className="relative"
-                >
-                  <Bell className="w-5 h-5" />
-                  <Badge 
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs bg-red-500 text-white flex items-center justify-center"
-                  >
-                    3
-                  </Badge>
-                </Button>
-              </div>
+              <NotificationBell />
               
               {/* Quick Actions */}
               <Button 

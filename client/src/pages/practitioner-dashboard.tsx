@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, Fragment, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import AdminLayout from "@/components/admin-layout";
@@ -113,8 +113,29 @@ export default function PractitionerDashboard() {
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [programTypeFilter, setProgramTypeFilter] = useState<string>("all");
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("all");
-  const [practitionerFilter, setPractitionerFilter] = useState<string>("all");
+  const [practitionerFilter, setPractitionerFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("source") === "notification" && user?.id ? user.id : "all";
+  });
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [highlightContactId, setHighlightContactId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("source") === "notification") {
+      if (user?.id && practitionerFilter !== user.id) {
+        setPractitionerFilter(user.id);
+      }
+      const cid = params.get("contactId");
+      if (cid) setHighlightContactId(parseInt(cid, 10));
+      // Clear params from URL so refresh doesn't re-apply
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const [selectedContact, setSelectedContact] = useState<PractitionerContact | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -129,6 +150,19 @@ export default function PractitionerDashboard() {
   const { data: contacts = [], isLoading: contactsLoading, refetch } = useQuery<PractitionerContact[]>({
     queryKey: ['/api/practitioner-contacts', { status: statusFilter, serviceType: serviceFilter, programType: programTypeFilter, paymentType: paymentTypeFilter, assignedTo: practitionerFilter }],
   });
+
+  useEffect(() => {
+    if (!highlightContactId || contactsLoading) return;
+    const el = document.getElementById(`contact-row-${highlightContactId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
+    const timer = setTimeout(() => {
+      el.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+      setHighlightContactId(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [highlightContactId, contactsLoading, contacts.length]);
 
   const matchesSearch = (c: PractitionerContact) => {
     if (!searchQuery.trim()) return true;
@@ -484,7 +518,7 @@ export default function PractitionerDashboard() {
                         };
                         const borderColor = borderColorMap[contact.status] || '#E5E7EB';
                         return (
-                          <TableRow key={contact.id} style={{ borderLeft: `4px solid ${borderColor}` }}>
+                          <TableRow id={`contact-row-${contact.id}`} key={contact.id} style={{ borderLeft: `4px solid ${borderColor}` }}>
                             <TableCell className="py-2 pl-3">
                               <div className="font-medium text-sm leading-tight">
                                 {contact.clientFirstName} {contact.clientLastName}
@@ -716,7 +750,7 @@ export default function PractitionerDashboard() {
                           const renderContactRow = (contact: PractitionerContact) => {
                             const borderColor = borderColorMap[contact.status] || '#E5E7EB';
                             return (
-                              <TableRow key={contact.id} style={{ borderLeft: `4px solid ${borderColor}` }}>
+                              <TableRow id={`contact-row-${contact.id}`} key={contact.id} style={{ borderLeft: `4px solid ${borderColor}` }}>
                                 <TableCell className="py-2 pl-3">
                                   <div className="font-medium text-sm leading-tight">
                                     {contact.clientFirstName} {contact.clientLastName}

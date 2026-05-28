@@ -22804,7 +22804,7 @@ Respond in JSON format:
       const { smsEnabled, smsNotificationTypes, phone } = req.body;
 
       // Validate notification types
-      const validTypes = ['emergency', 'schedule', 'announcements', 'all'];
+      const validTypes = ['emergency', 'schedule', 'announcements', 'quick_connect', 'all'];
       const invalidTypes = smsNotificationTypes?.filter((type: string) => !validTypes.includes(type));
       
       if (invalidTypes && invalidTypes.length > 0) {
@@ -22842,6 +22842,47 @@ Respond in JSON format:
     } catch (error) {
       console.error('Error updating notification preferences:', error);
       res.status(500).json({ error: 'Failed to update notification preferences' });
+    }
+  });
+
+  // In-app notifications (bell dropdown)
+  app.get('/api/notifications', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const list = await storage.getUserNotifications(userId);
+      res.json(list.slice(0, 50));
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+  });
+
+  app.post('/api/notifications/:id/read', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+      const all = await storage.getUserNotifications(userId);
+      if (!all.some(n => n.id === id)) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+      const updated = await storage.markNotificationAsRead(id);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error marking notification read:', error);
+      res.status(500).json({ error: 'Failed to mark notification read' });
+    }
+  });
+
+  app.post('/api/notifications/mark-all-read', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const unread = await storage.getUnreadNotifications(userId);
+      await Promise.all(unread.map(n => storage.markNotificationAsRead(n.id)));
+      res.json({ success: true, count: unread.length });
+    } catch (error) {
+      console.error('Error marking all notifications read:', error);
+      res.status(500).json({ error: 'Failed to mark notifications read' });
     }
   });
 
@@ -26740,12 +26781,46 @@ Important:
   app.post('/api/practitioner-contacts', isAuthenticated, async (req, res) => {
     try {
       const user = req.user!;
+      const notifyAssignee = req.body?.notifyAssignee !== false; // default true
+      const { notifyAssignee: _omit, ...rest } = req.body || {};
       const validatedData = insertPractitionerContactSchema.parse({
-        ...req.body,
+        ...rest,
         createdBy: user.id,
       });
-      
+
       const [newContact] = await db.insert(practitionerContacts).values(validatedData).returning();
+
+      // Notify assigned practitioner on creation (skip if assigning to self)
+      if (
+        notifyAssignee &&
+        newContact.assignedPractitionerId &&
+        newContact.assignedPractitionerId !== user.id
+      ) {
+        const clientName = `${newContact.clientFirstName || ''} ${newContact.clientLastName || ''}`.trim() || 'A client';
+        const serviceLabel = newContact.scanType || newContact.serviceType || 'service request';
+        notificationService
+          .sendToUser(newContact.assignedPractitionerId, {
+            title: 'New quick connect assigned',
+            body: `${clientName} — ${serviceLabel}`,
+            tag: 'quick_connect_assigned',
+            data: { relatedId: newContact.id, url: `/practitioner?source=notification&contactId=${newContact.id}` },
+          })
+          .catch(err => console.error('Quick-connect notify failed:', err));
+
+        smartNotificationService
+          .sendSmartNotification({
+            userId: newContact.assignedPractitionerId,
+            messageType: 'quick_connect' as any,
+            priority: 'normal',
+            content: {
+              title: 'New quick connect assigned',
+              message: `Pine Hill Farm: ${clientName} (${serviceLabel}) has been assigned to you.`,
+              metadata: { contactId: newContact.id },
+            },
+          })
+          .catch(err => console.error('Quick-connect SMS routing failed:', err));
+      }
+
       res.status(201).json(newContact);
     } catch (error) {
       console.error('Error creating practitioner contact:', error);
@@ -26757,33 +26832,71 @@ Important:
   app.patch('/api/practitioner-contacts/:id', isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      
+      const user = req.user!;
+      const notifyAssignee = req.body?.notifyAssignee !== false; // default true
+      const { notifyAssignee: _omit, ...bodyRest } = req.body || {};
+
       // Validate request body against schema
-      const validationResult = updatePractitionerContactSchema.safeParse(req.body);
+      const validationResult = updatePractitionerContactSchema.safeParse(bodyRest);
       if (!validationResult.success) {
-        return res.status(400).json({ 
-          error: 'Invalid update data', 
-          details: validationResult.error.errors 
+        return res.status(400).json({
+          error: 'Invalid update data',
+          details: validationResult.error.errors
         });
       }
-      
+
+      // Capture previous assignee to detect change
+      const [previous] = await db.select().from(practitionerContacts).where(eq(practitionerContacts.id, id));
+
       const updates: any = { ...validationResult.data };
-      
-      // Add completedAt if status changed to completed
       if (updates.status === 'completed') {
         updates.completedAt = new Date();
       }
       updates.updatedAt = new Date();
-      
+
       const [updated] = await db.update(practitionerContacts)
         .set(updates)
         .where(eq(practitionerContacts.id, id))
         .returning();
-      
+
       if (!updated) {
         return res.status(404).json({ error: 'Contact not found' });
       }
-      
+
+      // Notify on newly assigned or changed practitioner
+      const newAssignee = updated.assignedPractitionerId;
+      const prevAssignee = previous?.assignedPractitionerId || null;
+      if (
+        notifyAssignee &&
+        newAssignee &&
+        newAssignee !== prevAssignee &&
+        newAssignee !== user.id
+      ) {
+        const clientName = `${updated.clientFirstName || ''} ${updated.clientLastName || ''}`.trim() || 'A client';
+        const serviceLabel = updated.scanType || updated.serviceType || 'service request';
+        notificationService
+          .sendToUser(newAssignee, {
+            title: 'Quick connect assigned to you',
+            body: `${clientName} — ${serviceLabel}`,
+            tag: 'quick_connect_assigned',
+            data: { relatedId: updated.id, url: `/practitioner?source=notification&contactId=${updated.id}` },
+          })
+          .catch(err => console.error('Quick-connect notify failed:', err));
+
+        smartNotificationService
+          .sendSmartNotification({
+            userId: newAssignee,
+            messageType: 'quick_connect' as any,
+            priority: 'normal',
+            content: {
+              title: 'Quick connect assigned to you',
+              message: `Pine Hill Farm: ${clientName} (${serviceLabel}) has been assigned to you.`,
+              metadata: { contactId: updated.id },
+            },
+          })
+          .catch(err => console.error('Quick-connect SMS routing failed:', err));
+      }
+
       res.json(updated);
     } catch (error) {
       console.error('Error updating practitioner contact:', error);
