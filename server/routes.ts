@@ -23311,6 +23311,8 @@ Respond in JSON format:
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
+      console.log('[GET /api/profile]', userId, 'smsEnabled=', user.smsEnabled, 'smsNotificationTypes=', JSON.stringify(user.smsNotificationTypes), 'smsConsent=', user.smsConsent);
+      res.setHeader('Cache-Control', 'no-store');
       res.json(user);
     } catch (error) {
       console.error("Error fetching profile:", error);
