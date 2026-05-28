@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Home, Menu, Check, RotateCcw, Bell } from "lucide-react";
+import { Home, Menu, Check, RotateCcw, Bell, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
@@ -59,6 +59,16 @@ function NotificationsList() {
     onSuccess: invalidate,
   });
 
+  const deleteOne = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/notifications/${id}`),
+    onSuccess: invalidate,
+  });
+
+  const clearRead = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/notifications/clear-read"),
+    onSuccess: invalidate,
+  });
+
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
   const total = data?.total ?? 0;
@@ -80,17 +90,34 @@ function NotificationsList() {
               : `${total} total${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`}
           </div>
         </div>
-        {unreadCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => markAll.mutate()}
-            disabled={markAll.isPending}
-            data-testid="button-notifications-mark-all"
-          >
-            <Check className="w-4 h-4 mr-2" /> Mark all read
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => markAll.mutate()}
+              disabled={markAll.isPending}
+              data-testid="button-notifications-mark-all"
+            >
+              <Check className="w-4 h-4 mr-2" /> Mark all read
+            </Button>
+          )}
+          {total - unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (confirm("Delete all read notifications? This cannot be undone.")) {
+                  clearRead.mutate();
+                }
+              }}
+              disabled={clearRead.isPending}
+              data-testid="button-notifications-clear-read"
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Clear all read
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -136,7 +163,7 @@ function NotificationsList() {
                     </div>
                   )}
                 </button>
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex items-center gap-1">
                   {n.isRead ? (
                     <Button
                       variant="ghost"
@@ -160,6 +187,16 @@ function NotificationsList() {
                       <Check className="w-4 h-4" />
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteOne.mutate(n.id)}
+                    disabled={deleteOne.isPending}
+                    title="Delete notification"
+                    data-testid={`button-delete-notification-${n.id}`}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
                 </div>
               </li>
             ))}

@@ -22905,6 +22905,34 @@ Respond in JSON format:
     }
   });
 
+  app.delete('/api/notifications/:id', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+      const all = await storage.getUserNotifications(userId);
+      if (!all.some(n => n.id === id)) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+      await storage.deleteNotification(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      res.status(500).json({ error: 'Failed to delete notification' });
+    }
+  });
+
+  app.post('/api/notifications/clear-read', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const count = await storage.deleteReadNotifications(userId);
+      res.json({ success: true, count });
+    } catch (error) {
+      console.error('Error clearing read notifications:', error);
+      res.status(500).json({ error: 'Failed to clear read notifications' });
+    }
+  });
+
   app.post('/api/notifications/mark-all-read', isAuthenticated, async (req, res) => {
     try {
       const userId = req.user!.id;

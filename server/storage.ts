@@ -596,6 +596,8 @@ export interface IStorage {
   markNotificationAsRead(id: number): Promise<Notification>;
   markNotificationAsUnread(id: number): Promise<Notification>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
+  deleteNotification(id: number): Promise<void>;
+  deleteReadNotifications(userId: string): Promise<number>;
 
   // Chat channels
   createChatChannel(channel: InsertChatChannel): Promise<ChatChannel>;
@@ -3492,6 +3494,21 @@ export class DatabaseStorage implements IStorage {
         eq(notifications.isRead, false)
       ))
       .orderBy(desc(notifications.sentAt));
+  }
+
+  async deleteNotification(id: number): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.id, id));
+  }
+
+  async deleteReadNotifications(userId: string): Promise<number> {
+    const deleted = await db
+      .delete(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, true)
+      ))
+      .returning({ id: notifications.id });
+    return deleted.length;
   }
 
   // Chat channels
