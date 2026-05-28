@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Home, Menu, Check, RotateCcw, Bell, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
@@ -20,14 +21,31 @@ type NotificationsResponse = {
   items: Notification[];
   total: number;
   unreadCount: number;
+  filteredUnreadCount?: number;
   offset: number;
   limit: number;
   hasMore: boolean;
 };
 
+type TypeFilter = {
+  key: string;
+  label: string;
+  types: string[];
+};
+
+const TYPE_FILTERS: TypeFilter[] = [
+  { key: "messages", label: "Messages", types: ["message", "urgent_message"] },
+  { key: "time_off", label: "Time off", types: ["time_off_request"] },
+  { key: "shift_coverage", label: "Shift coverage", types: ["shift_coverage"] },
+  { key: "approvals", label: "Approvals", types: ["approval_decision", "approval_needed"] },
+  { key: "quick_connect", label: "Quick connect", types: ["quick_connect_assigned"] },
+];
+
 function NotificationsList() {
   const [, setLocation] = useLocation();
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [typeKey, setTypeKey] = useState<string>("all");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -61,10 +79,21 @@ function NotificationsList() {
     });
   };
 
+  const activeFilter = TYPE_FILTERS.find((f) => f.key === typeKey);
+  const typesParam = activeFilter ? activeFilter.types.join(",") : "";
+
   const { data, isLoading } = useQuery<NotificationsResponse>({
-    queryKey: ["/api/notifications", { limit: pageSize, offset: 0 }],
+    queryKey: [
+      "/api/notifications",
+      { limit: pageSize, offset: 0, type: typesParam, unread: unreadOnly },
+    ],
     queryFn: async () => {
-      const res = await fetch(`/api/notifications?limit=${pageSize}&offset=0`, {
+      const params = new URLSearchParams();
+      params.set("limit", String(pageSize));
+      params.set("offset", "0");
+      if (typesParam) params.set("type", typesParam);
+      if (unreadOnly) params.set("unread", "true");
+      const res = await fetch(`/api/notifications?${params.toString()}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to load notifications");
@@ -72,6 +101,16 @@ function NotificationsList() {
     },
     refetchInterval: 30000,
   });
+
+  const setFilterType = (key: string) => {
+    setTypeKey(key);
+    setPageSize(PAGE_SIZE);
+  };
+
+  const toggleUnreadOnly = () => {
+    setUnreadOnly((v) => !v);
+    setPageSize(PAGE_SIZE);
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
@@ -123,6 +162,7 @@ function NotificationsList() {
   const unreadCount = data?.unreadCount ?? 0;
   const total = data?.total ?? 0;
   const hasMore = data?.hasMore ?? false;
+  const isFiltered = unreadOnly || typeKey !== "all";
 
   const openNotification = (n: Notification) => {
     if (!n.isRead) markRead.mutate(n.id);
@@ -136,8 +176,10 @@ function NotificationsList() {
           <CardTitle className="text-xl">All Notifications</CardTitle>
           <div className="text-sm text-muted-foreground mt-1">
             {total === 0
-              ? "You're all caught up"
-              : `${total} total${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`}
+              ? isFiltered
+                ? "No notifications match these filters"
+                : "You're all caught up"
+              : `${total} ${isFiltered ? "matching" : "total"}${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -166,6 +208,51 @@ function NotificationsList() {
         </div>
       </CardHeader>
       <CardContent>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setFilterType("all")}
+            className="focus:outline-none"
+            data-testid="filter-chip-all"
+          >
+            <Badge
+              variant={typeKey === "all" ? "default" : "outline"}
+              className="cursor-pointer"
+            >
+              All
+            </Badge>
+          </button>
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilterType(f.key)}
+              className="focus:outline-none"
+              data-testid={`filter-chip-${f.key}`}
+            >
+              <Badge
+                variant={typeKey === f.key ? "default" : "outline"}
+                className="cursor-pointer"
+              >
+                {f.label}
+              </Badge>
+            </button>
+          ))}
+          <div className="mx-1 h-5 w-px bg-border" />
+          <button
+            type="button"
+            onClick={toggleUnreadOnly}
+            className="focus:outline-none"
+            data-testid="filter-chip-unread"
+          >
+            <Badge
+              variant={unreadOnly ? "default" : "outline"}
+              className="cursor-pointer"
+            >
+              Unread only
+            </Badge>
+          </button>
+        </div>
         {isLoading ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             Loading notifications…
@@ -173,7 +260,23 @@ function NotificationsList() {
         ) : items.length === 0 ? (
           <div className="py-16 text-center text-muted-foreground">
             <Bell className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <div className="text-sm">No notifications yet</div>
+            <div className="text-sm">
+              {isFiltered ? "No notifications match these filters" : "No notifications yet"}
+            </div>
+            {isFiltered && (
+              <Button
+                variant="link"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setFilterType("all");
+                  setUnreadOnly(false);
+                }}
+                data-testid="button-clear-filters"
+              >
+                Clear filters
+              </Button>
+            )}
           </div>
         ) : (
           <ul className="divide-y">

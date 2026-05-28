@@ -22856,14 +22856,33 @@ Respond in JSON format:
       const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
         ? Math.min(parsedLimit, 200)
         : 50;
-      const page = list.slice(offset, offset + limit);
+
+      const rawType = req.query.type;
+      const typeFilters = Array.isArray(rawType)
+        ? rawType.map(t => String(t)).filter(Boolean)
+        : rawType
+          ? String(rawType).split(',').map(t => t.trim()).filter(Boolean)
+          : [];
+      const unreadOnly = String(req.query.unread ?? '').toLowerCase() === 'true';
+
+      let filtered = list;
+      if (typeFilters.length > 0) {
+        const set = new Set(typeFilters);
+        filtered = filtered.filter(n => set.has(n.type));
+      }
+      if (unreadOnly) {
+        filtered = filtered.filter(n => !n.isRead);
+      }
+
+      const page = filtered.slice(offset, offset + limit);
       res.json({
         items: page,
-        total: list.length,
+        total: filtered.length,
         unreadCount: list.filter(n => !n.isRead).length,
+        filteredUnreadCount: filtered.filter(n => !n.isRead).length,
         offset,
         limit,
-        hasMore: offset + page.length < list.length,
+        hasMore: offset + page.length < filtered.length,
       });
     } catch (error) {
       console.error('Error fetching notifications:', error);
