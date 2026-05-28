@@ -119,9 +119,12 @@ export default function UserProfile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
-      // Profile fields (incl. smsConsent which controls consent + consent date)
+      // Profile fields only. SMS toggle + types live in dedicated React state
+      // (not the form) and are saved via the PUT below, so we strip them out
+      // here to avoid the form's stale defaults wiping the persisted array.
+      const { smsEnabled: _se, smsNotificationTypes: _snt, ...profileFields } = data;
       const profileUpdate = {
-        ...data,
+        ...profileFields,
         smsConsent,
       };
       const profileRes = await apiRequest("PATCH", "/api/profile", profileUpdate);
