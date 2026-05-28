@@ -185,6 +185,7 @@ export default function AvatarCustomization({ isOpen, onClose, currentAvatarUrl 
       if (response.ok) {
         const data = await response.json();
         queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/profile'] });
         
         toast({
           title: "Avatar updated!",
@@ -225,6 +226,7 @@ export default function AvatarCustomization({ isOpen, onClose, currentAvatarUrl 
 
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/profile'] });
         
         toast({
           title: "Avatar updated!",
