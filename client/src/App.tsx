@@ -266,6 +266,7 @@ function AuthenticatedApp() {
       <Route path="/training/module/:id" component={TrainingModule} />
       <Route path="/profile" component={Profile} />
       <Route path="/notifications" component={Notifications} />
+      <Route path="/notifications/settings" component={Notifications} />
       <Route path="/documents" component={Documents} />
       <Route path="/announcements" component={CommunicationsPage} />
       <Route path="/communications">{() => <ErrorBoundary label="Communications"><CommunicationsPage /></ErrorBoundary>}</Route>

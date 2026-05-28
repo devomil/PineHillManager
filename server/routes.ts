@@ -22850,7 +22850,21 @@ Respond in JSON format:
     try {
       const userId = req.user!.id;
       const list = await storage.getUserNotifications(userId);
-      res.json(list.slice(0, 50));
+      const parsedLimit = parseInt(String(req.query.limit ?? ''), 10);
+      const parsedOffset = parseInt(String(req.query.offset ?? ''), 10);
+      const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? parsedOffset : 0;
+      const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.min(parsedLimit, 200)
+        : 50;
+      const page = list.slice(offset, offset + limit);
+      res.json({
+        items: page,
+        total: list.length,
+        unreadCount: list.filter(n => !n.isRead).length,
+        offset,
+        limit,
+        hasMore: offset + page.length < list.length,
+      });
     } catch (error) {
       console.error('Error fetching notifications:', error);
       res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -22871,6 +22885,23 @@ Respond in JSON format:
     } catch (error) {
       console.error('Error marking notification read:', error);
       res.status(500).json({ error: 'Failed to mark notification read' });
+    }
+  });
+
+  app.post('/api/notifications/:id/unread', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+      const all = await storage.getUserNotifications(userId);
+      if (!all.some(n => n.id === id)) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+      const updated = await storage.markNotificationAsUnread(id);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error marking notification unread:', error);
+      res.status(500).json({ error: 'Failed to mark notification unread' });
     }
   });
 

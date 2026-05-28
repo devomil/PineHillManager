@@ -594,6 +594,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   getUserNotifications(userId: string): Promise<Notification[]>;
   markNotificationAsRead(id: number): Promise<Notification>;
+  markNotificationAsUnread(id: number): Promise<Notification>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
 
   // Chat channels
@@ -3468,6 +3469,15 @@ export class DatabaseStorage implements IStorage {
     const [notification] = await db
       .update(notifications)
       .set({ isRead: true, readAt: new Date() })
+      .where(eq(notifications.id, id))
+      .returning();
+    return notification;
+  }
+
+  async markNotificationAsUnread(id: number): Promise<Notification> {
+    const [notification] = await db
+      .update(notifications)
+      .set({ isRead: false, readAt: null })
       .where(eq(notifications.id, id))
       .returning();
     return notification;

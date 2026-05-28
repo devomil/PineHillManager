@@ -10,7 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { Notification } from "@shared/schema";
 import { useState } from "react";
 
-function notificationHref(n: Notification): string {
+export function notificationHref(n: Notification): string {
   switch (n.type) {
     case "quick_connect_assigned":
       return `/practitioner?source=notification&contactId=${n.relatedId ?? ""}`;
@@ -31,12 +31,18 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: notifications = [] } = useQuery<Notification[]>({
+  const { data } = useQuery<{
+    items: Notification[];
+    total: number;
+    unreadCount: number;
+    hasMore: boolean;
+  }>({
     queryKey: ["/api/notifications"],
     refetchInterval: 30000,
   });
 
-  const unread = notifications.filter((n) => !n.isRead);
+  const notifications = data?.items ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
   const recent = notifications.slice(0, 10);
 
   const markRead = useMutation({
@@ -63,12 +69,12 @@ export default function NotificationBell() {
           size="sm"
           className="relative"
           data-testid="button-notifications"
-          aria-label={`Notifications${unread.length ? `, ${unread.length} unread` : ""}`}
+          aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
         >
           <Bell className="w-5 h-5" />
-          {unread.length > 0 && (
+          {unreadCount > 0 && (
             <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full text-xs bg-red-500 text-white flex items-center justify-center">
-              {unread.length > 99 ? "99+" : unread.length}
+              {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           )}
         </Button>
@@ -76,7 +82,7 @@ export default function NotificationBell() {
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between p-3 border-b">
           <div className="font-semibold text-sm">Notifications</div>
-          {unread.length > 0 && (
+          {unreadCount > 0 && (
             <button
               type="button"
               className="text-xs text-blue-600 hover:underline"

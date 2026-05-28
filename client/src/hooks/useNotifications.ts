@@ -141,10 +141,11 @@ export function useNotifications() {
   });
 
   // Fetch user notifications
-  const { data: notifications = [] } = useQuery({
+  const { data } = useQuery<{ items: any[] } | any[]>({
     queryKey: ['/api/notifications'],
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
+  const notifications = Array.isArray(data) ? data : (data?.items ?? []);
 
   const markAsRead = useMutation({
     mutationFn: (notificationId: number) => 
