@@ -22828,13 +22828,16 @@ Respond in JSON format:
         updates.phone = phone;
       }
 
+      console.log('[NotifPrefs PUT] userId=%s updates=%j', userId, updates);
       await storage.updateUserProfile(userId, updates);
       const updatedUser = await storage.getUser(userId);
+      console.log('[NotifPrefs PUT] after update: smsEnabled=%s types=%j', updatedUser?.smsEnabled, updatedUser?.smsNotificationTypes);
 
       if (!updatedUser) {
         return res.status(404).json({ error: 'User not found after update' });
       }
 
+      res.setHeader('Cache-Control', 'no-store');
       res.json({
         success: true,
         preferences: {
