@@ -2695,7 +2695,25 @@ export class DatabaseStorage implements IStorage {
       .from(announcements)
       .where(eq(announcements.isPublished, true))
       .orderBy(desc(announcements.createdAt));
-    
+
+    // Look up the user's store + team memberships so audience-targeted
+    // announcements (team:N, role:X, store:Y, admin_manager) reach them.
+    const [userRow] = await db
+      .select({
+        primaryStore: users.primaryStore,
+        assignedStores: users.assignedStores,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+    const userStores = new Set<string>();
+    if (userRow?.primaryStore) userStores.add(userRow.primaryStore);
+    for (const s of userRow?.assignedStores || []) userStores.add(s);
+    const channelMemberships = await db
+      .select({ channelId: channelMembers.channelId })
+      .from(channelMembers)
+      .where(eq(channelMembers.userId, userId));
+    const userTeamIds = new Set(channelMemberships.map(m => String(m.channelId)));
+
     // Filter announcements based on targeting
     const filteredAnnouncements = allAnnouncements.filter(announcement => {
       // Always show announcements created by the user (so they can see responses/reactions)
@@ -2736,7 +2754,8 @@ export class DatabaseStorage implements IStorage {
       }
       
       // Check role-based targeting
-      switch (announcement.targetAudience) {
+      const audience = announcement.targetAudience;
+      switch (audience) {
         case 'employees':
         case 'employees-only':
           return userRole === 'employee' || !userRole; // Include users with no role as employees
@@ -2747,15 +2766,27 @@ export class DatabaseStorage implements IStorage {
         case 'admins-only':
           return userRole === 'admin';
         case 'admins-managers':
+        case 'admin_manager':
           return userRole === 'admin' || userRole === 'manager';
         case 'specific':
           // For 'specific' audience, we need targetEmployees to be set
           return false; // If no targetEmployees specified for 'specific', exclude
-        default:
-          // SECURITY: Unknown audience types are explicitly excluded
-          // Only whitelisted audience values are allowed to prevent leakage
-          return false;
       }
+      // Prefix-based targeting used by the unified communications form:
+      //   team:<channelId>   → channelMembers of that channel
+      //   role:<role>        → users with that role
+      //   store:<storeName>  → users whose primary/assigned store matches
+      if (audience.startsWith('team:')) {
+        return userTeamIds.has(audience.slice('team:'.length));
+      }
+      if (audience.startsWith('role:')) {
+        return userRole === audience.slice('role:'.length);
+      }
+      if (audience.startsWith('store:')) {
+        return userStores.has(audience.slice('store:'.length));
+      }
+      // SECURITY: Unknown audience types are explicitly excluded
+      return false;
     });
     
     return filteredAnnouncements;
