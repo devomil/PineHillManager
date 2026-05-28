@@ -26844,6 +26844,11 @@ Important:
       const user = req.user!;
       const notifyAssignee = req.body?.notifyAssignee !== false; // default true
       const { notifyAssignee: _omit, ...rest } = req.body || {};
+      // Coerce empty strings on FK / nullable fields to null so we don't
+      // trip the assigned_practitioner_id FK with an empty string.
+      if (rest.assignedPractitionerId === '') rest.assignedPractitionerId = null;
+      if (rest.paymentType === '') rest.paymentType = null;
+      if (rest.scanType === '') rest.scanType = null;
       const validatedData = insertPractitionerContactSchema.parse({
         ...rest,
         createdBy: user.id,
@@ -26896,6 +26901,11 @@ Important:
       const user = req.user!;
       const notifyAssignee = req.body?.notifyAssignee !== false; // default true
       const { notifyAssignee: _omit, ...bodyRest } = req.body || {};
+      // Coerce empty strings on FK / nullable fields to null so PATCH
+      // doesn't trip the assigned_practitioner_id FK constraint.
+      if (bodyRest.assignedPractitionerId === '') bodyRest.assignedPractitionerId = null;
+      if (bodyRest.paymentType === '') bodyRest.paymentType = null;
+      if (bodyRest.scanType === '') bodyRest.scanType = null;
 
       // Validate request body against schema
       const validationResult = updatePractitionerContactSchema.safeParse(bodyRest);

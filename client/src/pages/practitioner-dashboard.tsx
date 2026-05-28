@@ -209,6 +209,11 @@ export default function PractitionerDashboard() {
     queryKey: ['/api/users'],
   });
 
+  const PRACTITIONER_TEAM_NAMES = ["Jackie", "Leanne", "Lynley", "Caitlin", "Carmen", "Becca"];
+  const practitionerTeam = employees.filter(e =>
+    e.isActive && PRACTITIONER_TEAM_NAMES.some(n => e.firstName?.toLowerCase() === n.toLowerCase())
+  );
+
   const updateContactMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Partial<PractitionerContact> }) => {
       const payload: any = { ...updates };
@@ -461,7 +466,7 @@ export default function PractitionerDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Practitioners</SelectItem>
-              {employees.filter(e => e.isActive).map(emp => (
+              {practitionerTeam.map(emp => (
                 <SelectItem key={emp.id} value={emp.id}>
                   {emp.firstName} {emp.lastName}
                 </SelectItem>
@@ -622,7 +627,7 @@ export default function PractitionerDashboard() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                                    {employees.filter(e => e.isActive).map(emp => (
+                                    {practitionerTeam.map(emp => (
                                       <SelectItem key={emp.id} value={emp.id}>
                                         {emp.firstName} {emp.lastName}
                                       </SelectItem>
@@ -849,7 +854,7 @@ export default function PractitionerDashboard() {
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="unassigned">Unassigned</SelectItem>
-                                        {employees.filter(e => e.isActive).map(emp => (
+                                        {practitionerTeam.map(emp => (
                                           <SelectItem key={emp.id} value={emp.id}>
                                             {emp.firstName} {emp.lastName}
                                           </SelectItem>
@@ -941,7 +946,7 @@ export default function PractitionerDashboard() {
                             );
                           }
 
-                          employees.filter(e => e.isActive).forEach(emp => {
+                          practitionerTeam.forEach(emp => {
                             const empContacts = contacts.filter(c => c.assignedPractitionerId === emp.id);
                             if (empContacts.length === 0) return;
                             groups.push(

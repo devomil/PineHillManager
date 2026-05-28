@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Phone, Users, ClipboardCheck, User, Stethoscope, Layers } from "lucide-react";
+import { Phone, User, Stethoscope } from "lucide-react";
 
 interface QuickContactFormProps {
   open: boolean;
@@ -30,30 +30,10 @@ const SERVICE_TYPE_OPTIONS = [
   { id: "assessment", label: "Assessment" },
 ];
 
-const PRACTITIONER_NAMES = ["Lynley", "Leanne", "Jackie", "Carmen", "Becca", "Caitlin"];
-
 export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const { data: employees = [] } = useQuery<any[]>({
-    queryKey: ['/api/employees'],
-    enabled: open,
-  });
-
-  const practitioners = useMemo(() => {
-    return employees
-      .filter((emp: any) => 
-        PRACTITIONER_NAMES.some(name => 
-          emp.firstName?.toLowerCase() === name.toLowerCase()
-        ) && emp.isActive
-      )
-      .map((emp: any) => ({
-        id: emp.id,
-        name: emp.firstName,
-      }));
-  }, [employees]);
 
   const [formData, setFormData] = useState({
     services: [] as string[],
@@ -67,8 +47,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
     clientDob: "",
     clientPhone: "",
     clientComment: "",
-    assignedPractitioner: "",
-    notifyAssignee: true,
   });
 
   const resetForm = () => {
@@ -84,8 +62,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       clientDob: "",
       clientPhone: "",
       clientComment: "",
-      assignedPractitioner: "",
-      notifyAssignee: true,
     });
   };
 
@@ -112,13 +88,6 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       services: prev.services.includes(serviceId)
         ? prev.services.filter(s => s !== serviceId)
         : [...prev.services, serviceId]
-    }));
-  };
-
-  const handlePractitionerSelect = (practitionerId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      assignedPractitioner: prev.assignedPractitioner === practitionerId ? "" : practitionerId
     }));
   };
 
@@ -167,10 +136,8 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
       scanType: scanTypeLabels.length > 0 ? scanTypeLabels.join(', ') : null,
       paymentType: formData.paymentType || null,
       status: 'pending',
-      assignedPractitionerId: formData.assignedPractitioner || null,
       priority: 'normal',
       preferredContactMethod: 'phone',
-      notifyAssignee: formData.notifyAssignee,
     };
 
     createContactMutation.mutate(contactData);
@@ -366,24 +333,9 @@ export function QuickContactForm({ open, onOpenChange }: QuickContactFormProps) 
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
-            <Checkbox
-              id="notifyAssignee"
-              checked={formData.notifyAssignee}
-              onCheckedChange={(checked) =>
-                setFormData(prev => ({ ...prev, notifyAssignee: checked === true }))
-              }
-              disabled={!formData.assignedPractitioner}
-              className={checkboxClass}
-              data-testid="checkbox-notify-assignee"
-            />
-            <Label htmlFor="notifyAssignee" className={checkLabelClass}>
-              Notify assigned practitioner
-              {!formData.assignedPractitioner && (
-                <span className="ml-1 text-xs text-gray-500 font-normal">(select a practitioner first)</span>
-              )}
-            </Label>
-          </div>
+          <p className="text-xs text-gray-600 dark:text-gray-400 pt-2">
+            A practitioner can be assigned to this client from the Practitioner dashboard after submission.
+          </p>
 
           <div className="flex justify-end gap-3 pt-4 border-t-2 border-gray-200 dark:border-gray-700">
             <Button type="button" variant="outline" className="border-2 border-gray-400 font-semibold" onClick={() => onOpenChange(false)}>
