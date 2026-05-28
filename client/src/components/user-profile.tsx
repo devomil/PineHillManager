@@ -531,7 +531,8 @@ export default function UserProfile() {
                         { id: 'emergency', label: 'Emergency Alerts', description: 'Critical workplace emergencies' },
                         { id: 'schedule', label: 'Schedule Changes', description: 'Shift changes and updates' },
                         { id: 'announcements', label: 'Company Announcements', description: 'Important company news' },
-                        { id: 'reminders', label: 'Shift Reminders', description: 'Upcoming shift notifications' }
+                        { id: 'reminders', label: 'Shift Reminders', description: 'Upcoming shift notifications' },
+                        { id: 'quick_connect', label: 'Quick-Connect Assignments', description: 'When a client quick-connect is assigned to you' }
                       ].map((type) => (
                         <div key={type.id} className="flex items-center space-x-2">
                           <Checkbox

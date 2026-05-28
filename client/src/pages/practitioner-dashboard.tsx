@@ -120,6 +120,7 @@ export default function PractitionerDashboard() {
   });
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [highlightContactId, setHighlightContactId] = useState<number | null>(null);
+  const [notifyOnAssign, setNotifyOnAssign] = useState<boolean>(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -132,6 +133,11 @@ export default function PractitionerDashboard() {
       if (cid) setHighlightContactId(parseInt(cid, 10));
       // Clear params from URL so refresh doesn't re-apply
       window.history.replaceState({}, "", window.location.pathname);
+      // Mark any unread quick_connect_assigned notifications as read so the
+      // bell badge clears as soon as the practitioner opens the filtered view.
+      apiRequest("POST", "/api/notifications/mark-all-read", { type: "quick_connect_assigned" })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }))
+        .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -205,7 +211,13 @@ export default function PractitionerDashboard() {
 
   const updateContactMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Partial<PractitionerContact> }) => {
-      return apiRequest('PATCH', `/api/practitioner-contacts/${id}`, updates);
+      const payload: any = { ...updates };
+      // Only thread the toggle through when this update changes assignment —
+      // server treats notifyAssignee as a no-op otherwise.
+      if (Object.prototype.hasOwnProperty.call(updates, 'assignedPractitionerId')) {
+        payload.notifyAssignee = notifyOnAssign;
+      }
+      return apiRequest('PATCH', `/api/practitioner-contacts/${id}`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/practitioner-contacts'] });
@@ -464,6 +476,19 @@ export default function PractitionerDashboard() {
               Clear all
             </button>
           )}
+          <label
+            className="ml-auto flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none"
+            title="When reassigning a quick connect, notify the new practitioner via in-app bell and SMS (if they're opted in)."
+            data-testid="toggle-notify-on-assign"
+          >
+            <input
+              type="checkbox"
+              checked={notifyOnAssign}
+              onChange={(e) => setNotifyOnAssign(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Notify on reassignment
+          </label>
         </div>
 
         <Tabs defaultValue="all" className="w-full">

@@ -22877,9 +22877,11 @@ Respond in JSON format:
   app.post('/api/notifications/mark-all-read', isAuthenticated, async (req, res) => {
     try {
       const userId = req.user!.id;
+      const typeFilter = typeof req.body?.type === 'string' ? req.body.type : null;
       const unread = await storage.getUnreadNotifications(userId);
-      await Promise.all(unread.map(n => storage.markNotificationAsRead(n.id)));
-      res.json({ success: true, count: unread.length });
+      const target = typeFilter ? unread.filter(n => n.type === typeFilter) : unread;
+      await Promise.all(target.map(n => storage.markNotificationAsRead(n.id)));
+      res.json({ success: true, count: target.length });
     } catch (error) {
       console.error('Error marking all notifications read:', error);
       res.status(500).json({ error: 'Failed to mark notifications read' });
