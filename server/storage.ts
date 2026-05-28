@@ -596,8 +596,9 @@ export interface IStorage {
   markNotificationAsRead(id: number): Promise<Notification>;
   markNotificationAsUnread(id: number): Promise<Notification>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
-  deleteNotification(id: number): Promise<void>;
-  deleteReadNotifications(userId: string): Promise<number>;
+  deleteNotification(id: number): Promise<Notification | undefined>;
+  deleteReadNotifications(userId: string): Promise<Notification[]>;
+  restoreNotifications(rows: Notification[]): Promise<Notification[]>;
 
   // Chat channels
   createChatChannel(channel: InsertChatChannel): Promise<ChatChannel>;
@@ -3496,19 +3497,41 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(notifications.sentAt));
   }
 
-  async deleteNotification(id: number): Promise<void> {
-    await db.delete(notifications).where(eq(notifications.id, id));
+  async deleteNotification(id: number): Promise<Notification | undefined> {
+    const [deleted] = await db
+      .delete(notifications)
+      .where(eq(notifications.id, id))
+      .returning();
+    return deleted;
   }
 
-  async deleteReadNotifications(userId: string): Promise<number> {
+  async deleteReadNotifications(userId: string): Promise<Notification[]> {
     const deleted = await db
       .delete(notifications)
       .where(and(
         eq(notifications.userId, userId),
         eq(notifications.isRead, true)
       ))
-      .returning({ id: notifications.id });
-    return deleted.length;
+      .returning();
+    return deleted;
+  }
+
+  async restoreNotifications(rows: Notification[]): Promise<Notification[]> {
+    if (rows.length === 0) return [];
+    const restored = await db
+      .insert(notifications)
+      .values(rows.map(r => ({
+        userId: r.userId,
+        title: r.title,
+        body: r.body,
+        type: r.type,
+        relatedId: r.relatedId ?? null,
+        isRead: r.isRead ?? false,
+        sentAt: r.sentAt ?? new Date(),
+        readAt: r.readAt ?? null,
+      })))
+      .returning();
+    return restored;
   }
 
   // Chat channels

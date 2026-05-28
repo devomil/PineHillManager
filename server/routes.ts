@@ -22905,17 +22905,37 @@ Respond in JSON format:
     }
   });
 
+  // Short-lived in-memory stash so users can undo accidental notification deletes.
+  // Entries auto-expire after UNDO_WINDOW_MS; restoring re-inserts with fresh IDs.
+  const UNDO_WINDOW_MS = 15_000;
+  const notificationUndoStash = new Map<string, { token: string; rows: any[]; expiresAt: number; timer: NodeJS.Timeout }>();
+
+  const stashForUndo = (userId: string, rows: any[]): string => {
+    const existing = notificationUndoStash.get(userId);
+    if (existing) clearTimeout(existing.timer);
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const timer = setTimeout(() => {
+      const cur = notificationUndoStash.get(userId);
+      if (cur && cur.token === token) notificationUndoStash.delete(userId);
+    }, UNDO_WINDOW_MS);
+    if (typeof (timer as any).unref === 'function') (timer as any).unref();
+    notificationUndoStash.set(userId, { token, rows, expiresAt: Date.now() + UNDO_WINDOW_MS, timer });
+    return token;
+  };
+
   app.delete('/api/notifications/:id', isAuthenticated, async (req, res) => {
     try {
       const userId = req.user!.id;
       const id = parseInt(req.params.id);
       if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
       const all = await storage.getUserNotifications(userId);
-      if (!all.some(n => n.id === id)) {
+      const target = all.find(n => n.id === id);
+      if (!target) {
         return res.status(404).json({ error: 'Notification not found' });
       }
-      await storage.deleteNotification(id);
-      res.json({ success: true });
+      const deleted = await storage.deleteNotification(id);
+      const token = stashForUndo(userId, deleted ? [deleted] : [target]);
+      res.json({ success: true, undoToken: token, undoExpiresInMs: UNDO_WINDOW_MS, count: 1 });
     } catch (error) {
       console.error('Error deleting notification:', error);
       res.status(500).json({ error: 'Failed to delete notification' });
@@ -22925,11 +22945,30 @@ Respond in JSON format:
   app.post('/api/notifications/clear-read', isAuthenticated, async (req, res) => {
     try {
       const userId = req.user!.id;
-      const count = await storage.deleteReadNotifications(userId);
-      res.json({ success: true, count });
+      const deleted = await storage.deleteReadNotifications(userId);
+      const token = deleted.length > 0 ? stashForUndo(userId, deleted) : null;
+      res.json({ success: true, count: deleted.length, undoToken: token, undoExpiresInMs: UNDO_WINDOW_MS });
     } catch (error) {
       console.error('Error clearing read notifications:', error);
       res.status(500).json({ error: 'Failed to clear read notifications' });
+    }
+  });
+
+  app.post('/api/notifications/undo-delete', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const token = typeof req.body?.token === 'string' ? req.body.token : null;
+      const entry = notificationUndoStash.get(userId);
+      if (!entry || (token && entry.token !== token) || entry.expiresAt < Date.now()) {
+        return res.status(410).json({ error: 'Undo window expired' });
+      }
+      clearTimeout(entry.timer);
+      notificationUndoStash.delete(userId);
+      const restored = await storage.restoreNotifications(entry.rows);
+      res.json({ success: true, count: restored.length });
+    } catch (error) {
+      console.error('Error restoring notifications:', error);
+      res.status(500).json({ error: 'Failed to restore notifications' });
     }
   });
 

@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Home, Menu, Check, RotateCcw, Bell, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import type { Notification } from "@shared/schema";
 import NotificationSettings from "@/components/notification-settings";
 import NotificationDemo from "@/components/notification-demo";
@@ -27,6 +29,37 @@ function NotificationsList() {
   const [, setLocation] = useLocation();
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const undoDelete = async (token: string) => {
+    try {
+      const res = await apiRequest("POST", "/api/notifications/undo-delete", { token });
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      toast({
+        title: data.count > 1 ? `Restored ${data.count} notifications` : "Notification restored",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Couldn't undo",
+        description: "The undo window has expired.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const showUndoToast = (message: string, token: string | null) => {
+    if (!token) return;
+    toast({
+      title: message,
+      duration: 10000,
+      action: (
+        <ToastAction altText="Undo delete" onClick={() => undoDelete(token)}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
     queryKey: ["/api/notifications", { limit: pageSize, offset: 0 }],
@@ -60,13 +93,30 @@ function NotificationsList() {
   });
 
   const deleteOne = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/notifications/${id}`),
-    onSuccess: invalidate,
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/notifications/${id}`);
+      return res.json() as Promise<{ undoToken: string | null }>;
+    },
+    onSuccess: (data) => {
+      invalidate();
+      showUndoToast("Notification deleted", data?.undoToken ?? null);
+    },
   });
 
   const clearRead = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/notifications/clear-read"),
-    onSuccess: invalidate,
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/notifications/clear-read");
+      return res.json() as Promise<{ count: number; undoToken: string | null }>;
+    },
+    onSuccess: (data) => {
+      invalidate();
+      if (data?.count > 0) {
+        showUndoToast(
+          data.count === 1 ? "1 notification cleared" : `${data.count} notifications cleared`,
+          data?.undoToken ?? null,
+        );
+      }
+    },
   });
 
   const items = data?.items ?? [];
@@ -106,11 +156,7 @@ function NotificationsList() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (confirm("Delete all read notifications? This cannot be undone.")) {
-                  clearRead.mutate();
-                }
-              }}
+              onClick={() => clearRead.mutate()}
               disabled={clearRead.isPending}
               data-testid="button-notifications-clear-read"
             >
