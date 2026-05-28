@@ -22828,8 +22828,13 @@ Respond in JSON format:
         updates.phone = phone;
       }
 
-      const updatedUser = await storage.updateUserProfile(userId, updates);
-      
+      await storage.updateUserProfile(userId, updates);
+      const updatedUser = await storage.getUser(userId);
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: 'User not found after update' });
+      }
+
       res.json({
         success: true,
         preferences: {
