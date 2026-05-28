@@ -119,14 +119,23 @@ export default function UserProfile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
-      // Include SMS preferences in the update
-      const updateData = {
+      // Profile fields (incl. smsConsent which controls consent + consent date)
+      const profileUpdate = {
         ...data,
         smsConsent,
+      };
+      const profileRes = await apiRequest("PATCH", "/api/profile", profileUpdate);
+
+      // SMS notification preferences round-trip through the dedicated endpoint
+      // so its server-side validation (valid notification types incl.
+      // quick_connect) is enforced.
+      await apiRequest("PUT", "/api/user/notification-preferences", {
         smsEnabled,
         smsNotificationTypes,
-      };
-      return await apiRequest("PATCH", "/api/profile", updateData);
+        phone: data.phone,
+      });
+
+      return profileRes;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
