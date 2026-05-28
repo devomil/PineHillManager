@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Home, Menu, Check, RotateCcw, Bell, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
@@ -48,6 +58,7 @@ function NotificationsList() {
   const [typeKey, setTypeKey] = useState<string>("all");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [clearReadOpen, setClearReadOpen] = useState(false);
 
   const undoDelete = async (token: string) => {
     try {
@@ -198,7 +209,7 @@ function NotificationsList() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => clearRead.mutate()}
+              onClick={() => setClearReadOpen(true)}
               disabled={clearRead.isPending}
               data-testid="button-notifications-clear-read"
             >
@@ -206,6 +217,26 @@ function NotificationsList() {
             </Button>
           )}
         </div>
+        <AlertDialog open={clearReadOpen} onOpenChange={setClearReadOpen}>
+          <AlertDialogContent data-testid="dialog-confirm-clear-read">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear all read notifications?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all of your read notifications. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-clear-read">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => clearRead.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                data-testid="button-confirm-clear-read"
+              >
+                Delete read notifications
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-2 mb-4">
