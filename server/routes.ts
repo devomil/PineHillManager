@@ -22804,7 +22804,7 @@ Respond in JSON format:
       const { smsEnabled, smsNotificationTypes, phone } = req.body;
 
       // Validate notification types
-      const validTypes = ['emergency', 'schedule', 'announcements', 'quick_connect', 'all'];
+      const validTypes = ['emergency', 'schedule', 'announcements', 'reminders', 'quick_connect', 'all'];
       const invalidTypes = smsNotificationTypes?.filter((type: string) => !validTypes.includes(type));
       
       if (invalidTypes && invalidTypes.length > 0) {
