@@ -2674,29 +2674,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // General audience targeting based on targetAudience
             console.log('🌍 Using general audience targeting:', processedAudience);
             const allUsers = await storage.getAllUsers();
-            
-            switch (processedAudience) {
-              case 'employees':
-                targetUsers = allUsers.filter(user => 
-                  user.isActive && 
-                  (user.role === 'employee' || !user.role)
-                );
-                break;
-              case 'managers':
-                targetUsers = allUsers.filter(user => 
-                  user.isActive && 
-                  user.role === 'manager'
-                );
-                break;
-              case 'admins':
-                targetUsers = allUsers.filter(user => 
-                  user.isActive && 
-                  user.role === 'admin'
-                );
-                break;
-              default: // 'all'
-                targetUsers = allUsers.filter(user => user.isActive);
-                break;
+            const activeUsers = allUsers.filter(u => u.isActive);
+
+            // Handle prefix-formatted audiences from the unified communications
+            // form before the legacy switch so 'team:N'/'role:X'/'store:Y' don't
+            // fall through to 'all' and SMS-spam the whole company.
+            if (processedAudience.startsWith('team:')) {
+              const teamChannelId = parseInt(processedAudience.slice('team:'.length), 10);
+              if (!isNaN(teamChannelId)) {
+                const members = await db.select({ userId: channelMembers.userId })
+                  .from(channelMembers)
+                  .where(eq(channelMembers.channelId, teamChannelId));
+                const memberIds = new Set(members.map(m => m.userId));
+                targetUsers = activeUsers.filter(u => memberIds.has(u.id));
+              }
+            } else if (processedAudience.startsWith('role:')) {
+              const targetRole = processedAudience.slice('role:'.length);
+              targetUsers = activeUsers.filter(u => u.role === targetRole);
+            } else if (processedAudience.startsWith('store:')) {
+              const targetStore = processedAudience.slice('store:'.length);
+              targetUsers = activeUsers.filter(u =>
+                u.primaryStore === targetStore ||
+                (u.assignedStores || []).includes(targetStore)
+              );
+            } else {
+              switch (processedAudience) {
+                case 'employees':
+                case 'employees-only':
+                  targetUsers = activeUsers.filter(u => u.role === 'employee' || !u.role);
+                  break;
+                case 'managers':
+                case 'managers-only':
+                  targetUsers = activeUsers.filter(u => u.role === 'manager');
+                  break;
+                case 'admins':
+                case 'admins-only':
+                  targetUsers = activeUsers.filter(u => u.role === 'admin');
+                  break;
+                case 'admins-managers':
+                case 'admin_manager':
+                  targetUsers = activeUsers.filter(u => u.role === 'admin' || u.role === 'manager');
+                  break;
+                default: // 'all'
+                  targetUsers = activeUsers;
+                  break;
+              }
             }
           }
           
