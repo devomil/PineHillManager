@@ -1,1 +1,2 @@
 - [Communications draft autosave races](communications-draft-autosave.md) — orphan/duplicate/lost-edit avoidance keyed to a per-save compose-session token, not boolean flags.
+- [Neon driver RETURNING quirk](neon-driver-returning.md) — dev Neon HTTP driver returned empty RETURNING rows; server/db.ts must use the WebSocket Pool driver (neon-serverless + ws).
