@@ -283,6 +283,25 @@ export const announcements = pgTable("announcements", {
   authorIdx: index("idx_announcements_author").on(table.authorId),
 }));
 
+// Communication drafts - autosaved in-progress announcements / group messages
+export const communicationDrafts = pgTable("communication_drafts", {
+  id: serial("id").primaryKey(),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  draftType: varchar("draft_type").default("announcement"), // 'announcement' | 'group_message'
+  title: varchar("title"),
+  content: text("content"),
+  priority: varchar("priority").default("normal"),
+  targetAudience: varchar("target_audience").default("all"),
+  targetEmployees: varchar("target_employees").array(),
+  smsEnabled: boolean("sms_enabled").default(true),
+  imageUrls: text("image_urls").array(),
+  pdfUrls: jsonb("pdf_urls"), // [{ url, fileName, fileSize }]
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  authorIdx: index("idx_comm_drafts_author").on(table.authorId),
+}));
+
 // Training modules - Enhanced with comprehensive learning features
 export const trainingModules = pgTable("training_modules", {
   id: serial("id").primaryKey(),
@@ -1350,6 +1369,14 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
   createdAt: true,
   publishedAt: true,
 });
+
+export const insertCommunicationDraftSchema = createInsertSchema(communicationDrafts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCommunicationDraft = z.infer<typeof insertCommunicationDraftSchema>;
+export type CommunicationDraft = typeof communicationDrafts.$inferSelect;
 
 export const insertTrainingModuleSchema = createInsertSchema(trainingModules).omit({
   id: true,

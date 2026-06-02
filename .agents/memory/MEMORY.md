@@ -1,0 +1,1 @@
+- [Communications draft autosave races](communications-draft-autosave.md) — orphan/duplicate/lost-edit avoidance keyed to a per-save compose-session token, not boolean flags.

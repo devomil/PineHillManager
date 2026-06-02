@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -925,6 +925,21 @@ function CommunicationsContent() {
   const [deletingItem, setDeletingItem] = useState<{ type: 'announcement' | 'message'; id: number; title: string } | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
+  const [editPdfUrls, setEditPdfUrls] = useState<{ url: string; fileName: string; fileSize: number }[]>([]);
+
+  // Draft autosave state
+  const [currentDraftId, setCurrentDraftId] = useState<number | null>(null);
+  const currentDraftIdRef = useRef<number | null>(null);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSavingDraftRef = useRef(false);
+  const draftDirtyRef = useRef(false);
+  const composeSessionRef = useRef(0);
+  // Compose sessions that were published/discarded. A save that resolves for one
+  // of these (no matter how late) must delete the draft it created, so publishing
+  // can never leave an orphan draft behind.
+  const discardedSessionsRef = useRef<Set<number>>(new Set());
+  const inFlightSaveRef = useRef<Promise<boolean> | null>(null);
 
   // 🧪 DIAGNOSTIC: Test backend IMMEDIATELY when component renders
   console.log("🧪 DIAGNOSTIC: Component is rendering - about to fetch /api/messages");
@@ -1137,6 +1152,7 @@ function CommunicationsContent() {
     onSuccess: () => {
       toast({ title: "Communication sent successfully!" });
       setShowCreateDialog(false);
+      clearActiveDraft();
       
       // Invalidate queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
@@ -1265,6 +1281,7 @@ function CommunicationsContent() {
     onSuccess: () => {
       toast({ title: "✅ Message scheduled successfully!" });
       setShowCreateDialog(false);
+      clearActiveDraft();
       setFormData({
         type: 'announcement',
         title: '',
@@ -1304,6 +1321,231 @@ function CommunicationsContent() {
         variant: "destructive" 
       });
     }
+  });
+
+  // ===== Drafts (autosave) =====
+  const { data: drafts = [] } = useQuery<any[]>({
+    queryKey: ['/api/communications/drafts'],
+    enabled: user?.role === 'admin' || user?.role === 'manager',
+  });
+
+  const buildDraftPayload = () => ({
+    draftType: formData.type,
+    title: formData.title,
+    content: formData.content,
+    priority: formData.priority,
+    targetAudience: formData.targetAudience,
+    targetEmployees: formData.targetEmployees,
+    smsEnabled: formData.smsEnabled,
+    imageUrls: formData.imageUrls,
+    pdfUrls: formData.pdfUrls,
+  });
+
+  const draftHasContent = (p: ReturnType<typeof buildDraftPayload>) =>
+    !!(p.title?.trim() || p.content?.trim() || (p.imageUrls && p.imageUrls.length > 0) || (p.pdfUrls && p.pdfUrls.length > 0));
+
+  // Performs a single persist (PATCH if we already have an id, otherwise POST).
+  // Returns whether it succeeded and the resulting draft id.
+  const persistDraftPayload = async (
+    payload: ReturnType<typeof buildDraftPayload>,
+    draftId: number | null,
+  ): Promise<{ ok: boolean; id: number | null }> => {
+    try {
+      if (draftId) {
+        await apiRequest('PATCH', `/api/communications/drafts/${draftId}`, payload);
+        queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
+        return { ok: true, id: draftId };
+      }
+      const res = await apiRequest('POST', '/api/communications/drafts', payload);
+      const created = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
+      return { ok: true, id: created.id ?? null };
+    } catch (e) {
+      return { ok: false, id: draftId };
+    }
+  };
+
+  // Debounced/triggered autosave with last-write-wins semantics. If a save is
+  // already in flight, mark the draft dirty so we re-save after it settles
+  // instead of silently dropping the newest edits.
+  const saveDraftNow = async (): Promise<boolean> => {
+    const session = composeSessionRef.current;
+    // Never save for a compose that was already published/discarded.
+    if (discardedSessionsRef.current.has(session)) return false;
+    const payload = buildDraftPayload();
+    if (!draftHasContent(payload)) return false;
+    if (isSavingDraftRef.current) {
+      draftDirtyRef.current = true;
+      return false;
+    }
+    isSavingDraftRef.current = true;
+    draftDirtyRef.current = false;
+    const { ok, id } = await persistDraftPayload(payload, currentDraftIdRef.current);
+    if (ok && id) {
+      if (composeSessionRef.current === session) {
+        // This compose is still active: bind the freshly-created id.
+        currentDraftIdRef.current = id;
+        setCurrentDraftId(id);
+      } else if (discardedSessionsRef.current.has(session)) {
+        // The compose was published/discarded while this save was in flight (it
+        // resolved after the session was superseded). Delete the orphan draft.
+        apiRequest('DELETE', `/api/communications/drafts/${id}`).catch(() => {});
+        queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
+      } else if (currentDraftIdRef.current === null) {
+        // A non-destructive close+reopen superseded the session and carried this
+        // content forward without yet creating or opening its own draft. Adopt the
+        // created id so the reopened compose keeps editing this same row via PATCH
+        // instead of creating a duplicate draft. (openDraft sets a non-null id, so
+        // this never clobbers an explicitly-opened draft.)
+        currentDraftIdRef.current = id;
+        setCurrentDraftId(id);
+      }
+      // else: a different draft is now active — keep this one as its own draft.
+    }
+    isSavingDraftRef.current = false;
+    if (draftDirtyRef.current && composeSessionRef.current === session) {
+      return saveDraftNow();
+    }
+    return ok;
+  };
+
+  // Wrapper that tracks the in-flight save promise so the close flow can await it
+  // deterministically (no polling). If a save is already running, mark the draft
+  // dirty so that save re-runs with the latest content, and return the same
+  // in-flight promise — which resolves only after the dirty-chained re-save —
+  // instead of starting a competing one.
+  const triggerSave = (): Promise<boolean> => {
+    if (isSavingDraftRef.current) {
+      draftDirtyRef.current = true;
+      return inFlightSaveRef.current ?? Promise.resolve(false);
+    }
+    const p = saveDraftNow();
+    inFlightSaveRef.current = p;
+    p.catch(() => {}).then(() => {
+      if (inFlightSaveRef.current === p) inFlightSaveRef.current = null;
+    });
+    return p;
+  };
+
+  // Debounced autosave while the create dialog is open and there's content.
+  useEffect(() => {
+    if (!showCreateDialog) return;
+    if (!draftHasContent(buildDraftPayload())) return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => { triggerSave(); }, 1500);
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateDialog, formData]);
+
+  const resetCreateForm = () => {
+    setFormData({
+      type: 'announcement',
+      title: '',
+      content: '',
+      priority: 'normal',
+      targetAudience: 'all',
+      targetEmployees: [],
+      smsEnabled: true,
+      scheduledFor: '',
+      imageUrls: [],
+      pdfUrls: []
+    });
+    currentDraftIdRef.current = null;
+    setCurrentDraftId(null);
+    draftDirtyRef.current = false;
+  };
+
+  const clearActiveDraft = () => {
+    // Publish/discard: mark the current compose session as discarded and bump to a
+    // new one. Any autosave POST for this session — in flight now or resolving
+    // arbitrarily later — will see its session in discardedSessionsRef and delete
+    // the draft it created (saveDraftNow), so no orphan can survive a publish.
+    const session = composeSessionRef.current;
+    discardedSessionsRef.current.add(session);
+    draftDirtyRef.current = false;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    composeSessionRef.current += 1;
+    const id = currentDraftIdRef.current;
+    currentDraftIdRef.current = null;
+    setCurrentDraftId(null);
+    if (id) {
+      apiRequest('DELETE', `/api/communications/drafts/${id}`).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
+    }
+  };
+
+  // Non-destructive close: keep in-progress work as a draft instead of losing it.
+  // We close the UI immediately, then deterministically await the final save
+  // (in the same compose session so a new draft is never duplicated) before
+  // resetting — but only if this compose wasn't superseded by a quick reopen.
+  const handleCreateDialogChange = (open: boolean) => {
+    if (open) {
+      // Fresh compose (Radix only fires onOpenChange(true) from the trigger;
+      // openDraft opens programmatically). Start a new session so any stray
+      // in-flight save from a previous compose can't bind to this one.
+      composeSessionRef.current += 1;
+      draftDirtyRef.current = false;
+      setShowCreateDialog(true);
+      return;
+    }
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    const mySession = composeSessionRef.current;
+    const hadContent = draftHasContent(buildDraftPayload());
+    setShowCreateDialog(false);
+    const finalize = async () => {
+      if (hadContent) {
+        // Deterministic, no polling: triggerSave() either starts a save or, if one
+        // is already in flight, marks the draft dirty and returns that promise.
+        // Awaiting it resolves only after the dirty-chained final re-save settles,
+        // so the latest content is always persisted before we tear down.
+        const ok = await triggerSave();
+        // If the dialog was reopened (new session) while we awaited, leave the new
+        // compose alone — don't toast or reset over it.
+        if (composeSessionRef.current !== mySession) return;
+        toast(ok
+          ? { title: 'Draft saved', description: 'Your work was kept in Drafts.' }
+          : { title: 'Could not save draft', description: 'Please check your connection and try again.', variant: 'destructive' });
+      }
+      if (composeSessionRef.current !== mySession) return;
+      // Invalidate the session so any stray late responses can't rebind, then reset.
+      composeSessionRef.current += 1;
+      resetCreateForm();
+    };
+    finalize();
+  };
+
+  const openDraft = (draft: any) => {
+    // New compose session so previous in-flight saves can't bind to this draft.
+    composeSessionRef.current += 1;
+    draftDirtyRef.current = false;
+    setFormData({
+      type: draft.draftType === 'group_message' ? 'group_message' : 'announcement',
+      title: draft.title || '',
+      content: draft.content || '',
+      priority: draft.priority || 'normal',
+      targetAudience: draft.targetAudience || 'all',
+      targetEmployees: Array.isArray(draft.targetEmployees) ? draft.targetEmployees : [],
+      smsEnabled: draft.smsEnabled ?? true,
+      scheduledFor: '',
+      imageUrls: Array.isArray(draft.imageUrls) ? draft.imageUrls : [],
+      pdfUrls: Array.isArray(draft.pdfUrls) ? draft.pdfUrls : []
+    });
+    currentDraftIdRef.current = draft.id;
+    setCurrentDraftId(draft.id);
+    setShowCreateDialog(true);
+  };
+
+  const deleteDraftMutation = useMutation({
+    mutationFn: async (id: number) => apiRequest('DELETE', `/api/communications/drafts/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
+      toast({ title: 'Draft deleted' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete draft', variant: 'destructive' });
+    },
   });
 
   const handleCreateCommunication = () => {
@@ -1660,7 +1902,7 @@ function CommunicationsContent() {
             </div>
             
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <Dialog open={showCreateDialog} onOpenChange={handleCreateDialogChange}>
                 <DialogTrigger asChild>
                   <Button 
                     size="lg"
@@ -1725,6 +1967,9 @@ function CommunicationsContent() {
                   <div>
                     <Label>📎 Attach Files</Label>
                     <PhotoUpload
+                      key={`create-${currentDraftId ?? 'new'}`}
+                      initialImageUrls={formData.imageUrls}
+                      initialPdfs={formData.pdfUrls.map((p, i) => ({ id: `draft-pdf-${i}`, url: p.url, fileName: p.fileName, fileSize: p.fileSize }))}
                       onPhotosUploaded={(imageUrls) => setFormData(prev => ({ ...prev, imageUrls }))}
                       onPdfsUploaded={(pdfs) => setFormData(prev => ({ 
                         ...prev, 
@@ -1924,7 +2169,7 @@ function CommunicationsContent() {
               <DialogFooter>
                 <Button 
                   variant="outline" 
-                  onClick={() => setShowCreateDialog(false)}
+                  onClick={() => handleCreateDialogChange(false)}
                 >
                   Cancel
                 </Button>
@@ -2042,6 +2287,12 @@ function CommunicationsContent() {
                       <span>Admin KPIs</span>
                     </>
                   )}
+                  {activeTab === 'drafts' && (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      <span>Drafts</span>
+                    </>
+                  )}
                 </div>
               </SelectValue>
             </SelectTrigger>
@@ -2082,12 +2333,21 @@ function CommunicationsContent() {
                   </div>
                 </SelectItem>
               )}
+              {(user?.role === 'admin' || user?.role === 'manager') && (
+                <SelectItem value="drafts">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    <span>Drafts</span>
+                    {drafts.length > 0 && <span className="ml-auto text-xs text-gray-500">{drafts.length}</span>}
+                  </div>
+                </SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
 
         {/* Desktop Tabs Navigation */}
-        <TabsList className="hidden sm:grid sm:grid-cols-5 lg:w-auto bg-gray-100 p-1 rounded-lg">
+        <TabsList className="hidden sm:grid sm:grid-cols-6 lg:w-auto bg-gray-100 p-1 rounded-lg">
           <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
             <span>Announcements</span>
@@ -2112,6 +2372,17 @@ function CommunicationsContent() {
             <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
               <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>Admin KPIs</span>
+            </TabsTrigger>
+          )}
+          {(user?.role === 'admin' || user?.role === 'manager') && (
+            <TabsTrigger value="drafts" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+              <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span>Drafts</span>
+              {drafts.length > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-purple-600 text-white text-[10px] min-w-[16px] h-4 px-1">
+                  {drafts.length}
+                </span>
+              )}
             </TabsTrigger>
           )}
         </TabsList>
@@ -2292,7 +2563,7 @@ function CommunicationsContent() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3 md:space-y-4 pt-0">
-                        <p className="text-gray-700 leading-relaxed text-sm md:text-base">
+                        <p className="text-gray-700 leading-relaxed text-sm md:text-base whitespace-pre-wrap break-words">
                           {announcement.content}
                         </p>
                         
@@ -2440,6 +2711,8 @@ function CommunicationsContent() {
                                   });
                                   setEditTitle(announcement.title || '');
                                   setEditContent(announcement.content || '');
+                                  setEditImageUrls(Array.isArray((announcement as any).imageUrls) ? (announcement as any).imageUrls : []);
+                                  setEditPdfUrls(Array.isArray((announcement as any).pdfUrls) ? (announcement as any).pdfUrls : []);
                                   setEditDialogOpen(true);
                                 }}
                                 className="flex items-center gap-1.5 text-blue-500 hover:text-blue-700"
@@ -2518,7 +2791,7 @@ function CommunicationsContent() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <p className="text-gray-700 leading-relaxed">
+                          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
                             {announcement.content}
                           </p>
                           
@@ -2648,7 +2921,7 @@ function CommunicationsContent() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3 pt-0">
-                      <p className="text-gray-700 leading-relaxed">
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
                         {message.content}
                       </p>
                       
@@ -2761,6 +3034,8 @@ function CommunicationsContent() {
                                       });
                                       setEditTitle(message.subject || '');
                                       setEditContent(message.content || '');
+                                      setEditImageUrls(Array.isArray((message as any).imageUrls) ? (message as any).imageUrls : []);
+                                      setEditPdfUrls(Array.isArray((message as any).pdfUrls) ? (message as any).pdfUrls : []);
                                       setEditDialogOpen(true);
                                     }}
                                     className="flex items-center gap-1.5 text-blue-500 hover:text-blue-700"
@@ -3033,7 +3308,7 @@ function CommunicationsContent() {
                               {message.priority}
                             </Badge>
                           </div>
-                          <p className="text-gray-600 text-sm mb-3">{message.content}</p>
+                          <p className="text-gray-600 text-sm mb-3 whitespace-pre-wrap break-words">{message.content}</p>
                           <div className="flex items-center gap-4 text-xs text-gray-500">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
@@ -3100,6 +3375,85 @@ function CommunicationsContent() {
             <AdminKPIDashboard />
           </div>
         </TabsContent>
+
+        {(user?.role === 'admin' || user?.role === 'manager') && (
+          <TabsContent value="drafts" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="w-5 h-5" /> Drafts
+                </h2>
+                <p className="text-sm text-gray-500">Unsent announcements and group messages are saved here automatically.</p>
+              </div>
+            </div>
+
+            {drafts.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-gray-500">
+                  <FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                  <p>No drafts yet. Start composing and we'll save your progress automatically.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {drafts.map((draft: any) => {
+                  const attachmentCount = (Array.isArray(draft.imageUrls) ? draft.imageUrls.length : 0) +
+                    (Array.isArray(draft.pdfUrls) ? draft.pdfUrls.length : 0);
+                  return (
+                    <Card key={draft.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4 flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openDraft(draft)}
+                          className="flex-1 text-left min-w-0"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {draft.draftType === 'group_message' ? 'Group Message' : 'Announcement'}
+                            </Badge>
+                            {attachmentCount > 0 && (
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <FileText className="w-3 h-3" /> {attachmentCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-medium truncate">{draft.title?.trim() || 'Untitled draft'}</p>
+                          <p className="text-sm text-gray-500 line-clamp-2 whitespace-pre-wrap break-words">
+                            {(draft.content || '').replace(/\n\n<!--attachments:[\s\S]*?-->/g, '').trim() || 'No content yet'}
+                          </p>
+                          {draft.updatedAt && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              Saved {new Date(draft.updatedAt).toLocaleString()}
+                            </p>
+                          )}
+                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDraft(draft)}
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteDraftMutation.mutate(draft.id)}
+                            disabled={deleteDraftMutation.isPending}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -3126,6 +3480,21 @@ function CommunicationsContent() {
                 rows={6}
               />
             </div>
+            {(user?.role === 'admin' || user?.role === 'manager') && (
+              <div className="space-y-2">
+                <Label>📎 Attachments</Label>
+                <PhotoUpload
+                  key={`edit-${editingItem?.type}-${editingItem?.id ?? 'none'}`}
+                  initialImageUrls={editImageUrls}
+                  initialPdfs={editPdfUrls.map((p, i) => ({ id: `edit-pdf-${i}`, url: p.url, fileName: p.fileName, fileSize: p.fileSize }))}
+                  onPhotosUploaded={(imageUrls) => setEditImageUrls(imageUrls)}
+                  onPdfsUploaded={(pdfs) => setEditPdfUrls(pdfs.map(p => ({ url: p.url, fileName: p.fileName, fileSize: p.fileSize })))}
+                  maxFiles={5}
+                  allowPdf={true}
+                  placeholder="Add or remove attachments"
+                />
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
@@ -3134,8 +3503,8 @@ function CommunicationsContent() {
                 if (!editingItem) return;
                 const type = editingItem.type === 'announcement' ? 'announcements' : 'messages';
                 const data = editingItem.type === 'announcement'
-                  ? { title: editTitle, content: editContent }
-                  : { subject: editTitle, content: editContent };
+                  ? { title: editTitle, content: editContent, imageUrls: editImageUrls, pdfUrls: editPdfUrls }
+                  : { subject: editTitle, content: editContent, imageUrls: editImageUrls, pdfUrls: editPdfUrls };
                 editMutation.mutate({ type, id: editingItem.id, data });
               }}
               disabled={editMutation.isPending}

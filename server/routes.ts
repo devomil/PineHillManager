@@ -58,7 +58,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne, ilike, inArray } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages, mentions, responses, chatChannels, channelMembers, channelMessages, users } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets, bigcommerceProductMappings, announcementArchives, messageArchives, announcements, messages, mentions, responses, chatChannels, channelMembers, channelMessages, users, communicationDrafts } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -166,6 +166,21 @@ const addImageUrlsToItem = (item: any): any => {
     imageUrls: attachments.images,
     pdfUrls: attachments.pdfs
   };
+};
+
+// Embed image/PDF attachments into content via the sentinel pattern.
+// Strips any existing sentinel first, then re-appends with the provided attachments.
+const embedAttachmentsInContent = (content: string, imageUrls?: string[], pdfUrls?: any[]): string => {
+  const cleanContent = (content || '').replace(/\n\n<!--attachments:.*?-->/g, '');
+  const hasImages = Array.isArray(imageUrls) && imageUrls.length > 0;
+  const hasPdfs = Array.isArray(pdfUrls) && pdfUrls.length > 0;
+  if (!hasImages && !hasPdfs) return cleanContent;
+
+  const attachments: any = {};
+  if (hasImages) attachments.images = imageUrls;
+  if (hasPdfs) attachments.pdfs = pdfUrls;
+
+  return `${cleanContent}\n\n<!--attachments:${JSON.stringify(attachments)}-->`;
 };
 
 // Utility function to validate date strings
@@ -7402,6 +7417,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ================================
+  // COMMUNICATION DRAFTS (autosave) - per-author
+  // ================================
+
+  // List current user's drafts (most recently updated first)
+  app.get('/api/communications/drafts', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const drafts = await db
+        .select()
+        .from(communicationDrafts)
+        .where(eq(communicationDrafts.authorId, userId))
+        .orderBy(desc(communicationDrafts.updatedAt));
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(drafts);
+    } catch (error) {
+      console.error('Error fetching drafts:', error);
+      res.status(500).json({ error: 'Failed to fetch drafts' });
+    }
+  });
+
+  // Create a new draft
+  app.post('/api/communications/drafts', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { draftType, title, content, priority, targetAudience, targetEmployees, smsEnabled, imageUrls, pdfUrls } = req.body;
+      const [draft] = await db
+        .insert(communicationDrafts)
+        .values({
+          authorId: userId,
+          draftType: draftType || 'announcement',
+          title: title ?? '',
+          content: content ?? '',
+          priority: priority || 'normal',
+          targetAudience: targetAudience || 'all',
+          targetEmployees: Array.isArray(targetEmployees) ? targetEmployees : [],
+          smsEnabled: smsEnabled === undefined ? true : !!smsEnabled,
+          imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+          pdfUrls: Array.isArray(pdfUrls) ? pdfUrls : [],
+          updatedAt: new Date(),
+        })
+        .returning();
+      res.json(draft);
+    } catch (error) {
+      console.error('Error creating draft:', error);
+      res.status(500).json({ error: 'Failed to create draft' });
+    }
+  });
+
+  // Update an existing draft (autosave). Only the owner may update.
+  app.patch('/api/communications/drafts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const draftId = parseInt(req.params.id);
+      if (isNaN(draftId)) return res.status(400).json({ error: 'Invalid draft ID' });
+
+      const { draftType, title, content, priority, targetAudience, targetEmployees, smsEnabled, imageUrls, pdfUrls } = req.body;
+      const updates: any = { updatedAt: new Date() };
+      if (draftType !== undefined) updates.draftType = draftType;
+      if (title !== undefined) updates.title = title;
+      if (content !== undefined) updates.content = content;
+      if (priority !== undefined) updates.priority = priority;
+      if (targetAudience !== undefined) updates.targetAudience = targetAudience;
+      if (targetEmployees !== undefined) updates.targetEmployees = Array.isArray(targetEmployees) ? targetEmployees : [];
+      if (smsEnabled !== undefined) updates.smsEnabled = !!smsEnabled;
+      if (imageUrls !== undefined) updates.imageUrls = Array.isArray(imageUrls) ? imageUrls : [];
+      if (pdfUrls !== undefined) updates.pdfUrls = Array.isArray(pdfUrls) ? pdfUrls : [];
+
+      const [updated] = await db
+        .update(communicationDrafts)
+        .set(updates)
+        .where(and(eq(communicationDrafts.id, draftId), eq(communicationDrafts.authorId, userId)))
+        .returning();
+      if (!updated) return res.status(404).json({ error: 'Draft not found' });
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating draft:', error);
+      res.status(500).json({ error: 'Failed to update draft' });
+    }
+  });
+
+  // Delete a draft (e.g. after publishing or discarding). Only the owner may delete.
+  app.delete('/api/communications/drafts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const draftId = parseInt(req.params.id);
+      if (isNaN(draftId)) return res.status(400).json({ error: 'Invalid draft ID' });
+
+      const [deleted] = await db
+        .delete(communicationDrafts)
+        .where(and(eq(communicationDrafts.id, draftId), eq(communicationDrafts.authorId, userId)))
+        .returning();
+      if (!deleted) return res.status(404).json({ error: 'Draft not found' });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      res.status(500).json({ error: 'Failed to delete draft' });
+    }
+  });
+
+  // ================================
   // EDIT & DELETE ROUTES (Admin/Manager only)
   // ================================
 
@@ -7414,10 +7529,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const announcementId = parseInt(req.params.id);
       if (isNaN(announcementId)) return res.status(400).json({ error: 'Invalid announcement ID' });
 
-      const { title, content } = req.body;
+      const { title, content, imageUrls, pdfUrls } = req.body;
       const updates: any = { editedAt: new Date(), editedBy: user.id };
       if (title !== undefined) updates.title = title;
-      if (content !== undefined) updates.content = content;
+      if (content !== undefined) {
+        // Re-embed attachments into content so images/PDFs are preserved on edit
+        updates.content = embedAttachmentsInContent(content, imageUrls, pdfUrls);
+      }
+      if (imageUrls !== undefined) updates.imageUrls = Array.isArray(imageUrls) ? imageUrls : [];
 
       const [updated] = await db.update(announcements).set(updates).where(eq(announcements.id, announcementId)).returning();
       if (!updated) return res.status(404).json({ error: 'Announcement not found' });
@@ -7437,10 +7556,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const messageId = parseInt(req.params.id);
       if (isNaN(messageId)) return res.status(400).json({ error: 'Invalid message ID' });
 
-      const { subject, content } = req.body;
+      const { subject, content, imageUrls, pdfUrls } = req.body;
       const updates: any = { editedAt: new Date(), editedBy: user.id };
       if (subject !== undefined) updates.subject = subject;
-      if (content !== undefined) updates.content = content;
+      if (content !== undefined) {
+        // Re-embed attachments into content so images/PDFs are preserved on edit
+        updates.content = embedAttachmentsInContent(content, imageUrls, pdfUrls);
+      }
+      if (imageUrls !== undefined) updates.imageUrls = Array.isArray(imageUrls) ? imageUrls : [];
 
       const [updated] = await db.update(messages).set(updates).where(eq(messages.id, messageId)).returning();
       if (!updated) return res.status(404).json({ error: 'Message not found' });

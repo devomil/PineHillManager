@@ -23,12 +23,14 @@ interface PhotoUploadProps {
   className?: string;
   placeholder?: string;
   allowPdf?: boolean;
+  initialImageUrls?: string[];
+  initialPdfs?: UploadedPdf[];
 }
 
 interface UploadedImage {
   id: string;
   url: string;
-  file: File;
+  file?: File;
   preview: string;
 }
 
@@ -41,12 +43,20 @@ export function PhotoUpload({
   disabled = false,
   className,
   placeholder = "Drag photos here, paste from clipboard, or click to select",
-  allowPdf = false
+  allowPdf = false,
+  initialImageUrls,
+  initialPdfs
 }: PhotoUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [uploadedPdfs, setUploadedPdfs] = useState<UploadedPdf[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(
+    () => (initialImageUrls || []).map((url, index) => ({
+      id: `init-img-${index}-${url}`,
+      url,
+      preview: url,
+    }))
+  );
+  const [uploadedPdfs, setUploadedPdfs] = useState<UploadedPdf[]>(() => initialPdfs || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -167,7 +177,7 @@ export function PhotoUpload({
       const updated = prev.filter(img => img.id !== imageId);
       // Clean up preview URL
       const removedImage = prev.find(img => img.id === imageId);
-      if (removedImage) {
+      if (removedImage && removedImage.preview.startsWith('blob:')) {
         URL.revokeObjectURL(removedImage.preview);
       }
       // Update parent component
@@ -453,7 +463,7 @@ export function PhotoUpload({
               <div className="aspect-square bg-muted rounded-lg overflow-hidden">
                 <img
                   src={image.preview}
-                  alt={image.file.name}
+                  alt={image.file?.name || 'attachment'}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -471,7 +481,7 @@ export function PhotoUpload({
                 <X className="h-3 w-3" />
               </Button>
               <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 truncate rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                {image.file.name}
+                {image.file?.name || 'attachment'}
               </div>
             </div>
           ))}
