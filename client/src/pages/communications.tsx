@@ -25,6 +25,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getPriorityStyle, getCategoryStyle, getPriorityEmoji, getCategoryEmoji } from "@shared/template-utils";
 import { useWebSocket, useWebSocketSubscription } from "@/lib/websocket";
+import { DraftAutosaveController } from "@/lib/draft-autosave";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import { UnreadIndicator } from "@/components/ui/unread-indicator";
 
@@ -928,18 +929,12 @@ function CommunicationsContent() {
   const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
   const [editPdfUrls, setEditPdfUrls] = useState<{ url: string; fileName: string; fileSize: number }[]>([]);
 
-  // Draft autosave state
+  // Draft autosave state. The race-sensitive session-token model lives in
+  // DraftAutosaveController (client/src/lib/draft-autosave.ts) so it can be
+  // unit-tested without rendering React.
   const [currentDraftId, setCurrentDraftId] = useState<number | null>(null);
-  const currentDraftIdRef = useRef<number | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isSavingDraftRef = useRef(false);
-  const draftDirtyRef = useRef(false);
-  const composeSessionRef = useRef(0);
-  // Compose sessions that were published/discarded. A save that resolves for one
-  // of these (no matter how late) must delete the draft it created, so publishing
-  // can never leave an orphan draft behind.
-  const discardedSessionsRef = useRef<Set<number>>(new Set());
-  const inFlightSaveRef = useRef<Promise<boolean> | null>(null);
+  const draftControllerRef = useRef<DraftAutosaveController<any> | null>(null);
 
   // 🧪 DIAGNOSTIC: Test backend IMMEDIATELY when component renders
   console.log("🧪 DIAGNOSTIC: Component is rendering - about to fetch /api/messages");
@@ -1365,67 +1360,27 @@ function CommunicationsContent() {
     }
   };
 
-  // Debounced/triggered autosave with last-write-wins semantics. If a save is
-  // already in flight, mark the draft dirty so we re-save after it settles
-  // instead of silently dropping the newest edits.
-  const saveDraftNow = async (): Promise<boolean> => {
-    const session = composeSessionRef.current;
-    // Never save for a compose that was already published/discarded.
-    if (discardedSessionsRef.current.has(session)) return false;
-    const payload = buildDraftPayload();
-    if (!draftHasContent(payload)) return false;
-    if (isSavingDraftRef.current) {
-      draftDirtyRef.current = true;
-      return false;
-    }
-    isSavingDraftRef.current = true;
-    draftDirtyRef.current = false;
-    const { ok, id } = await persistDraftPayload(payload, currentDraftIdRef.current);
-    if (ok && id) {
-      if (composeSessionRef.current === session) {
-        // This compose is still active: bind the freshly-created id.
-        currentDraftIdRef.current = id;
-        setCurrentDraftId(id);
-      } else if (discardedSessionsRef.current.has(session)) {
-        // The compose was published/discarded while this save was in flight (it
-        // resolved after the session was superseded). Delete the orphan draft.
+  // Lazily create the autosave controller (its session-token state persists across
+  // renders). Refresh the live-state closures each render so saves always read the
+  // latest form content.
+  if (!draftControllerRef.current) {
+    draftControllerRef.current = new DraftAutosaveController<ReturnType<typeof buildDraftPayload>>({
+      getPayload: () => buildDraftPayload(),
+      hasContent: (p) => draftHasContent(p),
+      persist: (payload, id) => persistDraftPayload(payload, id),
+      removeDraft: (id: number) => {
         apiRequest('DELETE', `/api/communications/drafts/${id}`).catch(() => {});
         queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
-      } else if (currentDraftIdRef.current === null) {
-        // A non-destructive close+reopen superseded the session and carried this
-        // content forward without yet creating or opening its own draft. Adopt the
-        // created id so the reopened compose keeps editing this same row via PATCH
-        // instead of creating a duplicate draft. (openDraft sets a non-null id, so
-        // this never clobbers an explicitly-opened draft.)
-        currentDraftIdRef.current = id;
-        setCurrentDraftId(id);
-      }
-      // else: a different draft is now active — keep this one as its own draft.
-    }
-    isSavingDraftRef.current = false;
-    if (draftDirtyRef.current && composeSessionRef.current === session) {
-      return saveDraftNow();
-    }
-    return ok;
-  };
-
-  // Wrapper that tracks the in-flight save promise so the close flow can await it
-  // deterministically (no polling). If a save is already running, mark the draft
-  // dirty so that save re-runs with the latest content, and return the same
-  // in-flight promise — which resolves only after the dirty-chained re-save —
-  // instead of starting a competing one.
-  const triggerSave = (): Promise<boolean> => {
-    if (isSavingDraftRef.current) {
-      draftDirtyRef.current = true;
-      return inFlightSaveRef.current ?? Promise.resolve(false);
-    }
-    const p = saveDraftNow();
-    inFlightSaveRef.current = p;
-    p.catch(() => {}).then(() => {
-      if (inFlightSaveRef.current === p) inFlightSaveRef.current = null;
+      },
+      onActiveDraftIdChange: (id: number | null) => { setCurrentDraftId(id); },
     });
-    return p;
-  };
+  }
+  const draftController = draftControllerRef.current;
+  draftController.deps.getPayload = () => buildDraftPayload();
+  draftController.deps.hasContent = (p) => draftHasContent(p);
+  draftController.deps.persist = (payload, id) => persistDraftPayload(payload, id);
+
+  const triggerSave = (): Promise<boolean> => draftController.triggerSave();
 
   // Debounced autosave while the create dialog is open and there's content.
   useEffect(() => {
@@ -1495,28 +1450,15 @@ function CommunicationsContent() {
       imageUrls: [],
       pdfUrls: []
     });
-    currentDraftIdRef.current = null;
-    setCurrentDraftId(null);
-    draftDirtyRef.current = false;
+    draftController.resetActive();
   };
 
   const clearActiveDraft = () => {
-    // Publish/discard: mark the current compose session as discarded and bump to a
-    // new one. Any autosave POST for this session — in flight now or resolving
-    // arbitrarily later — will see its session in discardedSessionsRef and delete
-    // the draft it created (saveDraftNow), so no orphan can survive a publish.
-    const session = composeSessionRef.current;
-    discardedSessionsRef.current.add(session);
-    draftDirtyRef.current = false;
+    // Publish/discard: delegate to the controller, which marks the current compose
+    // session discarded so any in-flight (or arbitrarily-late) autosave deletes the
+    // draft it created — no orphan can survive a publish.
     if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
-    composeSessionRef.current += 1;
-    const id = currentDraftIdRef.current;
-    currentDraftIdRef.current = null;
-    setCurrentDraftId(null);
-    if (id) {
-      apiRequest('DELETE', `/api/communications/drafts/${id}`).catch(() => {});
-      queryClient.invalidateQueries({ queryKey: ['/api/communications/drafts'] });
-    }
+    draftController.discardActive();
   };
 
   // Non-destructive close: keep in-progress work as a draft instead of losing it.
@@ -1528,41 +1470,26 @@ function CommunicationsContent() {
       // Fresh compose (Radix only fires onOpenChange(true) from the trigger;
       // openDraft opens programmatically). Start a new session so any stray
       // in-flight save from a previous compose can't bind to this one.
-      composeSessionRef.current += 1;
-      draftDirtyRef.current = false;
+      draftController.beginCompose();
       setShowCreateDialog(true);
       return;
     }
     if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
-    const mySession = composeSessionRef.current;
-    const hadContent = draftHasContent(buildDraftPayload());
     setShowCreateDialog(false);
-    const finalize = async () => {
-      if (hadContent) {
-        // Deterministic, no polling: triggerSave() either starts a save or, if one
-        // is already in flight, marks the draft dirty and returns that promise.
-        // Awaiting it resolves only after the dirty-chained final re-save settles,
-        // so the latest content is always persisted before we tear down.
-        const ok = await triggerSave();
-        // If the dialog was reopened (new session) while we awaited, leave the new
-        // compose alone — don't toast or reset over it.
-        if (composeSessionRef.current !== mySession) return;
+    // Non-destructive close: the controller deterministically awaits the final save
+    // in the same compose session (no draft duplicated) and only toasts/resets if a
+    // quick reopen didn't supersede this compose.
+    void draftController.closeCompose({
+      onSaved: (ok) => {
         toast(ok
           ? { title: 'Draft saved', description: 'Your work was kept in Drafts.' }
           : { title: 'Could not save draft', description: 'Please check your connection and try again.', variant: 'destructive' });
-      }
-      if (composeSessionRef.current !== mySession) return;
-      // Invalidate the session so any stray late responses can't rebind, then reset.
-      composeSessionRef.current += 1;
-      resetCreateForm();
-    };
-    finalize();
+      },
+      onFinalize: () => { resetCreateForm(); },
+    });
   };
 
   const openDraft = (draft: any) => {
-    // New compose session so previous in-flight saves can't bind to this draft.
-    composeSessionRef.current += 1;
-    draftDirtyRef.current = false;
     setFormData({
       type: draft.draftType === 'group_message' ? 'group_message' : 'announcement',
       title: draft.title || '',
@@ -1575,8 +1502,9 @@ function CommunicationsContent() {
       imageUrls: Array.isArray(draft.imageUrls) ? draft.imageUrls : [],
       pdfUrls: Array.isArray(draft.pdfUrls) ? draft.pdfUrls : []
     });
-    currentDraftIdRef.current = draft.id;
-    setCurrentDraftId(draft.id);
+    // New compose session + non-null id so previous in-flight saves can't bind to
+    // this draft and the ADOPT branch never clobbers an explicitly-opened draft.
+    draftController.openDraft(draft.id);
     setShowCreateDialog(true);
   };
 
