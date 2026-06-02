@@ -1439,6 +1439,49 @@ function CommunicationsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCreateDialog, formData]);
 
+  // Final-save on page exit (refresh / tab close / navigation) while the dialog
+  // is open. The debounced autosave above only fires after 1.5s of idle, so a
+  // user who edits and immediately leaves would otherwise lose those edits. A
+  // normal async apiRequest can be aborted as the page unloads, so we use fetch
+  // with `keepalive: true`, which lets the request outlive the page. Best-effort
+  // and idempotent: it PATCHes the existing draft if we already have an id,
+  // otherwise POSTs a new one.
+  useEffect(() => {
+    if (!showCreateDialog) return;
+    const flushOnExit = () => {
+      const session = composeSessionRef.current;
+      if (discardedSessionsRef.current.has(session)) return;
+      const payload = buildDraftPayload();
+      if (!draftHasContent(payload)) return;
+      const id = currentDraftIdRef.current;
+      const url = id
+        ? `/api/communications/drafts/${id}`
+        : '/api/communications/drafts';
+      try {
+        fetch(url, {
+          method: id ? 'PATCH' : 'POST',
+          credentials: 'include',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      } catch {
+        // Ignore — best-effort on unload.
+      }
+    };
+    const onPageHide = () => flushOnExit();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushOnExit();
+    };
+    window.addEventListener('pagehide', onPageHide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateDialog, formData]);
+
   const resetCreateForm = () => {
     setFormData({
       type: 'announcement',
