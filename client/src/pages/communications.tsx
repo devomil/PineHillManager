@@ -1404,11 +1404,11 @@ function CommunicationsContent() {
   useEffect(() => {
     if (!showCreateDialog) return;
     const flushOnExit = () => {
-      const session = composeSessionRef.current;
-      if (discardedSessionsRef.current.has(session)) return;
+      const controller = draftControllerRef.current;
+      if (!controller) return;
       const payload = buildDraftPayload();
       if (!draftHasContent(payload)) return;
-      const id = currentDraftIdRef.current;
+      const id = controller.getActiveDraftId();
       const url = id
         ? `/api/communications/drafts/${id}`
         : '/api/communications/drafts';
