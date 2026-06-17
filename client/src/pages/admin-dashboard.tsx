@@ -790,12 +790,13 @@ function PrePublishBanner() {
     if (typeof window === 'undefined') return false;
     return sessionStorage.getItem('prePublishBannerDismissed') === '1';
   });
-  if (dismissed) return null;
 
   const { data: backups } = useQuery<Array<{ id: number; startedAt: string; status: string; sizeBytes: number | null }>>({
     queryKey: ["/api/admin/backups"],
     refetchInterval: 60000,
   });
+
+  if (dismissed) return null;
 
   const completed = (backups ?? []).filter((b) => b.status === "completed");
   const latest = completed[0];
