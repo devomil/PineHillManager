@@ -40,7 +40,8 @@ import {
   X,
   Paperclip,
   ImageIcon,
-  Upload
+  Upload,
+  Archive
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -145,6 +146,9 @@ export default function EmployeeSupport() {
   // Floating action button state
   const [fabOpen, setFabOpen] = useState(false);
 
+  // Show archived tickets toggle (admin/manager only)
+  const [showArchived, setShowArchived] = useState(false);
+
   // Check if user can manage articles
   const { data: canManageData } = useQuery<{ canManage: boolean }>({
     queryKey: ['/api/support/can-manage'],
@@ -230,6 +234,20 @@ export default function EmployeeSupport() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/support/tickets'] });
       toast({ title: "Ticket updated" });
+    },
+  });
+
+  // Archive ticket mutation (no SMS sent to requester)
+  const archiveTicketMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('PUT', `/api/support/tickets/${id}/archive`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/support/tickets'] });
+      toast({ title: "Ticket archived", description: "The ticket has been archived without notifying the requester." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to archive ticket.", variant: "destructive" });
     },
   });
 
@@ -531,7 +549,7 @@ export default function EmployeeSupport() {
                 <div>
                   <h3 className="font-semibold text-white">My Tickets</h3>
                   <p className="text-xs text-white/80">
-                    {tickets.filter(t => t.status !== 'completed').length} open
+                    {tickets.filter(t => t.status !== 'completed' && t.status !== 'archived').length} open
                   </p>
                 </div>
               </div>
@@ -580,9 +598,9 @@ export default function EmployeeSupport() {
             <TabsTrigger value="tickets" className="flex items-center gap-2" data-testid="tab-tickets">
               <MessageSquare className="h-4 w-4 text-indigo-600" />
               <span className="hidden sm:inline">Tickets</span>
-              {tickets.filter(t => t.status !== 'completed').length > 0 && (
+              {tickets.filter(t => t.status !== 'completed' && t.status !== 'archived').length > 0 && (
                 <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {tickets.filter(t => t.status !== 'completed').length}
+                  {tickets.filter(t => t.status !== 'completed' && t.status !== 'archived').length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -707,36 +725,52 @@ export default function EmployeeSupport() {
           <TabsContent value="tickets" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Support Tickets</h2>
-              <Button onClick={() => setShowTicketModal(true)} data-testid="button-new-ticket">
-                <Plus className="h-4 w-4 mr-2" />
-                New Ticket
-              </Button>
+              <div className="flex items-center gap-2">
+                {canManage && (
+                  <Button
+                    variant={showArchived ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setShowArchived(!showArchived)}
+                    data-testid="button-toggle-archived"
+                  >
+                    <Archive className="h-4 w-4 mr-2" />
+                    {showArchived ? "Hide Archived" : "Show Archived"}
+                  </Button>
+                )}
+                <Button onClick={() => setShowTicketModal(true)} data-testid="button-new-ticket">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Ticket
+                </Button>
+              </div>
             </div>
 
             {ticketsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
               </div>
-            ) : tickets.length === 0 ? (
+            ) : tickets.filter(t => showArchived ? t.status === 'archived' : t.status !== 'archived').length === 0 ? (
               <Card className="py-12">
                 <CardContent className="text-center text-gray-500">
                   <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium">No tickets yet</p>
-                  <p className="text-sm">Submit a ticket if you need help!</p>
+                  <p className="text-lg font-medium">{showArchived ? "No archived tickets" : "No tickets yet"}</p>
+                  <p className="text-sm">{showArchived ? "Archived tickets will appear here." : "Submit a ticket if you need help!"}</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {tickets.map((ticket) => (
-                  <TicketCard 
-                    key={ticket.id} 
-                    ticket={ticket} 
-                    canManage={canManage}
-                    onUpdateStatus={(status, notes) => 
-                      updateTicketStatusMutation.mutate({ id: ticket.id, status, resolutionNotes: notes })
-                    }
-                  />
-                ))}
+                {tickets
+                  .filter(t => showArchived ? t.status === 'archived' : t.status !== 'archived')
+                  .map((ticket) => (
+                    <TicketCard 
+                      key={ticket.id} 
+                      ticket={ticket} 
+                      canManage={canManage}
+                      onUpdateStatus={(status, notes) => 
+                        updateTicketStatusMutation.mutate({ id: ticket.id, status, resolutionNotes: notes })
+                      }
+                      onArchive={() => archiveTicketMutation.mutate(ticket.id)}
+                    />
+                  ))}
               </div>
             )}
           </TabsContent>
@@ -1242,12 +1276,15 @@ function ArticleCard({
 function TicketCard({ 
   ticket, 
   canManage,
-  onUpdateStatus 
+  onUpdateStatus,
+  onArchive
 }: { 
   ticket: Ticket;
   canManage: boolean;
   onUpdateStatus: (status: string, notes?: string) => void;
+  onArchive: () => void;
 }) {
+  const isArchived = ticket.status === 'archived';
   const statusInfo = TICKET_STATUSES.find(s => s.value === ticket.status) || TICKET_STATUSES[0];
   const StatusIcon = statusInfo.icon;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -1272,72 +1309,91 @@ function TicketCard({
               <Badge className={priorityColors[ticket.priority || 'normal']}>
                 {ticket.priority || 'normal'}
               </Badge>
-              <Badge className={`flex items-center gap-1 ${statusInfo.color}`} variant="outline">
-                <StatusIcon className="h-3 w-3" />
-                {statusInfo.label}
-              </Badge>
+              {isArchived ? (
+                <Badge className="flex items-center gap-1 text-gray-500 bg-gray-100" variant="outline">
+                  <Archive className="h-3 w-3" />
+                  Archived
+                </Badge>
+              ) : (
+                <Badge className={`flex items-center gap-1 ${statusInfo.color}`} variant="outline">
+                  <StatusIcon className="h-3 w-3" />
+                  {statusInfo.label}
+                </Badge>
+              )}
             </div>
             <CardTitle className="text-lg">{ticket.title}</CardTitle>
           </div>
           
-          {canManage && ticket.status !== 'completed' && (
-            <div className="relative">
-              <Button 
-                variant="outline" 
+          {canManage && !isArchived && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
                 size="sm"
-                onClick={() => setShowStatusMenu(!showStatusMenu)}
-                data-testid={`button-update-status-${ticket.id}`}
+                onClick={onArchive}
+                data-testid={`button-archive-${ticket.id}`}
+                title="Archive without notifying requester"
+                className="text-gray-500 hover:text-gray-700"
               >
-                Update Status
+                <Archive className="h-4 w-4" />
               </Button>
-              
-              {showStatusMenu && (
-                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-lg border p-3 z-10">
-                  <div className="space-y-2">
-                    {TICKET_STATUSES.map(status => (
-                      <Button
-                        key={status.value}
-                        variant={ticket.status === status.value ? "secondary" : "ghost"}
-                        size="sm"
-                        className="w-full justify-start"
-                        onClick={() => {
-                          if (status.value === 'completed') {
-                            // Show resolution notes input
-                          } else {
-                            onUpdateStatus(status.value);
-                            setShowStatusMenu(false);
-                          }
-                        }}
-                      >
-                        <status.icon className={`h-4 w-4 mr-2 ${status.color}`} />
-                        {status.label}
-                      </Button>
-                    ))}
-                    
-                    {ticket.status !== 'completed' && (
-                      <div className="pt-2 border-t">
-                        <Textarea
-                          placeholder="Resolution notes (optional)"
-                          value={resolutionNotes}
-                          onChange={(e) => setResolutionNotes(e.target.value)}
-                          rows={2}
-                          className="mb-2"
-                        />
-                        <Button
-                          size="sm"
-                          className="w-full bg-green-600 hover:bg-green-700"
-                          onClick={() => {
-                            onUpdateStatus('completed', resolutionNotes);
-                            setShowStatusMenu(false);
-                            setResolutionNotes("");
-                          }}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Mark Complete
-                        </Button>
+              {ticket.status !== 'completed' && (
+                <div className="relative">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowStatusMenu(!showStatusMenu)}
+                    data-testid={`button-update-status-${ticket.id}`}
+                  >
+                    Update Status
+                  </Button>
+                  
+                  {showStatusMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-lg border p-3 z-10">
+                      <div className="space-y-2">
+                        {TICKET_STATUSES.map(status => (
+                          <Button
+                            key={status.value}
+                            variant={ticket.status === status.value ? "secondary" : "ghost"}
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={() => {
+                              if (status.value === 'completed') {
+                                // Show resolution notes input
+                              } else {
+                                onUpdateStatus(status.value);
+                                setShowStatusMenu(false);
+                              }
+                            }}
+                          >
+                            <status.icon className={`h-4 w-4 mr-2 ${status.color}`} />
+                            {status.label}
+                          </Button>
+                        ))}
+                        
+                        <div className="pt-2 border-t">
+                          <Textarea
+                            placeholder="Resolution notes (optional)"
+                            value={resolutionNotes}
+                            onChange={(e) => setResolutionNotes(e.target.value)}
+                            rows={2}
+                            className="mb-2"
+                          />
+                          <Button
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={() => {
+                              onUpdateStatus('completed', resolutionNotes);
+                              setShowStatusMenu(false);
+                              setResolutionNotes("");
+                            }}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Mark Complete
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

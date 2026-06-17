@@ -26701,6 +26701,22 @@ Important:
     }
   });
 
+  // Archive ticket (admin/manager only — no SMS sent to requester)
+  app.put('/api/support/tickets/:id/archive', isAuthenticated, isManagerOrAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existingTicket = await storage.getSupportTicket(id);
+      if (!existingTicket) {
+        return res.status(404).json({ error: 'Ticket not found' });
+      }
+      const ticket = await storage.updateSupportTicket(id, { status: 'archived', updatedAt: new Date() });
+      res.json(ticket);
+    } catch (error) {
+      console.error('Error archiving ticket:', error);
+      res.status(500).json({ error: 'Failed to archive ticket' });
+    }
+  });
+
   // Assign ticket (Ryan/admins only)
   app.put('/api/support/tickets/:id/assign', isAuthenticated, isRyanSorensen, async (req, res) => {
     try {
