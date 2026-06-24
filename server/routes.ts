@@ -23448,7 +23448,7 @@ Respond in JSON format:
   });
 
   // Upload PDF attachments for communications (messages/announcements)
-  app.post('/api/communications/upload-pdf', isAuthenticated, upload.single('pdf'), async (req, res) => {
+  app.post('/api/communications/upload-pdf', isAuthenticated, memoryUpload.single('pdf'), async (req, res) => {
     try {
       const file = req.file as Express.Multer.File;
       const user = req.user as any;
@@ -23460,27 +23460,42 @@ Respond in JSON format:
 
       // Validate file type (only PDFs)
       const ext = path.extname(file.originalname).toLowerCase();
-      if (ext !== '.pdf' || file.mimetype !== 'application/pdf') {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
+      if (ext !== '.pdf' && file.mimetype !== 'application/pdf') {
         return res.status(400).json({ error: 'Only PDF files are allowed' });
       }
 
       // Validate file size (max 10MB)
       const maxSize = 10 * 1024 * 1024; // 10MB
       if (file.size > maxSize) {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
         return res.status(400).json({ error: 'PDF file size must be less than 10MB' });
       }
 
-      // Generate unique filename and move to uploads directory
-      const newFileName = `pdf_${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
-      const newPath = path.join(uploadsDir, newFileName);
-      fs.renameSync(file.path, newPath);
-      const fileUrl = `/uploads/${newFileName}`;
+      // Upload to Object Storage (same pattern as images) so the URL survives deployments
+      const objectStorageService = new ObjectStorageService();
+      const userId = String(user.id);
+
+      // Get presigned upload URL
+      const uploadResult = await objectStorageService.getObjectEntityUploadURL(userId);
+
+      // PUT the in-memory buffer directly to Object Storage
+      const uploadResponse = await fetch(uploadResult.uploadUrl, {
+        method: 'PUT',
+        body: file.buffer,
+        headers: { 'Content-Type': 'application/pdf' },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Object Storage upload failed: ${uploadResponse.statusText}`);
+      }
+
+      // Make it publicly accessible
+      const objectUrl = uploadResult.uploadUrl.split('?')[0];
+      const publicUrl = await objectStorageService.trySetObjectEntityAclPolicy(objectUrl, {
+        owner: userId,
+        visibility: 'public',
+      });
+
+      const fileUrl = publicUrl || objectUrl;
 
       // If ownerType and ownerId are provided, create attachment record
       let attachment = null;
