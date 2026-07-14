@@ -2678,26 +2678,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllAnnouncements(): Promise<Announcement[]> {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 4);
     return await db
       .select()
       .from(announcements)
+      .where(gte(announcements.createdAt, cutoff))
       .orderBy(desc(announcements.createdAt));
   }
 
   async getPublishedAnnouncements(): Promise<Announcement[]> {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 4);
     return await db
       .select()
       .from(announcements)
-      .where(eq(announcements.isPublished, true))
+      .where(and(eq(announcements.isPublished, true), gte(announcements.createdAt, cutoff)))
       .orderBy(desc(announcements.createdAt));
   }
 
   async getPublishedAnnouncementsForUser(userId: string, userRole: string): Promise<Announcement[]> {
-    // Get all published announcements first
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 4);
+    // Get published announcements from the last 4 months
     const allAnnouncements = await db
       .select()
       .from(announcements)
-      .where(eq(announcements.isPublished, true))
+      .where(and(eq(announcements.isPublished, true), gte(announcements.createdAt, cutoff)))
       .orderBy(desc(announcements.createdAt));
 
     // Look up the user's store + team memberships so audience-targeted
